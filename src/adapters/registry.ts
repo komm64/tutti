@@ -2,13 +2,14 @@ import type { PlatformId } from '../messages';
 import type { PlatformAdapter } from './types';
 import { blueskyAdapter } from './bluesky';
 import { mastodonAdapter } from './mastodon';
+import { threadsAdapter } from './threads';
 import { xAdapter } from './x';
 
 /** 全プラットフォームのアダプタ登録簿。新 SNS 追加時はここに足す */
 export const adapters: Record<PlatformId, PlatformAdapter | undefined> = {
   x: xAdapter,
   bluesky: blueskyAdapter,
-  threads: undefined,
+  threads: threadsAdapter,
   mastodon: mastodonAdapter,
 };
 

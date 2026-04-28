@@ -19,7 +19,7 @@
   const platforms: PlatformOption[] = [
     { id: 'x', name: 'X', limit: 280, available: true },
     { id: 'bluesky', name: 'Bluesky', limit: 300, available: true },
-    { id: 'threads', name: 'Threads', limit: 500, available: false },
+    { id: 'threads', name: 'Threads', limit: 500, available: true },
     { id: 'mastodon', name: 'Mastodon', limit: 500, available: true },
   ];
 
@@ -27,7 +27,7 @@
   let selected = $state<Record<PlatformId, boolean>>({
     x: true,
     bluesky: true,
-    threads: false,
+    threads: true,
     mastodon: true,
   });
   let images = $state<ImagePreview[]>([]);
