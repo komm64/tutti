@@ -1,0 +1,35 @@
+{
+  "name": "tutti",
+  "version": "0.1.0",
+  "description": "クロスポストの面倒を全部肩代わりする Chrome 拡張",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "wxt",
+    "dev:firefox": "wxt -b firefox",
+    "build": "wxt build",
+    "build:firefox": "wxt build -b firefox",
+    "zip": "wxt zip",
+    "compile": "tsc --noEmit",
+    "postinstall": "wxt prepare"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/komm64/tutti.git"
+  },
+  "author": "komm64",
+  "license": "UNLICENSED",
+  "bugs": {
+    "url": "https://github.com/komm64/tutti/issues"
+  },
+  "homepage": "https://github.com/komm64/tutti#readme",
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.2.4",
+    "@types/chrome": "^0.1.40",
+    "@wxt-dev/module-svelte": "^2.0.5",
+    "svelte": "^5.55.5",
+    "tailwindcss": "^4.2.4",
+    "typescript": "^6.0.3",
+    "wxt": "^0.20.25"
+  }
+}

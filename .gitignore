@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# WXT build artifacts
+.output/
+.wxt/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
