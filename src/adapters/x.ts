@@ -9,6 +9,10 @@ export const xAdapter: PlatformAdapter = {
   getComposeUrl: (text) =>
     `https://x.com/intent/tweet?text=${encodeURIComponent(text)}`,
   prefillsViaUrl: true,
+  videoConstraints: {
+    maxDurationS: 140, // 2m20s
+    maxBytes: 512 * 1024 * 1024,
+  },
 };
 
 export const X_SELECTORS = {

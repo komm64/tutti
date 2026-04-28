@@ -16,6 +16,10 @@ export const mastodonAdapter: PlatformAdapter = {
   getComposeUrl: (text) =>
     `${MASTODON_DEFAULT_INSTANCE}/share?text=${encodeURIComponent(text)}`,
   prefillsViaUrl: true,
+  videoConstraints: {
+    maxDurationS: 0, // インスタンス依存、チェックしない
+    maxBytes: 40 * 1024 * 1024,
+  },
 };
 
 export const MASTODON_SELECTORS = {

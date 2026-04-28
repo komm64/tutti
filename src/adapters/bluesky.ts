@@ -9,6 +9,10 @@ export const blueskyAdapter: PlatformAdapter = {
   getComposeUrl: (text) =>
     `https://bsky.app/intent/compose?text=${encodeURIComponent(text)}`,
   prefillsViaUrl: true,
+  videoConstraints: {
+    maxDurationS: 60,
+    maxBytes: 50 * 1024 * 1024,
+  },
 };
 
 export const BLUESKY_SELECTORS = {

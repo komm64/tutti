@@ -22,3 +22,28 @@ export function findAdapterByUrl(url: string): PlatformAdapter | undefined {
   }
   return undefined;
 }
+
+/**
+ * 動画がプラットフォームの制約を満たすか確認する。
+ * @returns null = OK、string = エラー理由
+ */
+export function checkVideoConstraint(
+  id: PlatformId,
+  durationS: number,
+  bytes: number,
+): string | null {
+  const adapter = getAdapter(id);
+  if (!adapter) return 'アダプタ未実装';
+  if (!adapter.videoConstraints) return '動画投稿に未対応';
+
+  const { maxDurationS, maxBytes } = adapter.videoConstraints;
+  if (maxDurationS > 0 && durationS > maxDurationS) {
+    return `尺が長すぎます(上限 ${maxDurationS}s、実際 ${Math.round(durationS)}s)`;
+  }
+  if (maxBytes > 0 && bytes > maxBytes) {
+    const limitMB = Math.round(maxBytes / 1024 / 1024);
+    const actualMB = Math.round(bytes / 1024 / 1024);
+    return `ファイルサイズが大きすぎます(上限 ${limitMB}MB、実際 ${actualMB}MB)`;
+  }
+  return null;
+}

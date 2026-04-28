@@ -11,6 +11,13 @@ import type { PlatformId } from '../messages';
  *
  * URL 方式の方が UI 変更に強くロバストなので、対応している SNS では優先する。
  */
+export interface VideoConstraints {
+  /** 最大尺(秒)。0 = 制限なし */
+  maxDurationS: number;
+  /** 最大ファイルサイズ(bytes)。0 = 制限なし */
+  maxBytes: number;
+}
+
 export interface PlatformAdapter {
   id: PlatformId;
   name: string;
@@ -22,4 +29,6 @@ export interface PlatformAdapter {
   getComposeUrl: (text: string) => string;
   /** true なら URL 遷移だけで textarea に text が入る、false なら content script で注入する */
   prefillsViaUrl: boolean;
+  /** 動画の制約。undefined = 動画不可 */
+  videoConstraints?: VideoConstraints;
 }

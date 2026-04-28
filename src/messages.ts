@@ -5,11 +5,13 @@
 
 export type PlatformId = 'x' | 'bluesky' | 'threads' | 'mastodon';
 
-/** 画像添付データ(ArrayBuffer は structured clone で通る) */
+/** 画像または動画の添付データ(ArrayBuffer は structured clone で通る) */
 export interface ImageAttachment {
   name: string;
   type: string; // MIME type
   data: ArrayBuffer;
+  /** 動画の場合の尺(秒)。background での制約チェックに使う */
+  durationS?: number;
 }
 
 /** popup → background: 全 SNS への投稿リクエスト */
