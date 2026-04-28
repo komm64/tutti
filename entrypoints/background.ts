@@ -5,6 +5,7 @@ import type {
   PostToPlatformMessage,
 } from '../src/messages';
 import { getAdapter } from '../src/adapters/registry';
+import { splitText } from '../src/utils/split';
 
 const READY_DELAY_MS = 800;
 const TAB_LOAD_TIMEOUT_MS = 15000;
@@ -39,6 +40,8 @@ async function handlePostRequest(
   return results;
 }
 
+const CHUNK_INTERVAL_MS = 2000;
+
 async function postToPlatform(
   platform: PlatformId,
   text: string,
@@ -53,38 +56,44 @@ async function postToPlatform(
     };
   }
 
-  try {
-    const tab = await openOrFocusTab(
-      adapter.getComposeUrl(text),
-      adapter.matchUrl,
-    );
-    if (typeof tab.id !== 'number') {
-      throw new Error('対象タブの ID が取得できませんでした');
-    }
+  const chunks = splitText(text, adapter.charLimit);
 
-    const message: PostToPlatformMessage = {
-      type: 'POST_TO_PLATFORM',
-      platform,
-      text,
-    };
-    const response = (await browser.tabs.sendMessage(
-      tab.id,
-      message,
-    )) as PostResultMessage | undefined;
+  for (let i = 0; i < chunks.length; i++) {
+    if (i > 0) await sleep(CHUNK_INTERVAL_MS);
 
-    if (!response) {
-      throw new Error('content script からの応答がありませんでした');
+    try {
+      const tab = await openOrFocusTab(
+        adapter.getComposeUrl(chunks[i]!),
+        adapter.matchUrl,
+      );
+      if (typeof tab.id !== 'number') {
+        throw new Error('対象タブの ID が取得できませんでした');
+      }
+
+      const message: PostToPlatformMessage = {
+        type: 'POST_TO_PLATFORM',
+        platform,
+        text: chunks[i]!,
+      };
+      const response = (await browser.tabs.sendMessage(
+        tab.id,
+        message,
+      )) as PostResultMessage | undefined;
+
+      if (!response) throw new Error('content script からの応答がありませんでした');
+      if (!response.success) throw new Error(response.error ?? '投稿失敗');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return {
+        type: 'POST_RESULT',
+        platform,
+        success: false,
+        error: chunks.length > 1 ? `${i + 1}/${chunks.length} パート目で失敗: ${msg}` : msg,
+      };
     }
-    return response;
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return {
-      type: 'POST_RESULT',
-      platform,
-      success: false,
-      error: message,
-    };
   }
+
+  return { type: 'POST_RESULT', platform, success: true };
 }
 
 async function openOrFocusTab(

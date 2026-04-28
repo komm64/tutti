@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { PlatformId, PostRequestMessage, PostResultMessage } from '../../src/messages';
+  import { splitText } from '../../src/utils/split';
 
   type PlatformOption = {
     id: PlatformId;
@@ -84,12 +85,13 @@
     {#each platforms as p}
       {@const remaining = p.limit - text.length}
       {@const over = remaining < 0}
+      {@const parts = over && p.available ? splitText(text, p.limit).length : 1}
       <label
         class="flex items-center gap-2 px-2 py-1.5 border rounded cursor-pointer select-none"
         class:opacity-40={!p.available}
         class:cursor-not-allowed={!p.available}
-        class:border-red-400={over && p.available && selected[p.id]}
-        class:bg-red-50={over && p.available && selected[p.id]}
+        class:border-orange-400={over && p.available && selected[p.id]}
+        class:bg-orange-50={over && p.available && selected[p.id]}
         class:border-gray-300={!(over && p.available && selected[p.id])}
       >
         <input
@@ -99,7 +101,11 @@
           class="accent-blue-500"
         />
         <span class="font-medium">{p.name}</span>
-        <span class="ml-auto" class:text-red-600={over}>{remaining}</span>
+        {#if over && p.available}
+          <span class="ml-auto text-orange-600">{parts} posts</span>
+        {:else}
+          <span class="ml-auto" class:text-red-600={over}>{remaining}</span>
+        {/if}
       </label>
     {/each}
   </div>
