@@ -38,6 +38,12 @@ export interface PostResultMessage {
   error?: string;
 }
 
+/** background → popup: 1 プラットフォーム完了時の進捗通知(ストリーミング) */
+export interface PlatformProgressMessage {
+  type: 'PLATFORM_PROGRESS';
+  result: PostResultMessage;
+}
+
 // ── offscreen document 用メッセージ (P7: 動画整形) ──────────────────────────
 
 /** background → offscreen: 動画変換リクエスト */
@@ -70,6 +76,7 @@ export type Message =
   | PostRequestMessage
   | PostToPlatformMessage
   | PostResultMessage
+  | PlatformProgressMessage
   | ConvertVideoMessage
   | ConversionProgressMessage
   | ConversionCompleteMessage

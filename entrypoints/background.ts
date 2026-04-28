@@ -42,7 +42,16 @@ async function handlePostRequest(
   images?: ImageAttachment[],
 ): Promise<PostResultMessage[]> {
   const results = await Promise.all(
-    platforms.map((platform) => postToPlatform(platform, text, images)),
+    platforms.map(async (platform) => {
+      const result = await postToPlatform(platform, text, images);
+      // 各プラットフォーム完了時に popup へストリーム配信(popup が開いていれば届く)
+      void browser.runtime
+        .sendMessage({ type: 'PLATFORM_PROGRESS', result })
+        .catch(() => {
+          /* popup が閉じている場合は送信失敗するが無視 */
+        });
+      return result;
+    }),
   );
 
   notifyResults(results);

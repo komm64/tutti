@@ -1,5 +1,12 @@
 <script lang="ts">
-  import type { ImageAttachment, PlatformId, PostRequestMessage, PostResultMessage } from '../../src/messages';
+  import type {
+    ImageAttachment,
+    Message,
+    PlatformId,
+    PlatformProgressMessage,
+    PostRequestMessage,
+    PostResultMessage,
+  } from '../../src/messages';
   import { checkImageConstraint, checkVideoConstraint } from '../../src/adapters/registry';
   import {
     clearDraft,
@@ -40,6 +47,7 @@
   let images = $state<ImagePreview[]>([]);
   let video = $state<VideoPreview | null>(null);
   let posting = $state(false);
+  let pendingPlatforms = $state<PlatformId[]>([]);
   let lastResults = $state<PostResultMessage[] | null>(null);
   let errorMessage = $state<string | null>(null);
   let showHistory = $state(false);
@@ -85,6 +93,21 @@
     history = [];
   }
 
+  // background からの進捗ストリームを受信
+  $effect(() => {
+    const listener = (rawMsg: unknown) => {
+      const msg = rawMsg as Message;
+      if (msg.type !== 'PLATFORM_PROGRESS') return;
+      const r = msg.result;
+      lastResults = lastResults
+        ? [...lastResults.filter((x) => x.platform !== r.platform), r]
+        : [r];
+      pendingPlatforms = pendingPlatforms.filter((p) => p !== r.platform);
+    };
+    browser.runtime.onMessage.addListener(listener);
+    return () => browser.runtime.onMessage.removeListener(listener);
+  });
+
   function handleKeydown(e: KeyboardEvent) {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && canPost) {
       e.preventDefault();
@@ -112,6 +135,13 @@
   );
   const canPost = $derived(
     !posting && text.trim().length > 0 && selectedIds.length > 0,
+  );
+  const totalPostCount = $derived(
+    selectedIds.reduce((sum, id) => {
+      const p = platforms.find((pp) => pp.id === id);
+      if (!p) return sum;
+      return sum + (text.length > p.limit ? splitText(text, p.limit).length : 1);
+    }, 0),
   );
   const videoCompatibility = $derived(
     video
@@ -206,7 +236,8 @@
   async function handlePost() {
     if (!canPost) return;
     posting = true;
-    lastResults = null;
+    lastResults = [];
+    pendingPlatforms = [...selectedIds];
     errorMessage = null;
 
     const media: ImageAttachment[] = video
@@ -372,7 +403,13 @@
     title="Ctrl/Cmd + Enter"
     class="mt-3 w-full py-2 bg-blue-500 text-white rounded font-medium hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
   >
-    {posting ? '投稿中...' : `選択中の ${selectedIds.length} SNS に投稿`}
+    {#if posting}
+      投稿中...
+    {:else if totalPostCount > selectedIds.length}
+      {selectedIds.length} SNS に投稿 ({totalPostCount} 件)
+    {:else}
+      {selectedIds.length} SNS に投稿
+    {/if}
   </button>
 
   {#if errorMessage}
@@ -381,9 +418,9 @@
     </p>
   {/if}
 
-  {#if lastResults}
+  {#if (lastResults && lastResults.length > 0) || pendingPlatforms.length > 0}
     <ul class="mt-2 text-xs space-y-1">
-      {#each lastResults as r}
+      {#each lastResults ?? [] as r}
         <li class="flex items-start gap-2">
           <span class={r.success ? 'text-green-600' : 'text-red-600'}>
             {r.success ? '✓' : '✗'}
@@ -392,6 +429,13 @@
           {#if !r.success && r.error}
             <span class="text-gray-600">— {r.error}</span>
           {/if}
+        </li>
+      {/each}
+      {#each pendingPlatforms as p}
+        <li class="flex items-start gap-2 text-gray-400">
+          <span class="inline-block w-3 h-3 border-2 border-gray-300 border-t-blue-400 rounded-full animate-spin"></span>
+          <span class="font-medium">{p}</span>
+          <span>投稿中...</span>
         </li>
       {/each}
     </ul>
