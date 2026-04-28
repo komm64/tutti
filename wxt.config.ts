@@ -12,10 +12,10 @@ export default defineConfig({
       'https://twitter.com/*',
       'https://bsky.app/*',
       'https://www.threads.net/*',
-      // Mastodon は federated のため v1 ではデフォルトの mastodon.social のみ。
-      // ユーザーごとのインスタンス切替は P8 で optional_host_permissions 化予定
       'https://mastodon.social/*',
     ],
+    // Mastodon はユーザー設定のインスタンスへのアクセスを optional で要求
+    optional_host_permissions: ['https://*/*'],
     action: {
       default_title: 'Tutti',
     },

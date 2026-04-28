@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { ImageAttachment, PlatformId, PostRequestMessage, PostResultMessage } from '../../src/messages';
   import { checkVideoConstraint } from '../../src/adapters/registry';
+  import { getPostHistory, type HistoryEntry } from '../../src/storage';
   import { splitText } from '../../src/utils/split';
 
   type PlatformOption = {
@@ -34,6 +35,25 @@
   let posting = $state(false);
   let lastResults = $state<PostResultMessage[] | null>(null);
   let errorMessage = $state<string | null>(null);
+  let showHistory = $state(false);
+  let history = $state<HistoryEntry[]>([]);
+
+  async function loadHistory() {
+    history = await getPostHistory();
+  }
+
+  function toggleHistory() {
+    showHistory = !showHistory;
+    if (showHistory && history.length === 0) void loadHistory();
+  }
+
+  function formatRelTime(ts: number): string {
+    const diffS = Math.floor((Date.now() - ts) / 1000);
+    if (diffS < 60) return 'たった今';
+    if (diffS < 3600) return `${Math.floor(diffS / 60)}分前`;
+    if (diffS < 86400) return `${Math.floor(diffS / 3600)}時間前`;
+    return `${Math.floor(diffS / 86400)}日前`;
+  }
 
   const selectedIds = $derived(
     platforms
@@ -155,14 +175,30 @@
       errorMessage = err instanceof Error ? err.message : String(err);
     } finally {
       posting = false;
+      if (showHistory) void loadHistory();
     }
   }
 </script>
 
 <main class="w-96 p-4 bg-white text-gray-900">
-  <header class="mb-3">
-    <h1 class="text-lg font-bold">Tutti</h1>
-    <p class="text-xs text-gray-500">クロスポストの面倒を全部肩代わり</p>
+  <header class="mb-3 flex items-start justify-between">
+    <div>
+      <h1 class="text-lg font-bold">Tutti</h1>
+      <p class="text-xs text-gray-500">クロスポストの面倒を全部肩代わり</p>
+    </div>
+    <div class="flex items-center gap-2 mt-0.5">
+      <button
+        onclick={toggleHistory}
+        class="text-xs text-gray-400 hover:text-gray-600"
+        title="投稿履歴"
+      >履歴</button>
+      <a
+        href={browser.runtime.getURL('options.html')}
+        target="_blank"
+        class="text-xs text-gray-400 hover:text-gray-600"
+        title="設定"
+      >設定</a>
+    </div>
   </header>
 
   <textarea
@@ -285,5 +321,37 @@
         </li>
       {/each}
     </ul>
+  {/if}
+
+  {#if showHistory}
+    <div class="mt-3 border-t border-gray-100 pt-3">
+      <p class="text-xs font-medium text-gray-500 mb-2">投稿履歴</p>
+      {#if history.length === 0}
+        <p class="text-xs text-gray-400">履歴はまだありません</p>
+      {:else}
+        <ul class="space-y-1.5">
+          {#each history as entry}
+            <li class="text-xs border border-gray-100 rounded p-2">
+              <div class="flex items-center gap-1.5 mb-0.5">
+                {#each entry.platforms as pid}
+                  <span
+                    class="px-1 rounded text-[10px]"
+                    class:bg-green-100={entry.results[pid] === true}
+                    class:text-green-700={entry.results[pid] === true}
+                    class:bg-red-100={entry.results[pid] === false}
+                    class:text-red-700={entry.results[pid] === false}
+                  >{pid}</span>
+                {/each}
+                {#if entry.hasMedia}
+                  <span class="text-gray-400">📎</span>
+                {/if}
+                <span class="ml-auto text-gray-400">{formatRelTime(entry.timestamp)}</span>
+              </div>
+              <p class="text-gray-600 truncate">{entry.textPreview}</p>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    </div>
   {/if}
 </main>

@@ -7,10 +7,12 @@ import type {
 } from '../src/messages';
 import { checkVideoConstraint, getAdapter } from '../src/adapters/registry';
 import type { PlatformAdapter } from '../src/adapters/types';
+import { addToPostHistory, getSettings } from '../src/storage';
 import { splitText } from '../src/utils/split';
 
 const READY_DELAY_MS = 800;
 const TAB_LOAD_TIMEOUT_MS = 15000;
+const CHUNK_INTERVAL_MS = 2000;
 
 export default defineBackground(() => {
   console.log('[Tutti] background started', { id: browser.runtime.id });
@@ -40,17 +42,16 @@ async function handlePostRequest(
   );
 
   notifyResults(results);
+  void addToPostHistory(text, results, (images?.length ?? 0) > 0);
   return results;
 }
-
-const CHUNK_INTERVAL_MS = 2000;
 
 async function postToPlatform(
   platform: PlatformId,
   text: string,
   images?: ImageAttachment[],
 ): Promise<PostResultMessage> {
-  const adapter = getAdapter(platform);
+  const adapter = await resolveAdapter(platform);
   if (!adapter) {
     return {
       type: 'POST_RESULT',
@@ -60,7 +61,7 @@ async function postToPlatform(
     };
   }
 
-  // 動画の制約チェック: 不適合なら即エラー返却
+  // 動画の制約チェック
   const videoItem = images?.find((img) => img.type.startsWith('video/'));
   if (videoItem) {
     const err = checkVideoConstraint(
@@ -77,7 +78,6 @@ async function postToPlatform(
 
   for (let i = 0; i < chunks.length; i++) {
     if (i > 0) await sleep(CHUNK_INTERVAL_MS);
-    // 画像は最初のチャンクにのみ添付する
     const chunkImages = i === 0 ? images : undefined;
 
     try {
@@ -94,6 +94,28 @@ async function postToPlatform(
   }
 
   return { type: 'POST_RESULT', platform, success: true };
+}
+
+/**
+ * アダプタを解決する。Mastodon はユーザー設定のインスタンス URL で compose URL を上書き。
+ */
+async function resolveAdapter(platform: PlatformId): Promise<PlatformAdapter | undefined> {
+  const adapter = getAdapter(platform);
+  if (!adapter) return undefined;
+
+  if (platform === 'mastodon') {
+    const { mastodonInstance } = await getSettings();
+    if (mastodonInstance !== 'https://mastodon.social') {
+      return {
+        ...adapter,
+        matchUrl: (url) => url.startsWith(`${mastodonInstance}/`),
+        getComposeUrl: (text) =>
+          `${mastodonInstance}/share?text=${encodeURIComponent(text)}`,
+      };
+    }
+  }
+
+  return adapter;
 }
 
 async function postSingleChunk(
@@ -128,7 +150,6 @@ async function openOrFocusTab(
   composeUrl: string,
   matchUrl: (url: string) => boolean,
 ): Promise<Browser.tabs.Tab> {
-  // 既存タブで対象 URL と一致するものがあれば、そのタブを compose URL に遷移
   const existing = (await browser.tabs.query({})).find(
     (t) => typeof t.url === 'string' && matchUrl(t.url),
   );
@@ -187,7 +208,6 @@ function notifyResults(results: PostResultMessage[]): void {
   const succeeded = results.filter((r) => r.success);
   const failed = results.filter((r) => !r.success);
 
-  // 拡張アイコンにバッジを出して即時フィードバック(P8 で notifications API へ置換予定)
   if (failed.length === 0 && succeeded.length > 0) {
     void browser.action.setBadgeText({ text: 'OK' });
     void browser.action.setBadgeBackgroundColor({ color: '#10b981' });
