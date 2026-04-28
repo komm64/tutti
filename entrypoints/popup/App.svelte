@@ -261,6 +261,7 @@
         errorMessage = response.error;
       } else if (response.results) {
         lastResults = response.results;
+        pendingPlatforms = []; // 進捗ストリームの取りこぼし保険
         // 投稿成功(部分成功含む)で下書きをクリア
         if (response.results.some((r) => r.success)) {
           text = '';
@@ -275,6 +276,7 @@
       errorMessage = err instanceof Error ? err.message : String(err);
     } finally {
       posting = false;
+      pendingPlatforms = [];
       if (showHistory) void loadHistory();
     }
   }
