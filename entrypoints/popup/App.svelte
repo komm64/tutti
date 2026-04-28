@@ -7,7 +7,11 @@
     PostRequestMessage,
     PostResultMessage,
   } from '../../src/messages';
-  import { checkImageConstraint, checkVideoConstraint } from '../../src/adapters/registry';
+  import {
+    checkVideoConstraint,
+    getAdapter,
+  } from '../../src/adapters/registry';
+  import { resizeImage } from '../../src/utils/image-resize';
   import {
     clearDraft,
     clearPostHistory,
@@ -133,8 +137,9 @@
       .filter((p) => p.available && selected[p.id])
       .map((p) => p.id),
   );
+  const hasMedia = $derived(images.length > 0 || video !== null);
   const canPost = $derived(
-    !posting && text.trim().length > 0 && selectedIds.length > 0,
+    !posting && (text.trim().length > 0 || hasMedia) && selectedIds.length > 0,
   );
   const totalPostCount = $derived(
     selectedIds.reduce((sum, id) => {
@@ -153,13 +158,18 @@
         )
       : ({} as Record<string, string | null>),
   );
+  // 画像サイズは投稿時に自動リサイズされるので、枚数オーバーだけ警告する
   const imageCompatibility = $derived(
     !video && images.length > 0
       ? Object.fromEntries(
-          platforms.map((p) => [
-            p.id,
-            checkImageConstraint(p.id, images.map((i) => i.data.byteLength)),
-          ]),
+          platforms.map((p) => {
+            const adapter = getAdapter(p.id);
+            if (!adapter) return [p.id, null];
+            if (images.length > adapter.imageConstraints.maxImages) {
+              return [p.id, `画像が多すぎます(上限 ${adapter.imageConstraints.maxImages} 枚)`];
+            }
+            return [p.id, null];
+          }),
         )
       : ({} as Record<string, string | null>),
   );
@@ -240,9 +250,33 @@
     pendingPlatforms = [...selectedIds];
     errorMessage = null;
 
-    const media: ImageAttachment[] = video
-      ? [{ name: video.name, type: video.type, data: video.data, durationS: video.durationS }]
-      : images.map(({ name, type, data }) => ({ name, type, data }));
+    let media: ImageAttachment[];
+    if (video) {
+      media = [{ name: video.name, type: video.type, data: video.data, durationS: video.durationS }];
+    } else if (images.length > 0) {
+      // 選択中プラットフォームの最小画像サイズ制約に合わせてリサイズ
+      const minLimit = Math.min(
+        ...selectedIds
+          .map((id) => getAdapter(id)?.imageConstraints.maxBytesPerImage)
+          .filter((x): x is number => typeof x === 'number'),
+      );
+      media = await Promise.all(
+        images.map(async (img) => {
+          const data = isFinite(minLimit)
+            ? await resizeImage(img.data, img.type, minLimit)
+            : img.data;
+          // リサイズで JPEG になる場合があるので type も再設定
+          const resized = data !== img.data;
+          return {
+            name: resized ? img.name.replace(/\.[^.]+$/, '.jpg') : img.name,
+            type: resized ? 'image/jpeg' : img.type,
+            data,
+          };
+        }),
+      );
+    } else {
+      media = [];
+    }
 
     const message: PostRequestMessage = {
       type: 'POST_REQUEST',
