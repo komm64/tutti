@@ -18,6 +18,13 @@ export interface VideoConstraints {
   maxBytes: number;
 }
 
+export interface ImageConstraints {
+  /** 1 枚あたりの最大ファイルサイズ(bytes) */
+  maxBytesPerImage: number;
+  /** 添付可能枚数 */
+  maxImages: number;
+}
+
 export interface PlatformAdapter {
   id: PlatformId;
   name: string;
@@ -31,4 +38,6 @@ export interface PlatformAdapter {
   prefillsViaUrl: boolean;
   /** 動画の制約。undefined = 動画不可 */
   videoConstraints?: VideoConstraints;
+  /** 画像の制約 */
+  imageConstraints: ImageConstraints;
 }

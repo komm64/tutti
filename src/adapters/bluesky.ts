@@ -13,6 +13,10 @@ export const blueskyAdapter: PlatformAdapter = {
     maxDurationS: 60,
     maxBytes: 50 * 1024 * 1024,
   },
+  imageConstraints: {
+    maxBytesPerImage: 1024 * 1024, // 1MB(Bluesky は厳しい)
+    maxImages: 4,
+  },
 };
 
 export const BLUESKY_SELECTORS = {

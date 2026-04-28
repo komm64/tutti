@@ -20,6 +20,10 @@ export const mastodonAdapter: PlatformAdapter = {
     maxDurationS: 0, // インスタンス依存、チェックしない
     maxBytes: 40 * 1024 * 1024,
   },
+  imageConstraints: {
+    maxBytesPerImage: 8 * 1024 * 1024, // 8MB(インスタンス依存)
+    maxImages: 4,
+  },
 };
 
 export const MASTODON_SELECTORS = {

@@ -48,3 +48,28 @@ export function checkVideoConstraint(
   }
   return null;
 }
+
+/**
+ * 画像群がプラットフォームの制約を満たすか確認する。
+ * @returns null = OK、string = エラー理由
+ */
+export function checkImageConstraint(
+  id: PlatformId,
+  imageSizes: number[],
+): string | null {
+  const adapter = getAdapter(id);
+  if (!adapter) return 'アダプタ未実装';
+
+  const { maxBytesPerImage, maxImages } = adapter.imageConstraints;
+  if (imageSizes.length > maxImages) {
+    return `画像が多すぎます(上限 ${maxImages} 枚)`;
+  }
+  for (let i = 0; i < imageSizes.length; i++) {
+    if (imageSizes[i]! > maxBytesPerImage) {
+      const limitMB = (maxBytesPerImage / 1024 / 1024).toFixed(1);
+      const actualMB = (imageSizes[i]! / 1024 / 1024).toFixed(1);
+      return `${i + 1}枚目が大きすぎます(上限 ${limitMB}MB、実際 ${actualMB}MB)`;
+    }
+  }
+  return null;
+}

@@ -5,7 +5,11 @@ import type {
   PostResultMessage,
   PostToPlatformMessage,
 } from '../src/messages';
-import { checkVideoConstraint, getAdapter } from '../src/adapters/registry';
+import {
+  checkImageConstraint,
+  checkVideoConstraint,
+  getAdapter,
+} from '../src/adapters/registry';
 import type { PlatformAdapter } from '../src/adapters/types';
 import { addToPostHistory, getSettings } from '../src/storage';
 import { splitText } from '../src/utils/split';
@@ -68,6 +72,15 @@ async function postToPlatform(
       platform,
       videoItem.durationS ?? 0,
       videoItem.data.byteLength,
+    );
+    if (err) {
+      return { type: 'POST_RESULT', platform, success: false, error: err };
+    }
+  } else if (images && images.length > 0) {
+    // 画像の制約チェック(動画がない場合のみ、画像と動画は排他)
+    const err = checkImageConstraint(
+      platform,
+      images.map((img) => img.data.byteLength),
     );
     if (err) {
       return { type: 'POST_RESULT', platform, success: false, error: err };

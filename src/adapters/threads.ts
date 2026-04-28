@@ -17,6 +17,10 @@ export const threadsAdapter: PlatformAdapter = {
     maxDurationS: 300, // 5 分
     maxBytes: 1024 * 1024 * 1024, // 1GB
   },
+  imageConstraints: {
+    maxBytesPerImage: 8 * 1024 * 1024, // 8MB
+    maxImages: 10,
+  },
 };
 
 export const THREADS_SELECTORS = {

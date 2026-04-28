@@ -1,8 +1,9 @@
 <script lang="ts">
   import type { ImageAttachment, PlatformId, PostRequestMessage, PostResultMessage } from '../../src/messages';
-  import { checkVideoConstraint } from '../../src/adapters/registry';
+  import { checkImageConstraint, checkVideoConstraint } from '../../src/adapters/registry';
   import {
     clearDraft,
+    clearPostHistory,
     getDraft,
     getPostHistory,
     saveDraft,
@@ -78,6 +79,12 @@
     history = await getPostHistory();
   }
 
+  async function handleClearHistory() {
+    if (!confirm('投稿履歴をすべて削除しますか?')) return;
+    await clearPostHistory();
+    history = [];
+  }
+
   function handleKeydown(e: KeyboardEvent) {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && canPost) {
       e.preventDefault();
@@ -112,6 +119,16 @@
           platforms.map((p) => [
             p.id,
             checkVideoConstraint(p.id, video!.durationS, video!.data.byteLength),
+          ]),
+        )
+      : ({} as Record<string, string | null>),
+  );
+  const imageCompatibility = $derived(
+    !video && images.length > 0
+      ? Object.fromEntries(
+          platforms.map((p) => [
+            p.id,
+            checkImageConstraint(p.id, images.map((i) => i.data.byteLength)),
           ]),
         )
       : ({} as Record<string, string | null>),
@@ -319,15 +336,17 @@
       {@const over = remaining < 0}
       {@const parts = over && p.available ? splitText(text, p.limit).length : 1}
       {@const videoErr = videoCompatibility[p.id]}
+      {@const imageErr = imageCompatibility[p.id]}
+      {@const mediaErr = videoErr || imageErr}
       <label
         class="flex items-center gap-2 px-2 py-1.5 border rounded cursor-pointer select-none"
         class:opacity-40={!p.available}
         class:cursor-not-allowed={!p.available}
-        class:border-orange-400={over && p.available && selected[p.id] && !videoErr}
-        class:bg-orange-50={over && p.available && selected[p.id] && !videoErr}
-        class:border-red-300={!!videoErr && p.available && selected[p.id]}
-        class:bg-red-50={!!videoErr && p.available && selected[p.id]}
-        class:border-gray-300={!(over && p.available && selected[p.id]) && !(!!videoErr && p.available && selected[p.id])}
+        class:border-orange-400={over && p.available && selected[p.id] && !mediaErr}
+        class:bg-orange-50={over && p.available && selected[p.id] && !mediaErr}
+        class:border-red-300={!!mediaErr && p.available && selected[p.id]}
+        class:bg-red-50={!!mediaErr && p.available && selected[p.id]}
+        class:border-gray-300={!(over && p.available && selected[p.id]) && !(!!mediaErr && p.available && selected[p.id])}
       >
         <input
           type="checkbox"
@@ -336,8 +355,8 @@
           class="accent-blue-500"
         />
         <span class="font-medium">{p.name}</span>
-        {#if videoErr && p.available}
-          <span class="ml-auto text-red-500 text-[10px] leading-tight text-right">{videoErr.split('(')[0]?.trim()}</span>
+        {#if mediaErr && p.available}
+          <span class="ml-auto text-red-500 text-[10px] leading-tight text-right">{mediaErr.split('(')[0]?.trim()}</span>
         {:else if over && p.available}
           <span class="ml-auto text-orange-600">{parts} posts</span>
         {:else}
@@ -380,7 +399,12 @@
 
   {#if showHistory}
     <div class="mt-3 border-t border-gray-100 pt-3">
-      <p class="text-xs font-medium text-gray-500 mb-2">投稿履歴</p>
+      <div class="flex items-center justify-between mb-2">
+        <p class="text-xs font-medium text-gray-500">投稿履歴</p>
+        {#if history.length > 0}
+          <button onclick={handleClearHistory} class="text-[10px] text-gray-400 hover:text-red-500">すべて削除</button>
+        {/if}
+      </div>
       {#if history.length === 0}
         <p class="text-xs text-gray-400">履歴はまだありません</p>
       {:else}

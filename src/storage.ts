@@ -67,6 +67,10 @@ export async function getPostHistory(): Promise<HistoryEntry[]> {
   return (stored[HISTORY_KEY] as HistoryEntry[] | undefined) ?? [];
 }
 
+export async function clearPostHistory(): Promise<void> {
+  await browser.storage.local.remove(HISTORY_KEY);
+}
+
 export async function addToPostHistory(
   text: string,
   results: PostResultMessage[],

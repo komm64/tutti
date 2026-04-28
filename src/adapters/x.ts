@@ -13,6 +13,10 @@ export const xAdapter: PlatformAdapter = {
     maxDurationS: 140, // 2m20s
     maxBytes: 512 * 1024 * 1024,
   },
+  imageConstraints: {
+    maxBytesPerImage: 5 * 1024 * 1024, // 5MB
+    maxImages: 4,
+  },
 };
 
 export const X_SELECTORS = {
