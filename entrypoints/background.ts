@@ -54,7 +54,10 @@ async function postToPlatform(
   }
 
   try {
-    const tab = await openOrFocusTab(adapter.composeUrl, adapter.matchUrl);
+    const tab = await openOrFocusTab(
+      adapter.getComposeUrl(text),
+      adapter.matchUrl,
+    );
     if (typeof tab.id !== 'number') {
       throw new Error('対象タブの ID が取得できませんでした');
     }

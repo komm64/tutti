@@ -11,17 +11,17 @@
 
   const platforms: PlatformOption[] = [
     { id: 'x', name: 'X', limit: 280, available: true },
-    { id: 'bluesky', name: 'Bluesky', limit: 300, available: false },
+    { id: 'bluesky', name: 'Bluesky', limit: 300, available: true },
     { id: 'threads', name: 'Threads', limit: 500, available: false },
-    { id: 'mastodon', name: 'Mastodon', limit: 500, available: false },
+    { id: 'mastodon', name: 'Mastodon', limit: 500, available: true },
   ];
 
   let text = $state('');
   let selected = $state<Record<PlatformId, boolean>>({
     x: true,
-    bluesky: false,
+    bluesky: true,
     threads: false,
-    mastodon: false,
+    mastodon: true,
   });
   let posting = $state(false);
   let lastResults = $state<PostResultMessage[] | null>(null);

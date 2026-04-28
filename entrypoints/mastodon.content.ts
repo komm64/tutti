@@ -1,13 +1,17 @@
 import type { Message, PostResultMessage } from '../src/messages';
-import { X_SELECTORS, xAdapter } from '../src/adapters/x';
+import {
+  MASTODON_SELECTORS,
+  mastodonAdapter,
+} from '../src/adapters/mastodon';
 import { executePostFlow } from '../src/utils/post-flow';
 
 export default defineContentScript({
-  matches: ['https://x.com/*', 'https://twitter.com/*'],
+  // v1 では mastodon.social のみ。マルチインスタンス対応は P8 (設定画面) で
+  matches: ['https://mastodon.social/*'],
   main() {
     browser.runtime.onMessage.addListener((rawMsg, _sender, sendResponse) => {
       const msg = rawMsg as Message;
-      if (msg.type !== 'POST_TO_PLATFORM' || msg.platform !== 'x') return;
+      if (msg.type !== 'POST_TO_PLATFORM' || msg.platform !== 'mastodon') return;
 
       void runPost(msg.text)
         .then((result) => sendResponse(result))
@@ -15,7 +19,7 @@ export default defineContentScript({
           const message = err instanceof Error ? err.message : String(err);
           const result: PostResultMessage = {
             type: 'POST_RESULT',
-            platform: 'x',
+            platform: 'mastodon',
             success: false,
             error: message,
           };
@@ -25,22 +29,21 @@ export default defineContentScript({
       return true;
     });
 
-    console.log('[Tutti] X content script ready');
+    console.log('[Tutti] Mastodon content script ready');
   },
 });
 
 async function runPost(text: string): Promise<PostResultMessage> {
   await executePostFlow({
-    prefillsViaUrl: xAdapter.prefillsViaUrl,
-    textareaSelector: X_SELECTORS.textarea,
-    // inline / modal 両方の post button を許容
-    postButtonSelector: `${X_SELECTORS.postButtonInline}, ${X_SELECTORS.postButton}`,
+    prefillsViaUrl: mastodonAdapter.prefillsViaUrl,
+    textareaSelector: MASTODON_SELECTORS.textarea,
+    postButtonSelector: MASTODON_SELECTORS.postButton,
     text,
   });
 
   return {
     type: 'POST_RESULT',
-    platform: 'x',
+    platform: 'mastodon',
     success: true,
   };
 }

@@ -1,9 +1,15 @@
 import type { PlatformId } from '../messages';
 
 /**
- * 各 SNS のメタ情報と DOM 操作仕様を抽象化したアダプタ。
- * background は registry から条件に合うアダプタを選び、
- * content script は自身の URL に対応するアダプタを使って DOM 操作する。
+ * 各 SNS のメタ情報と投稿フローを抽象化したアダプタ。
+ *
+ * 投稿フローは大きく 2 種類:
+ *   - URL pre-fill 方式(prefillsViaUrl: true) ── intent URL 等で text を URL に乗せて
+ *     遷移させると textarea に自動で入る。content script は post button を click するだけ
+ *   - DOM injection 方式(prefillsViaUrl: false) ── content script が textarea を見つけて
+ *     execCommand でテキストを注入し、post button を click する
+ *
+ * URL 方式の方が UI 変更に強くロバストなので、対応している SNS では優先する。
  */
 export interface PlatformAdapter {
   id: PlatformId;
@@ -12,6 +18,8 @@ export interface PlatformAdapter {
   charLimit: number;
   /** 投稿ページとして扱う URL パターン(content script の matches と整合させる) */
   matchUrl: (url: string) => boolean;
-  /** 投稿用に開くべき URL(新規タブ作成時) */
-  composeUrl: string;
+  /** 投稿用に開くべき URL を返す。URL pre-fill する SNS では text を URL に乗せる */
+  getComposeUrl: (text: string) => string;
+  /** true なら URL 遷移だけで textarea に text が入る、false なら content script で注入する */
+  prefillsViaUrl: boolean;
 }
