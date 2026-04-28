@@ -1,7 +1,13 @@
 <script lang="ts">
   import type { ImageAttachment, PlatformId, PostRequestMessage, PostResultMessage } from '../../src/messages';
   import { checkVideoConstraint } from '../../src/adapters/registry';
-  import { getPostHistory, type HistoryEntry } from '../../src/storage';
+  import {
+    clearDraft,
+    getDraft,
+    getPostHistory,
+    saveDraft,
+    type HistoryEntry,
+  } from '../../src/storage';
   import { splitText } from '../../src/utils/split';
 
   type PlatformOption = {
@@ -37,9 +43,46 @@
   let errorMessage = $state<string | null>(null);
   let showHistory = $state(false);
   let history = $state<HistoryEntry[]>([]);
+  let draftLoaded = $state(false);
+
+  // 下書きを読み込む(マウント時に 1 回)
+  $effect(() => {
+    if (draftLoaded) return;
+    void getDraft().then((draft) => {
+      if (draft) {
+        text = draft.text;
+        for (const [k, v] of Object.entries(draft.selected)) {
+          if (typeof v === 'boolean' && k in selected) {
+            selected[k as PlatformId] = v;
+          }
+        }
+      }
+      draftLoaded = true;
+    });
+  });
+
+  // 下書き自動保存(text/selected 変更時、300ms デバウンス)
+  let saveTimer: ReturnType<typeof setTimeout> | undefined;
+  $effect(() => {
+    // 依存を明示
+    text;
+    selected.x; selected.bluesky; selected.threads; selected.mastodon;
+    if (!draftLoaded) return; // 初回ロード前は保存しない
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      void saveDraft({ text, selected });
+    }, 300);
+  });
 
   async function loadHistory() {
     history = await getPostHistory();
+  }
+
+  function handleKeydown(e: KeyboardEvent) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && canPost) {
+      e.preventDefault();
+      void handlePost();
+    }
   }
 
   function toggleHistory() {
@@ -170,6 +213,15 @@
         errorMessage = response.error;
       } else if (response.results) {
         lastResults = response.results;
+        // 投稿成功(部分成功含む)で下書きをクリア
+        if (response.results.some((r) => r.success)) {
+          text = '';
+          images.forEach((img) => URL.revokeObjectURL(img.previewUrl));
+          images = [];
+          if (video) URL.revokeObjectURL(video.previewUrl);
+          video = null;
+          void clearDraft();
+        }
       }
     } catch (err) {
       errorMessage = err instanceof Error ? err.message : String(err);
@@ -179,6 +231,8 @@
     }
   }
 </script>
+
+<svelte:window onkeydown={handleKeydown} />
 
 <main class="w-96 p-4 bg-white text-gray-900">
   <header class="mb-3 flex items-start justify-between">
@@ -296,6 +350,7 @@
   <button
     onclick={handlePost}
     disabled={!canPost}
+    title="Ctrl/Cmd + Enter"
     class="mt-3 w-full py-2 bg-blue-500 text-white rounded font-medium hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
   >
     {posting ? '投稿中...' : `選択中の ${selectedIds.length} SNS に投稿`}

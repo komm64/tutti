@@ -21,6 +21,31 @@ export async function saveSettings(settings: Partial<Settings>): Promise<void> {
   await browser.storage.sync.set({ settings: { ...current, ...settings } });
 }
 
+// ── 下書き (chrome.storage.session) ─────────────────────────────────────────
+//
+// session ストレージはブラウザセッション中のみ保持され、ブラウザ終了で自動消去。
+// テキスト+チェック状態の軽量データだけ持つ(画像/動画は持たない)。
+
+export interface Draft {
+  text: string;
+  selected: Partial<Record<PlatformId, boolean>>;
+}
+
+const DRAFT_KEY = 'draft';
+
+export async function getDraft(): Promise<Draft | null> {
+  const stored = await browser.storage.session.get(DRAFT_KEY);
+  return (stored[DRAFT_KEY] as Draft | undefined) ?? null;
+}
+
+export async function saveDraft(draft: Draft): Promise<void> {
+  await browser.storage.session.set({ [DRAFT_KEY]: draft });
+}
+
+export async function clearDraft(): Promise<void> {
+  await browser.storage.session.remove(DRAFT_KEY);
+}
+
 // ── 投稿履歴 (chrome.storage.local) ─────────────────────────────────────────
 
 export interface HistoryEntry {
