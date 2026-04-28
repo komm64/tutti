@@ -38,7 +38,39 @@ export interface PostResultMessage {
   error?: string;
 }
 
+// ── offscreen document 用メッセージ (P7: 動画整形) ──────────────────────────
+
+/** background → offscreen: 動画変換リクエスト */
+export interface ConvertVideoMessage {
+  type: 'CONVERT_VIDEO';
+  videoData: ArrayBuffer;
+  /** 対象アスペクト比 e.g. "16:9" */
+  targetAspectRatio: string;
+}
+
+/** offscreen → background: 変換進捗 */
+export interface ConversionProgressMessage {
+  type: 'CONVERSION_PROGRESS';
+  progress: number; // 0-1
+}
+
+/** offscreen → background: 変換完了 */
+export interface ConversionCompleteMessage {
+  type: 'CONVERSION_COMPLETE';
+  videoData: ArrayBuffer;
+}
+
+/** offscreen → background: 変換エラー */
+export interface ConversionErrorMessage {
+  type: 'CONVERSION_ERROR';
+  error: string;
+}
+
 export type Message =
   | PostRequestMessage
   | PostToPlatformMessage
-  | PostResultMessage;
+  | PostResultMessage
+  | ConvertVideoMessage
+  | ConversionProgressMessage
+  | ConversionCompleteMessage
+  | ConversionErrorMessage;
