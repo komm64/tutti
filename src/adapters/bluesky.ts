@@ -16,4 +16,6 @@ export const BLUESKY_SELECTORS = {
   postButton: '[aria-label="Publish post"], [data-testid="composerPublishBtn"]',
   /** 投稿入力欄(fallback 用) */
   textarea: '[contenteditable="true"][role="textbox"]',
+  /** 画像添付用 hidden file input(compose dialog 内) */
+  fileInput: '[data-testid="composer"] input[type="file"], input[type="file"][accept*="image"]',
 } as const;

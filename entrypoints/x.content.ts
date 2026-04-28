@@ -1,4 +1,4 @@
-import type { Message, PostResultMessage } from '../src/messages';
+import type { ImageAttachment, Message, PostResultMessage } from '../src/messages';
 import { X_SELECTORS, xAdapter } from '../src/adapters/x';
 import { executePostFlow } from '../src/utils/post-flow';
 
@@ -9,7 +9,7 @@ export default defineContentScript({
       const msg = rawMsg as Message;
       if (msg.type !== 'POST_TO_PLATFORM' || msg.platform !== 'x') return;
 
-      void runPost(msg.text)
+      void runPost(msg.text, msg.images)
         .then((result) => sendResponse(result))
         .catch((err: unknown) => {
           const message = err instanceof Error ? err.message : String(err);
@@ -29,13 +29,14 @@ export default defineContentScript({
   },
 });
 
-async function runPost(text: string): Promise<PostResultMessage> {
+async function runPost(text: string, images?: ImageAttachment[]): Promise<PostResultMessage> {
   await executePostFlow({
     prefillsViaUrl: xAdapter.prefillsViaUrl,
     textareaSelector: X_SELECTORS.textarea,
-    // inline / modal 両方の post button を許容
     postButtonSelector: `${X_SELECTORS.postButtonInline}, ${X_SELECTORS.postButton}`,
+    fileInputSelector: X_SELECTORS.fileInput,
     text,
+    images,
   });
 
   return {

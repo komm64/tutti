@@ -1,14 +1,17 @@
 <script lang="ts">
-  import type { PlatformId, PostRequestMessage, PostResultMessage } from '../../src/messages';
+  import type { ImageAttachment, PlatformId, PostRequestMessage, PostResultMessage } from '../../src/messages';
   import { splitText } from '../../src/utils/split';
 
   type PlatformOption = {
     id: PlatformId;
     name: string;
     limit: number;
-    /** 未実装プラットフォームは disabled。P3 で順次有効化 */
     available: boolean;
   };
+
+  type ImagePreview = ImageAttachment & { previewUrl: string };
+
+  const MAX_IMAGES = 4;
 
   const platforms: PlatformOption[] = [
     { id: 'x', name: 'X', limit: 280, available: true },
@@ -24,6 +27,7 @@
     threads: false,
     mastodon: true,
   });
+  let images = $state<ImagePreview[]>([]);
   let posting = $state(false);
   let lastResults = $state<PostResultMessage[] | null>(null);
   let errorMessage = $state<string | null>(null);
@@ -37,16 +41,43 @@
     !posting && text.trim().length > 0 && selectedIds.length > 0,
   );
 
+  async function handleFiles(e: Event) {
+    const input = e.target as HTMLInputElement;
+    const files = Array.from(input.files ?? []);
+    const slots = MAX_IMAGES - images.length;
+    const toAdd = files.slice(0, slots);
+
+    const newPreviews = await Promise.all(
+      toAdd.map(async (f) => ({
+        name: f.name,
+        type: f.type,
+        data: await f.arrayBuffer(),
+        previewUrl: URL.createObjectURL(f),
+      })),
+    );
+    images = [...images, ...newPreviews];
+    // reset input so same file can be re-selected
+    input.value = '';
+  }
+
+  function removeImage(i: number) {
+    URL.revokeObjectURL(images[i]!.previewUrl);
+    images = images.filter((_, idx) => idx !== i);
+  }
+
   async function handlePost() {
     if (!canPost) return;
     posting = true;
     lastResults = null;
     errorMessage = null;
 
+    const attachments: ImageAttachment[] = images.map(({ name, type, data }) => ({ name, type, data }));
+
     const message: PostRequestMessage = {
       type: 'POST_REQUEST',
       text,
       platforms: selectedIds,
+      images: attachments.length > 0 ? attachments : undefined,
     };
 
     try {
@@ -80,6 +111,51 @@
     class="w-full h-32 border border-gray-300 rounded p-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:bg-gray-50"
     placeholder="投稿内容を入力..."
   ></textarea>
+
+  <!-- 画像添付エリア -->
+  <div class="mt-1.5 flex items-center gap-2">
+    {#if images.length < MAX_IMAGES}
+      <label
+        class="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 cursor-pointer select-none"
+        class:opacity-40={posting}
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>
+        </svg>
+        画像を追加
+        <input
+          type="file"
+          accept="image/jpeg,image/png,image/gif,image/webp"
+          multiple
+          class="hidden"
+          disabled={posting}
+          onchange={handleFiles}
+        />
+      </label>
+    {/if}
+    {#if images.length > 0}
+      <span class="text-xs text-gray-400 ml-auto">{images.length}/{MAX_IMAGES}</span>
+    {/if}
+  </div>
+
+  {#if images.length > 0}
+    <div class="mt-1.5 flex gap-1.5 flex-wrap">
+      {#each images as img, i}
+        <div class="relative w-16 h-16">
+          <img
+            src={img.previewUrl}
+            alt={img.name}
+            class="w-16 h-16 object-cover rounded border border-gray-200"
+          />
+          <button
+            onclick={() => removeImage(i)}
+            disabled={posting}
+            class="absolute -top-1 -right-1 w-4 h-4 bg-gray-600 text-white rounded-full text-xs leading-none flex items-center justify-center hover:bg-gray-800 disabled:opacity-40"
+          >×</button>
+        </div>
+      {/each}
+    </div>
+  {/if}
 
   <div class="mt-2 grid grid-cols-2 gap-1.5 text-xs">
     {#each platforms as p}

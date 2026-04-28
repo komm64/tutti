@@ -23,4 +23,6 @@ export const MASTODON_SELECTORS = {
   postButton: 'button.button[type="submit"]',
   /** 投稿入力欄(fallback 用) */
   textarea: 'textarea.autosuggest-textarea__textarea',
+  /** 画像添付用 file input(.compose-form 内の hidden input) */
+  fileInput: '.compose-form input[type="file"], input[type="file"][multiple]',
 } as const;

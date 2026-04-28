@@ -18,4 +18,6 @@ export const X_SELECTORS = {
   postButton: '[data-testid="tweetButton"]',
   /** 投稿ボタン(inline 形式、ホーム画面の上部 compose) */
   postButtonInline: '[data-testid="tweetButtonInline"]',
+  /** 画像添付用 hidden file input */
+  fileInput: 'input[data-testid="fileInput"]',
 } as const;

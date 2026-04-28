@@ -1,10 +1,12 @@
 import type {
+  ImageAttachment,
   Message,
   PlatformId,
   PostResultMessage,
   PostToPlatformMessage,
 } from '../src/messages';
 import { getAdapter } from '../src/adapters/registry';
+import type { PlatformAdapter } from '../src/adapters/types';
 import { splitText } from '../src/utils/split';
 
 const READY_DELAY_MS = 800;
@@ -17,7 +19,7 @@ export default defineBackground(() => {
     const msg = rawMsg as Message;
     if (msg.type !== 'POST_REQUEST') return;
 
-    void handlePostRequest(msg.text, msg.platforms)
+    void handlePostRequest(msg.text, msg.platforms, msg.images)
       .then((results) => sendResponse({ results }))
       .catch((err: unknown) => {
         const message = err instanceof Error ? err.message : String(err);
@@ -31,9 +33,10 @@ export default defineBackground(() => {
 async function handlePostRequest(
   text: string,
   platforms: PlatformId[],
+  images?: ImageAttachment[],
 ): Promise<PostResultMessage[]> {
   const results = await Promise.all(
-    platforms.map((platform) => postToPlatform(platform, text)),
+    platforms.map((platform) => postToPlatform(platform, text, images)),
   );
 
   notifyResults(results);
@@ -45,6 +48,7 @@ const CHUNK_INTERVAL_MS = 2000;
 async function postToPlatform(
   platform: PlatformId,
   text: string,
+  images?: ImageAttachment[],
 ): Promise<PostResultMessage> {
   const adapter = getAdapter(platform);
   if (!adapter) {
@@ -60,28 +64,11 @@ async function postToPlatform(
 
   for (let i = 0; i < chunks.length; i++) {
     if (i > 0) await sleep(CHUNK_INTERVAL_MS);
+    // 画像は最初のチャンクにのみ添付する
+    const chunkImages = i === 0 ? images : undefined;
 
     try {
-      const tab = await openOrFocusTab(
-        adapter.getComposeUrl(chunks[i]!),
-        adapter.matchUrl,
-      );
-      if (typeof tab.id !== 'number') {
-        throw new Error('対象タブの ID が取得できませんでした');
-      }
-
-      const message: PostToPlatformMessage = {
-        type: 'POST_TO_PLATFORM',
-        platform,
-        text: chunks[i]!,
-      };
-      const response = (await browser.tabs.sendMessage(
-        tab.id,
-        message,
-      )) as PostResultMessage | undefined;
-
-      if (!response) throw new Error('content script からの応答がありませんでした');
-      if (!response.success) throw new Error(response.error ?? '投稿失敗');
+      await postSingleChunk(adapter, chunks[i]!, chunkImages);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       return {
@@ -94,6 +81,34 @@ async function postToPlatform(
   }
 
   return { type: 'POST_RESULT', platform, success: true };
+}
+
+async function postSingleChunk(
+  adapter: PlatformAdapter,
+  text: string,
+  images?: ImageAttachment[],
+): Promise<void> {
+  const tab = await openOrFocusTab(
+    adapter.getComposeUrl(text),
+    adapter.matchUrl,
+  );
+  if (typeof tab.id !== 'number') {
+    throw new Error('対象タブの ID が取得できませんでした');
+  }
+
+  const message: PostToPlatformMessage = {
+    type: 'POST_TO_PLATFORM',
+    platform: adapter.id,
+    text,
+    images,
+  };
+  const response = (await browser.tabs.sendMessage(
+    tab.id,
+    message,
+  )) as PostResultMessage | undefined;
+
+  if (!response) throw new Error('content script からの応答がありませんでした');
+  if (!response.success) throw new Error(response.error ?? '投稿失敗');
 }
 
 async function openOrFocusTab(

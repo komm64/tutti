@@ -1,8 +1,10 @@
+import type { ImageAttachment } from '../messages';
 import {
   insertTextIntoContentEditable,
   sleep,
   waitForElement,
 } from './dom';
+import { injectImages } from './image';
 
 export interface PostFlowOptions {
   /** URL pre-fill 方式なら true、DOM injection が必要なら false */
@@ -11,8 +13,12 @@ export interface PostFlowOptions {
   textareaSelector?: string;
   /** 投稿ボタンの CSS セレクタ(複数候補をカンマ区切りで OK) */
   postButtonSelector: string;
+  /** 画像添付の file input セレクタ(省略時は画像注入をスキップ) */
+  fileInputSelector?: string;
   /** 投稿テキスト */
   text: string;
+  /** 添付画像(省略可) */
+  images?: ImageAttachment[];
   /** 投稿ボタン待機タイムアウト(ms) */
   postButtonTimeoutMs?: number;
   /** 投稿後に処理が走る猶予(ms) */
@@ -22,13 +28,16 @@ export interface PostFlowOptions {
 /**
  * SNS 共通の投稿フロー。URL pre-fill 方式なら post button click だけ、
  * DOM injection 方式なら textarea を見つけて inject してから click する。
+ * 画像がある場合は post button click 前に file input に注入する。
  */
 export async function executePostFlow(options: PostFlowOptions): Promise<void> {
   const {
     prefillsViaUrl,
     textareaSelector,
     postButtonSelector,
+    fileInputSelector,
     text,
+    images,
     postButtonTimeoutMs = 8000,
     afterClickDelayMs = 1500,
   } = options;
@@ -42,8 +51,14 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
       throw new Error('投稿入力欄が見つかりませんでした');
     }
     insertTextIntoContentEditable(textarea, text);
-    // React の onChange を反映する猶予
     await sleep(300);
+  }
+
+  if (images && images.length > 0) {
+    if (!fileInputSelector) {
+      throw new Error('このプラットフォームは画像添付に未対応です');
+    }
+    await injectImages(images, fileInputSelector);
   }
 
   const button = await waitForElement<HTMLElement>(
