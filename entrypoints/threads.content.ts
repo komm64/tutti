@@ -90,7 +90,7 @@ function detectThreadsUser(): string | null {
       fn: () => {
         const m = document
           .querySelector<HTMLMetaElement>('meta[property="og:url"]')
-          ?.content?.match(/threads\.net\/@([^/?#]+)/);
+          ?.content?.match(/threads\.(?:net|com)\/@([^/?#]+)/);
         return m?.[1] ?? null;
       },
     },
@@ -148,7 +148,7 @@ function detectThreadsUser(): string | null {
 }
 
 export default defineContentScript({
-  matches: ['https://www.threads.net/*'],
+  matches: ['https://www.threads.net/*', 'https://www.threads.com/*'],
   main() {
     browser.runtime.onMessage.addListener((rawMsg, _sender, sendResponse) => {
       const msg = rawMsg as Message;

@@ -8,10 +8,11 @@ export const threadsAdapter: PlatformAdapter = {
   id: 'threads',
   name: 'Threads',
   charLimit: 500,
-  matchUrl: (url) => /^https:\/\/www\.threads\.net\//.test(url),
-  // /intent/post?text= で compose dialog が開いて text が入る
+  // 2025 以降 threads.com に段階移行中。両ドメインを許容
+  matchUrl: (url) => /^https:\/\/www\.threads\.(?:net|com)\//.test(url),
+  // 新ドメイン threads.com の intent を使う(threads.net は redirect 想定)
   getComposeUrl: (text) =>
-    `https://www.threads.net/intent/post?text=${encodeURIComponent(text)}`,
+    `https://www.threads.com/intent/post?text=${encodeURIComponent(text)}`,
   prefillsViaUrl: true,
   videoConstraints: {
     // Threads はアカウント種別で変動するのでクライアント側で尺チェックしない

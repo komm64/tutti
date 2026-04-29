@@ -12,6 +12,7 @@ export default defineConfig({
       'https://twitter.com/*',
       'https://bsky.app/*',
       'https://www.threads.net/*',
+      'https://www.threads.com/*',
       'https://mastodon.social/*',
     ],
     // Mastodon はユーザー設定のインスタンスへのアクセスを optional で要求
