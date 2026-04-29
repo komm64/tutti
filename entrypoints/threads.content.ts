@@ -6,6 +6,8 @@ import { detectAndReportUser } from '../src/utils/user-detect';
 
 function detectThreadsUser(): string | null {
   type Strategy = { name: string; fn: () => string | null };
+  const RESERVED = new Set(['home', 'search', 'activity', 'login', 'signup', 'help', 'about', 'i']);
+
   const strategies: Strategy[] = [
     {
       name: 'aria-label*=Profile + /@',
@@ -22,15 +24,62 @@ function detectThreadsUser(): string | null {
       },
     },
     {
-      name: 'all /@ non-mention',
+      name: 'profile pic img → ancestor anchor',
+      fn: () => {
+        // 上部ナビの自分アバター(profile_pic を含む src) → 祖先 <a> の href
+        const imgs = Array.from(document.querySelectorAll<HTMLImageElement>('img'));
+        for (const img of imgs) {
+          if (!/profile|avatar/i.test(img.src) && !/profile|avatar/i.test(img.alt ?? '')) continue;
+          let el: HTMLElement | null = img;
+          while (el && el.tagName !== 'A') el = el.parentElement;
+          if (el && el instanceof HTMLAnchorElement) {
+            const m = el.getAttribute('href')?.match(/^\/@([^/?#]+)$/);
+            if (m && m[1] && !RESERVED.has(m[1])) return m[1];
+          }
+        }
+        return null;
+      },
+    },
+    {
+      name: 'all /@ non-mention non-reserved',
       fn: () => {
         const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href^="/@"]'));
+        // 投稿内メンションは text="@xxx"。side nav は label / icon のみで text は "Profile" 等
+        const candidates: { username: string; weight: number }[] = [];
         for (const l of links) {
+          const m = l.getAttribute('href')?.match(/^\/@([^/?#]+)$/);
+          if (!m || !m[1] || RESERVED.has(m[1])) continue;
           const text = l.textContent?.trim() ?? '';
-          // メンション (text が "@xxx") は除外
-          if (!text.startsWith('@')) {
-            const m = l.getAttribute('href')?.match(/^\/@([^/?#]+)$/);
-            if (m && m[1]) return m[1];
+          if (text.startsWith('@')) continue; // mention
+          // navi / aside / header 配下を優先
+          let weight = 1;
+          if (l.closest('nav, [role="navigation"], header, aside')) weight += 10;
+          if (l.querySelector('img')) weight += 5; // avatar 含むリンク
+          candidates.push({ username: m[1], weight });
+        }
+        candidates.sort((a, b) => b.weight - a.weight);
+        return candidates[0]?.username ?? null;
+      },
+    },
+    {
+      name: 'inline JSON "username":"xxx"',
+      fn: () => {
+        // SSR script 内に "username":"xxx" の形で埋まっていることがある
+        const scripts = document.querySelectorAll<HTMLScriptElement>('script');
+        for (const s of scripts) {
+          const t = s.textContent;
+          if (!t || t.length < 100) continue;
+          // 同じ username が複数回現れるものを優先(自分のは複数箇所で参照される可能性)
+          const counts = new Map<string, number>();
+          const re = /"username"\s*:\s*"([\w.]+)"/g;
+          let m: RegExpExecArray | null;
+          while ((m = re.exec(t)) !== null) {
+            counts.set(m[1]!, (counts.get(m[1]!) ?? 0) + 1);
+          }
+          if (counts.size > 0) {
+            const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+            const top = sorted[0];
+            if (top && top[0]) return top[0];
           }
         }
         return null;
@@ -43,18 +92,6 @@ function detectThreadsUser(): string | null {
           .querySelector<HTMLMetaElement>('meta[property="og:url"]')
           ?.content?.match(/threads\.net\/@([^/?#]+)/);
         return m?.[1] ?? null;
-      },
-    },
-    {
-      name: 'meta al:ios:url / al:android:url',
-      fn: () => {
-        for (const sel of ['meta[property="al:ios:url"]', 'meta[property="al:android:url"]']) {
-          const m = document
-            .querySelector<HTMLMetaElement>(sel)
-            ?.content?.match(/[@/]([\w.-]+)$/);
-          if (m && m[1] && m[1] !== 'home') return m[1];
-        }
-        return null;
       },
     },
   ];
@@ -72,14 +109,39 @@ function detectThreadsUser(): string | null {
   }
 
   // すべて失敗: デバッグ情報をダンプ
+  console.warn('[Tutti] threads: 全戦略失敗。デバッグ情報:');
+  console.warn('  title =', document.title);
   console.warn(
-    '[Tutti] threads: 全戦略失敗。a[href^="/@"] 一覧:',
+    '  metas =',
+    Array.from(document.querySelectorAll('meta'))
+      .map((m) => ({
+        name: m.getAttribute('name'),
+        property: m.getAttribute('property'),
+        content: m.getAttribute('content')?.slice(0, 80),
+      }))
+      .filter((m) => m.name || m.property),
+  );
+  console.warn(
+    '  /@ anchors =',
     Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href^="/@"]'))
-      .slice(0, 10)
+      .slice(0, 15)
       .map((a) => ({
         href: a.getAttribute('href'),
         text: a.textContent?.trim()?.slice(0, 40),
         ariaLabel: a.getAttribute('aria-label'),
+        hasImg: !!a.querySelector('img'),
+        inNav: !!a.closest('nav, [role="navigation"], header, aside'),
+      })),
+  );
+  console.warn(
+    '  aria-label profile elements =',
+    Array.from(document.querySelectorAll<HTMLElement>('[aria-label]'))
+      .filter((el) => /profile|プロフィール/i.test(el.getAttribute('aria-label') ?? ''))
+      .slice(0, 10)
+      .map((el) => ({
+        tag: el.tagName,
+        ariaLabel: el.getAttribute('aria-label'),
+        href: el.getAttribute('href'),
       })),
   );
   return null;
