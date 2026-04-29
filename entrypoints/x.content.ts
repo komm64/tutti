@@ -9,12 +9,32 @@ const X_RESERVED_PATHS = new Set([
 ]);
 
 function detectXUser(): string | null {
-  const link = document.querySelector<HTMLAnchorElement>(
-    '[data-testid="AppTabBar_Profile_Link"], [data-testid="DashButton_ProfileIcon_Link"]',
+  // 戦略 1: data-testid 経由(モバイル / 一部レイアウト)
+  for (const sel of [
+    'a[data-testid="AppTabBar_Profile_Link"]',
+    'a[data-testid="DashButton_ProfileIcon_Link"]',
+  ]) {
+    const link = document.querySelector<HTMLAnchorElement>(sel);
+    const m = link?.getAttribute('href')?.match(/^\/([^/?#]+)$/);
+    if (m && m[1] && !X_RESERVED_PATHS.has(m[1])) return '@' + m[1];
+  }
+
+  // 戦略 2: side nav の Profile リンク(aria-label = "Profile")
+  const ariaLink = document.querySelector<HTMLAnchorElement>(
+    'a[aria-label="Profile"][href^="/"]',
   );
-  const href = link?.getAttribute('href');
-  const m = href?.match(/^\/([^/?#]+)$/);
-  if (m && m[1] && !X_RESERVED_PATHS.has(m[1])) return '@' + m[1];
+  const m2 = ariaLink?.getAttribute('href')?.match(/^\/([^/?#]+)$/);
+  if (m2 && m2[1] && !X_RESERVED_PATHS.has(m2[1])) return '@' + m2[1];
+
+  // 戦略 3: side nav nav 配下の profile っぽい anchor。
+  // primary nav (`[role="navigation"]`) 内の self-link を探す
+  const navLinks = document.querySelectorAll<HTMLAnchorElement>(
+    'header nav a[role="link"][href^="/"], nav[role="navigation"] a[href^="/"]',
+  );
+  for (const a of navLinks) {
+    const m = a.getAttribute('href')?.match(/^\/([^/?#]+)$/);
+    if (m && m[1] && !X_RESERVED_PATHS.has(m[1])) return '@' + m[1];
+  }
   return null;
 }
 

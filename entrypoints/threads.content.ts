@@ -5,11 +5,28 @@ import { executePostFlow } from '../src/utils/post-flow';
 import { detectAndReportUser } from '../src/utils/user-detect';
 
 function detectThreadsUser(): string | null {
-  // 自分のプロフィールリンクは /@username 形式(side nav が最初に来る)
-  const links = document.querySelectorAll<HTMLAnchorElement>('a[href^="/@"]');
-  for (const link of links) {
-    const m = link.getAttribute('href')?.match(/^\/@([^/?#]+)$/);
-    if (m && m[1]) return '@' + m[1];
+  // 戦略 1: side nav の Profile リンクを優先(aria-label / role 経由)
+  const navLink = document.querySelector<HTMLAnchorElement>(
+    'a[aria-label="Profile"][href^="/@"], nav a[href^="/@"]',
+  );
+  const m1 = navLink?.getAttribute('href')?.match(/^\/@([^/?#]+)$/);
+  if (m1 && m1[1]) return '@' + m1[1];
+
+  // 戦略 2: meta タグ(og:url が自分のプロフィール URL を指すページなら)
+  const ogUrl = document.querySelector<HTMLMetaElement>('meta[property="og:url"]');
+  const m2 = ogUrl?.content.match(/threads\.net\/@([^/?#]+)/);
+  if (m2 && m2[1]) return '@' + m2[1];
+
+  // 戦略 3: 全 a[href^="/@"] の中で textContent が空でないもの優先(side nav は label 付き)
+  // 投稿内のメンションリンクは textContent が "@xxx" 形式、side nav の label は "Profile" 等
+  const allLinks = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href^="/@"]'));
+  for (const link of allLinks) {
+    const text = link.textContent?.trim() ?? '';
+    // メンション (text が "@xxx") は除外、それ以外で /@xxx 形式の href を採用
+    if (!text.startsWith('@')) {
+      const m = link.getAttribute('href')?.match(/^\/@([^/?#]+)$/);
+      if (m && m[1]) return '@' + m[1];
+    }
   }
   return null;
 }

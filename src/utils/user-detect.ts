@@ -20,13 +20,16 @@ export async function detectAndReportUser(
       await sleep(2000);
     }
     if (username) {
+      console.log(`[Tutti] ${platform} detected user: ${username}`);
       void browser.runtime.sendMessage({
         type: 'CURRENT_USER',
         platform,
         username,
       });
+    } else {
+      console.warn(`[Tutti] ${platform} user detection failed (no match found after retries)`);
     }
   } catch (err) {
-    console.warn(`[Tutti] ${platform} user detection failed:`, err);
+    console.warn(`[Tutti] ${platform} user detection threw:`, err);
   }
 }
