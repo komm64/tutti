@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tutti — Cross-post extension</title>
+<style>
+  :root {
+    --fg: #1f2937;
+    --muted: #6b7280;
+    --brand: #0d9488;
+    --bg: #ffffff;
+    --line: #e5e7eb;
+  }
+  html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif; color: var(--fg); }
+  body { max-width: 720px; margin: 0 auto; padding: 2rem 1.5rem 4rem; line-height: 1.7; }
+  header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
+  h1 { font-size: 1.75rem; margin: 0; }
+  .tagline { color: var(--muted); margin: 0.25rem 0 1.5rem; }
+  .icon { width: 48px; height: 48px; border-radius: 8px; background: var(--brand); display: grid; place-items: center; color: white; font-weight: 700; font-size: 1.25rem; flex-shrink: 0; }
+  nav { font-size: 0.9rem; color: var(--muted); margin-bottom: 2rem; }
+  nav a { color: var(--brand); text-decoration: none; margin-right: 1rem; }
+  nav a:hover { text-decoration: underline; }
+  h2 { font-size: 1.2rem; margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--line); }
+  ul { padding-left: 1.5rem; }
+  code { background: #f3f4f6; padding: 0.1em 0.4em; border-radius: 4px; font-size: 0.9em; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--line); }
+  th { font-weight: 600; }
+  footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.85rem; }
+  footer a { color: var(--brand); }
+</style>
+</head>
+<body>
+<header>
+  <div class="icon">T</div>
+  <div>
+    <h1>Tutti</h1>
+    <p class="tagline">クロスポストの面倒を全部肩代わりする Chrome 拡張</p>
+  </div>
+</header>
+
+<nav>
+  <a href="https://github.com/komm64/tutti">GitHub</a>
+  <a href="#privacy">プライバシーポリシー</a>
+  <a href="#privacy-en">Privacy Policy (EN)</a>
+</nav>
+
+<section id="overview">
+<h2>Overview</h2>
+<p>
+Tutti は X / Bluesky / Threads / Mastodon / Misskey に同じ投稿を一気に流す
+Chrome 拡張です。バックエンドを持たず、投稿内容は第三者サーバーを一切経由しません。
+</p>
+</section>
+
+<section id="privacy">
+<h2>プライバシーポリシー</h2>
+<p>最終更新: 2026-04-30</p>
+
+<h3>1. 取得・送信するデータ</h3>
+<p><strong>本拡張はいかなる第三者サーバーにもデータを送信しません。</strong></p>
+<ul>
+<li>投稿テキスト・画像・動画は、ユーザーが選択した各 SNS のページに対し、ブラウザ内でのみ渡されます。</li>
+<li>SNS アカウント情報・認証トークン・Cookie 等を本拡張が取得・保存・送信することはありません。</li>
+<li>解析・トラッキング・広告のためのデータ収集は行いません。</li>
+</ul>
+
+<h3>2. ローカルに保存するデータ</h3>
+<p>Chrome の <code>storage</code> API でユーザーのブラウザ内にのみ保存します。</p>
+<ul>
+<li><strong>設定</strong>(<code>chrome.storage.sync</code>): Mastodon / Misskey インスタンス URL 等。Chrome 同期で他デバイスに複製される場合あり</li>
+<li><strong>投稿履歴</strong>(<code>chrome.storage.local</code>): 直近 20 件の先頭 80 文字、対象プラットフォーム、成否、タイムスタンプ。デバイスローカルのみ</li>
+<li><strong>ログイン中アカウント情報</strong>(<code>chrome.storage.local</code>): 各 SNS の現在ログイン中ユーザー名(誤爆防止のため popup に表示)。デバイスローカルのみ</li>
+<li><strong>下書き</strong>(<code>chrome.storage.session</code>): 入力中のテキストとプラットフォーム選択。ブラウザ終了で自動消去</li>
+</ul>
+<p>これらは拡張のアンインストールでいつでも完全削除できます。</p>
+
+<h3>3. 必要な権限</h3>
+<table>
+<tr><th>権限</th><th>用途</th></tr>
+<tr><td><code>storage</code></td><td>上記データのローカル保存</td></tr>
+<tr><td><code>offscreen</code></td><td>動画整形を行う offscreen document の生成 (将来機能)</td></tr>
+<tr><td><code>host_permissions</code></td><td>x.com / bsky.app / threads.com / mastodon.social / misskey.io 等の投稿ページにアクセス</td></tr>
+<tr><td><code>optional_host_permissions: https://*/*</code></td><td>ユーザーが Mastodon / Misskey の代替インスタンスを設定した際にのみ動的に要求</td></tr>
+</table>
+
+<h3>4. 外部サービスとの関係</h3>
+<p>
+Tutti は X・Bluesky・Threads・Mastodon・Misskey の各 Web 画面を自動操作しますが、
+これらは公式機能ではなく、各社・運営とは無関係です。各サービスの利用規約は
+各サービスのものに従ってください。
+</p>
+
+<h3>5. 連絡先</h3>
+<p><a href="https://github.com/komm64/tutti/issues">GitHub Issues</a></p>
+</section>
+
+<hr style="margin: 3rem 0; border: 0; border-top: 1px solid var(--line);" />
+
+<section id="privacy-en">
+<h2>Privacy Policy (English)</h2>
+<p>Last updated: 2026-04-30</p>
+
+<h3>1. Data collected and transmitted</h3>
+<p><strong>This extension never transmits data to any third-party server.</strong></p>
+<ul>
+<li>Post text, images, and videos are passed only to the user-selected SNS pages within the browser.</li>
+<li>The extension does not retrieve, store, or transmit SNS account credentials, authentication tokens, or cookies.</li>
+<li>No analytics, tracking, or advertising data is collected.</li>
+</ul>
+
+<h3>2. Locally stored data</h3>
+<p>Stored only inside the user's browser via Chrome's <code>storage</code> API.</p>
+<ul>
+<li><strong>Settings</strong> (<code>chrome.storage.sync</code>): Mastodon / Misskey instance URLs. May be replicated to other devices via Chrome Sync.</li>
+<li><strong>Post history</strong> (<code>chrome.storage.local</code>): Last 20 entries (first 80 chars of text, target platforms, success flags, timestamps). Local only.</li>
+<li><strong>Logged-in account names</strong> (<code>chrome.storage.local</code>): Current account on each SNS (for safety display in popup). Local only.</li>
+<li><strong>Drafts</strong> (<code>chrome.storage.session</code>): In-progress text and platform selection. Auto-cleared on browser exit.</li>
+</ul>
+<p>All of the above can be erased at any time by uninstalling the extension.</p>
+
+<h3>3. Required permissions</h3>
+<table>
+<tr><th>Permission</th><th>Purpose</th></tr>
+<tr><td><code>storage</code></td><td>Local persistence above</td></tr>
+<tr><td><code>offscreen</code></td><td>Video reformatting via offscreen document (future feature)</td></tr>
+<tr><td><code>host_permissions</code></td><td>Access to compose pages of x.com / bsky.app / threads.com / mastodon.social / misskey.io</td></tr>
+<tr><td><code>optional_host_permissions: https://*/*</code></td><td>Requested at runtime only when user configures a custom Mastodon / Misskey instance</td></tr>
+</table>
+
+<h3>4. Relationship with external services</h3>
+<p>Tutti automates the web UIs of X, Bluesky, Threads, Mastodon, and Misskey, but is not affiliated with any of them. Use of each service is subject to that service's own terms.</p>
+
+<h3>5. Contact</h3>
+<p><a href="https://github.com/komm64/tutti/issues">GitHub Issues</a></p>
+</section>
+
+<footer>
+  &copy; 2026 komm64 — <a href="https://github.com/komm64/tutti/blob/main/LICENSE">MIT License</a>
+</footer>
+</body>
+</html>

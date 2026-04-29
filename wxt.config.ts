@@ -4,8 +4,9 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
   modules: ['@wxt-dev/module-svelte'],
   manifest: {
-    name: 'Tutti',
-    description: 'クロスポストの面倒を全部肩代わりする Chrome 拡張',
+    name: '__MSG_appName__',
+    description: '__MSG_appDescription__',
+    default_locale: 'en',
     permissions: ['storage', 'offscreen'],
     host_permissions: [
       'https://x.com/*',
@@ -19,7 +20,7 @@ export default defineConfig({
     // Mastodon はユーザー設定のインスタンスへのアクセスを optional で要求
     optional_host_permissions: ['https://*/*'],
     action: {
-      default_title: 'Tutti',
+      default_title: '__MSG_appName__',
     },
   },
   vite: () => ({

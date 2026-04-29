@@ -1,0 +1,55 @@
+{
+  "appName": {
+    "message": "Tutti",
+    "description": "Extension name displayed in store and browser."
+  },
+  "appDescription": {
+    "message": "クロスポストの面倒を全部肩代わりする Chrome 拡張",
+    "description": "Extension description for the store listing."
+  },
+  "appTagline": {
+    "message": "クロスポストの面倒を全部肩代わり"
+  },
+  "headerHistory": { "message": "履歴" },
+  "headerSettings": { "message": "設定" },
+  "textareaPlaceholder": { "message": "投稿内容を入力..." },
+  "addMedia": { "message": "メディアを追加" },
+  "posting": { "message": "投稿中..." },
+  "postButtonShort": {
+    "message": "$N$ SNS に投稿",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "postButtonLong": {
+    "message": "$N$ SNS に投稿 ($M$ 件)",
+    "placeholders": {
+      "N": { "content": "$1" },
+      "M": { "content": "$2" }
+    }
+  },
+  "errorPrefix": { "message": "エラー: " },
+  "historyTitle": { "message": "投稿履歴" },
+  "historyEmpty": { "message": "履歴はまだありません" },
+  "clearAll": { "message": "すべて削除" },
+  "confirmClearHistory": { "message": "投稿履歴をすべて削除しますか?" },
+  "userUnconfirmed": { "message": "未確認" },
+  "splitParts": {
+    "message": "$N$ posts",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+
+  "optionsTitle": { "message": "Tutti 設定" },
+  "optionsSubtitle": { "message": "クロスポスト拡張の設定" },
+  "optionsLoading": { "message": "読み込み中..." },
+  "instanceUrl": { "message": "インスタンス URL" },
+  "instanceHint": { "message": "(末尾スラッシュなし)" },
+  "save": { "message": "保存" },
+  "saved": { "message": "✓ 保存しました" },
+  "mastodonHint": {
+    "message": "mastodon.social 以外のインスタンスを使っている場合に変更してください。保存時にそのインスタンスへのアクセス権限を Chrome に求めます。"
+  },
+  "misskeyHint": {
+    "message": "misskey.io 以外のインスタンスを使う場合に変更してください。"
+  },
+  "alertNeedHttps": { "message": "https:// から始まる URL を入力してください" },
+  "alertPermissionDenied": { "message": "アクセス権限が拒否されました。設定を保存できません。" }
+}

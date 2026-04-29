@@ -63,6 +63,7 @@
   let draftLoaded = $state(false);
   let lastSeenUsers = $state<LastSeenUsers>({});
   const version = browser.runtime.getManifest().version;
+  const t = (key: string, ...subs: string[]) => browser.i18n.getMessage(key, subs) || key;
 
   // ログイン中アカウントを popup 起動時に読み込む
   $effect(() => {
@@ -103,7 +104,7 @@
   }
 
   async function handleClearHistory() {
-    if (!confirm('投稿履歴をすべて削除しますか?')) return;
+    if (!confirm(t('confirmClearHistory'))) return;
     await clearPostHistory();
     history = [];
   }
@@ -339,23 +340,23 @@
   <header class="mb-3 flex items-start justify-between">
     <div>
       <h1 class="text-lg font-bold">
-        Tutti
+        {t('appName')}
         <span class="text-xs font-normal text-gray-400 ml-1">v{version}</span>
       </h1>
-      <p class="text-xs text-gray-500">クロスポストの面倒を全部肩代わり</p>
+      <p class="text-xs text-gray-500">{t('appTagline')}</p>
     </div>
     <div class="flex items-center gap-2 mt-0.5">
       <button
         onclick={toggleHistory}
         class="text-xs text-gray-400 hover:text-gray-600"
-        title="投稿履歴"
-      >履歴</button>
+        title={t('historyTitle')}
+      >{t('headerHistory')}</button>
       <a
         href={browser.runtime.getURL('options.html')}
         target="_blank"
         class="text-xs text-gray-400 hover:text-gray-600"
-        title="設定"
-      >設定</a>
+        title={t('headerSettings')}
+      >{t('headerSettings')}</a>
     </div>
   </header>
 
@@ -363,7 +364,7 @@
     bind:value={text}
     disabled={posting}
     class="w-full h-32 border border-gray-300 rounded p-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:bg-gray-50"
-    placeholder="投稿内容を入力..."
+    placeholder={t('textareaPlaceholder')}
   ></textarea>
 
   <!-- メディア添付エリア -->
@@ -373,7 +374,7 @@
         <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>
         </svg>
-        メディアを追加
+        {t('addMedia')}
         <input
           type="file"
           accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/quicktime,video/webm"
@@ -448,13 +449,13 @@
           {#if account}
             <span class="text-[10px] text-gray-500 truncate leading-tight" title={account}>{account}</span>
           {:else if p.available}
-            <span class="text-[10px] text-gray-300 leading-tight">未確認</span>
+            <span class="text-[10px] text-gray-300 leading-tight">{t('userUnconfirmed')}</span>
           {/if}
         </div>
         {#if mediaErr && p.available}
           <span class="text-red-500 text-[10px] leading-tight text-right shrink-0">{mediaErr.split('(')[0]?.trim()}</span>
         {:else if over && p.available}
-          <span class="text-orange-600 shrink-0">{parts} posts</span>
+          <span class="text-orange-600 shrink-0">{t('splitParts', String(parts))}</span>
         {:else}
           <span class:text-red-600={over} class="shrink-0">{remaining}</span>
         {/if}
@@ -469,17 +470,17 @@
     class="mt-3 w-full py-2 bg-blue-500 text-white rounded font-medium hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
   >
     {#if posting}
-      投稿中...
+      {t('posting')}
     {:else if totalPostCount > selectedIds.length}
-      {selectedIds.length} SNS に投稿 ({totalPostCount} 件)
+      {t('postButtonLong', String(selectedIds.length), String(totalPostCount))}
     {:else}
-      {selectedIds.length} SNS に投稿
+      {t('postButtonShort', String(selectedIds.length))}
     {/if}
   </button>
 
   {#if errorMessage}
     <p class="mt-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded p-2">
-      エラー: {errorMessage}
+      {t('errorPrefix')}{errorMessage}
     </p>
   {/if}
 
@@ -509,13 +510,13 @@
   {#if showHistory}
     <div class="mt-3 border-t border-gray-100 pt-3">
       <div class="flex items-center justify-between mb-2">
-        <p class="text-xs font-medium text-gray-500">投稿履歴</p>
+        <p class="text-xs font-medium text-gray-500">{t('historyTitle')}</p>
         {#if history.length > 0}
-          <button onclick={handleClearHistory} class="text-[10px] text-gray-400 hover:text-red-500">すべて削除</button>
+          <button onclick={handleClearHistory} class="text-[10px] text-gray-400 hover:text-red-500">{t('clearAll')}</button>
         {/if}
       </div>
       {#if history.length === 0}
-        <p class="text-xs text-gray-400">履歴はまだありません</p>
+        <p class="text-xs text-gray-400">{t('historyEmpty')}</p>
       {:else}
         <ul class="space-y-1.5">
           {#each history as entry}

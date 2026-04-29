@@ -1,0 +1,55 @@
+{
+  "appName": {
+    "message": "Tutti",
+    "description": "Extension name displayed in store and browser."
+  },
+  "appDescription": {
+    "message": "A Chrome extension that takes the hassle out of cross-posting to multiple social networks.",
+    "description": "Extension description for the store listing."
+  },
+  "appTagline": {
+    "message": "All cross-posting hassle, handled."
+  },
+  "headerHistory": { "message": "History" },
+  "headerSettings": { "message": "Settings" },
+  "textareaPlaceholder": { "message": "Write your post..." },
+  "addMedia": { "message": "Add media" },
+  "posting": { "message": "Posting..." },
+  "postButtonShort": {
+    "message": "Post to $N$ network",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "postButtonLong": {
+    "message": "Post to $N$ networks ($M$ posts)",
+    "placeholders": {
+      "N": { "content": "$1" },
+      "M": { "content": "$2" }
+    }
+  },
+  "errorPrefix": { "message": "Error: " },
+  "historyTitle": { "message": "Post history" },
+  "historyEmpty": { "message": "No posts yet" },
+  "clearAll": { "message": "Clear all" },
+  "confirmClearHistory": { "message": "Delete all post history?" },
+  "userUnconfirmed": { "message": "unknown" },
+  "splitParts": {
+    "message": "$N$ posts",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+
+  "optionsTitle": { "message": "Tutti Settings" },
+  "optionsSubtitle": { "message": "Cross-post extension preferences" },
+  "optionsLoading": { "message": "Loading..." },
+  "instanceUrl": { "message": "Instance URL" },
+  "instanceHint": { "message": "(no trailing slash)" },
+  "save": { "message": "Save" },
+  "saved": { "message": "✓ Saved" },
+  "mastodonHint": {
+    "message": "Change this if you use a Mastodon instance other than mastodon.social. You will be prompted for access permission on save."
+  },
+  "misskeyHint": {
+    "message": "Change this if you use a Misskey instance other than misskey.io."
+  },
+  "alertNeedHttps": { "message": "Please enter a URL starting with https://" },
+  "alertPermissionDenied": { "message": "Permission denied. Settings not saved." }
+}
