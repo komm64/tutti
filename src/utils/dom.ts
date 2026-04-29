@@ -33,6 +33,21 @@ export function sleep(ms: number): Promise<void> {
 }
 
 /**
+ * 指定テキストを持つ button / [role="button"] 要素を探す。
+ * 同じテキストの候補が複数あれば最後のもの(dialog 最下部の submit である可能性が高い)を返す。
+ */
+export function findClickableByText(text: string | string[]): HTMLElement | null {
+  const texts = Array.isArray(text) ? text : [text];
+  const candidates = document.querySelectorAll<HTMLElement>('button, [role="button"]');
+  let lastMatch: HTMLElement | null = null;
+  for (const el of candidates) {
+    const t = el.textContent?.trim();
+    if (t && texts.includes(t)) lastMatch = el;
+  }
+  return lastMatch;
+}
+
+/**
  * contenteditable な要素にテキストを挿入する(React 制御下でも反応するように)。
  * execCommand は deprecated だが、X / Bluesky 等の React 製 contenteditable で
  * 最も確実に input イベントを発火させる手段として現状残っている。

@@ -46,6 +46,31 @@ export async function clearDraft(): Promise<void> {
   await browser.storage.session.remove(DRAFT_KEY);
 }
 
+// ── ログイン中アカウント (chrome.storage.local) ─────────────────────────────
+//
+// 各 SNS の content script がページロード時に検出し background 経由で保存。
+// popup でユーザーに「いまどのアカウントで投稿されるか」を表示するため。
+
+export type LastSeenUsers = Partial<Record<PlatformId, string>>;
+
+const LAST_SEEN_USERS_KEY = 'lastSeenUsers';
+
+export async function getLastSeenUsers(): Promise<LastSeenUsers> {
+  const stored = await browser.storage.local.get(LAST_SEEN_USERS_KEY);
+  return (stored[LAST_SEEN_USERS_KEY] as LastSeenUsers | undefined) ?? {};
+}
+
+export async function setLastSeenUser(
+  platform: PlatformId,
+  username: string,
+): Promise<void> {
+  const current = await getLastSeenUsers();
+  if (current[platform] === username) return;
+  await browser.storage.local.set({
+    [LAST_SEEN_USERS_KEY]: { ...current, [platform]: username },
+  });
+}
+
 // ── 投稿履歴 (chrome.storage.local) ─────────────────────────────────────────
 
 export interface HistoryEntry {

@@ -44,6 +44,13 @@ export interface PlatformProgressMessage {
   result: PostResultMessage;
 }
 
+/** content script → background: 現在ログイン中のアカウント名 */
+export interface CurrentUserMessage {
+  type: 'CURRENT_USER';
+  platform: PlatformId;
+  username: string;
+}
+
 // ── offscreen document 用メッセージ (P7: 動画整形) ──────────────────────────
 
 /** background → offscreen: 動画変換リクエスト */
@@ -77,6 +84,7 @@ export type Message =
   | PostToPlatformMessage
   | PostResultMessage
   | PlatformProgressMessage
+  | CurrentUserMessage
   | ConvertVideoMessage
   | ConversionProgressMessage
   | ConversionCompleteMessage

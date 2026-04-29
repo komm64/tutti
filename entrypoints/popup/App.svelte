@@ -16,9 +16,11 @@
     clearDraft,
     clearPostHistory,
     getDraft,
+    getLastSeenUsers,
     getPostHistory,
     saveDraft,
     type HistoryEntry,
+    type LastSeenUsers,
   } from '../../src/storage';
   import { splitText } from '../../src/utils/split';
 
@@ -57,6 +59,12 @@
   let showHistory = $state(false);
   let history = $state<HistoryEntry[]>([]);
   let draftLoaded = $state(false);
+  let lastSeenUsers = $state<LastSeenUsers>({});
+
+  // ログイン中アカウントを popup 起動時に読み込む
+  $effect(() => {
+    void getLastSeenUsers().then((u) => (lastSeenUsers = u));
+  });
 
   // 下書きを読み込む(マウント時に 1 回)
   $effect(() => {
@@ -405,6 +413,7 @@
       {@const videoErr = videoCompatibility[p.id]}
       {@const imageErr = imageCompatibility[p.id]}
       {@const mediaErr = videoErr || imageErr}
+      {@const account = lastSeenUsers[p.id]}
       <label
         class="flex items-center gap-2 px-2 py-1.5 border rounded cursor-pointer select-none"
         class:opacity-40={!p.available}
@@ -421,13 +430,20 @@
           disabled={!p.available || posting}
           class="accent-blue-500"
         />
-        <span class="font-medium">{p.name}</span>
+        <div class="flex flex-col min-w-0 flex-1">
+          <span class="font-medium leading-tight">{p.name}</span>
+          {#if account}
+            <span class="text-[10px] text-gray-500 truncate leading-tight" title={account}>{account}</span>
+          {:else if p.available}
+            <span class="text-[10px] text-gray-300 leading-tight">未確認</span>
+          {/if}
+        </div>
         {#if mediaErr && p.available}
-          <span class="ml-auto text-red-500 text-[10px] leading-tight text-right">{mediaErr.split('(')[0]?.trim()}</span>
+          <span class="text-red-500 text-[10px] leading-tight text-right shrink-0">{mediaErr.split('(')[0]?.trim()}</span>
         {:else if over && p.available}
-          <span class="ml-auto text-orange-600">{parts} posts</span>
+          <span class="text-orange-600 shrink-0">{parts} posts</span>
         {:else}
-          <span class="ml-auto" class:text-red-600={over}>{remaining}</span>
+          <span class:text-red-600={over} class="shrink-0">{remaining}</span>
         {/if}
       </label>
     {/each}

@@ -1,6 +1,18 @@
 import type { ImageAttachment, Message, PostResultMessage } from '../src/messages';
 import { THREADS_SELECTORS, threadsAdapter } from '../src/adapters/threads';
+import { findClickableByText } from '../src/utils/dom';
 import { executePostFlow } from '../src/utils/post-flow';
+import { detectAndReportUser } from '../src/utils/user-detect';
+
+function detectThreadsUser(): string | null {
+  // 自分のプロフィールリンクは /@username 形式(side nav が最初に来る)
+  const links = document.querySelectorAll<HTMLAnchorElement>('a[href^="/@"]');
+  for (const link of links) {
+    const m = link.getAttribute('href')?.match(/^\/@([^/?#]+)$/);
+    if (m && m[1]) return '@' + m[1];
+  }
+  return null;
+}
 
 export default defineContentScript({
   matches: ['https://www.threads.net/*'],
@@ -25,6 +37,7 @@ export default defineContentScript({
       return true;
     });
 
+    void detectAndReportUser('threads', detectThreadsUser);
     console.log('[Tutti] Threads content script ready');
   },
 });
@@ -33,11 +46,12 @@ async function runPost(text: string, images?: ImageAttachment[]): Promise<PostRe
   await executePostFlow({
     prefillsViaUrl: threadsAdapter.prefillsViaUrl,
     textareaSelector: THREADS_SELECTORS.textarea,
-    postButtonSelector: THREADS_SELECTORS.postButton,
+    // Threads の post button は React Native Web で aria-label / data-testid が
+    // 不安定。テキスト「投稿」「Post」で探す finder を使う。
+    postButtonFinder: findThreadsPostButton,
     fileInputSelector: THREADS_SELECTORS.fileInput,
     text,
     images,
-    // Threads は React Native Web で描画が遅いことがあるので長め
     postButtonTimeoutMs: 12000,
   });
 
@@ -46,4 +60,21 @@ async function runPost(text: string, images?: ImageAttachment[]): Promise<PostRe
     platform: 'threads',
     success: true,
   };
+}
+
+/**
+ * Threads の post button を見つける。
+ *   1. aria-label "Post"/"投稿" の完全一致
+ *   2. テキスト内容 "Post"/"投稿"/"投稿する" の完全一致(複数あれば最後)
+ */
+function findThreadsPostButton(): HTMLElement | null {
+  for (const sel of [
+    '[aria-label="Post"]',
+    '[aria-label="投稿"]',
+    '[aria-label="Post now"]',
+  ]) {
+    const el = document.querySelector<HTMLElement>(sel);
+    if (el) return el;
+  }
+  return findClickableByText(['Post', '投稿', '投稿する', 'Post now']);
 }

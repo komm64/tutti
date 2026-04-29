@@ -11,7 +11,7 @@ import {
   getAdapter,
 } from '../src/adapters/registry';
 import type { PlatformAdapter } from '../src/adapters/types';
-import { addToPostHistory, getSettings } from '../src/storage';
+import { addToPostHistory, getSettings, setLastSeenUser } from '../src/storage';
 import { splitText } from '../src/utils/split';
 
 const READY_DELAY_MS = 800;
@@ -23,6 +23,12 @@ export default defineBackground(() => {
 
   browser.runtime.onMessage.addListener((rawMsg, _sender, sendResponse) => {
     const msg = rawMsg as Message;
+
+    if (msg.type === 'CURRENT_USER') {
+      void setLastSeenUser(msg.platform, msg.username);
+      return; // fire-and-forget
+    }
+
     if (msg.type !== 'POST_REQUEST') return;
 
     void handlePostRequest(msg.text, msg.platforms, msg.images)

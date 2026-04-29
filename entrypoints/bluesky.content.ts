@@ -1,6 +1,16 @@
 import type { ImageAttachment, Message, PostResultMessage } from '../src/messages';
 import { BLUESKY_SELECTORS, blueskyAdapter } from '../src/adapters/bluesky';
 import { executePostFlow } from '../src/utils/post-flow';
+import { detectAndReportUser } from '../src/utils/user-detect';
+
+function detectBlueskyUser(): string | null {
+  const link = document.querySelector<HTMLAnchorElement>(
+    '[data-testid="profileHeaderButton"], [data-testid="bottomBarProfileBtn"], a[href^="/profile/"]',
+  );
+  const m = link?.getAttribute('href')?.match(/^\/profile\/([^/?#]+)/);
+  if (m && m[1]) return '@' + m[1];
+  return null;
+}
 
 export default defineContentScript({
   matches: ['https://bsky.app/*'],
@@ -25,6 +35,7 @@ export default defineContentScript({
       return true;
     });
 
+    void detectAndReportUser('bluesky', detectBlueskyUser);
     console.log('[Tutti] Bluesky content script ready');
   },
 });
