@@ -83,6 +83,17 @@ async function postToPlatform(
   // 動画の制約チェック
   const videoItem = images?.find((img) => img.type.startsWith('video/'));
   if (videoItem) {
+    // kinds が未対応なら即エラー(動画の長さで shortVideo / longVideo を判別)
+    const isLong = (videoItem.durationS ?? 0) > 60;
+    const requiredKind = isLong ? 'longVideo' : 'shortVideo';
+    if (!adapter.kinds.includes(requiredKind)) {
+      return {
+        type: 'POST_RESULT',
+        platform,
+        success: false,
+        error: `${requiredKind === 'longVideo' ? '長尺動画' : '短動画'}に未対応`,
+      };
+    }
     const err = checkVideoConstraint(
       platform,
       videoItem.durationS ?? 0,
@@ -139,6 +150,18 @@ async function resolveAdapter(platform: PlatformId): Promise<PlatformAdapter | u
         matchUrl: (url) => url.startsWith(`${mastodonInstance}/`),
         getComposeUrl: (text) =>
           `${mastodonInstance}/share?text=${encodeURIComponent(text)}`,
+      };
+    }
+  }
+
+  if (platform === 'misskey') {
+    const { misskeyInstance } = await getSettings();
+    if (misskeyInstance !== 'https://misskey.io') {
+      return {
+        ...adapter,
+        matchUrl: (url) => url.startsWith(`${misskeyInstance}/`),
+        getComposeUrl: (text) =>
+          `${misskeyInstance}/share?text=${encodeURIComponent(text)}`,
       };
     }
   }

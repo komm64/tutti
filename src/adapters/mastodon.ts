@@ -24,6 +24,7 @@ export const mastodonAdapter: PlatformAdapter = {
     maxBytesPerImage: 8 * 1024 * 1024, // 8MB(インスタンス依存)
     maxImages: 4,
   },
+  kinds: ['text', 'image', 'shortVideo', 'longVideo'],
 };
 
 export const MASTODON_SELECTORS = {

@@ -19,6 +19,7 @@ export const xAdapter: PlatformAdapter = {
     maxBytesPerImage: 5 * 1024 * 1024, // 5MB
     maxImages: 4,
   },
+  kinds: ['text', 'image', 'shortVideo', 'longVideo'],
 };
 
 export const X_SELECTORS = {

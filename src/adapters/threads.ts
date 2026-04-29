@@ -23,6 +23,7 @@ export const threadsAdapter: PlatformAdapter = {
     maxBytesPerImage: 8 * 1024 * 1024, // 8MB
     maxImages: 10,
   },
+  kinds: ['text', 'image', 'shortVideo', 'longVideo'],
 };
 
 export const THREADS_SELECTORS = {

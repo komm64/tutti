@@ -2,6 +2,7 @@ import type { PlatformId } from '../messages';
 import type { PlatformAdapter } from './types';
 import { blueskyAdapter } from './bluesky';
 import { mastodonAdapter } from './mastodon';
+import { misskeyAdapter } from './misskey';
 import { threadsAdapter } from './threads';
 import { xAdapter } from './x';
 
@@ -11,6 +12,7 @@ export const adapters: Record<PlatformId, PlatformAdapter | undefined> = {
   bluesky: blueskyAdapter,
   threads: threadsAdapter,
   mastodon: mastodonAdapter,
+  misskey: misskeyAdapter,
 };
 
 export function getAdapter(id: PlatformId): PlatformAdapter | undefined {

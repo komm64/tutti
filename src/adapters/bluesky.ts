@@ -17,6 +17,8 @@ export const blueskyAdapter: PlatformAdapter = {
     maxBytesPerImage: 1024 * 1024, // 1MB(Bluesky は厳しい)
     maxImages: 4,
   },
+  // 60s 上限のため shortVideo まで
+  kinds: ['text', 'image', 'shortVideo'],
 };
 
 export const BLUESKY_SELECTORS = {

@@ -41,6 +41,7 @@
     { id: 'bluesky', name: 'Bluesky', limit: 300, available: true },
     { id: 'threads', name: 'Threads', limit: 500, available: true },
     { id: 'mastodon', name: 'Mastodon', limit: 500, available: true },
+    { id: 'misskey', name: 'Misskey', limit: 3000, available: true },
   ];
 
   let text = $state('');
@@ -49,6 +50,7 @@
     bluesky: true,
     threads: true,
     mastodon: true,
+    misskey: true,
   });
   let images = $state<ImagePreview[]>([]);
   let video = $state<VideoPreview | null>(null);
@@ -147,6 +149,12 @@
       .map((p) => p.id),
   );
   const hasMedia = $derived(images.length > 0 || video !== null);
+  // 現在のコンテンツ種別を自動判定: 動画 60s 以下=short / 超=long / 画像 / 文字
+  const currentKind = $derived.by(() => {
+    if (video) return video.durationS > 60 ? 'longVideo' : 'shortVideo';
+    if (images.length > 0) return 'image';
+    return 'text';
+  });
   const canPost = $derived(
     !posting && (text.trim().length > 0 || hasMedia) && selectedIds.length > 0,
   );
@@ -418,12 +426,13 @@
       {@const imageErr = imageCompatibility[p.id]}
       {@const mediaErr = videoErr || imageErr}
       {@const account = lastSeenUsers[p.id]}
+      {@const kindOk = getAdapter(p.id)?.kinds.includes(currentKind) ?? true}
       <label
         class="flex items-center gap-2 px-2 py-1.5 border rounded cursor-pointer select-none"
-        class:opacity-40={!p.available}
+        class:opacity-40={!p.available || !kindOk}
         class:cursor-not-allowed={!p.available}
-        class:border-orange-400={over && p.available && selected[p.id] && !mediaErr}
-        class:bg-orange-50={over && p.available && selected[p.id] && !mediaErr}
+        class:border-orange-400={over && p.available && selected[p.id] && !mediaErr && kindOk}
+        class:bg-orange-50={over && p.available && selected[p.id] && !mediaErr && kindOk}
         class:border-red-300={!!mediaErr && p.available && selected[p.id]}
         class:bg-red-50={!!mediaErr && p.available && selected[p.id]}
         class:border-gray-300={!(over && p.available && selected[p.id]) && !(!!mediaErr && p.available && selected[p.id])}

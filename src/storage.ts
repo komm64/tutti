@@ -5,10 +5,13 @@ import type { PlatformId, PostResultMessage } from './messages';
 export interface Settings {
   /** Mastodon インスタンス URL (末尾スラッシュなし) */
   mastodonInstance: string;
+  /** Misskey インスタンス URL (末尾スラッシュなし) */
+  misskeyInstance: string;
 }
 
 const DEFAULT_SETTINGS: Settings = {
   mastodonInstance: 'https://mastodon.social',
+  misskeyInstance: 'https://misskey.io',
 };
 
 export async function getSettings(): Promise<Settings> {

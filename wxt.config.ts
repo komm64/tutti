@@ -14,6 +14,7 @@ export default defineConfig({
       'https://www.threads.net/*',
       'https://www.threads.com/*',
       'https://mastodon.social/*',
+      'https://misskey.io/*',
     ],
     // Mastodon はユーザー設定のインスタンスへのアクセスを optional で要求
     optional_host_permissions: ['https://*/*'],

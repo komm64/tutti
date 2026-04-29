@@ -1,6 +1,16 @@
 import type { PlatformId } from '../messages';
 
 /**
+ * プラットフォームが受け付けるコンテンツの種別。
+ * popup で現在のコンテンツ種別と照合して非対応プラットフォームを示すのに使う。
+ *   - text       : 文字投稿
+ *   - image      : 画像投稿(最大 4-10 枚)
+ *   - shortVideo : 短動画(60s 以下が目安)
+ *   - longVideo  : 長動画(YouTube 等で必要)
+ */
+export type ContentKind = 'text' | 'image' | 'shortVideo' | 'longVideo';
+
+/**
  * 各 SNS のメタ情報と投稿フローを抽象化したアダプタ。
  *
  * 投稿フローは大きく 2 種類:
@@ -40,4 +50,6 @@ export interface PlatformAdapter {
   videoConstraints?: VideoConstraints;
   /** 画像の制約 */
   imageConstraints: ImageConstraints;
+  /** 受け付けるコンテンツ種別 */
+  kinds: ContentKind[];
 }
