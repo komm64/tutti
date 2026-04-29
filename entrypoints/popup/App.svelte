@@ -60,6 +60,7 @@
   let history = $state<HistoryEntry[]>([]);
   let draftLoaded = $state(false);
   let lastSeenUsers = $state<LastSeenUsers>({});
+  const version = browser.runtime.getManifest().version;
 
   // ログイン中アカウントを popup 起動時に読み込む
   $effect(() => {
@@ -329,7 +330,10 @@
 <main class="w-96 p-4 bg-white text-gray-900">
   <header class="mb-3 flex items-start justify-between">
     <div>
-      <h1 class="text-lg font-bold">Tutti</h1>
+      <h1 class="text-lg font-bold">
+        Tutti
+        <span class="text-xs font-normal text-gray-400 ml-1">v{version}</span>
+      </h1>
       <p class="text-xs text-gray-500">クロスポストの面倒を全部肩代わり</p>
     </div>
     <div class="flex items-center gap-2 mt-0.5">

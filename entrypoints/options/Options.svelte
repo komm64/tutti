@@ -4,6 +4,7 @@
   let mastodonInstance = $state('https://mastodon.social');
   let saved = $state(false);
   let loading = $state(true);
+  const version = browser.runtime.getManifest().version;
 
   $effect(() => {
     void getSettings().then((s) => {
@@ -34,7 +35,10 @@
 </script>
 
 <div class="max-w-lg mx-auto p-6 text-gray-900">
-  <h1 class="text-xl font-bold mb-1">Tutti 設定</h1>
+  <h1 class="text-xl font-bold mb-1">
+    Tutti 設定
+    <span class="text-sm font-normal text-gray-400 ml-1">v{version}</span>
+  </h1>
   <p class="text-sm text-gray-500 mb-6">クロスポスト拡張の設定</p>
 
   {#if loading}

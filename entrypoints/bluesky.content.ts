@@ -4,16 +4,21 @@ import { executePostFlow } from '../src/utils/post-flow';
 import { detectAndReportUser } from '../src/utils/user-detect';
 
 function detectBlueskyUser(): string | null {
-  // 戦略 1: localStorage の BSKY_STORAGE から handle を読む(最も確実)
+  // 戦略 1: localStorage を総当たりで探索(キー名はバージョン依存)
   try {
-    const raw = localStorage.getItem('BSKY_STORAGE');
-    if (raw) {
-      const data = JSON.parse(raw) as {
-        session?: { accounts?: { active?: boolean; handle?: string }[]; currentAccount?: { handle?: string } };
-      };
-      const active = data.session?.accounts?.find((a) => a.active);
-      const handle = active?.handle ?? data.session?.currentAccount?.handle ?? data.session?.accounts?.[0]?.handle;
-      if (handle) return '@' + handle;
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      const lc = key.toLowerCase();
+      if (!lc.includes('bsky') && !lc.includes('agent') && !lc.includes('session')) continue;
+      const val = localStorage.getItem(key);
+      if (!val) continue;
+      // JSON っぽければ parse して handle っぽいフィールドを総当たり
+      try {
+        const parsed = JSON.parse(val);
+        const handle = findHandleInObject(parsed);
+        if (handle) return '@' + handle;
+      } catch { /* not JSON, skip */ }
     }
   } catch { /* ignore */ }
 
@@ -31,6 +36,37 @@ function detectBlueskyUser(): string | null {
   const m2 = testidLink?.getAttribute('href')?.match(/^\/profile\/([^/?#]+)/);
   if (m2 && m2[1]) return '@' + m2[1];
 
+  // デバッグ: 見つからない場合、関連 localStorage キーを出力
+  const debugKeys: string[] = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k) debugKeys.push(k);
+  }
+  console.warn('[Tutti] bluesky: handle 取得失敗。localStorage keys =', debugKeys);
+  return null;
+}
+
+/**
+ * オブジェクト内を再帰的に走査して "handle" っぽいキーの値を探す。
+ * Bluesky の session 構造は内部実装が変わるので depth-first でフォールバック。
+ */
+function findHandleInObject(obj: unknown, depth = 0): string | null {
+  if (depth > 6 || !obj || typeof obj !== 'object') return null;
+  const o = obj as Record<string, unknown>;
+  // active=true なアカウントを優先
+  if (Array.isArray(o)) {
+    const active = (o as Record<string, unknown>[]).find((x) => x && (x as { active?: boolean }).active === true);
+    if (active && typeof (active as { handle?: unknown }).handle === 'string') {
+      return (active as { handle: string }).handle;
+    }
+  }
+  if (typeof o['handle'] === 'string' && /[\w.-]+/.test(o['handle'] as string)) {
+    return o['handle'] as string;
+  }
+  for (const v of Object.values(o)) {
+    const found = findHandleInObject(v, depth + 1);
+    if (found) return found;
+  }
   return null;
 }
 
