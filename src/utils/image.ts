@@ -11,7 +11,7 @@ export async function injectImages(
 ): Promise<void> {
   const input = await waitForElement<HTMLInputElement>(fileInputSelector, 5000);
   if (!input) {
-    throw new Error('画像添付用の input が見つかりませんでした (selector: ' + fileInputSelector + ')');
+    throw new Error('画像添付用の input が見つかりませんでした(SNS の UI が変わった可能性)');
   }
 
   const dt = new DataTransfer();

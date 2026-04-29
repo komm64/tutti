@@ -103,6 +103,7 @@ async function runPost(text: string, images?: ImageAttachment[]): Promise<PostRe
     prefillsViaUrl: blueskyAdapter.prefillsViaUrl,
     textareaSelector: BLUESKY_SELECTORS.textarea,
     postButtonSelector: BLUESKY_SELECTORS.postButton,
+    postButtonTexts: ['Publish', 'Post', '投稿', 'Publish post'],
     fileInputSelector: BLUESKY_SELECTORS.fileInput,
     text,
     images,

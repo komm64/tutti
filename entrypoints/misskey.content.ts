@@ -87,6 +87,7 @@ async function runPost(text: string, images?: ImageAttachment[]): Promise<PostRe
     prefillsViaUrl: misskeyAdapter.prefillsViaUrl,
     textareaSelector: MISSKEY_SELECTORS.textarea,
     postButtonSelector: MISSKEY_SELECTORS.postButton,
+    postButtonTexts: ['投稿', 'ノート', 'Note', 'Post', 'Submit'],
     fileInputSelector: MISSKEY_SELECTORS.fileInput,
     text,
     images,

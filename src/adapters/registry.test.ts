@@ -1,0 +1,59 @@
+import { describe, expect, it } from 'vitest';
+import { checkImageConstraint, checkVideoConstraint } from './registry';
+
+describe('checkVideoConstraint', () => {
+  it('未対応プラットフォームは null', () => {
+    // bluesky は videoConstraints を持つ
+    expect(checkVideoConstraint('bluesky', 30, 10 * 1024 * 1024)).toBeNull();
+  });
+
+  it('Bluesky 60s 超は拒否', () => {
+    const err = checkVideoConstraint('bluesky', 90, 10 * 1024 * 1024);
+    expect(err).toContain('尺');
+    expect(err).toContain('60');
+  });
+
+  it('Bluesky 50MB 超は拒否', () => {
+    const err = checkVideoConstraint('bluesky', 30, 60 * 1024 * 1024);
+    expect(err).toContain('ファイルサイズ');
+  });
+
+  it('Mastodon は尺制限なし(0 = 制限なし)', () => {
+    expect(checkVideoConstraint('mastodon', 9999, 10 * 1024 * 1024)).toBeNull();
+  });
+
+  it('X は尺チェックしない(緩和済み)', () => {
+    expect(checkVideoConstraint('x', 600, 10 * 1024 * 1024)).toBeNull();
+  });
+});
+
+describe('checkImageConstraint', () => {
+  it('上限以下は null', () => {
+    expect(checkImageConstraint('x', [1024 * 1024])).toBeNull();
+  });
+
+  it('Bluesky 1MB 超は拒否', () => {
+    const err = checkImageConstraint('bluesky', [2 * 1024 * 1024]);
+    expect(err).toContain('1枚目');
+    expect(err).toContain('大きすぎ');
+  });
+
+  it('複数枚で 2 枚目が超過してもインデックス込みで通知', () => {
+    const err = checkImageConstraint('bluesky', [500 * 1024, 5 * 1024 * 1024]);
+    expect(err).toContain('2枚目');
+  });
+
+  it('X は 4 枚まで', () => {
+    const sizes = [1024, 1024, 1024, 1024, 1024];
+    const err = checkImageConstraint('x', sizes);
+    expect(err).toContain('多すぎ');
+    expect(err).toContain('4');
+  });
+
+  it('Misskey は 16 枚まで', () => {
+    const sizes = Array(16).fill(1024);
+    expect(checkImageConstraint('misskey', sizes)).toBeNull();
+    const over = Array(17).fill(1024);
+    expect(checkImageConstraint('misskey', over)).toContain('16');
+  });
+});

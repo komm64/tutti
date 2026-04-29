@@ -76,7 +76,7 @@ async function postToPlatform(
       type: 'POST_RESULT',
       platform,
       success: false,
-      error: `${platform} のアダプタは未実装です`,
+      error: '未対応のプラットフォームです',
     };
   }
 
@@ -179,7 +179,7 @@ async function postSingleChunk(
     adapter.matchUrl,
   );
   if (typeof tab.id !== 'number') {
-    throw new Error('対象タブの ID が取得できませんでした');
+    throw new Error('SNS タブを開けませんでした');
   }
 
   const message: PostToPlatformMessage = {
@@ -193,8 +193,10 @@ async function postSingleChunk(
     message,
   )) as PostResultMessage | undefined;
 
-  if (!response) throw new Error('content script からの応答がありませんでした');
-  if (!response.success) throw new Error(response.error ?? '投稿失敗');
+  if (!response) {
+    throw new Error('SNS ページが応答しません(タブを再読み込みしてください)');
+  }
+  if (!response.success) throw new Error(response.error ?? '投稿に失敗しました');
 }
 
 async function openOrFocusTab(
@@ -211,7 +213,7 @@ async function openOrFocusTab(
       active: true,
     });
     if (!updated) {
-      throw new Error('既存タブの URL 更新に失敗しました');
+      throw new Error('既存の SNS タブを操作できませんでした');
     }
     if (typeof existing.windowId === 'number') {
       await browser.windows.update(existing.windowId, { focused: true });
@@ -223,7 +225,7 @@ async function openOrFocusTab(
 
   const created = await browser.tabs.create({ url: composeUrl, active: true });
   if (typeof created.id !== 'number') {
-    throw new Error('新規タブの作成に失敗しました');
+    throw new Error('SNS タブを開けませんでした');
   }
   await waitForTabComplete(created.id);
   await sleep(READY_DELAY_MS);
@@ -234,7 +236,7 @@ function waitForTabComplete(tabId: number): Promise<void> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       browser.tabs.onUpdated.removeListener(listener);
-      reject(new Error('タブのロードがタイムアウトしました'));
+      reject(new Error('SNS ページの読み込みがタイムアウトしました(回線か SNS の状態を確認)'));
     }, TAB_LOAD_TIMEOUT_MS);
 
     const listener = (

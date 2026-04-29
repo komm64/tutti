@@ -125,6 +125,7 @@ async function runPost(text: string, images?: ImageAttachment[]): Promise<PostRe
     prefillsViaUrl: mastodonAdapter.prefillsViaUrl,
     textareaSelector: MASTODON_SELECTORS.textarea,
     postButtonSelector: MASTODON_SELECTORS.postButton,
+    postButtonTexts: ['Publish', 'Toot', 'Post', '投稿', 'トゥート'],
     fileInputSelector: MASTODON_SELECTORS.fileInput,
     text,
     images,

@@ -1,5 +1,6 @@
 import type { ImageAttachment } from '../messages';
 import {
+  findClickableByText,
   insertTextIntoContentEditable,
   sleep,
   waitForElement,
@@ -11,10 +12,11 @@ export interface PostFlowOptions {
   prefillsViaUrl: boolean;
   /** DOM injection 方式の場合のみ必須 */
   textareaSelector?: string;
-  /** 投稿ボタンの CSS セレクタ(postButtonFinder を渡す場合は省略可) */
+  /** 投稿ボタンの CSS セレクタ(複数候補をカンマ区切りで OK) */
   postButtonSelector?: string;
-  /** 投稿ボタンの JS ベース finder。CSS では同定困難な SNS 用(Threads 等)。
-   *  指定された場合は postButtonSelector より優先 */
+  /** CSS が外れた場合のテキストベース fallback。"Post" / "投稿" 等 */
+  postButtonTexts?: string[];
+  /** 完全カスタム finder。指定された場合は selector / texts を無視 */
   postButtonFinder?: () => HTMLElement | null;
   /** 画像添付の file input セレクタ(省略時は画像注入をスキップ) */
   fileInputSelector?: string;
@@ -38,6 +40,7 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
     prefillsViaUrl,
     textareaSelector,
     postButtonSelector,
+    postButtonTexts,
     postButtonFinder,
     fileInputSelector,
     text,
@@ -45,8 +48,8 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
     postButtonTimeoutMs = 8000,
     afterClickDelayMs = 1500,
   } = options;
-  if (!postButtonSelector && !postButtonFinder) {
-    throw new Error('postButtonSelector か postButtonFinder のいずれかが必要');
+  if (!postButtonSelector && !postButtonTexts?.length && !postButtonFinder) {
+    throw new Error('postButtonSelector / postButtonTexts / postButtonFinder のいずれかが必要');
   }
 
   if (!prefillsViaUrl) {
@@ -55,7 +58,7 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
     }
     const textarea = await waitForElement<HTMLElement>(textareaSelector, 8000);
     if (!textarea) {
-      throw new Error('投稿入力欄が見つかりませんでした');
+      throw new Error('投稿入力欄が見つかりませんでした。ログイン済みか確認してください');
     }
     insertTextIntoContentEditable(textarea, text);
     await sleep(300);
@@ -68,26 +71,38 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
     await injectImages(images, fileInputSelector);
   }
 
-  let button: HTMLElement | null = null;
-  if (postButtonFinder) {
-    // JS finder 優先(Threads 等の CSS で同定困難な SNS)
-    const start = Date.now();
-    while (Date.now() - start < postButtonTimeoutMs) {
-      button = postButtonFinder();
-      if (button) break;
-      await sleep(200);
+  // post button 探索: finder > selector > texts の順で優先
+  const findButton = (): HTMLElement | null => {
+    if (postButtonFinder) return postButtonFinder();
+    if (postButtonSelector) {
+      const el = document.querySelector<HTMLElement>(postButtonSelector);
+      if (el) return el;
     }
-  } else if (postButtonSelector) {
-    button = await waitForElement<HTMLElement>(postButtonSelector, postButtonTimeoutMs);
+    if (postButtonTexts && postButtonTexts.length > 0) {
+      return findClickableByText(postButtonTexts);
+    }
+    return null;
+  };
+
+  let button: HTMLElement | null = null;
+  const findStart = Date.now();
+  while (Date.now() - findStart < postButtonTimeoutMs) {
+    button = findButton();
+    if (button) break;
+    await sleep(200);
   }
   if (!button) {
-    throw new Error('投稿ボタンが見つかりませんでした');
+    throw new Error(
+      '投稿ボタンが見つかりませんでした。SNS の UI が更新された可能性があります(Tutti の更新が必要)',
+    );
   }
   if (
     button.getAttribute('aria-disabled') === 'true' ||
     (button as HTMLButtonElement).disabled
   ) {
-    throw new Error('投稿ボタンが無効化されています(空文字 / 上限超過 / 未ログインの可能性)');
+    throw new Error(
+      'まだ投稿できる状態になっていません(文字数オーバー / メディア処理中 / 未ログインの可能性)',
+    );
   }
 
   button.click();

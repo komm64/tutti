@@ -71,6 +71,7 @@ async function runPost(text: string, images?: ImageAttachment[]): Promise<PostRe
     prefillsViaUrl: xAdapter.prefillsViaUrl,
     textareaSelector: X_SELECTORS.textarea,
     postButtonSelector: `${X_SELECTORS.postButtonInline}, ${X_SELECTORS.postButton}`,
+    postButtonTexts: ['Post', 'Tweet', '投稿する', 'ポスト'],
     fileInputSelector: X_SELECTORS.fileInput,
     text,
     images,
