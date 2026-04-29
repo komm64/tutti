@@ -14,7 +14,8 @@ export const threadsAdapter: PlatformAdapter = {
     `https://www.threads.net/intent/post?text=${encodeURIComponent(text)}`,
   prefillsViaUrl: true,
   videoConstraints: {
-    maxDurationS: 300, // 5 分
+    // Threads はアカウント種別で変動するのでクライアント側で尺チェックしない
+    maxDurationS: 0,
     maxBytes: 1024 * 1024 * 1024, // 1GB
   },
   imageConstraints: {

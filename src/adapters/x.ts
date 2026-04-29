@@ -10,7 +10,9 @@ export const xAdapter: PlatformAdapter = {
     `https://x.com/intent/tweet?text=${encodeURIComponent(text)}`,
   prefillsViaUrl: true,
   videoConstraints: {
-    maxDurationS: 140, // 2m20s
+    // X は無料層 2m20s だったが 2024 以降緩和、Premium で更に長い、と
+    // 流動的なのでクライアント側で尺チェックしない。超過時は X 側で拒否される。
+    maxDurationS: 0,
     maxBytes: 512 * 1024 * 1024,
   },
   imageConstraints: {
