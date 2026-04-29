@@ -7,23 +7,88 @@ import { executePostFlow } from '../src/utils/post-flow';
 import { detectAndReportUser } from '../src/utils/user-detect';
 
 function detectMastodonUser(): string | null {
-  // compose-form の中の display-name__account / account__display-name
-  const acc = document.querySelector(
-    '.compose-form .display-name__account, .compose-form .account__display-name',
-  );
-  const text = acc?.textContent?.trim();
-  if (text) return text.startsWith('@') ? text : '@' + text;
-  // fallback: meta タグ
-  const meta = document.querySelector<HTMLMetaElement>('meta[name="initialState"]');
-  if (meta) {
+  type Strategy = { name: string; fn: () => string | null };
+  const strategies: Strategy[] = [
+    {
+      name: 'meta initialState (verify_credentials)',
+      fn: () => {
+        const meta = document.querySelector<HTMLMetaElement>('div[data-component="Compose"], #initial-state');
+        // Mastodon Web は #initial-state スクリプトに JSON を埋める
+        const script = document.querySelector<HTMLScriptElement>('script#initial-state');
+        if (script) {
+          try {
+            const data = JSON.parse(script.textContent ?? '{}') as {
+              meta?: { me?: string };
+              accounts?: Record<string, { acct?: string }>;
+            };
+            const me = data.meta?.me;
+            const acct = me ? data.accounts?.[me]?.acct : null;
+            if (acct) return acct;
+          } catch { /* ignore */ }
+        }
+        void meta;
+        return null;
+      },
+    },
+    {
+      name: 'compose-form display-name',
+      fn: () => {
+        const acc = document.querySelector(
+          '.compose-form .display-name__account, .compose-form .account__display-name',
+        );
+        const t = acc?.textContent?.trim();
+        return t || null;
+      },
+    },
+    {
+      name: '.display-name__account anywhere',
+      fn: () => {
+        const t = document.querySelector('.display-name__account')?.textContent?.trim();
+        return t || null;
+      },
+    },
+    {
+      name: 'navigation column-link',
+      fn: () => {
+        const link = document.querySelector<HTMLAnchorElement>(
+          'a.column-link[href*="/@"], a[href*="/@"][role="link"]',
+        );
+        const m = link?.getAttribute('href')?.match(/@([\w.]+)/);
+        return m?.[1] ?? null;
+      },
+    },
+    {
+      name: 'meta tag with site_username',
+      fn: () => {
+        const m = document
+          .querySelector<HTMLMetaElement>('meta[property="profile:username"]')
+          ?.content;
+        return m || null;
+      },
+    },
+  ];
+
+  for (const s of strategies) {
     try {
-      const data = JSON.parse(meta.content) as { meta?: { me?: string }; accounts?: Record<string, { acct?: string }> };
-      const me = data.meta?.me;
-      if (me && data.accounts && data.accounts[me]?.acct) {
-        return '@' + data.accounts[me]!.acct!;
+      const r = s.fn();
+      if (r) {
+        const handle = r.startsWith('@') ? r : '@' + r;
+        console.log(`[Tutti] mastodon detection succeeded via "${s.name}" → ${handle}`);
+        return handle;
       }
-    } catch { /* ignore */ }
+    } catch (e) {
+      console.warn(`[Tutti] mastodon strategy "${s.name}" threw:`, e);
+    }
   }
+
+  console.warn(
+    '[Tutti] mastodon: 全戦略失敗。利用可能な手がかり:',
+    {
+      hasInitialState: !!document.querySelector('script#initial-state'),
+      composeForm: !!document.querySelector('.compose-form'),
+      displayNameAccount: !!document.querySelector('.display-name__account'),
+    },
+  );
   return null;
 }
 

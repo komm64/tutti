@@ -5,29 +5,83 @@ import { executePostFlow } from '../src/utils/post-flow';
 import { detectAndReportUser } from '../src/utils/user-detect';
 
 function detectThreadsUser(): string | null {
-  // 戦略 1: side nav の Profile リンクを優先(aria-label / role 経由)
-  const navLink = document.querySelector<HTMLAnchorElement>(
-    'a[aria-label="Profile"][href^="/@"], nav a[href^="/@"]',
-  );
-  const m1 = navLink?.getAttribute('href')?.match(/^\/@([^/?#]+)$/);
-  if (m1 && m1[1]) return '@' + m1[1];
+  type Strategy = { name: string; fn: () => string | null };
+  const strategies: Strategy[] = [
+    {
+      name: 'aria-label*=Profile + /@',
+      fn: () => {
+        const a = document.querySelector<HTMLAnchorElement>('a[aria-label*="Profile" i][href^="/@"]');
+        return a?.getAttribute('href')?.match(/^\/@([^/?#]+)$/)?.[1] ?? null;
+      },
+    },
+    {
+      name: 'aria-label*=プロフィール + /@',
+      fn: () => {
+        const a = document.querySelector<HTMLAnchorElement>('a[aria-label*="プロフィール"][href^="/@"]');
+        return a?.getAttribute('href')?.match(/^\/@([^/?#]+)$/)?.[1] ?? null;
+      },
+    },
+    {
+      name: 'all /@ non-mention',
+      fn: () => {
+        const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href^="/@"]'));
+        for (const l of links) {
+          const text = l.textContent?.trim() ?? '';
+          // メンション (text が "@xxx") は除外
+          if (!text.startsWith('@')) {
+            const m = l.getAttribute('href')?.match(/^\/@([^/?#]+)$/);
+            if (m && m[1]) return m[1];
+          }
+        }
+        return null;
+      },
+    },
+    {
+      name: 'meta og:url',
+      fn: () => {
+        const m = document
+          .querySelector<HTMLMetaElement>('meta[property="og:url"]')
+          ?.content?.match(/threads\.net\/@([^/?#]+)/);
+        return m?.[1] ?? null;
+      },
+    },
+    {
+      name: 'meta al:ios:url / al:android:url',
+      fn: () => {
+        for (const sel of ['meta[property="al:ios:url"]', 'meta[property="al:android:url"]']) {
+          const m = document
+            .querySelector<HTMLMetaElement>(sel)
+            ?.content?.match(/[@/]([\w.-]+)$/);
+          if (m && m[1] && m[1] !== 'home') return m[1];
+        }
+        return null;
+      },
+    },
+  ];
 
-  // 戦略 2: meta タグ(og:url が自分のプロフィール URL を指すページなら)
-  const ogUrl = document.querySelector<HTMLMetaElement>('meta[property="og:url"]');
-  const m2 = ogUrl?.content.match(/threads\.net\/@([^/?#]+)/);
-  if (m2 && m2[1]) return '@' + m2[1];
-
-  // 戦略 3: 全 a[href^="/@"] の中で textContent が空でないもの優先(side nav は label 付き)
-  // 投稿内のメンションリンクは textContent が "@xxx" 形式、side nav の label は "Profile" 等
-  const allLinks = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href^="/@"]'));
-  for (const link of allLinks) {
-    const text = link.textContent?.trim() ?? '';
-    // メンション (text が "@xxx") は除外、それ以外で /@xxx 形式の href を採用
-    if (!text.startsWith('@')) {
-      const m = link.getAttribute('href')?.match(/^\/@([^/?#]+)$/);
-      if (m && m[1]) return '@' + m[1];
+  for (const s of strategies) {
+    try {
+      const r = s.fn();
+      if (r) {
+        console.log(`[Tutti] threads detection succeeded via "${s.name}" → @${r}`);
+        return '@' + r;
+      }
+    } catch (e) {
+      console.warn(`[Tutti] threads strategy "${s.name}" threw:`, e);
     }
   }
+
+  // すべて失敗: デバッグ情報をダンプ
+  console.warn(
+    '[Tutti] threads: 全戦略失敗。a[href^="/@"] 一覧:',
+    Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href^="/@"]'))
+      .slice(0, 10)
+      .map((a) => ({
+        href: a.getAttribute('href'),
+        text: a.textContent?.trim()?.slice(0, 40),
+        ariaLabel: a.getAttribute('aria-label'),
+      })),
+  );
   return null;
 }
 
