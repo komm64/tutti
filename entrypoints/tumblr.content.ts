@@ -10,10 +10,14 @@ async function detectTumblrUser(): Promise<string | null> {
     'login', 'register', 'new', 'tagged', 'about', 'help', 'privacy',
     'terms', 'apps', 'developers', 'press', 'jobs', 'staff', 'reblog',
     'communities', 'live', 'tv',
+    // UI generic words (alt='Avatar' 等の誤検出を防ぐ)
+    'avatar', 'profile', 'user', 'account', 'menu', 'home', 'photo',
+    'image', 'icon', 'logo', 'banner', 'header', 'footer', 'sidebar',
+    'main', 'me', 'myself', 'thumbnail', 'preview', 'media',
   ]);
 
   const isLikelyUsername = (s: string | undefined | null): s is string =>
-    !!s && /^[\w-]+$/.test(s) && !RESERVED.has(s);
+    !!s && /^[\w-]{2,}$/.test(s) && !RESERVED.has(s.toLowerCase());
 
   const isPrimaryBlog = (text: string): string | null => {
     // 候補: primaryBlogName / primary_blog / "isPrimary":true,"name":"xxx" 等
@@ -39,16 +43,24 @@ async function detectTumblrUser(): Promise<string | null> {
       fn: async () => {
         try {
           const res = await fetch('/api/v2/user/info', { credentials: 'include' });
-          if (!res.ok) return null;
+          console.log(`[Tutti] tumblr API /user/info status=${res.status}`);
+          if (!res.ok) {
+            console.warn(`[Tutti] tumblr API failed: HTTP ${res.status}`);
+            return null;
+          }
           const data = await res.json() as {
             response?: { user?: { name?: string; blogs?: { name?: string; primary?: boolean }[] } };
           };
           const user = data?.response?.user;
+          console.log(`[Tutti] tumblr API user.name=${user?.name} blogs=`,
+            user?.blogs?.map((b) => `${b?.name}${b?.primary ? '*' : ''}`).join(', '));
           const primary = user?.blogs?.find((b) => b?.primary);
           if (isLikelyUsername(primary?.name)) return primary!.name!;
           if (isLikelyUsername(user?.name)) return user!.name!;
           if (isLikelyUsername(user?.blogs?.[0]?.name)) return user!.blogs![0]!.name!;
-        } catch { /* ignore (オフライン / CORS / 認証失敗等) */ }
+        } catch (e) {
+          console.warn('[Tutti] tumblr API threw:', e);
+        }
         return null;
       },
     },
