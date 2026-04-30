@@ -25,10 +25,11 @@ export const tumblrAdapter: PlatformAdapter = {
 };
 
 export const TUMBLR_SELECTORS = {
-  /** post button: aria-label / data-testid 系 */
-  postButton: '[data-testid="postFormPostButton"], button[aria-label="Post"]',
-  /** 本文の contenteditable(NPF editor の text block) */
-  textarea: '[data-testid="text-block"] [contenteditable="true"], [contenteditable="true"][data-block-text-block], .post-form .editor [contenteditable="true"]',
-  /** file input: compose 内の hidden input */
-  fileInput: '[data-testid="postFormFile"] input[type="file"], input[type="file"][accept*="image"]',
+  /** post button: 現代 Tumblr は class="TRX6J VxmZd" の "Post now" だが、aria/testid 無い。
+   *  text fallback (postButtonTexts) で拾う */
+  postButton: '[data-testid="postFormPostButton"], button[aria-label="Post"], button[aria-label="Post now"]',
+  /** 本文の contenteditable: Gutenberg-style block editor の p 要素(h1=title 除外) */
+  textarea: '[data-testid="gutenberg-editor"] p[contenteditable="true"], .block-editor-rich-text__editable[role="document"]:not(h1)',
+  /** file input: lazy(image attach button click 後に出現)。fallback として直接探す */
+  fileInput: 'input[type="file"][accept*="image"]',
 } as const;

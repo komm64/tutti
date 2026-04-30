@@ -314,7 +314,7 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     prefillsViaUrl: tumblrAdapter.prefillsViaUrl,
     textareaSelector: TUMBLR_SELECTORS.textarea,
     postButtonSelector: TUMBLR_SELECTORS.postButton,
-    postButtonTexts: ['Post', '投稿', 'Publish'],
+    postButtonTexts: ['Post now', 'Post', '投稿', 'Publish', '今すぐ投稿', '投稿する'],
     fileInputSelector: TUMBLR_SELECTORS.fileInput,
     text,
     images,
