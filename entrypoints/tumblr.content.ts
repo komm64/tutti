@@ -39,6 +39,10 @@ async function detectTumblrUser(): Promise<string | null> {
 
   const strategies: Strategy[] = [
     {
+      name: 'page-context inject: window globals',
+      fn: () => probePageWorldForUsername(isLikelyUsername),
+    },
+    {
       name: 'fetch /api/v2/user/info (cookie auth)',
       fn: async () => {
         try {
@@ -245,4 +249,98 @@ async function runPost(text: string, images?: ImageAttachment[]): Promise<PostRe
     platform: 'tumblr',
     success: true,
   };
+}
+
+/**
+ * page world に <script> を注入して window globals を読み、
+ * postMessage で isolated world に戻す。CSP で禁止されている場合は失敗する。
+ */
+function probePageWorldForUsername(
+  isLikelyUsername: (s: string | undefined | null) => s is string,
+): Promise<string | null> {
+  return new Promise((resolve) => {
+    const id = 'tutti-tumblr-probe-' + Math.random().toString(36).slice(2);
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const handler = (e: MessageEvent) => {
+      if (e.source !== window) return;
+      const data = e.data as { id?: string; payload?: unknown; error?: string } | null;
+      if (!data || data.id !== id) return;
+      window.removeEventListener('message', handler);
+      if (timer) clearTimeout(timer);
+      if (data.error) {
+        console.warn('[Tutti] tumblr page-world probe error:', data.error);
+        resolve(null);
+        return;
+      }
+      const payload = data.payload as Record<string, unknown> | null;
+      console.log('[Tutti] tumblr page-world probe payload:', payload);
+      if (!payload) { resolve(null); return; }
+      // 候補となるフィールドを順に当たる
+      const candidates: unknown[] = [
+        (payload.tumblr as Record<string, unknown> | undefined)?.['user'],
+        (payload.tumblr as Record<string, unknown> | undefined)?.['name'],
+        payload.primaryBlogName,
+        payload.userName,
+        payload.user,
+      ];
+      for (const c of candidates) {
+        if (typeof c === 'string' && isLikelyUsername(c)) { resolve(c); return; }
+        if (c && typeof c === 'object') {
+          const o = c as Record<string, unknown>;
+          if (typeof o['name'] === 'string' && isLikelyUsername(o['name'])) {
+            resolve(o['name']); return;
+          }
+          if (typeof o['primaryBlogName'] === 'string' && isLikelyUsername(o['primaryBlogName'])) {
+            resolve(o['primaryBlogName']); return;
+          }
+        }
+      }
+      resolve(null);
+    };
+    window.addEventListener('message', handler);
+
+    const probeFn = `(function() {
+      try {
+        const w = window;
+        const collect = (obj, depth) => {
+          if (!obj || typeof obj !== 'object' || depth > 3) return null;
+          const keys = ['name', 'primaryBlogName', 'username', 'blogName'];
+          for (const k of keys) if (typeof obj[k] === 'string') return { [k]: obj[k] };
+          return null;
+        };
+        const payload = {
+          tumblr: w.tumblr ? { user: w.tumblr.user, name: w.tumblr.name, blog: w.tumblr.blog } : null,
+          tumblrUser: collect(w.tumblr_user, 0),
+          initialState: w.__INITIAL_STATE__ ? collect(w.__INITIAL_STATE__.user || w.__INITIAL_STATE__, 0) : null,
+          apolloState: w.__APOLLO_STATE__ ? collect(w.__APOLLO_STATE__, 0) : null,
+          // bx 系 cookie はおそらく user_data 含むかも
+          bx: typeof w.__bx_userdata !== 'undefined' ? w.__bx_userdata : null,
+          // 全 window プロパティから関連っぽいものを軽く列挙
+          windowKeys: Object.getOwnPropertyNames(w).filter((k) => /tumblr|user|blog|init|apollo|state/i.test(k)).slice(0, 20),
+        };
+        window.postMessage({ id: '${id}', payload }, '*');
+      } catch (e) {
+        window.postMessage({ id: '${id}', error: String(e) }, '*');
+      }
+    })();`;
+
+    try {
+      const script = document.createElement('script');
+      script.textContent = probeFn;
+      document.documentElement.appendChild(script);
+      script.remove();
+    } catch (e) {
+      console.warn('[Tutti] tumblr page-world script inject threw:', e);
+      window.removeEventListener('message', handler);
+      resolve(null);
+      return;
+    }
+
+    timer = setTimeout(() => {
+      window.removeEventListener('message', handler);
+      console.warn('[Tutti] tumblr page-world probe timeout (CSP でブロックされた可能性)');
+      resolve(null);
+    }, 2000);
+  });
 }
