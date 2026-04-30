@@ -15,54 +15,58 @@ function detectTumblrUser(): string | null {
   const isLikelyUsername = (s: string | undefined | null): s is string =>
     !!s && /^[\w-]+$/.test(s) && !RESERVED.has(s);
 
+  const isPrimaryBlog = (text: string): string | null => {
+    // 候補: primaryBlogName / primary_blog / "isPrimary":true,"name":"xxx" 等
+    const patterns: RegExp[] = [
+      /"primaryBlogName"\s*:\s*"([\w-]+)"/,
+      /"primary_blog_name"\s*:\s*"([\w-]+)"/,
+      /"primary"\s*:\s*true[^{}]{0,200}?"name"\s*:\s*"([\w-]+)"/s,
+      /"isPrimary"\s*:\s*true[^{}]{0,200}?"name"\s*:\s*"([\w-]+)"/s,
+      /"name"\s*:\s*"([\w-]+)"[^{}]{0,200}?"primary"\s*:\s*true/s,
+      /"name"\s*:\s*"([\w-]+)"[^{}]{0,200}?"isPrimary"\s*:\s*true/s,
+      /"primary_blog"\s*:\s*\{[^}]*?"name"\s*:\s*"([\w-]+)"/s,
+    ];
+    for (const re of patterns) {
+      const m = text.match(re);
+      if (isLikelyUsername(m?.[1])) return m![1]!;
+    }
+    return null;
+  };
+
   const strategies: Strategy[] = [
     {
-      name: 'localStorage 内 JSON の "name" 出現回数最多',
+      name: 'inline script の primary blog マーカー',
       fn: () => {
-        const counts = new Map<string, number>();
-        for (let i = 0; i < localStorage.length; i++) {
-          const k = localStorage.key(i);
-          if (!k) continue;
-          const raw = localStorage.getItem(k);
-          if (!raw || raw.length < 50) continue;
-          const re = /"name"\s*:\s*"([\w-]+)"/g;
-          let m: RegExpExecArray | null;
-          while ((m = re.exec(raw)) !== null) {
-            const v = m[1]!;
-            if (isLikelyUsername(v)) counts.set(v, (counts.get(v) ?? 0) + 1);
-          }
-        }
-        if (counts.size === 0) return null;
-        const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
-        return sorted[0]?.[0] ?? null;
-      },
-    },
-    {
-      name: 'header / nav の avatar アンカー',
-      fn: () => {
-        const avatars = document.querySelectorAll<HTMLAnchorElement>(
-          'header a[href^="/"], [role="navigation"] a[href^="/"]',
-        );
-        for (const a of avatars) {
-          const href = a.getAttribute('href') ?? '';
-          // /blog/view/{name} 形式 (旧 layout)
-          const m1 = href.match(/^\/blog\/view\/([^/?#]+)/);
-          if (isLikelyUsername(m1?.[1])) return m1![1];
-          // 直下に img(avatar) を含むものを優先
-          if (a.querySelector('img')) {
-            const m2 = href.match(/^\/([^/?#]+)$/);
-            if (isLikelyUsername(m2?.[1])) return m2![1];
-          }
+        const scripts = document.querySelectorAll<HTMLScriptElement>('script');
+        for (const s of scripts) {
+          const t = s.textContent;
+          if (!t || t.length < 100) continue;
+          const u = isPrimaryBlog(t);
+          if (u) return u;
         }
         return null;
       },
     },
     {
-      name: 'aria-label*="Account" / "Profile" のアンカー',
+      name: 'localStorage の primary blog マーカー',
       fn: () => {
-        const links = document.querySelectorAll<HTMLAnchorElement>(
-          'a[aria-label][href^="/"]',
-        );
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (!k) continue;
+          const raw = localStorage.getItem(k);
+          if (!raw || raw.length < 50) continue;
+          const u = isPrimaryBlog(raw);
+          if (u) return u;
+        }
+        return null;
+      },
+    },
+    {
+      name: 'aria-label*=Account/Profile のアンカー(article 内除外)',
+      fn: () => {
+        const links = Array.from(
+          document.querySelectorAll<HTMLAnchorElement>('a[aria-label][href^="/"]'),
+        ).filter((a) => !a.closest('article, [role="article"]'));
         for (const a of links) {
           const label = a.getAttribute('aria-label') ?? '';
           if (!/account|profile|プロフィール|アカウント/i.test(label)) continue;
@@ -74,18 +78,22 @@ function detectTumblrUser(): string | null {
       },
     },
     {
-      name: '<head> 内 inline JSON の "primary":{"name":"xxx"} など',
+      name: 'global nav 配下の avatar アンカー(article 内除外)',
       fn: () => {
-        const scripts = document.querySelectorAll<HTMLScriptElement>('script');
-        for (const s of scripts) {
-          const t = s.textContent;
-          if (!t || t.length < 100) continue;
-          // primary blog の name フィールドを優先
-          const m = t.match(/"primary"\s*:\s*(?:true|\{[^}]*"name"\s*:\s*"([\w-]+)")/);
-          if (isLikelyUsername(m?.[1])) return m![1];
-          // ditto: "isPrimary": true 直前の name
-          const m2 = t.match(/"name"\s*:\s*"([\w-]+)"[^}]*"isPrimary"\s*:\s*true/);
-          if (isLikelyUsername(m2?.[1])) return m2![1];
+        const all = document.querySelectorAll<HTMLAnchorElement>(
+          '[role="navigation"] a[href^="/"], body > header a[href^="/"], body > div > header a[href^="/"]',
+        );
+        const candidates = Array.from(all).filter(
+          (a) => !a.closest('article, [role="article"]'),
+        );
+        for (const a of candidates) {
+          const href = a.getAttribute('href') ?? '';
+          const m1 = href.match(/^\/blog\/view\/([^/?#]+)/);
+          if (isLikelyUsername(m1?.[1])) return m1![1];
+          if (a.querySelector('img')) {
+            const m2 = href.match(/^\/([^/?#]+)$/);
+            if (isLikelyUsername(m2?.[1])) return m2![1];
+          }
         }
         return null;
       },
