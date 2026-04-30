@@ -18,6 +18,7 @@
     getDraft,
     getLastSeenUsers,
     getPostHistory,
+    getSettings,
     saveDraft,
     type HistoryEntry,
     type LastSeenUsers,
@@ -64,7 +65,11 @@
   let history = $state<HistoryEntry[]>([]);
   let draftLoaded = $state(false);
   let lastSeenUsers = $state<LastSeenUsers>({});
+  let dryRunActive = $state(false);
   const version = browser.runtime.getManifest().version;
+  $effect(() => {
+    void getSettings().then((s) => { dryRunActive = s.dryRun ?? false; });
+  });
   const t = (key: string, ...subs: string[]) => browser.i18n.getMessage(key, subs) || key;
 
   // ログイン中アカウントを popup 起動時に読み込む
@@ -402,6 +407,9 @@
       <h1 class="text-lg font-bold">
         {t('appName')}
         <span class="text-xs font-normal text-gray-400 ml-1">v{version}</span>
+        {#if dryRunActive}
+          <span class="ml-2 inline-block text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 align-middle">DRY RUN</span>
+        {/if}
       </h1>
       <p class="text-xs text-gray-500">{t('appTagline')}</p>
     </div>

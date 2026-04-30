@@ -28,6 +28,8 @@ export interface PostToPlatformMessage {
   platform: PlatformId;
   text: string;
   images?: ImageAttachment[];
+  /** dry-run: compose に流し込むが post button は押さない */
+  dryRun?: boolean;
 }
 
 /** content script → background: 1 プラットフォームの投稿結果 */

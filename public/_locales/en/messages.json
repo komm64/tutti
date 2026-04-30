@@ -52,5 +52,7 @@
     "message": "Change this if you use a Misskey instance other than misskey.io."
   },
   "alertNeedHttps": { "message": "Please enter a URL starting with https://" },
-  "alertPermissionDenied": { "message": "Permission denied. Settings not saved." }
+  "alertPermissionDenied": { "message": "Permission denied. Settings not saved." },
+  "dryRunTitle": { "message": "Dry run mode (testing)" },
+  "dryRunHint": { "message": "When enabled, Tutti will fill the compose form and locate the post button, but will not click it. Useful for verifying selectors without actually posting." }
 }

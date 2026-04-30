@@ -174,6 +174,7 @@ async function postSingleChunk(
   text: string,
   images?: ImageAttachment[],
 ): Promise<void> {
+  const { dryRun } = await getSettings();
   const tab = await openOrFocusTab(
     adapter.getComposeUrl(text),
     adapter.matchUrl,
@@ -187,6 +188,7 @@ async function postSingleChunk(
     platform: adapter.id,
     text,
     images,
+    dryRun,
   };
   const response = (await browser.tabs.sendMessage(
     tab.id,

@@ -52,5 +52,7 @@
     "message": "misskey.io 以外のインスタンスを使う場合に変更してください。"
   },
   "alertNeedHttps": { "message": "https:// から始まる URL を入力してください" },
-  "alertPermissionDenied": { "message": "アクセス権限が拒否されました。設定を保存できません。" }
+  "alertPermissionDenied": { "message": "アクセス権限が拒否されました。設定を保存できません。" },
+  "dryRunTitle": { "message": "Dry run モード(検証用)" },
+  "dryRunHint": { "message": "ON にすると compose 画面まで進めて post button を見つけたところで停止します(クリックしません)。selector の検証用。本番投稿はしません。" }
 }

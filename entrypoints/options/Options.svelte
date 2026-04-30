@@ -3,6 +3,7 @@
 
   let mastodonInstance = $state('https://mastodon.social');
   let misskeyInstance = $state('https://misskey.io');
+  let dryRun = $state(false);
   let saved = $state(false);
   let loading = $state(true);
   const version = browser.runtime.getManifest().version;
@@ -12,6 +13,7 @@
     void getSettings().then((s) => {
       mastodonInstance = s.mastodonInstance;
       misskeyInstance = s.misskeyInstance;
+      dryRun = s.dryRun ?? false;
       loading = false;
     });
   });
@@ -41,7 +43,7 @@
       alert(t('alertPermissionDenied'));
       return;
     }
-    await saveSettings({ mastodonInstance: m, misskeyInstance: k });
+    await saveSettings({ mastodonInstance: m, misskeyInstance: k, dryRun });
     mastodonInstance = m;
     misskeyInstance = k;
     saved = true;
@@ -91,6 +93,20 @@
         />
         <p class="text-xs text-gray-400">{t('misskeyHint')}</p>
       </div>
+    </section>
+
+    <section class="mb-6">
+      <h2 class="text-sm font-semibold text-gray-700 mb-3">{t('dryRunTitle')}</h2>
+      <label class="flex items-start gap-3 cursor-pointer">
+        <input
+          type="checkbox"
+          bind:checked={dryRun}
+          class="mt-0.5 accent-amber-500"
+        />
+        <span class="text-sm text-gray-700">
+          {t('dryRunHint')}
+        </span>
+      </label>
     </section>
 
     <div class="flex items-center gap-3">

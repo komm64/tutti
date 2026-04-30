@@ -154,7 +154,7 @@ export default defineContentScript({
       const msg = rawMsg as Message;
       if (msg.type !== 'POST_TO_PLATFORM' || msg.platform !== 'threads') return;
 
-      void runPost(msg.text, msg.images)
+      void runPost(msg.text, msg.images, msg.dryRun)
         .then((result) => sendResponse(result))
         .catch((err: unknown) => {
           const message = err instanceof Error ? err.message : String(err);
@@ -175,7 +175,7 @@ export default defineContentScript({
   },
 });
 
-async function runPost(text: string, images?: ImageAttachment[]): Promise<PostResultMessage> {
+async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolean): Promise<PostResultMessage> {
   await executePostFlow({
     prefillsViaUrl: threadsAdapter.prefillsViaUrl,
     textareaSelector: THREADS_SELECTORS.textarea,
@@ -186,6 +186,7 @@ async function runPost(text: string, images?: ImageAttachment[]): Promise<PostRe
     text,
     images,
     postButtonTimeoutMs: 12000,
+    dryRun,
   });
 
   return {

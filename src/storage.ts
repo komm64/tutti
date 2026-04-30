@@ -7,11 +7,14 @@ export interface Settings {
   mastodonInstance: string;
   /** Misskey インスタンス URL (末尾スラッシュなし) */
   misskeyInstance: string;
+  /** dry-run モード: compose 画面までは進めるが post button を押さない(selector 検証用) */
+  dryRun: boolean;
 }
 
 const DEFAULT_SETTINGS: Settings = {
   mastodonInstance: 'https://mastodon.social',
   misskeyInstance: 'https://misskey.io',
+  dryRun: false,
 };
 
 export async function getSettings(): Promise<Settings> {

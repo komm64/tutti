@@ -28,6 +28,8 @@ export interface PostFlowOptions {
   postButtonTimeoutMs?: number;
   /** 投稿後に処理が走る猶予(ms) */
   afterClickDelayMs?: number;
+  /** dry-run: post button まで見つけるが click はしない */
+  dryRun?: boolean;
 }
 
 /**
@@ -47,6 +49,7 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
     images,
     postButtonTimeoutMs = 8000,
     afterClickDelayMs = 1500,
+    dryRun = false,
   } = options;
   if (!postButtonSelector && !postButtonTexts?.length && !postButtonFinder) {
     throw new Error('postButtonSelector / postButtonTexts / postButtonFinder のいずれかが必要');
@@ -103,6 +106,15 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
     throw new Error(
       'まだ投稿できる状態になっていません(文字数オーバー / メディア処理中 / 未ログインの可能性)',
     );
+  }
+
+  if (dryRun) {
+    console.log('[Tutti] dry-run: post button found and enabled, skipping click', button);
+    // 視覚的にハイライトして検証しやすく
+    const orig = button.style.outline;
+    button.style.outline = '3px dashed #f59e0b';
+    setTimeout(() => { button!.style.outline = orig; }, 5000);
+    return;
   }
 
   button.click();
