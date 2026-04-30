@@ -17,3 +17,7 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+
+# Internal notes (kept in komm64/tutti-archive only)
+CLAUDE.md
+CONCEPT.md
