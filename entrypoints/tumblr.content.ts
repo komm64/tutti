@@ -3,6 +3,33 @@ import { TUMBLR_SELECTORS, tumblrAdapter } from '../src/adapters/tumblr';
 import { executePostFlow } from '../src/utils/post-flow';
 import { detectAndReportUser } from '../src/utils/user-detect';
 
+// page world から送られてくる probe snapshot を蓄積
+const PROBE_TAG = 'tutti-tumblr-probe-v1';
+type ProbeSnapshot = {
+  tumblr: string;
+  apolloState: string;
+  initialState: string;
+  windowKeys: string[];
+  sessionStorageKeys: string[];
+  sessionStorageHints: { key: string; preview: string }[];
+  cookies: string[];
+  indexedDBNames: string[];
+};
+let lastProbeSnapshot: ProbeSnapshot | null = null;
+window.addEventListener('message', (e: MessageEvent) => {
+  if (e.source !== window) return;
+  const data = e.data as { source?: string; snapshot?: ProbeSnapshot } | null;
+  if (!data || data.source !== PROBE_TAG || !data.snapshot) return;
+  lastProbeSnapshot = data.snapshot;
+  console.log('[Tutti] tumblr probe snapshot received:', {
+    windowKeys: data.snapshot.windowKeys,
+    sessionStorageKeys: data.snapshot.sessionStorageKeys,
+    indexedDBNames: data.snapshot.indexedDBNames,
+    tumblrLen: data.snapshot.tumblr?.length ?? 0,
+    initialStateLen: data.snapshot.initialState?.length ?? 0,
+  });
+});
+
 async function detectTumblrUser(): Promise<string | null> {
   type Strategy = { name: string; fn: () => string | null | Promise<string | null> };
   const RESERVED = new Set([
@@ -38,6 +65,27 @@ async function detectTumblrUser(): Promise<string | null> {
   };
 
   const strategies: Strategy[] = [
+    {
+      name: 'page-world probe snapshot (MAIN world content script)',
+      fn: () => {
+        const snap = lastProbeSnapshot;
+        if (!snap) return null;
+        // tumblr / initialState の JSON 文字列内から primary blog name を探す
+        const sources = [snap.tumblr, snap.initialState, snap.apolloState];
+        for (const src of sources) {
+          if (!src) continue;
+          const u = isPrimaryBlog(src);
+          if (u) return u;
+        }
+        // sessionStorage hints も走査
+        for (const hint of snap.sessionStorageHints ?? []) {
+          if (!hint.preview) continue;
+          const u = isPrimaryBlog(hint.preview);
+          if (u) return u;
+        }
+        return null;
+      },
+    },
     {
       name: 'page-context inject: window globals',
       fn: () => probePageWorldForUsername(isLikelyUsername),
@@ -188,6 +236,19 @@ async function detectTumblrUser(): Promise<string | null> {
     .map((img) => `    alt=${img.alt} src=${img.src.slice(0, 100)}`)
     .join('\n');
 
+  // page-world probe の結果も dump
+  const probeInfo = lastProbeSnapshot
+    ? `
+  page-world probe (MAIN world):
+    tumblr (first 400 chars): ${lastProbeSnapshot.tumblr?.slice(0, 400) || '(empty)'}
+    initialState (first 400 chars): ${lastProbeSnapshot.initialState?.slice(0, 400) || '(empty)'}
+    windowKeys: ${(lastProbeSnapshot.windowKeys ?? []).join(', ')}
+    sessionStorage keys (count=${lastProbeSnapshot.sessionStorageKeys?.length ?? 0}):
+      ${(lastProbeSnapshot.sessionStorageKeys ?? []).join(', ')}
+    indexedDB databases: ${(lastProbeSnapshot.indexedDBNames ?? []).join(', ')}
+    cookies (non-httpOnly): ${(lastProbeSnapshot.cookies ?? []).map((c) => c.split('=')[0]).join(', ')}`
+    : '\n  page-world probe: NOT received (CSP block か MAIN world script の登録ミス)';
+
   console.warn(
     `[Tutti] tumblr: 全戦略失敗。デバッグ情報:
   title = ${document.title}
@@ -199,7 +260,7 @@ ${blogViewAnchors || '    (none)'}
   aria-label anchors (account/profile/menu):
 ${ariaLabelAnchors || '    (none)'}
   avatar imgs (top 10, article 外):
-${avatarImgs || '    (none)'}`,
+${avatarImgs || '    (none)'}${probeInfo}`,
   );
   return null;
 }
