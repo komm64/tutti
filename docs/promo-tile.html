@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<title>Tutti — Promo Tile (440×280)</title>
+<style>
+  body {
+    margin: 0;
+    padding: 24px;
+    background: #f3f4f6;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif;
+  }
+  .tile {
+    width: 440px;
+    height: 280px;
+    background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+    border-radius: 12px;
+    color: white;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 32px 36px;
+    box-sizing: border-box;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    position: relative;
+    overflow: hidden;
+  }
+  .icon {
+    width: 56px;
+    height: 56px;
+    background: white;
+    border-radius: 12px;
+    color: #0d9488;
+    font-weight: 800;
+    font-size: 36px;
+    display: grid;
+    place-items: center;
+    margin-bottom: 16px;
+    line-height: 1;
+  }
+  .title {
+    font-size: 36px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin: 0 0 6px;
+  }
+  .tagline {
+    font-size: 15px;
+    font-weight: 500;
+    opacity: 0.95;
+    margin: 0 0 16px;
+    line-height: 1.4;
+  }
+  .platforms {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .platform {
+    background: rgba(255,255,255,0.18);
+    backdrop-filter: blur(4px);
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .pattern {
+    position: absolute;
+    right: -40px;
+    top: -40px;
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,255,255,0.12) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .hint {
+    margin-top: 20px;
+    color: #6b7280;
+    font-size: 13px;
+    max-width: 440px;
+  }
+  .hint code {
+    background: #e5e7eb;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+</style>
+</head>
+<body>
+
+<div class="tile">
+  <div class="pattern"></div>
+  <div class="icon">T</div>
+  <h1 class="title">Tutti</h1>
+  <p class="tagline">クロスポストの面倒を全部肩代わり</p>
+  <div class="platforms">
+    <span class="platform">X</span>
+    <span class="platform">Bluesky</span>
+    <span class="platform">Threads</span>
+    <span class="platform">Mastodon</span>
+    <span class="platform">Misskey</span>
+    <span class="platform">Tumblr</span>
+  </div>
+</div>
+
+<p class="hint">
+  Chrome Web Store 用のプロモタイル(440×280)。<br />
+  上の <code>.tile</code> 要素を右クリック → 「要素のスクリーンショット」で書き出し、
+  または DevTools の Capture node screenshot で 1×1 でキャプチャ。<br />
+  英語版が要るなら「クロスポストの面倒を全部肩代わり」を「All cross-posting hassle, handled.」に置換。
+</p>
+
+</body>
+</html>
