@@ -7,7 +7,7 @@ import { sleep } from './dom';
  */
 export async function detectAndReportUser(
   platform: PlatformId,
-  detector: () => string | null,
+  detector: () => string | null | Promise<string | null>,
   initialDelayMs = 2500,
 ): Promise<void> {
   try {
@@ -15,7 +15,7 @@ export async function detectAndReportUser(
     // 1 度ダメでも 2 秒置きに 3 回まで再試行(SPA で遅延描画されることがある)
     let username: string | null = null;
     for (let i = 0; i < 3; i++) {
-      username = detector();
+      username = await Promise.resolve(detector());
       if (username) break;
       await sleep(2000);
     }

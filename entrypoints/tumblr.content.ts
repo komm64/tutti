@@ -3,8 +3,8 @@ import { TUMBLR_SELECTORS, tumblrAdapter } from '../src/adapters/tumblr';
 import { executePostFlow } from '../src/utils/post-flow';
 import { detectAndReportUser } from '../src/utils/user-detect';
 
-function detectTumblrUser(): string | null {
-  type Strategy = { name: string; fn: () => string | null };
+async function detectTumblrUser(): Promise<string | null> {
+  type Strategy = { name: string; fn: () => string | null | Promise<string | null> };
   const RESERVED = new Set([
     'dashboard', 'explore', 'search', 'inbox', 'messages', 'settings',
     'login', 'register', 'new', 'tagged', 'about', 'help', 'privacy',
@@ -35,6 +35,24 @@ function detectTumblrUser(): string | null {
 
   const strategies: Strategy[] = [
     {
+      name: 'fetch /api/v2/user/info (cookie auth)',
+      fn: async () => {
+        try {
+          const res = await fetch('/api/v2/user/info', { credentials: 'include' });
+          if (!res.ok) return null;
+          const data = await res.json() as {
+            response?: { user?: { name?: string; blogs?: { name?: string; primary?: boolean }[] } };
+          };
+          const user = data?.response?.user;
+          const primary = user?.blogs?.find((b) => b?.primary);
+          if (isLikelyUsername(primary?.name)) return primary!.name!;
+          if (isLikelyUsername(user?.name)) return user!.name!;
+          if (isLikelyUsername(user?.blogs?.[0]?.name)) return user!.blogs![0]!.name!;
+        } catch { /* ignore (オフライン / CORS / 認証失敗等) */ }
+        return null;
+      },
+    },
+    {
       name: 'inline script の primary blog マーカー',
       fn: () => {
         const scripts = document.querySelectorAll<HTMLScriptElement>('script');
@@ -43,6 +61,24 @@ function detectTumblrUser(): string | null {
           if (!t || t.length < 100) continue;
           const u = isPrimaryBlog(t);
           if (u) return u;
+        }
+        return null;
+      },
+    },
+    {
+      name: 'avatar img の alt/src 内の username',
+      fn: () => {
+        const imgs = Array.from(document.querySelectorAll<HTMLImageElement>('img')).filter(
+          (img) => !img.closest('article, [role="article"]'),
+        );
+        for (const img of imgs) {
+          // alt が "username" や "@username" になることがある
+          const alt = (img.alt ?? '').replace(/^@/, '').trim();
+          if (isLikelyUsername(alt)) return alt;
+          // src が ".../{username}_*_avatar.*" 形式のことがある(Tumblr CDN)
+          const src = img.src ?? '';
+          const m = src.match(/\/([\w-]+)\/avatar/) || src.match(/avatar\/([\w-]+)\//);
+          if (isLikelyUsername(m?.[1])) return m![1]!;
         }
         return null;
       },
@@ -102,7 +138,7 @@ function detectTumblrUser(): string | null {
 
   for (const s of strategies) {
     try {
-      const r = s.fn();
+      const r = await Promise.resolve(s.fn());
       if (r) {
         console.log(`[Tutti] tumblr detection succeeded via "${s.name}" → @${r}`);
         return '@' + r;
@@ -112,25 +148,42 @@ function detectTumblrUser(): string | null {
     }
   }
 
-  // 全失敗時のデバッグダンプ
-  console.warn('[Tutti] tumblr: 全戦略失敗。デバッグ情報:');
-  console.warn('  title =', document.title);
+  // 全失敗時のデバッグダンプ(単一の console.warn にまとめてコピペしやすく)
+  const lsKeys: string[] = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k) lsKeys.push(k);
+  }
+  const blogViewAnchors = Array.from(
+    document.querySelectorAll<HTMLAnchorElement>('a[href*="/blog/view/"]'),
+  )
+    .slice(0, 10)
+    .map((a) => `    href=${a.getAttribute('href')} text=${a.textContent?.trim()?.slice(0, 30) ?? ''}`)
+    .join('\n');
+  const ariaLabelAnchors = Array.from(document.querySelectorAll<HTMLElement>('a[aria-label]'))
+    .filter((el) => /account|profile|プロフィール|アカウント|menu/i.test(el.getAttribute('aria-label') ?? ''))
+    .slice(0, 10)
+    .map((el) => `    aria-label=${el.getAttribute('aria-label')} href=${el.getAttribute('href')}`)
+    .join('\n');
+  const avatarImgs = Array.from(document.querySelectorAll<HTMLImageElement>('img'))
+    .filter((img) => !img.closest('article, [role="article"]'))
+    .filter((img) => /avatar/i.test(img.src) || /avatar/i.test(img.alt ?? ''))
+    .slice(0, 10)
+    .map((img) => `    alt=${img.alt} src=${img.src.slice(0, 100)}`)
+    .join('\n');
+
   console.warn(
-    '  /blog/view anchors =',
-    Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href*="/blog/view/"]'))
-      .slice(0, 10)
-      .map((a) => ({ href: a.getAttribute('href'), text: a.textContent?.trim()?.slice(0, 30) })),
-  );
-  console.warn(
-    '  aria-label anchors =',
-    Array.from(document.querySelectorAll<HTMLElement>('a[aria-label]'))
-      .filter((el) => /account|profile|プロフィール|アカウント/i.test(el.getAttribute('aria-label') ?? ''))
-      .slice(0, 10)
-      .map((el) => ({ ariaLabel: el.getAttribute('aria-label'), href: el.getAttribute('href') })),
-  );
-  console.warn(
-    '  localStorage keys =',
-    (() => { const ks: string[] = []; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k) ks.push(k); } return ks; })(),
+    `[Tutti] tumblr: 全戦略失敗。デバッグ情報:
+  title = ${document.title}
+  url = ${location.href}
+  localStorage keys (count=${lsKeys.length}):
+    ${lsKeys.join(', ')}
+  /blog/view anchors (top 10):
+${blogViewAnchors || '    (none)'}
+  aria-label anchors (account/profile/menu):
+${ariaLabelAnchors || '    (none)'}
+  avatar imgs (top 10, article 外):
+${avatarImgs || '    (none)'}`,
   );
   return null;
 }
