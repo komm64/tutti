@@ -47,8 +47,14 @@ async function detectTumblrUser(): Promise<string | null> {
     !!s && /^[\w-]{2,}$/.test(s) && !RESERVED.has(s.toLowerCase());
 
   const isPrimaryBlog = (text: string): string | null => {
-    // 候補: primaryBlogName / primary_blog / "isPrimary":true,"name":"xxx" 等
+    // 候補: primaryBlogName / primary_blog / "isPrimary":true,"name":"xxx" /
+    //   現代 Tumblr の React Query dehydrated state "isLoggedIn":true,"user":{"name":"xxx"} 等
     const patterns: RegExp[] = [
+      // 最優先: "isLoggedIn":true 直後の "user":{"name":"xxx"} (Tumblr 2025+ の SSR state)
+      /"isLoggedIn"\s*:\s*true\s*,\s*"user"\s*:\s*\{\s*"name"\s*:\s*"([\w-]+)"/,
+      // user オブジェクトに name + email が両方ある(他人の user 参照と区別)
+      /"user"\s*:\s*\{\s*"name"\s*:\s*"([\w-]+)"[^{}]*?"email"\s*:\s*"/s,
+      // 旧来の primary 系
       /"primaryBlogName"\s*:\s*"([\w-]+)"/,
       /"primary_blog_name"\s*:\s*"([\w-]+)"/,
       /"primary"\s*:\s*true[^{}]{0,200}?"name"\s*:\s*"([\w-]+)"/s,
@@ -114,6 +120,16 @@ async function detectTumblrUser(): Promise<string | null> {
           console.warn('[Tutti] tumblr API threw:', e);
         }
         return null;
+      },
+    },
+    {
+      name: 'document.documentElement.outerHTML を全文検索',
+      fn: () => {
+        // React Query dehydrated state は <script> ではなく div の text node や
+        // attribute に escape された JSON として埋まる場合がある。outerHTML 全体に
+        // matcher を適用すれば確実
+        const html = document.documentElement.outerHTML;
+        return isPrimaryBlog(html);
       },
     },
     {
