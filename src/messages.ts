@@ -3,7 +3,7 @@
  * すべてのメッセージはこの判別共用体のいずれかに該当する。
  */
 
-export type PlatformId = 'x' | 'bluesky' | 'threads' | 'mastodon' | 'misskey';
+export type PlatformId = 'x' | 'bluesky' | 'threads' | 'mastodon' | 'misskey' | 'tumblr';
 
 /** 画像または動画の添付データ(ArrayBuffer は structured clone で通る) */
 export interface ImageAttachment {

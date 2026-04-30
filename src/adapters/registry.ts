@@ -4,6 +4,7 @@ import { blueskyAdapter } from './bluesky';
 import { mastodonAdapter } from './mastodon';
 import { misskeyAdapter } from './misskey';
 import { threadsAdapter } from './threads';
+import { tumblrAdapter } from './tumblr';
 import { xAdapter } from './x';
 
 /** 全プラットフォームのアダプタ登録簿。新 SNS 追加時はここに足す */
@@ -13,6 +14,7 @@ export const adapters: Record<PlatformId, PlatformAdapter | undefined> = {
   threads: threadsAdapter,
   mastodon: mastodonAdapter,
   misskey: misskeyAdapter,
+  tumblr: tumblrAdapter,
 };
 
 export function getAdapter(id: PlatformId): PlatformAdapter | undefined {

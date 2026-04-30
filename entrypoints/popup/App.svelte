@@ -42,6 +42,7 @@
     { id: 'threads', name: 'Threads', limit: 500, available: true },
     { id: 'mastodon', name: 'Mastodon', limit: 500, available: true },
     { id: 'misskey', name: 'Misskey', limit: 3000, available: true },
+    { id: 'tumblr', name: 'Tumblr', limit: 4096, available: true },
   ];
 
   let text = $state('');
@@ -51,6 +52,7 @@
     threads: true,
     mastodon: true,
     misskey: true,
+    tumblr: true,
   });
   let images = $state<ImagePreview[]>([]);
   let video = $state<VideoPreview | null>(null);
