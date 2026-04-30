@@ -14,6 +14,7 @@
   "headerSettings": { "message": "設定" },
   "textareaPlaceholder": { "message": "投稿内容を入力..." },
   "addMedia": { "message": "メディアを追加" },
+  "dropMedia": { "message": "ここにファイルをドロップ" },
   "posting": { "message": "投稿中..." },
   "postButtonShort": {
     "message": "$N$ SNS に投稿",

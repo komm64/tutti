@@ -5,40 +5,89 @@ import { detectAndReportUser } from '../src/utils/user-detect';
 
 function detectTumblrUser(): string | null {
   type Strategy = { name: string; fn: () => string | null };
+  const RESERVED = new Set([
+    'dashboard', 'explore', 'search', 'inbox', 'messages', 'settings',
+    'login', 'register', 'new', 'tagged', 'about', 'help', 'privacy',
+    'terms', 'apps', 'developers', 'press', 'jobs', 'staff', 'reblog',
+    'communities', 'live', 'tv',
+  ]);
+
+  const isLikelyUsername = (s: string | undefined | null): s is string =>
+    !!s && /^[\w-]+$/.test(s) && !RESERVED.has(s);
+
   const strategies: Strategy[] = [
     {
-      name: 'localStorage tumblr-user',
+      name: 'localStorage 内 JSON の "name" 出現回数最多',
       fn: () => {
-        try {
-          for (let i = 0; i < localStorage.length; i++) {
-            const k = localStorage.key(i);
-            if (!k || !/user|account/i.test(k)) continue;
-            const raw = localStorage.getItem(k);
-            if (!raw) continue;
-            const m = raw.match(/"name"\s*:\s*"([\w-]+)"/);
-            if (m && m[1]) return m[1];
+        const counts = new Map<string, number>();
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (!k) continue;
+          const raw = localStorage.getItem(k);
+          if (!raw || raw.length < 50) continue;
+          const re = /"name"\s*:\s*"([\w-]+)"/g;
+          let m: RegExpExecArray | null;
+          while ((m = re.exec(raw)) !== null) {
+            const v = m[1]!;
+            if (isLikelyUsername(v)) counts.set(v, (counts.get(v) ?? 0) + 1);
           }
-        } catch { /* ignore */ }
+        }
+        if (counts.size === 0) return null;
+        const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+        return sorted[0]?.[0] ?? null;
+      },
+    },
+    {
+      name: 'header / nav の avatar アンカー',
+      fn: () => {
+        const avatars = document.querySelectorAll<HTMLAnchorElement>(
+          'header a[href^="/"], [role="navigation"] a[href^="/"]',
+        );
+        for (const a of avatars) {
+          const href = a.getAttribute('href') ?? '';
+          // /blog/view/{name} 形式 (旧 layout)
+          const m1 = href.match(/^\/blog\/view\/([^/?#]+)/);
+          if (isLikelyUsername(m1?.[1])) return m1![1];
+          // 直下に img(avatar) を含むものを優先
+          if (a.querySelector('img')) {
+            const m2 = href.match(/^\/([^/?#]+)$/);
+            if (isLikelyUsername(m2?.[1])) return m2![1];
+          }
+        }
         return null;
       },
     },
     {
-      name: 'aria-label="Account"',
+      name: 'aria-label*="Account" / "Profile" のアンカー',
       fn: () => {
-        const a = document.querySelector<HTMLAnchorElement>(
-          'a[aria-label*="Account" i][href^="/"]',
+        const links = document.querySelectorAll<HTMLAnchorElement>(
+          'a[aria-label][href^="/"]',
         );
-        const m = a?.getAttribute('href')?.match(/^\/([\w-]+)$/);
-        return m?.[1] ?? null;
+        for (const a of links) {
+          const label = a.getAttribute('aria-label') ?? '';
+          if (!/account|profile|プロフィール|アカウント/i.test(label)) continue;
+          const href = a.getAttribute('href') ?? '';
+          const m = href.match(/^\/(?:blog\/view\/)?([^/?#]+)/);
+          if (isLikelyUsername(m?.[1])) return m![1];
+        }
+        return null;
       },
     },
     {
-      name: 'meta og:url blog',
+      name: '<head> 内 inline JSON の "primary":{"name":"xxx"} など',
       fn: () => {
-        const m = document
-          .querySelector<HTMLMetaElement>('meta[property="og:url"]')
-          ?.content?.match(/^https:\/\/(?:www\.)?tumblr\.com\/blog\/view\/([\w-]+)/);
-        return m?.[1] ?? null;
+        const scripts = document.querySelectorAll<HTMLScriptElement>('script');
+        for (const s of scripts) {
+          const t = s.textContent;
+          if (!t || t.length < 100) continue;
+          // primary blog の name フィールドを優先
+          const m = t.match(/"primary"\s*:\s*(?:true|\{[^}]*"name"\s*:\s*"([\w-]+)")/);
+          if (isLikelyUsername(m?.[1])) return m![1];
+          // ditto: "isPrimary": true 直前の name
+          const m2 = t.match(/"name"\s*:\s*"([\w-]+)"[^}]*"isPrimary"\s*:\s*true/);
+          if (isLikelyUsername(m2?.[1])) return m2![1];
+        }
+        return null;
       },
     },
   ];
@@ -54,7 +103,27 @@ function detectTumblrUser(): string | null {
       console.warn(`[Tutti] tumblr strategy "${s.name}" threw:`, e);
     }
   }
-  console.warn('[Tutti] tumblr: 全戦略失敗');
+
+  // 全失敗時のデバッグダンプ
+  console.warn('[Tutti] tumblr: 全戦略失敗。デバッグ情報:');
+  console.warn('  title =', document.title);
+  console.warn(
+    '  /blog/view anchors =',
+    Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href*="/blog/view/"]'))
+      .slice(0, 10)
+      .map((a) => ({ href: a.getAttribute('href'), text: a.textContent?.trim()?.slice(0, 30) })),
+  );
+  console.warn(
+    '  aria-label anchors =',
+    Array.from(document.querySelectorAll<HTMLElement>('a[aria-label]'))
+      .filter((el) => /account|profile|プロフィール|アカウント/i.test(el.getAttribute('aria-label') ?? ''))
+      .slice(0, 10)
+      .map((el) => ({ ariaLabel: el.getAttribute('aria-label'), href: el.getAttribute('href') })),
+  );
+  console.warn(
+    '  localStorage keys =',
+    (() => { const ks: string[] = []; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k) ks.push(k); } return ks; })(),
+  );
   return null;
 }
 

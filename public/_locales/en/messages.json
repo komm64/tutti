@@ -14,6 +14,7 @@
   "headerSettings": { "message": "Settings" },
   "textareaPlaceholder": { "message": "Write your post..." },
   "addMedia": { "message": "Add media" },
+  "dropMedia": { "message": "Drop files here" },
   "posting": { "message": "Posting..." },
   "postButtonShort": {
     "message": "Post to $N$ network",

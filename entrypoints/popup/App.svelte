@@ -216,23 +216,20 @@
     });
   }
 
-  async function handleMedia(e: Event) {
-    const input = e.target as HTMLInputElement;
-    const files = Array.from(input.files ?? []);
+  async function processFiles(files: File[]) {
     if (files.length === 0) return;
-
-    const first = files[0]!;
-    if (first.type.startsWith('video/')) {
-      // 動画モード: 最初の1ファイルのみ
-      const durationS = await getVideoDuration(first);
+    // 動画と画像が混ざっていたら動画優先(動画 1 ファイルのみ受付)
+    const firstVideo = files.find((f) => f.type.startsWith('video/'));
+    if (firstVideo) {
+      const durationS = await getVideoDuration(firstVideo);
       if (video) URL.revokeObjectURL(video.previewUrl);
       images.forEach((img) => URL.revokeObjectURL(img.previewUrl));
       images = [];
       video = {
-        name: first.name,
-        type: first.type,
-        data: await first.arrayBuffer(),
-        previewUrl: URL.createObjectURL(first),
+        name: firstVideo.name,
+        type: firstVideo.type,
+        data: await firstVideo.arrayBuffer(),
+        previewUrl: URL.createObjectURL(firstVideo),
         durationS,
       };
     } else {
@@ -250,7 +247,48 @@
       );
       images = [...images, ...newPreviews];
     }
+  }
+
+  async function handleMedia(e: Event) {
+    const input = e.target as HTMLInputElement;
+    await processFiles(Array.from(input.files ?? []));
     input.value = '';
+  }
+
+  // ── ドラッグ&ドロップ ──────────────────────────────────────────
+  // dragenter/leave は子要素に入るたび発火するので、深さカウンタで管理
+  let dragDepth = $state(0);
+  const isDragging = $derived(dragDepth > 0);
+
+  function isFileDrag(e: DragEvent): boolean {
+    return !!e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files');
+  }
+
+  function handleDragEnter(e: DragEvent) {
+    if (!isFileDrag(e)) return;
+    e.preventDefault();
+    dragDepth++;
+  }
+
+  function handleDragOver(e: DragEvent) {
+    // ファイルドラッグのみ preventDefault(テキスト drag は textarea に任せる)
+    if (isFileDrag(e)) {
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+    }
+  }
+
+  function handleDragLeave(e: DragEvent) {
+    if (!isFileDrag(e)) return;
+    dragDepth = Math.max(0, dragDepth - 1);
+  }
+
+  async function handleDrop(e: DragEvent) {
+    if (!isFileDrag(e)) return;
+    e.preventDefault();
+    dragDepth = 0;
+    const files = Array.from(e.dataTransfer?.files ?? []);
+    await processFiles(files);
   }
 
   function removeImage(i: number) {
@@ -338,7 +376,27 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<main class="w-96 p-4 bg-white text-gray-900">
+<main
+  class="w-96 p-4 bg-white text-gray-900 relative"
+  ondragenter={handleDragEnter}
+  ondragover={handleDragOver}
+  ondragleave={handleDragLeave}
+  ondrop={handleDrop}
+>
+  {#if isDragging}
+    <div class="absolute inset-0 z-50 flex items-center justify-center pointer-events-none">
+      <div class="absolute inset-2 rounded-lg border-2 border-dashed border-blue-400 bg-blue-50/95"></div>
+      <div class="relative text-center">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-10 h-10 mx-auto text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+        <p class="text-sm font-medium text-blue-700 mt-2">{t('dropMedia')}</p>
+      </div>
+    </div>
+  {/if}
+
   <header class="mb-3 flex items-start justify-between">
     <div>
       <h1 class="text-lg font-bold">
