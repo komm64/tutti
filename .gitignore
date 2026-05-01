@@ -21,6 +21,8 @@ Thumbs.db
 # Internal notes (kept in komm64/tutti-archive only)
 CLAUDE.md
 CONCEPT.md
+audit-checklist.md
+release-procedure.md
 
 # Test scripts artifacts (screenshots from puppeteer probes)
 scripts/*.png
