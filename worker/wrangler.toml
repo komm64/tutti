@@ -1,0 +1,22 @@
+#:schema node_modules/wrangler/config-schema.json
+name = "tutti-report"
+main = "src/index.ts"
+compatibility_date = "2026-04-01"
+# account_id を明示しておくと wrangler が User /memberships を fetch しなくて済む
+# (CF API token が User->Memberships 権限を持たない最小権限運用への対策)
+account_id = "91b2e77a051758eae7ec8faf2660384d"
+
+# secret は wrangler secret put で別途登録する(コードに含めない):
+#   wrangler secret put GITHUB_TOKEN  # GitHub Issues 作成用 PAT
+
+# rate-limit 用の KV namespace。bind する前に
+#   wrangler kv namespace create RATE_LIMIT
+# で id を取得 → 下の id を埋める。bind がない場合は worker 側で
+# rate-limit をスキップする実装になっているので開発時は省略可。
+# [[kv_namespaces]]
+# binding = "RATE_LIMIT"
+# id = "<wrangler が出力した KV namespace ID>"
+
+# (オプション) GITHUB_REPO を上書きしたい場合(デフォルト komm64/tutti)
+# [vars]
+# GITHUB_REPO = "komm64/tutti"

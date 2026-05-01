@@ -112,5 +112,15 @@
   "logsCount": { "message": "entries stored" },
 
   "errorReportButton": { "message": "Report this issue" },
-  "errorReportHint": { "message": "Opens GitHub Issues with recent logs prefilled." }
+  "errorReportHint": { "message": "Opens GitHub Issues with recent logs prefilled." },
+
+  "errorDialogTitle": { "message": "Something went wrong" },
+  "errorDialogBody": { "message": "Click \"Report\" and Tutti will open a GitHub issue with recent logs. Your post content and personal info are never sent." },
+  "errorDialogReport": { "message": "Report" },
+  "errorDialogDismiss": { "message": "Dismiss" },
+  "errorDialogSubmitting": { "message": "Submitting..." },
+  "errorDialogReported": { "message": "✓ Thanks. Issue created:" },
+  "errorDialogReportFailed": { "message": "Failed to submit report" },
+  "errorDialogClose": { "message": "Close" },
+  "errorDialogOpenGitHub": { "message": "Open in GitHub" }
 }

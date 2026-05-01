@@ -93,8 +93,36 @@
     void initLogLevelFromSettings();
   });
 
-  // 障害報告: 直近のログを GitHub Issue 新規 URL に prefill して開く
-  async function handleReportError(errorText: string) {
+  // 障害報告 dialog の状態。エラーが新規に出たら proactive に表示する。
+  let errorDialogOpen = $state(false);
+  let errorDialogText = $state('');
+  // 同じエラーで複数回開かないように key で de-dupe
+  let dialogShownForKey = $state<string | null>(null);
+  $effect(() => {
+    let key: string | null = null;
+    let text = '';
+    if (errorMessage) {
+      key = `error:${errorMessage}`;
+      text = errorMessage;
+    } else {
+      const failures = lastResults?.filter((r) => !r.success) ?? [];
+      if (failures.length > 0) {
+        key = `failures:${failures.map((f) => `${f.platform}:${f.error ?? ''}`).join('|')}`;
+        text = failures.map((f) => `${f.platform}: ${f.error ?? '(no detail)'}`).join('\n');
+      }
+    }
+    if (key && key !== dialogShownForKey) {
+      errorDialogOpen = true;
+      errorDialogText = text;
+      dialogShownForKey = key;
+    }
+  });
+
+  // CF Workers proxy が GitHub Issues に転送する。1-click で報告可能。
+  // proxy が落ちてた / network エラーの場合は GitHub URL fallback を提示。
+  const REPORT_ENDPOINT = 'https://tutti-report.komm64.workers.dev';
+
+  async function buildReportPayload(errorText: string): Promise<{ title: string; body: string }> {
     let logsExcerpt = '';
     try {
       const res = (await browser.runtime.sendMessage({ type: 'LOG_EXPORT_REQUEST' })) as
@@ -106,13 +134,11 @@
         .join('\n');
     } catch { /* ignore */ }
     const ua = navigator.userAgent;
+    const title = errorText.split('\n')[0]?.slice(0, 80) || 'Tutti エラー報告';
     const body = [
-      '## 何が起きましたか',
-      '(自由記述)',
-      '',
       '## エラー',
       '```',
-      errorText.slice(0, 500),
+      errorText.slice(0, 800),
       '```',
       '',
       '## 環境',
@@ -121,12 +147,42 @@
       '',
       '## 直近のログ(最終 30 件)',
       '```',
-      logsExcerpt.slice(0, 4000) || '(no logs captured)',
+      logsExcerpt.slice(0, 6000) || '(no logs captured)',
       '```',
     ].join('\n');
-    const url = `https://github.com/komm64/tutti/issues/new?title=${encodeURIComponent('[Beta バグ報告] ')}&body=${encodeURIComponent(body)}`;
-    // body が長すぎる場合 GitHub は title だけ反映するので、本文は手動でも貼れるよう
-    // クリップボードにもコピー
+    return { title, body };
+  }
+
+  // 1-click 報告 (proxy 経由)
+  let reportSubmitting = $state(false);
+  let reportResult = $state<{ ok: boolean; issueUrl?: string; error?: string } | null>(null);
+  async function handleReportError(errorText: string): Promise<void> {
+    reportSubmitting = true;
+    reportResult = null;
+    const { title, body } = await buildReportPayload(errorText);
+    try {
+      const res = await fetch(REPORT_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, body }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { ok?: boolean; issueUrl?: string; error?: string };
+      if (res.ok && data.ok) {
+        reportResult = { ok: true, issueUrl: data.issueUrl };
+      } else {
+        reportResult = { ok: false, error: data.error ?? `HTTP ${res.status}` };
+      }
+    } catch (e) {
+      reportResult = { ok: false, error: e instanceof Error ? e.message : String(e) };
+    } finally {
+      reportSubmitting = false;
+    }
+  }
+
+  /** fallback: GitHub Issue ページを prefill 付きで開く(proxy 失敗時にユーザーが選択) */
+  async function openGitHubIssueDirect(errorText: string): Promise<void> {
+    const { title, body } = await buildReportPayload(errorText);
+    const url = `https://github.com/komm64/tutti/issues/new?title=${encodeURIComponent('[Tutti Beta] ' + title)}&body=${encodeURIComponent(body)}`;
     try { await navigator.clipboard.writeText(body); } catch { /* ignore */ }
     window.open(url, '_blank');
   }
@@ -877,6 +933,74 @@
           {/each}
         </ul>
       {/if}
+    </div>
+  {/if}
+
+  <!-- 障害報告 dialog (proactive: エラー発生時に自動で開く) -->
+  {#if errorDialogOpen}
+    <div class="absolute inset-0 z-40 flex items-center justify-center p-4 bg-black/30">
+      <div class="bg-white rounded-lg shadow-xl border border-gray-200 max-w-sm w-full p-4">
+        <div class="flex items-start gap-3 mb-3">
+          <span class="shrink-0 w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center font-bold text-base">!</span>
+          <div class="flex-1 min-w-0">
+            <h2 class="text-sm font-bold text-gray-900 leading-tight mb-1">{t('errorDialogTitle')}</h2>
+            <p class="text-xs text-gray-700 break-all whitespace-pre-line">{errorDialogText}</p>
+          </div>
+        </div>
+
+        {#if reportResult?.ok}
+          <!-- 報告成功 -->
+          <div class="text-xs bg-green-50 border border-green-200 text-green-800 rounded p-2 mb-3">
+            <p class="font-medium">{t('errorDialogReported')}</p>
+            {#if reportResult.issueUrl}
+              <a href={reportResult.issueUrl} target="_blank" class="underline hover:text-green-900 break-all">
+                {reportResult.issueUrl}
+              </a>
+            {/if}
+          </div>
+          <div class="flex items-center justify-end">
+            <button
+              onclick={() => { errorDialogOpen = false; reportResult = null; }}
+              class="px-3 py-1.5 text-xs font-medium bg-gray-700 text-white rounded hover:bg-gray-800"
+            >{t('errorDialogClose')}</button>
+          </div>
+        {:else if reportResult && !reportResult.ok}
+          <!-- 報告失敗 → GitHub URL fallback を提示 -->
+          <div class="text-xs bg-red-50 border border-red-200 text-red-800 rounded p-2 mb-3">
+            <p class="font-medium">{t('errorDialogReportFailed')}</p>
+            <p class="text-[11px] mt-0.5 break-all">{reportResult.error}</p>
+          </div>
+          <div class="flex items-center justify-end gap-2">
+            <button
+              onclick={() => { errorDialogOpen = false; reportResult = null; }}
+              class="px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-100 rounded"
+            >{t('errorDialogDismiss')}</button>
+            <button
+              onclick={async () => {
+                await openGitHubIssueDirect(errorDialogText);
+                errorDialogOpen = false;
+                reportResult = null;
+              }}
+              class="px-3 py-1.5 text-xs font-medium bg-gray-700 text-white rounded hover:bg-gray-800"
+            >{t('errorDialogOpenGitHub')}</button>
+          </div>
+        {:else}
+          <!-- 初期状態: 報告するか? -->
+          <p class="text-[11px] text-gray-500 leading-snug mb-3">{t('errorDialogBody')}</p>
+          <div class="flex items-center justify-end gap-2">
+            <button
+              onclick={() => { errorDialogOpen = false; }}
+              disabled={reportSubmitting}
+              class="px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-100 rounded disabled:opacity-40"
+            >{t('errorDialogDismiss')}</button>
+            <button
+              onclick={() => handleReportError(errorDialogText)}
+              disabled={reportSubmitting}
+              class="px-3 py-1.5 text-xs font-medium bg-red-600 text-white rounded hover:bg-red-700 disabled:bg-red-400 disabled:cursor-wait"
+            >{reportSubmitting ? t('errorDialogSubmitting') : t('errorDialogReport')}</button>
+          </div>
+        {/if}
+      </div>
     </div>
   {/if}
 </main>

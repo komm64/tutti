@@ -1,0 +1,17 @@
+{
+  "name": "tutti-report-worker",
+  "version": "0.1.0",
+  "description": "Cloudflare Workers proxy that forwards Tutti error reports to GitHub Issues.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250101.0",
+    "typescript": "^5.7.0",
+    "wrangler": "^4.0.0"
+  }
+}
