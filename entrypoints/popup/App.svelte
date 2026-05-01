@@ -522,6 +522,11 @@
       <h1 class="text-lg font-bold">
         {t('appName')}
         <span class="text-xs font-normal text-gray-400 ml-1">v{version}</span>
+        <!-- BETA バッジ: 正式版になったらこの span を削除する -->
+        <span
+          class="ml-1 inline-block text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 align-middle tracking-wider"
+          title="このバージョンは Beta です。不具合は popup ヘッダの「診断」ボタンから出力をコピーして GitHub Issue へ"
+        >BETA</span>
       </h1>
       <p class="text-xs text-gray-500">{t('appTagline')}</p>
     </div>
