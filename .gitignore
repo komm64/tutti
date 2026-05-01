@@ -23,6 +23,7 @@ CLAUDE.md
 CONCEPT.md
 audit-checklist.md
 release-procedure.md
+submission-guide.md
 
 # Test scripts artifacts (screenshots from puppeteer probes)
 scripts/*.png
