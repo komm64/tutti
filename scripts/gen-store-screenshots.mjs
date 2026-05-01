@@ -118,8 +118,11 @@ async function setupScene(scene) {
 for (const scene of scenes) {
   console.log(`\n[scene] ${scene.name}: ${scene.title}`);
   const popup = await setupScene(scene);
-  // Capture popup to PNG
-  await popup.screenshot({ path: `docs/screenshots/${scene.name}-popup.png` });
+  // Crop to the popup <main> element so the screenshot is exactly the popup
+  // content height (no trailing white from the surrounding viewport).
+  const main = await popup.$('main');
+  if (!main) throw new Error('no <main> in popup');
+  await main.screenshot({ path: `docs/screenshots/${scene.name}-popup.png` });
   await popup.close();
 }
 
