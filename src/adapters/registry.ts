@@ -2,6 +2,7 @@ import type { PlatformId } from '../messages';
 import type { PlatformAdapter } from './types';
 import { blueskyAdapter } from './bluesky';
 import { deviantartAdapter } from './deviantart';
+import { instagramAdapter } from './instagram';
 import { mastodonAdapter } from './mastodon';
 import { misskeyAdapter } from './misskey';
 import { pixivAdapter } from './pixiv';
@@ -19,6 +20,7 @@ export const adapters: Record<PlatformId, PlatformAdapter | undefined> = {
   tumblr: tumblrAdapter,
   pixiv: pixivAdapter,
   deviantart: deviantartAdapter,
+  instagram: instagramAdapter,
 };
 
 export function getAdapter(id: PlatformId): PlatformAdapter | undefined {

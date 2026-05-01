@@ -22,6 +22,8 @@ export default defineConfig({
       'https://pixiv.net/*',
       'https://www.deviantart.com/*',
       'https://deviantart.com/*',
+      'https://www.instagram.com/*',
+      'https://instagram.com/*',
     ],
     // Mastodon はユーザー設定のインスタンスへのアクセスを optional で要求
     optional_host_permissions: ['https://*/*'],

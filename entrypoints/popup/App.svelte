@@ -62,11 +62,12 @@
     { id: 'misskey', name: 'Misskey', limit: 3000, available: true },
     { id: 'pixiv', name: 'Pixiv', limit: 1000, available: true },
     { id: 'deviantart', name: 'DeviantArt', limit: 5000, available: true },
+    { id: 'instagram', name: 'Instagram', limit: 2200, available: true },
   ];
 
   let text = $state('');
-  // Pixiv / DeviantArt は image-only かつ Beta(P12)で挙動未検証のため、初期値 false に。
-  // 他 SNS は従来通り true。
+  // Pixiv / DeviantArt / Instagram は image-only かつ Beta(P12)で挙動未検証のため、
+  // 初期値 false に。他 SNS は従来通り true。
   let selected = $state<Record<PlatformId, boolean>>({
     x: true,
     bluesky: true,
@@ -76,6 +77,7 @@
     tumblr: true,
     pixiv: false,
     deviantart: false,
+    instagram: false,
   });
   let images = $state<ImagePreview[]>([]);
   let video = $state<VideoPreview | null>(null);

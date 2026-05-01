@@ -35,6 +35,8 @@ const SNS_HOSTS = [
   'https://pixiv.net/*',
   'https://www.deviantart.com/*',
   'https://deviantart.com/*',
+  'https://www.instagram.com/*',
+  'https://instagram.com/*',
 ];
 
 interface InjectFileSpec {
@@ -254,10 +256,16 @@ export default defineContentScript({
         // execCommand('insertText') は X の Lexical で state 更新が来ない実績あり。
         // 最も確実なのは clipboard paste の simulation。これで Lexical/Draft の
         // onPaste ハンドラが起動し、内部 state が更新される(X 2026-04-30 検証で確認)。
-        const sel = window.getSelection();
-        if (sel) {
-          sel.selectAllChildren(el);
-          sel.deleteFromDocument();
+        // ただし IG (Lexical) は空の editor で selectAllChildren+delete すると
+        // editor の placeholder structure (<p><br></p>) を内部で壊して以後の
+        // paste 反映が来なくなる。実質的なテキストが既にある時だけ削除する。
+        const existing = (el.textContent ?? '').trim();
+        if (existing.length > 0) {
+          const sel = window.getSelection();
+          if (sel) {
+            sel.selectAllChildren(el);
+            sel.deleteFromDocument();
+          }
         }
         const dt = new DataTransfer();
         dt.setData('text/plain', text);
@@ -268,10 +276,16 @@ export default defineContentScript({
         });
         el.dispatchEvent(pasteEv);
 
+        // Lexical / ProseMirror など framework によっては paste 反映が
+        // 非同期で setState 経由 (microtask)。すぐ textContent を読むと
+        // 「まだ空」と誤判定して fallback が二重三重に走る。少し待つ。
+        await new Promise((r) => setTimeout(r, 120));
+
         // paste でダメだった場合のフォールバック: execCommand → 直接 textContent
         const matchSnippet = text.slice(0, Math.min(20, text.length));
         if (!(el.textContent ?? '').includes(matchSnippet)) {
           document.execCommand('insertText', false, text);
+          await new Promise((r) => setTimeout(r, 80));
         }
         if (!(el.textContent ?? '').includes(matchSnippet)) {
           el.textContent = text;
@@ -281,9 +295,17 @@ export default defineContentScript({
 
       // 検証(DOM ベース)。React state まで反映されたかは別途送信側 SNS の post button が
       // enable になるかで判定するため、ここでは DOM レベルの確認のみ。
-      const ok = el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement
-        ? el.value.includes(text.slice(0, Math.min(20, text.length)))
-        : (el.textContent ?? '').includes(text.slice(0, Math.min(20, text.length)));
+      // input/textarea は value で厳密に判定。contenteditable は innerText が
+      // 取れない / Lexical 等が DOM を再構成するので、内容が「空でないこと」だけ
+      // 緩く判定する (paste / execCommand / textContent 代入のいずれかが効いたか)。
+      let ok: boolean;
+      if (el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement) {
+        ok = el.value.includes(text.slice(0, Math.min(20, text.length)));
+      } else {
+        // innerText を優先 (Lexical 等が span ネストする場合に textContent より確実)
+        const visible = (el.innerText ?? el.textContent ?? '').trim();
+        ok = visible.length > 0;
+      }
       return {
         source: RES_TAG,
         id: req.id,

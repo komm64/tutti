@@ -3,7 +3,7 @@
  * すべてのメッセージはこの判別共用体のいずれかに該当する。
  */
 
-export type PlatformId = 'x' | 'bluesky' | 'threads' | 'mastodon' | 'misskey' | 'tumblr' | 'pixiv' | 'deviantart';
+export type PlatformId = 'x' | 'bluesky' | 'threads' | 'mastodon' | 'misskey' | 'tumblr' | 'pixiv' | 'deviantart' | 'instagram';
 
 /**
  * 画像または動画の添付データ。
