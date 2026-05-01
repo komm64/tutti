@@ -1,8 +1,8 @@
 import { initLogLevelFromSettings, log } from '../src/utils/logger';
 import type { ImageAttachment, Message, PostResultMessage } from '../src/messages';
-import { PIXIV_SELECTORS, buildPixivTitle, pixivAdapter } from '../src/adapters/pixiv';
+import { PIXIV_SELECTORS, buildPixivTitle, extractPixivTags, pixivAdapter } from '../src/adapters/pixiv';
 import { executeMultiStepFlow, type Step } from '../src/utils/step-runner';
-import { injectImages, injectTextIntoElement } from '../src/utils/image';
+import { injectImages, injectTagList, injectTextIntoElement } from '../src/utils/image';
 import { sleep } from '../src/utils/dom';
 import { buildDiagnosis } from '../src/utils/diagnose';
 import { resolveSelectors } from '../src/utils/selector-overrides';
@@ -81,9 +81,10 @@ async function runPost(
 
   const sel = await resolveSelectors('pixiv', PIXIV_SELECTORS);
   const title = buildPixivTitle(text);
+  const tags = extractPixivTags(text);
 
   // Pixiv は単一ページ form なので advance なしの sequential step で表現する。
-  // 1) 画像注入 → サムネイル描画待ち / 2) title 入力 / 3) caption 入力 → finalize で Post
+  // 1) 画像注入 / 2) title / 3) caption / 4) tags → finalize で Post
   const steps: Step[] = [
     {
       name: 'inject-images',
@@ -109,17 +110,39 @@ async function runPost(
       },
       settleMs: 200,
     },
+    {
+      // Pixiv は tags が必須 (Required ラベル付き)。本文の #hashtag を抽出、
+      // 無ければ default ['Tutti'] が使われる。Enter で 1 tag ずつ確定。
+      name: 'fill-tags',
+      action: async () => {
+        await injectTagList(tags, sel.tagInput);
+      },
+      settleMs: 400,
+    },
   ];
 
   await executeMultiStepFlow({
     steps,
     finalize: {
-      // header Post (`.gtm-work-post-button-in-header-click`) は常時 enabled
-      // だが、画像 + title が無ければサーバ側で弾かれる。先に enable される
-      // bottom Post を優先 → 無ければ header Post に fallback。
-      selector: sel.postButton,
+      // Pixiv は header Post (`.gtm-work-post-button-in-header-click`) と
+      // bottom Post (form 内の charcoal-button) の 2 種類が DOM にある。
+      // header は analytics-tagged で常時 enabled だが、実機 (2026-05-02) で
+      // click しても投稿が走らない (preview / scroll 系 CTA の可能性)。
+      // 実際の submit は bottom Post で、image + title が valid になると enabled。
+      // finder で bottom Post (header の gtm class を除いた最初の "Post" button) を優先する。
+      finder: () => {
+        const all = Array.from(document.querySelectorAll<HTMLButtonElement>('button'))
+          .filter((b) => /^Post$|^投稿$/.test((b.textContent ?? '').trim()));
+        const nonHeader = all.filter(
+          (b) => !b.className.includes('gtm-work-post-button-in-header-click'),
+        );
+        // 有効な bottom Post を最優先 → 無ければ header に fallback
+        const enabled = nonHeader.find((b) => !b.disabled);
+        return enabled ?? nonHeader[0] ?? all[0] ?? null;
+      },
       texts: ['Post', '投稿', 'Submit'],
-      afterClickDelayMs: 2000,
+      // submit 後の navigation 待ち。Pixiv は /artworks/<id> へ redirect する
+      afterClickDelayMs: 3000,
     },
     dryRun,
   });

@@ -56,12 +56,16 @@ interface InjectRequest {
    * 'text'  = contenteditable / textarea にテキスト挿入(React/Lexical 等の
    *           framework が ISOLATED world からの execCommand だと反応しない
    *           ケースのために MAIN world で実行する)
+   * 'tag-list' = Pixiv の tag input のような「value 入力 → Enter で確定 →
+   *           input がクリア → 次の値」を繰り返す UI。tags[] を順次入れる
    */
-  mode: 'input' | 'drop' | 'text';
+  mode: 'input' | 'drop' | 'text' | 'tag-list';
   selector: string;
   files: InjectFileSpec[];
   /** mode === 'text' 専用: 挿入するテキスト */
   text?: string;
+  /** mode === 'tag-list' 専用: 順次 commit する tag 列 */
+  tags?: string[];
   /** アップロード完了待ちのタイムアウト(ms)。省略時 30000 */
   uploadTimeoutMs?: number;
 }
@@ -349,11 +353,58 @@ export default defineContentScript({
       };
     }
 
+    async function injectTagList(req: InjectRequest): Promise<InjectResponse> {
+      const found = findEl(req.selector);
+      if (!found) {
+        return {
+          source: RES_TAG,
+          id: req.id,
+          ok: false,
+          error: `tag input not found: ${req.selector}`,
+        };
+      }
+      const input = found.el as HTMLInputElement;
+      if (!(input instanceof HTMLInputElement)) {
+        return {
+          source: RES_TAG,
+          id: req.id,
+          ok: false,
+          error: 'tag-list mode は <input> 要素にしか対応していません',
+        };
+      }
+      const tags = req.tags ?? [];
+      console.log(`[Tutti inject-helper] tag-list: ${tags.length} tags into "${found.matchedPart}"`);
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+
+      let committed = 0;
+      for (const tag of tags) {
+        input.focus();
+        if (setter) setter.call(input, tag);
+        else input.value = tag;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        await new Promise((r) => setTimeout(r, 120));
+        // Enter で commit。React 系は keydown を見るので 3 種 dispatch
+        const opts = { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true };
+        input.dispatchEvent(new KeyboardEvent('keydown', opts));
+        input.dispatchEvent(new KeyboardEvent('keypress', opts));
+        input.dispatchEvent(new KeyboardEvent('keyup', opts));
+        await new Promise((r) => setTimeout(r, 250));
+        committed++;
+      }
+      return {
+        source: RES_TAG,
+        id: req.id,
+        ok: committed > 0,
+        error: committed === 0 ? 'no tags committed' : undefined,
+      };
+    }
+
     async function handle(req: InjectRequest): Promise<InjectResponse> {
       try {
         installUploadHook();
         if (req.mode === 'text') return await injectText(req);
         if (req.mode === 'drop') return await injectViaDrop(req);
+        if (req.mode === 'tag-list') return await injectTagList(req);
         return await injectIntoInput(req);
       } catch (e) {
         return {
@@ -373,7 +424,10 @@ export default defineContentScript({
       const data = ev.data as Partial<InjectRequest> | undefined;
       if (!data || data.source !== REQ_TAG || typeof data.id !== 'string') return;
       if (typeof data.selector !== 'string' || !Array.isArray(data.files)) return;
-      const mode: InjectRequest['mode'] = data.mode === 'drop' ? 'drop' : data.mode === 'text' ? 'text' : 'input';
+      const mode: InjectRequest['mode'] =
+        data.mode === 'drop' ? 'drop' :
+        data.mode === 'text' ? 'text' :
+        data.mode === 'tag-list' ? 'tag-list' : 'input';
       const req: InjectRequest = {
         source: REQ_TAG,
         id: data.id,
@@ -381,6 +435,7 @@ export default defineContentScript({
         selector: data.selector,
         files: data.files,
         text: typeof data.text === 'string' ? data.text : undefined,
+        tags: Array.isArray(data.tags) ? data.tags.filter((t): t is string => typeof t === 'string') : undefined,
         uploadTimeoutMs: typeof data.uploadTimeoutMs === 'number' ? data.uploadTimeoutMs : undefined,
       };
       void handle(req).then((res) => {

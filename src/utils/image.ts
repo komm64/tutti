@@ -7,10 +7,11 @@ const RES_TAG = 'tutti-inject-res-v1';
 interface InjectRequest {
   source: typeof REQ_TAG;
   id: string;
-  mode: 'input' | 'drop' | 'text';
+  mode: 'input' | 'drop' | 'text' | 'tag-list';
   selector: string;
   files: { name: string; type: string; data: string }[];
   text?: string;
+  tags?: string[];
   uploadTimeoutMs?: number;
 }
 
@@ -104,6 +105,28 @@ export async function injectTextIntoElement(
   if (!result.ok) {
     throw new Error(result.error ?? '本文の挿入に失敗(SNS の UI が変わった可能性)');
   }
+}
+
+/**
+ * 「value 入力 → Enter で確定 → input clear」を繰り返す UI に tag 列を順次注入する。
+ * Pixiv の tag input が代表例 (1 input に 1 tag ずつ確定する仕様)。
+ * MAIN-world helper 経由で React の onChange が走るように setter + Enter key を発火。
+ */
+export async function injectTagList(
+  tags: string[],
+  inputSelector: string,
+): Promise<void> {
+  await waitForElement<HTMLElement>(inputSelector, 5000);
+  const result = await sendInjectRequest({
+    mode: 'tag-list',
+    selector: inputSelector,
+    files: [],
+    tags,
+  });
+  if (!result.ok) {
+    throw new Error(result.error ?? 'tag list 注入に失敗');
+  }
+  await sleep(200);
 }
 
 /**
