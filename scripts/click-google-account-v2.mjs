@@ -10,10 +10,17 @@ const page = pages.find((p) => /accounts\.google\.com/.test(p.url())) ?? pages[0
 
 console.log('current URL:', page.url());
 
+// テスト垢のメールアドレスは環境変数 TEST_EMAIL から拾う(ハードコードしない)
+const TEST_EMAIL = process.env.TEST_EMAIL ?? '';
+if (!TEST_EMAIL) {
+  console.error('TEST_EMAIL env var が必要(例: TEST_EMAIL=foo@bar.com node scripts/click-google-account-v2.mjs)');
+  process.exit(1);
+}
+
 // 該当行の DOM 構造を調べる
-const info = await page.evaluate(() => {
+const info = await page.evaluate((email) => {
   const target = Array.from(document.querySelectorAll('*')).find((el) =>
-    el.textContent === 'REDACTED@example.com',
+    el.textContent === email,
   );
   if (!target) return { found: false };
   const ancestors = [];
@@ -31,13 +38,13 @@ const info = await page.evaluate(() => {
     cur = cur.parentElement;
   }
   return { found: true, ancestors };
-});
+}, TEST_EMAIL);
 console.log('ancestors of email:', JSON.stringify(info, null, 2));
 
-// click via mouse coordinates on the Ren Fujimoto row
-const box = await page.evaluate(() => {
+// click via mouse coordinates on the test account row
+const box = await page.evaluate((email) => {
   const target = Array.from(document.querySelectorAll('*')).find((el) =>
-    el.textContent === 'REDACTED@example.com',
+    el.textContent === email,
   );
   if (!target) return null;
   // 親をたどってクリック可能な要素を探す
@@ -53,7 +60,7 @@ const box = await page.evaluate(() => {
     cur = cur.parentElement;
   }
   return null;
-});
+}, TEST_EMAIL);
 console.log('clickable box:', box);
 
 if (box) {
