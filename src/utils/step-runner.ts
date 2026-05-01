@@ -29,6 +29,7 @@
  *   - 単体テストは「dry-run で全 step が走り finalize は click されない」を最低限カバー。
  */
 import { findClickableByText, sleep, waitForElement } from './dom';
+import { maybeConfirmDialog } from './post-flow';
 
 /**
  * wizard の 1 ページ分。`action` で input を埋め、`advance` で次へ進む。
@@ -100,16 +101,69 @@ export interface MultiStepFlowOptions {
  *     finalize ボタンを click + confirm dialog があれば承認
  *     afterClickDelayMs 待機
  *
- * P12 で実装する。設計だけ先に固めてある。
+ * dryRun=true は finalize の click だけスキップ + highlight する
+ * (executePostFlow と同じ挙動)。
  */
-export async function executeMultiStepFlow(_options: MultiStepFlowOptions): Promise<void> {
-  // TODO(P12): 本体実装
-  //   - step.action → settle → advance click → awaitNextDom のループ
-  //   - エラー時は step.name を含めた err msg で throw
-  //   - finalize は post-flow.ts の post button 探索 + maybeConfirmDialog を再利用
-  //     (post-flow.ts 側の maybeConfirmDialog を export 化する)
-  //   - dryRun は finalize の click だけスキップ + highlight
-  throw new Error('executeMultiStepFlow: 未実装 (P12 で実装予定)');
+export async function executeMultiStepFlow(options: MultiStepFlowOptions): Promise<void> {
+  const { steps, finalize, dryRun = false } = options;
+  if (steps.length === 0) {
+    throw new Error('executeMultiStepFlow: steps が空です');
+  }
+
+  for (const step of steps) {
+    try {
+      await step.action();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new Error(`step "${step.name}" の action 失敗: ${msg}`);
+    }
+    await sleep(step.settleMs ?? 300);
+
+    if (!step.advance) continue;
+
+    const advanceBtn = await waitForStepButton(step.advance, step.advance.timeoutMs ?? 8000);
+    if (!advanceBtn) {
+      throw new Error(
+        `step "${step.name}" の次へ進むボタンが見つかりませんでした(SNS UI が更新された可能性)`,
+      );
+    }
+    advanceBtn.click();
+
+    if (step.awaitNextDom) {
+      const next = await waitForElement<HTMLElement>(
+        step.awaitNextDom.selector,
+        step.awaitNextDom.timeoutMs ?? 8000,
+      );
+      if (!next) {
+        throw new Error(
+          `step "${step.name}" の次画面 DOM (${step.awaitNextDom.selector}) が出現しませんでした`,
+        );
+      }
+    } else {
+      await sleep(step.settleMs ?? 300);
+    }
+  }
+
+  const finalizeBtn = await waitForStepButton(finalize, finalize.timeoutMs ?? 8000);
+  if (!finalizeBtn) {
+    throw new Error('最終投稿ボタンが見つかりませんでした(SNS UI が更新された可能性)');
+  }
+
+  if (dryRun) {
+    console.log('[Tutti] dry-run: finalize button found and enabled, skipping click', finalizeBtn);
+    const orig = finalizeBtn.style.outline;
+    finalizeBtn.style.outline = '3px dashed #f59e0b';
+    setTimeout(() => { finalizeBtn.style.outline = orig; }, 5000);
+    return;
+  }
+
+  finalizeBtn.click();
+
+  if (finalize.confirmDialogButtonTexts && finalize.confirmDialogButtonTexts.length > 0) {
+    await maybeConfirmDialog(finalize.confirmDialogButtonTexts);
+  }
+
+  await sleep(finalize.afterClickDelayMs ?? 1500);
 }
 
 /**
@@ -153,8 +207,3 @@ export async function waitForStepButton(
   return null;
 }
 
-// 型の export 確認用 (compile が通れば OK)
-export const __P12_DESIGN_VERSION = 1;
-
-// 未使用 import の警告抑制 (waitForElement は P12 本実装で使う)
-void waitForElement;

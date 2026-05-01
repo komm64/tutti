@@ -153,8 +153,10 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
  * 投稿ボタン押下後に出る確認ダイアログのボタンを自動クリックする。
  * モーダル系の標準的なコンテナ内に限って探索する(本体の "Post" 等と被らないように)。
  * 最大 3 秒待機。見つからなければ何もせず戻る。
+ *
+ * step-runner.ts の finalize からも再利用するため export してある。
  */
-async function maybeConfirmDialog(texts: string[]): Promise<void> {
+export async function maybeConfirmDialog(texts: string[]): Promise<void> {
   const DIALOG_SELECTORS = [
     '[role="dialog"]',
     '[role="alertdialog"]',
