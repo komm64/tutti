@@ -16,6 +16,7 @@
   "addMedia": { "message": "メディアを追加" },
   "dropMedia": { "message": "ここにファイルをドロップ" },
   "posting": { "message": "投稿中..." },
+  "previewing": { "message": "プレビュー中..." },
   "postButtonShort": {
     "message": "$N$ SNS に投稿",
     "placeholders": { "N": { "content": "$1" } }
@@ -33,6 +34,7 @@
   "clearAll": { "message": "すべて削除" },
   "confirmClearHistory": { "message": "投稿履歴をすべて削除しますか?" },
   "userUnconfirmed": { "message": "未確認" },
+  "snsUnsignedSection": { "message": "未ログイン / 未確認" },
   "splitParts": {
     "message": "$N$ posts",
     "placeholders": { "N": { "content": "$1" } }
@@ -54,5 +56,46 @@
   "alertNeedHttps": { "message": "https:// から始まる URL を入力してください" },
   "alertPermissionDenied": { "message": "アクセス権限が拒否されました。設定を保存できません。" },
   "dryRunTitle": { "message": "Dry run モード(検証用)" },
-  "dryRunHint": { "message": "ON にすると compose 画面まで進めて post button を見つけたところで停止します(クリックしません)。selector の検証用。本番投稿はしません。" }
+  "dryRunHint": { "message": "ON にすると compose 画面まで進めて post button を見つけたところで停止します(クリックしません)。selector の検証用。本番投稿はしません。" },
+
+  "autoPostLabel": { "message": "自動投稿" },
+  "autoPostOn": { "message": "ON" },
+  "autoPostOff": { "message": "OFF" },
+  "autoPostFunctionDesc": { "message": "投稿ボタンを押すと各 SNS にそのまま投稿します(OFF だと検証だけして投稿はしません)。" },
+  "autoPostStateOn": { "message": "▶ 押した瞬間に実投稿します。" },
+  "autoPostStateOff": { "message": "▶ プレビュー中。各 SNS の compose を準備して、Post 直前で止めます(投稿はしません)。" },
+
+  "progressTitle": { "message": "投稿進捗" },
+  "progressPosting": { "message": "投稿中..." },
+  "progressPreviewing": { "message": "プレビュー中..." },
+  "progressQueued": { "message": "順番待ち" },
+  "progressDone": { "message": "投稿完了" },
+  "progressDryRunOk": { "message": "プレビュー OK" },
+
+  "postButtonDryRunShort": {
+    "message": "$N$ SNS をプレビュー",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "postButtonDryRunLong": {
+    "message": "$N$ SNS をプレビュー ($M$ 件)",
+    "placeholders": {
+      "N": { "content": "$1" },
+      "M": { "content": "$2" }
+    }
+  },
+
+  "diagnosticsButton": { "message": "診断" },
+  "diagnosticsHint": { "message": "SNS が動かない時、この出力を Issue にコピペで貼ってください。" },
+  "diagnosticsCopy": { "message": "コピー" },
+  "diagnosticsCopied": { "message": "コピー済み" },
+  "diagnosticsRunning": { "message": "診断中..." },
+  "diagnosticsClose": { "message": "閉じる" },
+
+  "selectorUpdateTitle": { "message": "Selector の自動更新(SNS UI 変更対応)" },
+  "selectorUpdateUrl": { "message": "Selector JSON URL" },
+  "selectorUpdateHint": { "message": "SNS の UI が変わって Tutti が動かなくなった時、ここに置かれた JSON で selector を上書きできます。Tutti プロジェクトが配布する JSON、または自分で書いたものを設定してください(空欄なら何もしません)。" },
+  "selectorUpdateFetch": { "message": "今すぐ取得" },
+  "selectorUpdateFetching": { "message": "取得中..." },
+  "selectorUpdateFetchedAt": { "message": "最終取得" },
+  "selectorUpdateActive": { "message": "件 override 中" }
 }

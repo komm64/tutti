@@ -33,6 +33,11 @@ export const MISSKEY_SELECTORS = {
   postButton: '[data-cy-post-form-submit], button._button._buttonPrimary[type="submit"]',
   /** textarea: data-cy で同定 */
   textarea: '[data-cy-post-form-text], textarea.text',
-  /** file input */
-  fileInput: '[data-cy-post-form-file] input[type="file"], input[type="file"][accept*="image"]',
+  /**
+   * 画像添付の drop target。Misskey は file input が DOM に存在せず、
+   * 添付ボタンから直接 OS picker が開く。textarea に drop を dispatch すると
+   * Vue が反応してアップロード開始する(2026-04-30 検証、Misskey 自身も
+   * 内部で `browser-image-resizer` を呼んで画像処理することを log で確認)。
+   */
+  dropTarget: '[data-cy-post-form-text], textarea.text, ._gaps_._w_700',
 } as const;

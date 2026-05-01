@@ -1,4 +1,5 @@
 import type {
+  DiagnosePlatformResult,
   ImageAttachment,
   Message,
   PlatformId,
@@ -12,6 +13,8 @@ import {
 } from '../src/adapters/registry';
 import type { PlatformAdapter } from '../src/adapters/types';
 import { addToPostHistory, getSettings, setLastSeenUser } from '../src/storage';
+import { base64ByteLength } from '../src/utils/base64';
+import { fetchOverridesFrom } from '../src/utils/selector-overrides';
 import { splitText } from '../src/utils/split';
 
 const READY_DELAY_MS = 800;
@@ -21,12 +24,36 @@ const CHUNK_INTERVAL_MS = 2000;
 export default defineBackground(() => {
   console.log('[Tutti] background started', { id: browser.runtime.id });
 
+  // 拡張インストール / 起動時に selectorOverrideUrl が設定されてれば自動 fetch。
+  // SNS UI が変わって Tutti 自体に新しい selector を取り込まずに済むようにする。
+  void (async () => {
+    try {
+      const { selectorOverrideUrl } = await getSettings();
+      if (selectorOverrideUrl) {
+        const r = await fetchOverridesFrom(selectorOverrideUrl);
+        console.log('[Tutti] selector overrides bootstrap fetch:', r);
+      }
+    } catch (e) {
+      console.warn('[Tutti] override bootstrap failed', e);
+    }
+  })();
+
   browser.runtime.onMessage.addListener((rawMsg, _sender, sendResponse) => {
     const msg = rawMsg as Message;
 
     if (msg.type === 'CURRENT_USER') {
       void setLastSeenUser(msg.platform, msg.username);
       return; // fire-and-forget
+    }
+
+    if (msg.type === 'DIAGNOSE_REQUEST') {
+      void handleDiagnoseRequest()
+        .then((report) => sendResponse({ report }))
+        .catch((err: unknown) => {
+          const message = err instanceof Error ? err.message : String(err);
+          sendResponse({ error: message });
+        });
+      return true;
     }
 
     if (msg.type !== 'POST_REQUEST') return;
@@ -41,6 +68,52 @@ export default defineBackground(() => {
     return true;
   });
 });
+
+async function handleDiagnoseRequest(): Promise<DiagnosticsReport> {
+  const tabs = await browser.tabs.query({});
+  const platformResults: DiagnosePlatformResult[] = [];
+  for (const tab of tabs) {
+    if (typeof tab.url !== 'string' || typeof tab.id !== 'number') continue;
+    const platform = (['x', 'bluesky', 'threads', 'mastodon', 'misskey', 'tumblr'] as const)
+      .find((p) => getAdapter(p)?.matchUrl(tab.url ?? ''));
+    if (!platform) continue;
+    try {
+      const res = (await browser.tabs.sendMessage(tab.id, {
+        type: 'DIAGNOSE_PLATFORM',
+        platform,
+      })) as DiagnosePlatformResult | undefined;
+      if (res?.type === 'DIAGNOSE_PLATFORM_RESULT') platformResults.push(res);
+    } catch {
+      // content script unreachable (no listener yet, or tab not ready)
+      platformResults.push({
+        type: 'DIAGNOSE_PLATFORM_RESULT',
+        platform,
+        url: tab.url,
+        selectors: [],
+        detectedUser: null,
+      });
+    }
+  }
+  return {
+    version: browser.runtime.getManifest().version,
+    generatedAt: new Date().toISOString(),
+    userAgent: navigator.userAgent,
+    settings: await getSettings(),
+    lastSeenUsers: await import('../src/storage').then((m) => m.getLastSeenUsers()),
+    recentHistory: (await import('../src/storage').then((m) => m.getPostHistory())).slice(0, 5),
+    platforms: platformResults,
+  };
+}
+
+interface DiagnosticsReport {
+  version: string;
+  generatedAt: string;
+  userAgent: string;
+  settings: Awaited<ReturnType<typeof getSettings>>;
+  lastSeenUsers: Awaited<ReturnType<Awaited<typeof import('../src/storage')>['getLastSeenUsers']>>;
+  recentHistory: Awaited<ReturnType<Awaited<typeof import('../src/storage')>['getPostHistory']>>;
+  platforms: DiagnosePlatformResult[];
+}
 
 async function handlePostRequest(
   text: string,
@@ -97,7 +170,7 @@ async function postToPlatform(
     const err = checkVideoConstraint(
       platform,
       videoItem.durationS ?? 0,
-      videoItem.data.byteLength,
+      base64ByteLength(videoItem.data),
     );
     if (err) {
       return { type: 'POST_RESULT', platform, success: false, error: err };
@@ -106,7 +179,7 @@ async function postToPlatform(
     // 画像の制約チェック(動画がない場合のみ、画像と動画は排他)
     const err = checkImageConstraint(
       platform,
-      images.map((img) => img.data.byteLength),
+      images.map((img) => base64ByteLength(img.data)),
     );
     if (err) {
       return { type: 'POST_RESULT', platform, success: false, error: err };
@@ -174,10 +247,18 @@ async function postSingleChunk(
   text: string,
   images?: ImageAttachment[],
 ): Promise<void> {
-  const { dryRun } = await getSettings();
+  const { autoPost } = await getSettings();
+  // content script API は dryRun の概念で書かれているので boundary で変換。
+  // autoPost: false → dryRun: true(検証だけ、Post クリックしない)
+  const dryRun = !autoPost;
+  // SNS タブは常にバックグラウンド(active: false)で開く。
+  // popup は新タブが foreground に来ると閉じる Chrome 仕様なので、popup を
+  // 残すために autoPost ON/OFF どちらも背面化する。プレビュー(dry-run)時に
+  // SNS の compose を見たいユーザーはタブバーから手動で切替できる。
   const tab = await openOrFocusTab(
     adapter.getComposeUrl(text),
     adapter.matchUrl,
+    false,
   );
   if (typeof tab.id !== 'number') {
     throw new Error('SNS タブを開けませんでした');
@@ -204,6 +285,7 @@ async function postSingleChunk(
 async function openOrFocusTab(
   composeUrl: string,
   matchUrl: (url: string) => boolean,
+  active: boolean,
 ): Promise<Browser.tabs.Tab> {
   const existing = (await browser.tabs.query({})).find(
     (t) => typeof t.url === 'string' && matchUrl(t.url),
@@ -212,12 +294,13 @@ async function openOrFocusTab(
   if (existing && typeof existing.id === 'number') {
     const updated = await browser.tabs.update(existing.id, {
       url: composeUrl,
-      active: true,
+      active,
     });
     if (!updated) {
       throw new Error('既存の SNS タブを操作できませんでした');
     }
-    if (typeof existing.windowId === 'number') {
+    // active=true 指定の時のみ window もフォーカス。 false の時はユーザーの作業を邪魔しない
+    if (active && typeof existing.windowId === 'number') {
       await browser.windows.update(existing.windowId, { focused: true });
     }
     await waitForTabComplete(existing.id);
@@ -225,7 +308,7 @@ async function openOrFocusTab(
     return updated;
   }
 
-  const created = await browser.tabs.create({ url: composeUrl, active: true });
+  const created = await browser.tabs.create({ url: composeUrl, active });
   if (typeof created.id !== 'number') {
     throw new Error('SNS タブを開けませんでした');
   }

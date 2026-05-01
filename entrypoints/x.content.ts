@@ -1,6 +1,8 @@
 import type { ImageAttachment, Message, PostResultMessage } from '../src/messages';
 import { X_SELECTORS, xAdapter } from '../src/adapters/x';
 import { executePostFlow } from '../src/utils/post-flow';
+import { buildDiagnosis } from '../src/utils/diagnose';
+import { resolveSelectors } from '../src/utils/selector-overrides';
 import { detectAndReportUser } from '../src/utils/user-detect';
 
 const X_RESERVED_PATHS = new Set([
@@ -43,6 +45,10 @@ export default defineContentScript({
   main() {
     browser.runtime.onMessage.addListener((rawMsg, _sender, sendResponse) => {
       const msg = rawMsg as Message;
+      if (msg.type === 'DIAGNOSE_PLATFORM' && msg.platform === 'x') {
+        sendResponse(buildDiagnosis('x', X_SELECTORS, detectXUser));
+        return true;
+      }
       if (msg.type !== 'POST_TO_PLATFORM' || msg.platform !== 'x') return;
 
       void runPost(msg.text, msg.images, msg.dryRun)
@@ -67,12 +73,14 @@ export default defineContentScript({
 });
 
 async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolean): Promise<PostResultMessage> {
+  const sel = await resolveSelectors('x', X_SELECTORS);
   await executePostFlow({
     prefillsViaUrl: xAdapter.prefillsViaUrl,
-    textareaSelector: X_SELECTORS.textarea,
-    postButtonSelector: `${X_SELECTORS.postButtonInline}, ${X_SELECTORS.postButton}`,
+    textareaSelector: sel.textarea,
+    // inline (home) compose の Post を最優先、無ければ modal の Post に fallback
+    postButtonSelector: `${sel.postButtonInline}, ${sel.postButton}`,
     postButtonTexts: ['Post', 'Tweet', '投稿する', 'ポスト'],
-    fileInputSelector: X_SELECTORS.fileInput,
+    fileInputSelector: sel.fileInput,
     text,
     images,
     dryRun,

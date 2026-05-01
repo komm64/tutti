@@ -1,6 +1,8 @@
 import type { ImageAttachment, Message, PostResultMessage } from '../src/messages';
 import { MISSKEY_SELECTORS, misskeyAdapter } from '../src/adapters/misskey';
 import { executePostFlow } from '../src/utils/post-flow';
+import { buildDiagnosis } from '../src/utils/diagnose';
+import { resolveSelectors } from '../src/utils/selector-overrides';
 import { detectAndReportUser } from '../src/utils/user-detect';
 
 function detectMisskeyUser(): string | null {
@@ -59,6 +61,10 @@ export default defineContentScript({
   main() {
     browser.runtime.onMessage.addListener((rawMsg, _sender, sendResponse) => {
       const msg = rawMsg as Message;
+      if (msg.type === 'DIAGNOSE_PLATFORM' && msg.platform === 'misskey') {
+        sendResponse(buildDiagnosis('misskey', MISSKEY_SELECTORS, detectMisskeyUser));
+        return true;
+      }
       if (msg.type !== 'POST_TO_PLATFORM' || msg.platform !== 'misskey') return;
 
       void runPost(msg.text, msg.images, msg.dryRun)
@@ -83,12 +89,13 @@ export default defineContentScript({
 });
 
 async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolean): Promise<PostResultMessage> {
+  const sel = await resolveSelectors('misskey', MISSKEY_SELECTORS);
   await executePostFlow({
     prefillsViaUrl: misskeyAdapter.prefillsViaUrl,
-    textareaSelector: MISSKEY_SELECTORS.textarea,
-    postButtonSelector: MISSKEY_SELECTORS.postButton,
+    textareaSelector: sel.textarea,
+    postButtonSelector: sel.postButton,
     postButtonTexts: ['投稿', 'ノート', 'Note', 'Post', 'Submit'],
-    fileInputSelector: MISSKEY_SELECTORS.fileInput,
+    dropTargetSelector: sel.dropTarget,
     text,
     images,
     dryRun,

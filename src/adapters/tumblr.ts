@@ -30,6 +30,12 @@ export const TUMBLR_SELECTORS = {
   postButton: '[data-testid="postFormPostButton"], button[aria-label="Post"], button[aria-label="Post now"]',
   /** 本文の contenteditable: Gutenberg-style block editor の p 要素(h1=title 除外) */
   textarea: '[data-testid="gutenberg-editor"] p[contenteditable="true"], .block-editor-rich-text__editable[role="document"]:not(h1)',
-  /** file input: lazy(image attach button click 後に出現)。fallback として直接探す */
-  fileInput: 'input[type="file"][accept*="image"]',
+  /**
+   * 画像添付の drop target。Tumblr の Gutenberg block editor 内に元から
+   * 存在する `.components-drop-zone` に drop すると `/api/v2/media/image`
+   * 経由でサーバアップロード+image block 挿入が走る。textarea(本文 p)に
+   * drop するとブロックタイプ選択メニューが出てしまうので必ずこの dropzone
+   * を狙うこと(2026-04-30 検証で 201 + ブロック生成を確認)。
+   */
+  dropTarget: '[role="dialog"] .components-drop-zone, .components-drop-zone',
 } as const;

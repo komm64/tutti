@@ -5,11 +5,16 @@
 
 export type PlatformId = 'x' | 'bluesky' | 'threads' | 'mastodon' | 'misskey' | 'tumblr';
 
-/** 画像または動画の添付データ(ArrayBuffer は structured clone で通る) */
+/**
+ * 画像または動画の添付データ。
+ * 拡張内 message では base64 文字列で運ぶ(ArrayBuffer は MV3 で潰れる)。
+ * デコードは送信先側で行う(`src/utils/base64.ts` の `base64ToUint8Array`)。
+ */
 export interface ImageAttachment {
   name: string;
   type: string; // MIME type
-  data: ArrayBuffer;
+  /** base64-encoded binary content */
+  data: string;
   /** 動画の場合の尺(秒)。background での制約チェックに使う */
   durationS?: number;
 }
@@ -81,6 +86,38 @@ export interface ConversionErrorMessage {
   error: string;
 }
 
+// ── 診断 (Diagnostics) ───────────────────────────────────────────────────────
+
+/** popup → background: 全 SNS の現在状態を吸い上げてレポート化する */
+export interface DiagnoseRequestMessage {
+  type: 'DIAGNOSE_REQUEST';
+}
+
+/** background → content script: selector audit を要求 */
+export interface DiagnosePlatformMessage {
+  type: 'DIAGNOSE_PLATFORM';
+  platform: PlatformId;
+}
+
+/** content script → background: selector audit 結果 */
+export interface DiagnosePlatformResult {
+  type: 'DIAGNOSE_PLATFORM_RESULT';
+  platform: PlatformId;
+  url: string;
+  selectors: SelectorAudit[];
+  /** ログイン中ユーザー検出が成功したか(同じロジックで再実行) */
+  detectedUser: string | null;
+}
+
+export interface SelectorAudit {
+  /** 役割名(例: "fileInput", "textarea", "postButton") */
+  name: string;
+  selector: string;
+  matchCount: number;
+  /** 最初のマッチの outerHTML 先頭(短く) */
+  firstMatchPreview: string | null;
+}
+
 export type Message =
   | PostRequestMessage
   | PostToPlatformMessage
@@ -90,4 +127,7 @@ export type Message =
   | ConvertVideoMessage
   | ConversionProgressMessage
   | ConversionCompleteMessage
-  | ConversionErrorMessage;
+  | ConversionErrorMessage
+  | DiagnoseRequestMessage
+  | DiagnosePlatformMessage
+  | DiagnosePlatformResult;

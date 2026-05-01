@@ -1,6 +1,8 @@
 import type { ImageAttachment, Message, PostResultMessage } from '../src/messages';
 import { TUMBLR_SELECTORS, tumblrAdapter } from '../src/adapters/tumblr';
 import { executePostFlow } from '../src/utils/post-flow';
+import { buildDiagnosis } from '../src/utils/diagnose';
+import { resolveSelectors } from '../src/utils/selector-overrides';
 import { detectAndReportUser } from '../src/utils/user-detect';
 
 // page world から送られてくる probe snapshot を蓄積
@@ -286,6 +288,10 @@ export default defineContentScript({
   main() {
     browser.runtime.onMessage.addListener((rawMsg, _sender, sendResponse) => {
       const msg = rawMsg as Message;
+      if (msg.type === 'DIAGNOSE_PLATFORM' && msg.platform === 'tumblr') {
+        sendResponse(buildDiagnosis('tumblr', TUMBLR_SELECTORS, detectTumblrUser));
+        return true;
+      }
       if (msg.type !== 'POST_TO_PLATFORM' || msg.platform !== 'tumblr') return;
 
       void runPost(msg.text, msg.images, msg.dryRun)
@@ -310,12 +316,15 @@ export default defineContentScript({
 });
 
 async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolean): Promise<PostResultMessage> {
+  const sel = await resolveSelectors('tumblr', TUMBLR_SELECTORS);
   await executePostFlow({
     prefillsViaUrl: tumblrAdapter.prefillsViaUrl,
-    textareaSelector: TUMBLR_SELECTORS.textarea,
-    postButtonSelector: TUMBLR_SELECTORS.postButton,
+    textareaSelector: sel.textarea,
+    postButtonSelector: sel.postButton,
     postButtonTexts: ['Post now', 'Post', '投稿', 'Publish', '今すぐ投稿', '投稿する'],
-    fileInputSelector: TUMBLR_SELECTORS.fileInput,
+    dropTargetSelector: sel.dropTarget,
+    // タグなしで投稿時に出る "Post without tags?" ダイアログを自動承認
+    confirmDialogButtonTexts: ['Post', '投稿'],
     text,
     images,
     postButtonTimeoutMs: 10000,

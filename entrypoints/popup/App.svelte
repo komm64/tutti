@@ -13,13 +13,21 @@
   } from '../../src/adapters/registry';
   import { resizeImage } from '../../src/utils/image-resize';
   import {
+    arrayBufferToBase64,
+    base64ByteLength,
+    base64ToUint8Array,
+  } from '../../src/utils/base64';
+  import {
     clearDraft,
     clearPostHistory,
     getDraft,
     getLastSeenUsers,
     getPostHistory,
+    getSelectedPlatforms,
     getSettings,
     saveDraft,
+    saveSelectedPlatforms,
+    saveSettings,
     type HistoryEntry,
     type LastSeenUsers,
   } from '../../src/storage';
@@ -37,13 +45,18 @@
 
   const MAX_IMAGES = 4;
 
+  /**
+   * 表示順は X → Bluesky → Threads → Tumblr → Mastodon → Misskey の固定。
+   * Bluesky は MAU 順なら 4 位だが、Tutti として推したい SNS なので X の隣 (2 位) に置く。
+   * その他は概ね MAU 順。並び替えは lastSeenUsers 有無で section 分けするのみ。
+   */
   const platforms: PlatformOption[] = [
     { id: 'x', name: 'X', limit: 280, available: true },
     { id: 'bluesky', name: 'Bluesky', limit: 300, available: true },
     { id: 'threads', name: 'Threads', limit: 500, available: true },
+    { id: 'tumblr', name: 'Tumblr', limit: 4096, available: true },
     { id: 'mastodon', name: 'Mastodon', limit: 500, available: true },
     { id: 'misskey', name: 'Misskey', limit: 3000, available: true },
-    { id: 'tumblr', name: 'Tumblr', limit: 4096, available: true },
   ];
 
   let text = $state('');
@@ -65,10 +78,22 @@
   let history = $state<HistoryEntry[]>([]);
   let draftLoaded = $state(false);
   let lastSeenUsers = $state<LastSeenUsers>({});
-  let dryRunActive = $state(false);
+  // 自動投稿(autoPost): false=dry run(ボタンを押すだけで Compose 確認、実投稿はしない)
+  // true=実投稿。デフォルトは false にして、初回ユーザーの誤投稿を防ぐ。
+  let autoPost = $state(false);
+  let autoPostLoaded = $state(false);
   const version = browser.runtime.getManifest().version;
   $effect(() => {
-    void getSettings().then((s) => { dryRunActive = s.dryRun ?? false; });
+    void getSettings().then((s) => {
+      autoPost = s.autoPost;
+      autoPostLoaded = true;
+    });
+  });
+  // 永続選択を読み込んだあとに autoPost トグルが変わったら保存
+  $effect(() => {
+    autoPost;
+    if (!autoPostLoaded) return;
+    void saveSettings({ autoPost });
   });
   const t = (key: string, ...subs: string[]) => browser.i18n.getMessage(key, subs) || key;
 
@@ -77,34 +102,116 @@
     void getLastSeenUsers().then((u) => (lastSeenUsers = u));
   });
 
-  // 下書きを読み込む(マウント時に 1 回)
+  // SNS 選択は **永続**(投稿で消えない)、draft は ephemeral(text + media)。
+  let selectedLoaded = $state(false);
+  $effect(() => {
+    if (selectedLoaded) return;
+    void getSelectedPlatforms().then((s) => {
+      if (s) {
+        for (const [k, v] of Object.entries(s)) {
+          if (typeof v === 'boolean' && k in selected) {
+            selected[k as PlatformId] = v;
+          }
+        }
+      }
+      selectedLoaded = true;
+    });
+  });
+
+  // 下書き(text + media)を読み込む(マウント時に 1 回)
   $effect(() => {
     if (draftLoaded) return;
     void getDraft().then((draft) => {
       if (draft) {
         text = draft.text;
-        for (const [k, v] of Object.entries(draft.selected)) {
-          if (typeof v === 'boolean' && k in selected) {
-            selected[k as PlatformId] = v;
-          }
+        // メディアを復元(base64 → Blob → previewUrl)
+        if (draft.images && draft.images.length > 0) {
+          images = draft.images.map((m) => {
+            const bytes = base64ToUint8Array(m.data);
+            const blob = new Blob([bytes as BlobPart], { type: m.type });
+            return {
+              name: m.name,
+              type: m.type,
+              data: m.data,
+              previewUrl: URL.createObjectURL(blob),
+            };
+          });
+        }
+        if (draft.video) {
+          const bytes = base64ToUint8Array(draft.video.data);
+          const blob = new Blob([bytes as BlobPart], { type: draft.video.type });
+          video = {
+            name: draft.video.name,
+            type: draft.video.type,
+            data: draft.video.data,
+            previewUrl: URL.createObjectURL(blob),
+            durationS: draft.video.durationS ?? 0,
+          };
         }
       }
       draftLoaded = true;
     });
   });
 
-  // 下書き自動保存(text/selected 変更時、300ms デバウンス)
+  // 下書き(text/メディア)の自動保存(300ms デバウンス)
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
   $effect(() => {
-    // 依存を明示
     text;
-    selected.x; selected.bluesky; selected.threads; selected.mastodon;
-    if (!draftLoaded) return; // 初回ロード前は保存しない
+    images.length; video;
+    if (!draftLoaded) return;
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
-      void saveDraft({ text, selected });
+      const draftImages = images.map((img) => ({
+        name: img.name,
+        type: img.type,
+        data: img.data,
+      }));
+      const draftVideo = video
+        ? { name: video.name, type: video.type, data: video.data, durationS: video.durationS }
+        : null;
+      void saveDraft({ text, images: draftImages, video: draftVideo });
     }, 300);
   });
+
+  // SNS 選択の永続保存(変わったら即保存)
+  let selectedSaveTimer: ReturnType<typeof setTimeout> | undefined;
+  $effect(() => {
+    selected.x; selected.bluesky; selected.threads;
+    selected.mastodon; selected.misskey; selected.tumblr;
+    if (!selectedLoaded) return;
+    if (selectedSaveTimer) clearTimeout(selectedSaveTimer);
+    selectedSaveTimer = setTimeout(() => {
+      void saveSelectedPlatforms({ ...selected });
+    }, 200);
+  });
+
+  // Diagnostics: SNS が動かない時の障害切り分け用 dump を生成
+  let diagnosticsText = $state<string | null>(null);
+  let diagnosticsRunning = $state(false);
+  let diagnosticsCopied = $state(false);
+  async function runDiagnostics() {
+    diagnosticsRunning = true;
+    diagnosticsText = null;
+    try {
+      const res = (await browser.runtime.sendMessage({ type: 'DIAGNOSE_REQUEST' })) as
+        | { report?: unknown; error?: string }
+        | undefined;
+      if (res?.error) diagnosticsText = `error: ${res.error}`;
+      else diagnosticsText = JSON.stringify(res?.report ?? null, null, 2);
+    } catch (e) {
+      diagnosticsText = `error: ${e instanceof Error ? e.message : String(e)}`;
+    } finally {
+      diagnosticsRunning = false;
+    }
+  }
+  async function copyDiagnostics() {
+    if (!diagnosticsText) return;
+    try {
+      await navigator.clipboard.writeText(diagnosticsText);
+      diagnosticsCopied = true;
+      setTimeout(() => { diagnosticsCopied = false; }, 1500);
+    } catch { /* ignore */ }
+  }
 
   async function loadHistory() {
     history = await getPostHistory();
@@ -156,6 +263,14 @@
       .filter((p) => p.available && selected[p.id])
       .map((p) => p.id),
   );
+  // ログイン済み(lastSeenUsers でハンドル検出済み)を上 section、未確認を下 section に。
+  // 各 section 内では platforms 配列の固定順を維持する。
+  const signedInPlatforms = $derived(
+    platforms.filter((p) => !!lastSeenUsers[p.id]),
+  );
+  const unsignedPlatforms = $derived(
+    platforms.filter((p) => !lastSeenUsers[p.id]),
+  );
   const hasMedia = $derived(images.length > 0 || video !== null);
   // 現在のコンテンツ種別を自動判定: 動画 60s 以下=short / 超=long / 画像 / 文字
   const currentKind = $derived.by(() => {
@@ -178,7 +293,7 @@
       ? Object.fromEntries(
           platforms.map((p) => [
             p.id,
-            checkVideoConstraint(p.id, video!.durationS, video!.data.byteLength),
+            checkVideoConstraint(p.id, video!.durationS, base64ByteLength(video!.data)),
           ]),
         )
       : ({} as Record<string, string | null>),
@@ -233,7 +348,7 @@
       video = {
         name: firstVideo.name,
         type: firstVideo.type,
-        data: await firstVideo.arrayBuffer(),
+        data: arrayBufferToBase64(await firstVideo.arrayBuffer()),
         previewUrl: URL.createObjectURL(firstVideo),
         durationS,
       };
@@ -246,7 +361,7 @@
         toAdd.map(async (f) => ({
           name: f.name,
           type: f.type,
-          data: await f.arrayBuffer(),
+          data: arrayBufferToBase64(await f.arrayBuffer()),
           previewUrl: URL.createObjectURL(f),
         })),
       );
@@ -407,9 +522,6 @@
       <h1 class="text-lg font-bold">
         {t('appName')}
         <span class="text-xs font-normal text-gray-400 ml-1">v{version}</span>
-        {#if dryRunActive}
-          <span class="ml-2 inline-block text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 align-middle">DRY RUN</span>
-        {/if}
       </h1>
       <p class="text-xs text-gray-500">{t('appTagline')}</p>
     </div>
@@ -419,6 +531,11 @@
         class="text-xs text-gray-400 hover:text-gray-600"
         title={t('historyTitle')}
       >{t('headerHistory')}</button>
+      <button
+        onclick={runDiagnostics}
+        class="text-xs text-gray-400 hover:text-gray-600"
+        title={t('diagnosticsHint')}
+      >{t('diagnosticsButton')}</button>
       <a
         href={browser.runtime.getURL('options.html')}
         target="_blank"
@@ -427,6 +544,35 @@
       >{t('headerSettings')}</a>
     </div>
   </header>
+
+  <!-- 自動投稿トグル: 機能の説明と現在状態の説明を分離 -->
+  <label
+    class="mb-1 flex items-center gap-2 px-3 py-2 rounded border cursor-pointer select-none border-gray-200 bg-white"
+  >
+    <input type="checkbox" bind:checked={autoPost} class="accent-blue-500" />
+    <div class="flex-1 min-w-0">
+      <p class="text-sm font-medium leading-tight">
+        {t('autoPostLabel')}
+        <span
+          class="ml-1 text-[10px] font-medium px-1.5 py-0.5 rounded align-middle"
+          class:bg-blue-200={autoPost}
+          class:text-blue-900={autoPost}
+          class:bg-gray-200={!autoPost}
+          class:text-gray-700={!autoPost}
+        >{autoPost ? t('autoPostOn') : t('autoPostOff')}</span>
+      </p>
+      <p class="text-[11px] text-gray-500 leading-tight mt-0.5">
+        {t('autoPostFunctionDesc')}
+      </p>
+    </div>
+  </label>
+  <p
+    class="mb-3 text-[11px] leading-tight px-3"
+    class:text-blue-700={autoPost}
+    class:text-amber-700={!autoPost}
+  >
+    {autoPost ? t('autoPostStateOn') : t('autoPostStateOff')}
+  </p>
 
   <textarea
     bind:value={text}
@@ -479,57 +625,97 @@
       </svg>
       <div class="flex-1 min-w-0">
         <p class="truncate font-medium text-gray-700">{video.name}</p>
-        <p class="text-gray-400">{formatDuration(video.durationS)} · {formatBytes(video.data.byteLength)}</p>
+        <p class="text-gray-400">{formatDuration(video.durationS)} · {formatBytes(base64ByteLength(video.data))}</p>
       </div>
       <button onclick={removeVideo} disabled={posting}
         class="shrink-0 text-gray-400 hover:text-gray-700 disabled:opacity-40">✕</button>
     </div>
   {/if}
 
-  <div class="mt-2 grid grid-cols-2 gap-1.5 text-xs">
-    {#each platforms as p}
-      {@const remaining = p.limit - text.length}
-      {@const over = remaining < 0}
-      {@const parts = over && p.available ? splitText(text, p.limit).length : 1}
-      {@const videoErr = videoCompatibility[p.id]}
-      {@const imageErr = imageCompatibility[p.id]}
-      {@const mediaErr = videoErr || imageErr}
-      {@const account = lastSeenUsers[p.id]}
-      {@const kindOk = getAdapter(p.id)?.kinds.includes(currentKind) ?? true}
-      <label
-        class="flex items-center gap-2 px-2 py-1.5 border rounded cursor-pointer select-none"
-        class:opacity-40={!p.available || !kindOk}
-        class:cursor-not-allowed={!p.available}
-        class:border-orange-400={over && p.available && selected[p.id] && !mediaErr && kindOk}
-        class:bg-orange-50={over && p.available && selected[p.id] && !mediaErr && kindOk}
-        class:border-red-300={!!mediaErr && p.available && selected[p.id]}
-        class:bg-red-50={!!mediaErr && p.available && selected[p.id]}
-        class:border-gray-300={!(over && p.available && selected[p.id]) && !(!!mediaErr && p.available && selected[p.id])}
-      >
-        <input
-          type="checkbox"
-          bind:checked={selected[p.id]}
-          disabled={!p.available || posting}
-          class="accent-blue-500"
-        />
-        <div class="flex flex-col min-w-0 flex-1">
-          <span class="font-medium leading-tight">{p.name}</span>
-          {#if account}
-            <span class="text-[10px] text-gray-500 truncate leading-tight" title={account}>{account}</span>
-          {:else if p.available}
-            <span class="text-[10px] text-gray-300 leading-tight">{t('userUnconfirmed')}</span>
-          {/if}
-        </div>
-        {#if mediaErr && p.available}
-          <span class="text-red-500 text-[10px] leading-tight text-right shrink-0">{mediaErr.split('(')[0]?.trim()}</span>
-        {:else if over && p.available}
-          <span class="text-orange-600 shrink-0">{t('splitParts', String(parts))}</span>
-        {:else}
-          <span class:text-red-600={over} class="shrink-0">{remaining}</span>
+  {#snippet snsRow(p: PlatformOption)}
+    {@const remaining = p.limit - text.length}
+    {@const over = remaining < 0}
+    {@const parts = over && p.available ? splitText(text, p.limit).length : 1}
+    {@const videoErr = videoCompatibility[p.id]}
+    {@const imageErr = imageCompatibility[p.id]}
+    {@const mediaErr = videoErr || imageErr}
+    {@const account = lastSeenUsers[p.id]}
+    {@const kindOk = getAdapter(p.id)?.kinds.includes(currentKind) ?? true}
+    {@const result = lastResults?.find((r) => r.platform === p.id)}
+    {@const isPending = !result && pendingPlatforms.includes(p.id)}
+    {@const isQueued = !result && !isPending && posting && selectedIds.includes(p.id)}
+    <label
+      class="flex items-center gap-2 px-2 py-1.5 border rounded cursor-pointer select-none"
+      class:opacity-40={!p.available || !kindOk}
+      class:cursor-not-allowed={!p.available}
+      class:border-blue-400={isPending}
+      class:bg-blue-50={isPending}
+      class:border-green-400={result?.success}
+      class:bg-green-50={result?.success}
+      class:border-red-400={result && !result.success}
+      class:bg-red-50={(result && !result.success) || (!!mediaErr && p.available && selected[p.id] && !posting)}
+      class:border-orange-400={over && p.available && selected[p.id] && !mediaErr && kindOk && !posting}
+      class:bg-orange-50={over && p.available && selected[p.id] && !mediaErr && kindOk && !posting && !result && !isPending}
+      class:border-red-300={!!mediaErr && p.available && selected[p.id] && !posting}
+      class:border-gray-300={!isPending && !result && !(over && p.available && selected[p.id]) && !(!!mediaErr && p.available && selected[p.id])}
+    >
+      <input
+        type="checkbox"
+        bind:checked={selected[p.id]}
+        disabled={!p.available || posting}
+        class="accent-blue-500"
+      />
+      <div class="flex flex-col min-w-0 flex-1">
+        <span class="font-medium leading-tight">{p.name}</span>
+        {#if !posting && !result && account}
+          <span class="text-[10px] text-gray-500 truncate leading-tight" title={account}>{account}</span>
+        {:else if !posting && !result && p.available}
+          <span class="text-[10px] text-gray-300 leading-tight">{t('userUnconfirmed')}</span>
+        {:else if isPending}
+          <span class="text-[10px] text-blue-600 leading-tight">{autoPost ? t('progressPosting') : t('progressPreviewing')}</span>
+        {:else if isQueued}
+          <span class="text-[10px] text-gray-400 leading-tight">{t('progressQueued')}</span>
+        {:else if result?.success}
+          <span class="text-[10px] text-green-700 leading-tight">{autoPost ? t('progressDone') : t('progressDryRunOk')}</span>
+        {:else if result && !result.success}
+          <span class="text-[10px] text-red-700 leading-tight truncate" title={result.error}>{result.error?.slice(0, 40) ?? '失敗'}</span>
         {/if}
-      </label>
-    {/each}
-  </div>
+      </div>
+      {#if isPending}
+        <span class="inline-block w-3.5 h-3.5 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin shrink-0"></span>
+      {:else if isQueued}
+        <span class="text-gray-300 shrink-0">⌛</span>
+      {:else if result?.success}
+        <span class="text-green-600 shrink-0">✓</span>
+      {:else if result && !result.success}
+        <span class="text-red-600 shrink-0">✗</span>
+      {:else if mediaErr && p.available}
+        <span class="text-red-500 text-[10px] leading-tight text-right shrink-0">{mediaErr.split('(')[0]?.trim()}</span>
+      {:else if over && p.available}
+        <span class="text-orange-600 shrink-0">{t('splitParts', String(parts))}</span>
+      {:else}
+        <span class:text-red-600={over} class="shrink-0">{remaining}</span>
+      {/if}
+    </label>
+  {/snippet}
+
+  {#if signedInPlatforms.length > 0}
+    <div class="mt-2 grid grid-cols-2 gap-1.5 text-xs">
+      {#each signedInPlatforms as p}
+        {@render snsRow(p)}
+      {/each}
+    </div>
+  {/if}
+  {#if unsignedPlatforms.length > 0}
+    {#if signedInPlatforms.length > 0}
+      <p class="mt-2 text-[10px] text-gray-400 uppercase tracking-wider">{t('snsUnsignedSection')}</p>
+    {/if}
+    <div class="mt-1 grid grid-cols-2 gap-1.5 text-xs">
+      {#each unsignedPlatforms as p}
+        {@render snsRow(p)}
+      {/each}
+    </div>
+  {/if}
 
   <button
     onclick={handlePost}
@@ -538,7 +724,13 @@
     class="mt-3 w-full py-2 bg-blue-500 text-white rounded font-medium hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
   >
     {#if posting}
-      {t('posting')}
+      {autoPost ? t('posting') : t('previewing')}
+    {:else if !autoPost}
+      {#if totalPostCount > selectedIds.length}
+        {t('postButtonDryRunLong', String(selectedIds.length), String(totalPostCount))}
+      {:else}
+        {t('postButtonDryRunShort', String(selectedIds.length))}
+      {/if}
     {:else if totalPostCount > selectedIds.length}
       {t('postButtonLong', String(selectedIds.length), String(totalPostCount))}
     {:else}
@@ -552,27 +744,41 @@
     </p>
   {/if}
 
-  {#if (lastResults && lastResults.length > 0) || pendingPlatforms.length > 0}
-    <ul class="mt-2 text-xs space-y-1">
-      {#each lastResults ?? [] as r}
-        <li class="flex items-start gap-2">
-          <span class={r.success ? 'text-green-600' : 'text-red-600'}>
-            {r.success ? '✓' : '✗'}
-          </span>
-          <span class="font-medium">{r.platform}</span>
-          {#if !r.success && r.error}
-            <span class="text-gray-600">— {r.error}</span>
+  <!-- 全体プログレスバー(投稿中のみ表示)。各 SNS の状態は SNS 行に統合済み。 -->
+  {#if posting}
+    {@const totalSelected = selectedIds.length}
+    {@const doneCount = lastResults?.length ?? 0}
+    <div class="mt-2 flex items-center gap-2 text-[11px]">
+      <div class="flex-1 h-1 bg-gray-200 rounded overflow-hidden">
+        <div
+          class="h-full bg-blue-500 transition-all duration-300"
+          style:width="{totalSelected > 0 ? (doneCount / totalSelected) * 100 : 0}%"
+        ></div>
+      </div>
+      <span class="text-gray-500 shrink-0">{doneCount}/{totalSelected}</span>
+    </div>
+  {/if}
+
+  {#if diagnosticsRunning || diagnosticsText}
+    <div class="mt-3 border-t border-gray-100 pt-3">
+      <div class="flex items-center justify-between mb-2">
+        <p class="text-xs font-medium text-gray-500">{t('diagnosticsButton')}</p>
+        <div class="flex gap-2">
+          {#if diagnosticsText}
+            <button onclick={copyDiagnostics} class="text-[10px] text-gray-400 hover:text-blue-500">
+              {diagnosticsCopied ? t('diagnosticsCopied') : t('diagnosticsCopy')}
+            </button>
           {/if}
-        </li>
-      {/each}
-      {#each pendingPlatforms as p}
-        <li class="flex items-start gap-2 text-gray-400">
-          <span class="inline-block w-3 h-3 border-2 border-gray-300 border-t-blue-400 rounded-full animate-spin"></span>
-          <span class="font-medium">{p}</span>
-          <span>投稿中...</span>
-        </li>
-      {/each}
-    </ul>
+          <button onclick={() => { diagnosticsText = null; }} class="text-[10px] text-gray-400 hover:text-gray-700">{t('diagnosticsClose')}</button>
+        </div>
+      </div>
+      {#if diagnosticsRunning}
+        <p class="text-xs text-gray-400">{t('diagnosticsRunning')}</p>
+      {:else if diagnosticsText}
+        <p class="text-[10px] text-gray-400 mb-1">{t('diagnosticsHint')}</p>
+        <pre class="text-[10px] bg-gray-50 border border-gray-200 rounded p-2 max-h-60 overflow-auto whitespace-pre font-mono">{diagnosticsText}</pre>
+      {/if}
+    </div>
   {/if}
 
   {#if showHistory}

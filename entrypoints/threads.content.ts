@@ -2,6 +2,8 @@ import type { ImageAttachment, Message, PostResultMessage } from '../src/message
 import { THREADS_SELECTORS, threadsAdapter } from '../src/adapters/threads';
 import { findClickableByText } from '../src/utils/dom';
 import { executePostFlow } from '../src/utils/post-flow';
+import { buildDiagnosis } from '../src/utils/diagnose';
+import { resolveSelectors } from '../src/utils/selector-overrides';
 import { detectAndReportUser } from '../src/utils/user-detect';
 
 function detectThreadsUser(): string | null {
@@ -152,6 +154,10 @@ export default defineContentScript({
   main() {
     browser.runtime.onMessage.addListener((rawMsg, _sender, sendResponse) => {
       const msg = rawMsg as Message;
+      if (msg.type === 'DIAGNOSE_PLATFORM' && msg.platform === 'threads') {
+        sendResponse(buildDiagnosis('threads', THREADS_SELECTORS, detectThreadsUser));
+        return true;
+      }
       if (msg.type !== 'POST_TO_PLATFORM' || msg.platform !== 'threads') return;
 
       void runPost(msg.text, msg.images, msg.dryRun)
@@ -176,13 +182,14 @@ export default defineContentScript({
 });
 
 async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolean): Promise<PostResultMessage> {
+  const sel = await resolveSelectors('threads', THREADS_SELECTORS);
   await executePostFlow({
     prefillsViaUrl: threadsAdapter.prefillsViaUrl,
-    textareaSelector: THREADS_SELECTORS.textarea,
+    textareaSelector: sel.textarea,
     // Threads の post button は React Native Web で aria-label / data-testid が
     // 不安定。テキスト「投稿」「Post」で探す finder を使う。
     postButtonFinder: findThreadsPostButton,
-    fileInputSelector: THREADS_SELECTORS.fileInput,
+    fileInputSelector: sel.fileInput,
     text,
     images,
     postButtonTimeoutMs: 12000,

@@ -4,6 +4,8 @@ import {
   mastodonAdapter,
 } from '../src/adapters/mastodon';
 import { executePostFlow } from '../src/utils/post-flow';
+import { buildDiagnosis } from '../src/utils/diagnose';
+import { resolveSelectors } from '../src/utils/selector-overrides';
 import { detectAndReportUser } from '../src/utils/user-detect';
 
 function detectMastodonUser(): string | null {
@@ -97,6 +99,10 @@ export default defineContentScript({
   main() {
     browser.runtime.onMessage.addListener((rawMsg, _sender, sendResponse) => {
       const msg = rawMsg as Message;
+      if (msg.type === 'DIAGNOSE_PLATFORM' && msg.platform === 'mastodon') {
+        sendResponse(buildDiagnosis('mastodon', MASTODON_SELECTORS, detectMastodonUser));
+        return true;
+      }
       if (msg.type !== 'POST_TO_PLATFORM' || msg.platform !== 'mastodon') return;
 
       void runPost(msg.text, msg.images, msg.dryRun)
@@ -121,12 +127,15 @@ export default defineContentScript({
 });
 
 async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolean): Promise<PostResultMessage> {
+  const sel = await resolveSelectors('mastodon', MASTODON_SELECTORS);
   await executePostFlow({
     prefillsViaUrl: mastodonAdapter.prefillsViaUrl,
-    textareaSelector: MASTODON_SELECTORS.textarea,
-    postButtonSelector: MASTODON_SELECTORS.postButton,
+    textareaSelector: sel.textarea,
+    postButtonSelector: sel.postButton,
     postButtonTexts: ['Publish', 'Toot', 'Post', '投稿', 'トゥート'],
-    fileInputSelector: MASTODON_SELECTORS.fileInput,
+    fileInputSelector: sel.fileInput,
+    // 画像に alt テキストが無いと出る "Add alt text?" ダイアログを自動承認
+    confirmDialogButtonTexts: ['Post anyway', '投稿する', 'そのまま投稿'],
     text,
     images,
     dryRun,

@@ -1,6 +1,8 @@
 import type { ImageAttachment, Message, PostResultMessage } from '../src/messages';
 import { BLUESKY_SELECTORS, blueskyAdapter } from '../src/adapters/bluesky';
 import { executePostFlow } from '../src/utils/post-flow';
+import { buildDiagnosis } from '../src/utils/diagnose';
+import { resolveSelectors } from '../src/utils/selector-overrides';
 import { detectAndReportUser } from '../src/utils/user-detect';
 
 function detectBlueskyUser(): string | null {
@@ -75,6 +77,10 @@ export default defineContentScript({
   main() {
     browser.runtime.onMessage.addListener((rawMsg, _sender, sendResponse) => {
       const msg = rawMsg as Message;
+      if (msg.type === 'DIAGNOSE_PLATFORM' && msg.platform === 'bluesky') {
+        sendResponse(buildDiagnosis('bluesky', BLUESKY_SELECTORS, detectBlueskyUser));
+        return true;
+      }
       if (msg.type !== 'POST_TO_PLATFORM' || msg.platform !== 'bluesky') return;
 
       void runPost(msg.text, msg.images, msg.dryRun)
@@ -99,12 +105,13 @@ export default defineContentScript({
 });
 
 async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolean): Promise<PostResultMessage> {
+  const sel = await resolveSelectors('bluesky', BLUESKY_SELECTORS);
   await executePostFlow({
     prefillsViaUrl: blueskyAdapter.prefillsViaUrl,
-    textareaSelector: BLUESKY_SELECTORS.textarea,
-    postButtonSelector: BLUESKY_SELECTORS.postButton,
+    textareaSelector: sel.textarea,
+    postButtonSelector: sel.postButton,
     postButtonTexts: ['Publish', 'Post', '投稿', 'Publish post'],
-    fileInputSelector: BLUESKY_SELECTORS.fileInput,
+    dropTargetSelector: sel.dropTarget,
     text,
     images,
     dryRun,

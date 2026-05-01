@@ -1,11 +1,10 @@
 import type { ImageAttachment } from '../messages';
 import {
   findClickableByText,
-  insertTextIntoContentEditable,
   sleep,
   waitForElement,
 } from './dom';
-import { injectImages } from './image';
+import { dropImages, injectImages, injectTextIntoElement } from './image';
 
 export interface PostFlowOptions {
   /** URL pre-fill 方式なら true、DOM injection が必要なら false */
@@ -20,6 +19,11 @@ export interface PostFlowOptions {
   postButtonFinder?: () => HTMLElement | null;
   /** 画像添付の file input セレクタ(省略時は画像注入をスキップ) */
   fileInputSelector?: string;
+  /**
+   * 画像添付に drag & drop を使う SNS (Bluesky / Misskey / Tumblr) の drop target。
+   * fileInputSelector との併用は不可。指定された方が優先される。
+   */
+  dropTargetSelector?: string;
   /** 投稿テキスト */
   text: string;
   /** 添付画像(省略可) */
@@ -28,6 +32,12 @@ export interface PostFlowOptions {
   postButtonTimeoutMs?: number;
   /** 投稿後に処理が走る猶予(ms) */
   afterClickDelayMs?: number;
+  /**
+   * 投稿ボタン押下後に出る確認ダイアログ(Mastodon "Post anyway" / Tumblr "Post" 等)を
+   * 自動承認するためのボタンテキスト候補。`[role="dialog"]` 等のモーダル内に限って
+   * 探索するので、本体の "Post" 等とは衝突しない。
+   */
+  confirmDialogButtonTexts?: string[];
   /** dry-run: post button まで見つけるが click はしない */
   dryRun?: boolean;
 }
@@ -45,10 +55,12 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
     postButtonTexts,
     postButtonFinder,
     fileInputSelector,
+    dropTargetSelector,
     text,
     images,
     postButtonTimeoutMs = 8000,
     afterClickDelayMs = 1500,
+    confirmDialogButtonTexts,
     dryRun = false,
   } = options;
   if (!postButtonSelector && !postButtonTexts?.length && !postButtonFinder) {
@@ -63,23 +75,34 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
     if (!textarea) {
       throw new Error('投稿入力欄が見つかりませんでした。ログイン済みか確認してください');
     }
-    insertTextIntoContentEditable(textarea, text);
+    // MAIN world 経由でテキスト挿入(React/Lexical の input listener が
+    // ISOLATED world からの execCommand を取りこぼすため)
+    await injectTextIntoElement(text, textareaSelector);
     await sleep(300);
   }
 
   if (images && images.length > 0) {
-    if (!fileInputSelector) {
+    if (dropTargetSelector) {
+      await dropImages(images, dropTargetSelector);
+    } else if (fileInputSelector) {
+      await injectImages(images, fileInputSelector);
+    } else {
       throw new Error('このプラットフォームは画像添付に未対応です');
     }
-    await injectImages(images, fileInputSelector);
   }
 
-  // post button 探索: finder > selector > texts の順で優先
+  // post button 探索: finder > selector > texts の順で優先。
+  // selector はカンマ区切りを **左から順に** 試す(querySelector の comma 動作は
+  // DOM 順で先勝ちなので、scope の好みを表せない)。X のように modal と
+  // homepage 両方に同じ data-testid のボタンが存在するケースでは、左 = dialog scope を
+  // 先に書くことで modal を優先できる。
   const findButton = (): HTMLElement | null => {
     if (postButtonFinder) return postButtonFinder();
     if (postButtonSelector) {
-      const el = document.querySelector<HTMLElement>(postButtonSelector);
-      if (el) return el;
+      for (const part of postButtonSelector.split(',').map((s) => s.trim()).filter(Boolean)) {
+        const el = document.querySelector<HTMLElement>(part);
+        if (el) return el;
+      }
     }
     if (postButtonTexts && postButtonTexts.length > 0) {
       return findClickableByText(postButtonTexts);
@@ -118,5 +141,42 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
   }
 
   button.click();
+
+  if (confirmDialogButtonTexts && confirmDialogButtonTexts.length > 0) {
+    await maybeConfirmDialog(confirmDialogButtonTexts);
+  }
+
   await sleep(afterClickDelayMs);
+}
+
+/**
+ * 投稿ボタン押下後に出る確認ダイアログのボタンを自動クリックする。
+ * モーダル系の標準的なコンテナ内に限って探索する(本体の "Post" 等と被らないように)。
+ * 最大 3 秒待機。見つからなければ何もせず戻る。
+ */
+async function maybeConfirmDialog(texts: string[]): Promise<void> {
+  const DIALOG_SELECTORS = [
+    '[role="dialog"]',
+    '[role="alertdialog"]',
+    '.modal-root__container', // Mastodon
+    '.components-modal__frame', // Gutenberg / Tumblr
+  ];
+  const deadline = Date.now() + 3000;
+  while (Date.now() < deadline) {
+    for (const sel of DIALOG_SELECTORS) {
+      const dialog = document.querySelector<HTMLElement>(sel);
+      if (!dialog) continue;
+      // ダイアログ内の button のうち、テキストが完全一致するもの(部分一致だと "Post anyway" が "Post" に弾かれる)
+      const buttons = Array.from(dialog.querySelectorAll<HTMLButtonElement>('button'));
+      for (const wanted of texts) {
+        const target = buttons.find((b) => (b.textContent ?? '').trim() === wanted);
+        if (target && !target.disabled) {
+          console.log(`[Tutti] confirm dialog: clicking "${wanted}"`);
+          target.click();
+          return;
+        }
+      }
+    }
+    await sleep(150);
+  }
 }

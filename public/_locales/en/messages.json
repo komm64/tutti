@@ -16,6 +16,7 @@
   "addMedia": { "message": "Add media" },
   "dropMedia": { "message": "Drop files here" },
   "posting": { "message": "Posting..." },
+  "previewing": { "message": "Previewing..." },
   "postButtonShort": {
     "message": "Post to $N$ network",
     "placeholders": { "N": { "content": "$1" } }
@@ -33,6 +34,7 @@
   "clearAll": { "message": "Clear all" },
   "confirmClearHistory": { "message": "Delete all post history?" },
   "userUnconfirmed": { "message": "unknown" },
+  "snsUnsignedSection": { "message": "Not signed in / unknown" },
   "splitParts": {
     "message": "$N$ posts",
     "placeholders": { "N": { "content": "$1" } }
@@ -54,5 +56,46 @@
   "alertNeedHttps": { "message": "Please enter a URL starting with https://" },
   "alertPermissionDenied": { "message": "Permission denied. Settings not saved." },
   "dryRunTitle": { "message": "Dry run mode (testing)" },
-  "dryRunHint": { "message": "When enabled, Tutti will fill the compose form and locate the post button, but will not click it. Useful for verifying selectors without actually posting." }
+  "dryRunHint": { "message": "When enabled, Tutti will fill the compose form and locate the post button, but will not click it. Useful for verifying selectors without actually posting." },
+
+  "autoPostLabel": { "message": "Auto-post" },
+  "autoPostOn": { "message": "ON" },
+  "autoPostOff": { "message": "OFF" },
+  "autoPostFunctionDesc": { "message": "Submits posts to each network when you click Post (OFF runs a preview without actually posting)." },
+  "autoPostStateOn": { "message": "▶ Will post for real when you press Post." },
+  "autoPostStateOff": { "message": "▶ Preview mode. Opens each network's compose and stops just before Post (no actual post)." },
+
+  "progressTitle": { "message": "Progress" },
+  "progressPosting": { "message": "Posting..." },
+  "progressPreviewing": { "message": "Previewing..." },
+  "progressQueued": { "message": "Queued" },
+  "progressDone": { "message": "Posted" },
+  "progressDryRunOk": { "message": "Preview OK" },
+
+  "postButtonDryRunShort": {
+    "message": "Preview on $N$ network",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "postButtonDryRunLong": {
+    "message": "Preview on $N$ networks ($M$ posts)",
+    "placeholders": {
+      "N": { "content": "$1" },
+      "M": { "content": "$2" }
+    }
+  },
+
+  "diagnosticsButton": { "message": "Diagnose" },
+  "diagnosticsHint": { "message": "If a network isn't working, paste this output into a GitHub issue." },
+  "diagnosticsCopy": { "message": "Copy" },
+  "diagnosticsCopied": { "message": "Copied" },
+  "diagnosticsRunning": { "message": "Diagnosing..." },
+  "diagnosticsClose": { "message": "Close" },
+
+  "selectorUpdateTitle": { "message": "Selector auto-update (SNS UI changes)" },
+  "selectorUpdateUrl": { "message": "Selector JSON URL" },
+  "selectorUpdateHint": { "message": "When a network's UI changes and Tutti breaks, a JSON file at this URL can override selectors without an extension update. Use the JSON Tutti distributes, or write your own (leave blank to do nothing)." },
+  "selectorUpdateFetch": { "message": "Fetch now" },
+  "selectorUpdateFetching": { "message": "Fetching..." },
+  "selectorUpdateFetchedAt": { "message": "Last fetched" },
+  "selectorUpdateActive": { "message": "active overrides" }
 }

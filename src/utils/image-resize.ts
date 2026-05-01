@@ -1,15 +1,21 @@
+import { arrayBufferToBase64, base64ByteLength, base64ToUint8Array } from './base64';
+
 /**
  * 画像を指定バイト数以下にリサイズする(Canvas API + createImageBitmap)。
  * 出力は JPEG(quality 0.85)。スケールを 15% ずつ縮小して限界以下に収める。
+ *
+ * 入力は base64 文字列(ImageAttachment.data 形式)、戻り値も base64。
+ * 制約内ならそのまま同じ文字列を返す(参照等価で「リサイズされた」かを判定可能)。
  */
 export async function resizeImage(
-  data: ArrayBuffer,
+  data: string,
   type: string,
   maxBytes: number,
-): Promise<ArrayBuffer> {
-  if (data.byteLength <= maxBytes) return data;
+): Promise<string> {
+  if (base64ByteLength(data) <= maxBytes) return data;
 
-  const blob = new Blob([data], { type });
+  const bytes = base64ToUint8Array(data);
+  const blob = new Blob([bytes as BlobPart], { type });
   const bitmap = await createImageBitmap(blob);
 
   const canvas = document.createElement('canvas');
@@ -36,5 +42,5 @@ export async function resizeImage(
 
   bitmap.close();
   if (!resultBlob) throw new Error('リサイズに失敗しました');
-  return await resultBlob.arrayBuffer();
+  return arrayBufferToBase64(await resultBlob.arrayBuffer());
 }

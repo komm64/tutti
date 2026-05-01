@@ -21,3 +21,8 @@ Thumbs.db
 # Internal notes (kept in komm64/tutti-archive only)
 CLAUDE.md
 CONCEPT.md
+
+# Test scripts artifacts (screenshots from puppeteer probes)
+scripts/*.png
+# Brave launch helper (dev-machine specific paths)
+scripts/launch-test-brave.cmd
