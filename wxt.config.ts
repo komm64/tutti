@@ -18,6 +18,8 @@ export default defineConfig({
       'https://misskey.io/*',
       'https://www.tumblr.com/*',
       'https://tumblr.com/*',
+      'https://www.pixiv.net/*',
+      'https://pixiv.net/*',
     ],
     // Mastodon はユーザー設定のインスタンスへのアクセスを optional で要求
     optional_host_permissions: ['https://*/*'],

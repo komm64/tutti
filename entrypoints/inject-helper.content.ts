@@ -31,6 +31,8 @@ const SNS_HOSTS = [
   'https://misskey.io/*',
   'https://www.tumblr.com/*',
   'https://tumblr.com/*',
+  'https://www.pixiv.net/*',
+  'https://pixiv.net/*',
 ];
 
 interface InjectFileSpec {
