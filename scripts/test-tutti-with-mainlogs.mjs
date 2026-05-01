@@ -65,7 +65,7 @@ if (mast) {
     bodyText: document.querySelector('.compose-form')?.innerText?.slice(0, 300),
   }));
   console.log('FINAL UI:', JSON.stringify(state, null, 2));
-  await mast.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/mastodon-trace.png' });
+  await mast.screenshot({ path: 'scripts/mastodon-trace.png' });
 }
 
 await browser.disconnect();

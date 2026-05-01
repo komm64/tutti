@@ -35,7 +35,7 @@ await popup.evaluate(() => {
 });
 await new Promise(r => setTimeout(r, 400));
 
-await popup.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/preview-before-click.png' });
+await popup.screenshot({ path: 'scripts/preview-before-click.png' });
 
 await popup.evaluate(() => Array.from(document.querySelectorAll('button')).find(b => /SNS に投稿|プレビュー|Preview|Post to/.test(b.textContent ?? ''))?.click());
 
@@ -45,8 +45,8 @@ for (const at of [3, 8, 15]) {
   // Just sleep relative; this is approximate but fine
 }
 // Actually just take 1 mid-run shot at 5s, then final
-await popup.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/preview-mid.png' });
+await popup.screenshot({ path: 'scripts/preview-mid.png' });
 await new Promise(r => setTimeout(r, 8000));
-await popup.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/preview-final.png' });
+await popup.screenshot({ path: 'scripts/preview-final.png' });
 
 await browser.disconnect();

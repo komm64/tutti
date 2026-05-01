@@ -97,7 +97,7 @@ async function testOne(plat) {
     };
   });
   console.log(`  ${plat.label} probe:`, JSON.stringify(probe));
-  await tab.screenshot({ path: `C:/Users/komm64/Projects/tutti/scripts/all-sns-${plat.snapshotName}.png` });
+  await tab.screenshot({ path: `scripts/all-sns-${plat.snapshotName}.png` });
   await popup.close();
 }
 

@@ -63,5 +63,5 @@ const modalInfo = await page.evaluate(() => {
 });
 console.log('\n[role=dialog]:', JSON.stringify(modalInfo, null, 2));
 
-await page.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/x-two-forms.png' });
+await page.screenshot({ path: 'scripts/x-two-forms.png' });
 await browser.disconnect();

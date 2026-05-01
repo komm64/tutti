@@ -20,7 +20,7 @@ async function check(label, url, needle) {
     };
   }, needle);
   console.log(JSON.stringify(state, null, 2));
-  await page.screenshot({ path: `C:/Users/komm64/Projects/tutti/scripts/verify-${label.toLowerCase()}.png` });
+  await page.screenshot({ path: `scripts/verify-${label.toLowerCase()}.png` });
   await page.close();
 }
 

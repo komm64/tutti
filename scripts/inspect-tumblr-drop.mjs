@@ -49,7 +49,7 @@ async function tryDrop(targetSelectorList) {
     bodyContains: ['Remove', 'remove', '✕', '×', 'image', 'Image', 'photo'].filter(w => document.body.innerText.includes(w)),
   }));
   console.log('after:', after);
-  await page.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/tumblr-drop-probe.png' });
+  await page.screenshot({ path: 'scripts/tumblr-drop-probe.png' });
   await page.close();
 }
 

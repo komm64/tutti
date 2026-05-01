@@ -63,7 +63,7 @@ for (let i = 0; i < 8; i++) {
     return { fileInputs: inputInfo, blobImgs: blobImgsInfo };
   });
   console.log(`t+${i*2+2}s`, JSON.stringify(state));
-  await tab.screenshot({ path: `C:/Users/komm64/Projects/tutti/scripts/x-form-state-${i}.png` });
+  await tab.screenshot({ path: `scripts/x-form-state-${i}.png` });
 }
 
 await browser.disconnect();

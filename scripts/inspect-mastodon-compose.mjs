@@ -31,6 +31,6 @@ const info = await page.evaluate(() => {
   };
 });
 console.log(JSON.stringify(info, null, 2));
-await page.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/mastodon-compose.png' });
+await page.screenshot({ path: 'scripts/mastodon-compose.png' });
 
 await browser.disconnect();

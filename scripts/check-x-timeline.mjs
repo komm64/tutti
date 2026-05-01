@@ -20,5 +20,5 @@ const state = await page.evaluate(() => {
   };
 });
 console.log(JSON.stringify(state, null, 2));
-await page.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/x-timeline-check.png' });
+await page.screenshot({ path: 'scripts/x-timeline-check.png' });
 await browser.disconnect();

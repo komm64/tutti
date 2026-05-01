@@ -92,5 +92,5 @@ const inserter = await page.evaluate(() => {
 });
 console.log('inserter candidates:', inserter);
 
-await page.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/tumblr-imageblock-probe.png' });
+await page.screenshot({ path: 'scripts/tumblr-imageblock-probe.png' });
 await browser.disconnect();

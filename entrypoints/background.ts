@@ -1,6 +1,8 @@
+import { log } from '../src/utils/logger';
 import type {
   DiagnosePlatformResult,
   ImageAttachment,
+  LogEntry,
   Message,
   PlatformId,
   PostResultMessage,
@@ -21,8 +23,44 @@ const READY_DELAY_MS = 800;
 const TAB_LOAD_TIMEOUT_MS = 15000;
 const CHUNK_INTERVAL_MS = 2000;
 
+// ── ログ ring buffer (任意 context からの LOG_APPEND を集約) ──────────────
+//
+// Tutti の全 context (popup / content scripts / inject-helper) は
+// `src/utils/logger.ts` 経由で background にログを送ってくる。background は
+// 直近 N 件を ring buffer で保持し、Settings からダウンロード可能にする。
+// service worker が wake / sleep を繰り返しても消えないよう storage.local にも persist。
+
+const LOG_BUFFER_KEY = 'logBuffer';
+const LOG_BUFFER_MAX = 1000;
+let logBuffer: LogEntry[] = [];
+let logPersistTimer: ReturnType<typeof setTimeout> | undefined;
+
+async function loadLogBuffer(): Promise<void> {
+  try {
+    const stored = await browser.storage.local.get(LOG_BUFFER_KEY);
+    const v = stored[LOG_BUFFER_KEY] as LogEntry[] | undefined;
+    if (Array.isArray(v)) logBuffer = v.slice(-LOG_BUFFER_MAX);
+  } catch { /* ignore */ }
+}
+
+function persistLogBufferDebounced(): void {
+  if (logPersistTimer) clearTimeout(logPersistTimer);
+  logPersistTimer = setTimeout(() => {
+    void browser.storage.local.set({ [LOG_BUFFER_KEY]: logBuffer }).catch(() => { /* ignore */ });
+  }, 1000);
+}
+
+function appendLog(entry: LogEntry): void {
+  logBuffer.push(entry);
+  if (logBuffer.length > LOG_BUFFER_MAX) {
+    logBuffer = logBuffer.slice(-LOG_BUFFER_MAX);
+  }
+  persistLogBufferDebounced();
+}
+
 export default defineBackground(() => {
-  console.log('[Tutti] background started', { id: browser.runtime.id });
+  log.info('background started', { id: browser.runtime.id });
+  void loadLogBuffer();
 
   // 拡張インストール / 起動時に selectorOverrideUrl が設定されてれば自動 fetch。
   // SNS UI が変わって Tutti 自体に新しい selector を取り込まずに済むようにする。
@@ -31,10 +69,10 @@ export default defineBackground(() => {
       const { selectorOverrideUrl } = await getSettings();
       if (selectorOverrideUrl) {
         const r = await fetchOverridesFrom(selectorOverrideUrl);
-        console.log('[Tutti] selector overrides bootstrap fetch:', r);
+        log.info('selector overrides bootstrap fetch:', r);
       }
     } catch (e) {
-      console.warn('[Tutti] override bootstrap failed', e);
+      log.warn('override bootstrap failed', e);
     }
   })();
 
@@ -43,6 +81,20 @@ export default defineBackground(() => {
 
     if (msg.type === 'CURRENT_USER') {
       void setLastSeenUser(msg.platform, msg.username);
+      return; // fire-and-forget
+    }
+
+    if (msg.type === 'LOG_APPEND') {
+      appendLog(msg.entry);
+      return; // fire-and-forget
+    }
+    if (msg.type === 'LOG_EXPORT_REQUEST') {
+      sendResponse({ entries: logBuffer.slice() });
+      return true;
+    }
+    if (msg.type === 'LOG_CLEAR') {
+      logBuffer = [];
+      void browser.storage.local.remove(LOG_BUFFER_KEY).catch(() => { /* ignore */ });
       return; // fire-and-forget
     }
 
@@ -362,9 +414,9 @@ function notifyResults(results: PostResultMessage[]): void {
 
   for (const r of results) {
     if (r.success) {
-      console.log(`[Tutti] ✓ ${r.platform}`);
+      log.info(`✓ ${r.platform}`);
     } else {
-      console.error(`[Tutti] ✗ ${r.platform}: ${r.error ?? '(no detail)'}`);
+      log.error(`✗ ${r.platform}: ${r.error ?? '(no detail)'}`);
     }
   }
 }

@@ -81,7 +81,7 @@ const info = await page.evaluate(() => {
 });
 
 console.log(JSON.stringify(info, null, 2));
-await page.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/bsky-inspect.png' });
+await page.screenshot({ path: 'scripts/bsky-inspect.png' });
 console.log('screenshot saved');
 
 await browser.disconnect();

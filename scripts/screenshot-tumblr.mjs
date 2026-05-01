@@ -9,7 +9,7 @@ const pages = await browser.pages();
 const page = pages.find((p) => /tumblr\.com/.test(p.url())) ?? pages[0];
 
 await page.bringToFront();
-const path = 'C:/Users/komm64/Projects/tutti/scripts/tumblr-screenshot.png';
+const path = 'scripts/tumblr-screenshot.png';
 await page.screenshot({ path, fullPage: false });
 console.log('saved:', path);
 console.log('URL:', page.url());

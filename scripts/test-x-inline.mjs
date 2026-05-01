@@ -75,6 +75,6 @@ const finalState = tab && await tab.evaluate(() => {
   };
 }).catch(() => null);
 console.log('FINAL:', JSON.stringify(finalState));
-if (tab) await tab.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/x-inline-test.png' });
+if (tab) await tab.screenshot({ path: 'scripts/x-inline-test.png' });
 
 await browser.disconnect();

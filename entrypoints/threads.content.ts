@@ -1,3 +1,4 @@
+import { initLogLevelFromSettings, log } from '../src/utils/logger';
 import type { ImageAttachment, Message, PostResultMessage } from '../src/messages';
 import { THREADS_SELECTORS, threadsAdapter } from '../src/adapters/threads';
 import { findClickableByText } from '../src/utils/dom';
@@ -102,16 +103,16 @@ function detectThreadsUser(): string | null {
     try {
       const r = s.fn();
       if (r) {
-        console.log(`[Tutti] threads detection succeeded via "${s.name}" → @${r}`);
+        log.info(`threads detection succeeded via "${s.name}" → @${r}`);
         return '@' + r;
       }
     } catch (e) {
-      console.warn(`[Tutti] threads strategy "${s.name}" threw:`, e);
+      log.warn(`threads strategy "${s.name}" threw:`, e);
     }
   }
 
   // すべて失敗: デバッグ情報をダンプ
-  console.warn('[Tutti] threads: 全戦略失敗。デバッグ情報:');
+  log.warn('threads: 全戦略失敗。デバッグ情報:');
   console.warn('  title =', document.title);
   console.warn(
     '  metas =',
@@ -177,7 +178,8 @@ export default defineContentScript({
     });
 
     void detectAndReportUser('threads', detectThreadsUser);
-    console.log('[Tutti] Threads content script ready');
+    void initLogLevelFromSettings();
+    log.info('Threads content script ready');
   },
 });
 

@@ -88,6 +88,6 @@ for (let i = 0; i < 25; i++) {
     if (state.previewCount > 0 || state.hasAlt || state.hasEdit) break;
   }
 }
-if (mast) await mast.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/mastodon-tutti-img.png' });
+if (mast) await mast.screenshot({ path: 'scripts/mastodon-tutti-img.png' });
 
 await browser.disconnect();

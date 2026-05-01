@@ -33,6 +33,6 @@ const ui = await page.evaluate(() => ({
   bodyText: document.querySelector('.compose-form')?.innerText?.slice(0, 300),
 }));
 console.log('UI 5s after inject:', JSON.stringify(ui, null, 2));
-await page.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/main-world-test.png' });
+await page.screenshot({ path: 'scripts/main-world-test.png' });
 
 await browser.disconnect();

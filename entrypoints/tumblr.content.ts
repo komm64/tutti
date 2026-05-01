@@ -1,3 +1,4 @@
+import { initLogLevelFromSettings, log } from '../src/utils/logger';
 import type { ImageAttachment, Message, PostResultMessage } from '../src/messages';
 import { TUMBLR_SELECTORS, tumblrAdapter } from '../src/adapters/tumblr';
 import { executePostFlow } from '../src/utils/post-flow';
@@ -23,7 +24,7 @@ window.addEventListener('message', (e: MessageEvent) => {
   const data = e.data as { source?: string; snapshot?: ProbeSnapshot } | null;
   if (!data || data.source !== PROBE_TAG || !data.snapshot) return;
   lastProbeSnapshot = data.snapshot;
-  console.log('[Tutti] tumblr probe snapshot received:', {
+  log.info('tumblr probe snapshot received:', {
     windowKeys: data.snapshot.windowKeys,
     sessionStorageKeys: data.snapshot.sessionStorageKeys,
     indexedDBNames: data.snapshot.indexedDBNames,
@@ -103,23 +104,23 @@ async function detectTumblrUser(): Promise<string | null> {
       fn: async () => {
         try {
           const res = await fetch('/api/v2/user/info', { credentials: 'include' });
-          console.log(`[Tutti] tumblr API /user/info status=${res.status}`);
+          log.info(`tumblr API /user/info status=${res.status}`);
           if (!res.ok) {
-            console.warn(`[Tutti] tumblr API failed: HTTP ${res.status}`);
+            log.warn(`tumblr API failed: HTTP ${res.status}`);
             return null;
           }
           const data = await res.json() as {
             response?: { user?: { name?: string; blogs?: { name?: string; primary?: boolean }[] } };
           };
           const user = data?.response?.user;
-          console.log(`[Tutti] tumblr API user.name=${user?.name} blogs=`,
+          log.info(`tumblr API user.name=${user?.name} blogs=`,
             user?.blogs?.map((b) => `${b?.name}${b?.primary ? '*' : ''}`).join(', '));
           const primary = user?.blogs?.find((b) => b?.primary);
           if (isLikelyUsername(primary?.name)) return primary!.name!;
           if (isLikelyUsername(user?.name)) return user!.name!;
           if (isLikelyUsername(user?.blogs?.[0]?.name)) return user!.blogs![0]!.name!;
         } catch (e) {
-          console.warn('[Tutti] tumblr API threw:', e);
+          log.warn('tumblr API threw:', e);
         }
         return null;
       },
@@ -222,11 +223,11 @@ async function detectTumblrUser(): Promise<string | null> {
     try {
       const r = await Promise.resolve(s.fn());
       if (r) {
-        console.log(`[Tutti] tumblr detection succeeded via "${s.name}" → @${r}`);
+        log.info(`tumblr detection succeeded via "${s.name}" → @${r}`);
         return '@' + r;
       }
     } catch (e) {
-      console.warn(`[Tutti] tumblr strategy "${s.name}" threw:`, e);
+      log.warn(`tumblr strategy "${s.name}" threw:`, e);
     }
   }
 
@@ -311,7 +312,8 @@ export default defineContentScript({
     });
 
     void detectAndReportUser('tumblr', detectTumblrUser);
-    console.log('[Tutti] Tumblr content script ready');
+    void initLogLevelFromSettings();
+    log.info('Tumblr content script ready');
   },
 });
 
@@ -356,12 +358,12 @@ function probePageWorldForUsername(
       window.removeEventListener('message', handler);
       if (timer) clearTimeout(timer);
       if (data.error) {
-        console.warn('[Tutti] tumblr page-world probe error:', data.error);
+        log.warn('tumblr page-world probe error:', data.error);
         resolve(null);
         return;
       }
       const payload = data.payload as Record<string, unknown> | null;
-      console.log('[Tutti] tumblr page-world probe payload:', payload);
+      log.info('tumblr page-world probe payload:', payload);
       if (!payload) { resolve(null); return; }
       // 候補となるフィールドを順に当たる
       const candidates: unknown[] = [
@@ -418,7 +420,7 @@ function probePageWorldForUsername(
       document.documentElement.appendChild(script);
       script.remove();
     } catch (e) {
-      console.warn('[Tutti] tumblr page-world script inject threw:', e);
+      log.warn('tumblr page-world script inject threw:', e);
       window.removeEventListener('message', handler);
       resolve(null);
       return;
@@ -426,7 +428,7 @@ function probePageWorldForUsername(
 
     timer = setTimeout(() => {
       window.removeEventListener('message', handler);
-      console.warn('[Tutti] tumblr page-world probe timeout (CSP でブロックされた可能性)');
+      log.warn('tumblr page-world probe timeout (CSP でブロックされた可能性)');
       resolve(null);
     }, 2000);
   });

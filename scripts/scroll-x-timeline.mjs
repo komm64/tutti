@@ -14,5 +14,5 @@ const posts = await page.evaluate(() => {
   return Array.from(document.querySelectorAll('article')).map(a => a.innerText.slice(0, 300));
 });
 console.log(JSON.stringify(posts, null, 2));
-await page.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/x-timeline-scrolled.png' });
+await page.screenshot({ path: 'scripts/x-timeline-scrolled.png' });
 await browser.disconnect();

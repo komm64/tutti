@@ -1,6 +1,7 @@
 <script lang="ts">
   import type {
     ImageAttachment,
+    LogEntry,
     Message,
     PlatformId,
     PlatformProgressMessage,
@@ -12,6 +13,7 @@
     getAdapter,
   } from '../../src/adapters/registry';
   import { resizeImage } from '../../src/utils/image-resize';
+  import { initLogLevelFromSettings } from '../../src/utils/logger';
   import {
     arrayBufferToBase64,
     base64ByteLength,
@@ -88,7 +90,46 @@
       autoPost = s.autoPost;
       autoPostLoaded = true;
     });
+    void initLogLevelFromSettings();
   });
+
+  // 障害報告: 直近のログを GitHub Issue 新規 URL に prefill して開く
+  async function handleReportError(errorText: string) {
+    let logsExcerpt = '';
+    try {
+      const res = (await browser.runtime.sendMessage({ type: 'LOG_EXPORT_REQUEST' })) as
+        | { entries?: LogEntry[] }
+        | undefined;
+      const entries = (res?.entries ?? []).slice(-30);
+      logsExcerpt = entries
+        .map((e) => `[${new Date(e.ts).toISOString()}] ${e.level} (${e.context}) ${e.message}`)
+        .join('\n');
+    } catch { /* ignore */ }
+    const ua = navigator.userAgent;
+    const body = [
+      '## 何が起きましたか',
+      '(自由記述)',
+      '',
+      '## エラー',
+      '```',
+      errorText.slice(0, 500),
+      '```',
+      '',
+      '## 環境',
+      `- Tutti version: ${version}`,
+      `- User agent: ${ua}`,
+      '',
+      '## 直近のログ(最終 30 件)',
+      '```',
+      logsExcerpt.slice(0, 4000) || '(no logs captured)',
+      '```',
+    ].join('\n');
+    const url = `https://github.com/komm64/tutti/issues/new?title=${encodeURIComponent('[Beta バグ報告] ')}&body=${encodeURIComponent(body)}`;
+    // body が長すぎる場合 GitHub は title だけ反映するので、本文は手動でも貼れるよう
+    // クリップボードにもコピー
+    try { await navigator.clipboard.writeText(body); } catch { /* ignore */ }
+    window.open(url, '_blank');
+  }
   // 永続選択を読み込んだあとに autoPost トグルが変わったら保存
   $effect(() => {
     autoPost;
@@ -744,9 +785,25 @@
   </button>
 
   {#if errorMessage}
-    <p class="mt-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded p-2">
-      {t('errorPrefix')}{errorMessage}
-    </p>
+    <div class="mt-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded p-2">
+      <p>{t('errorPrefix')}{errorMessage}</p>
+      <button
+        onclick={() => handleReportError(errorMessage ?? '')}
+        title={t('errorReportHint')}
+        class="mt-1.5 inline-block text-[11px] underline text-red-700 hover:text-red-900"
+      >{t('errorReportButton')} →</button>
+    </div>
+  {/if}
+  <!-- 失敗した SNS がある場合も同じ Report ボタンを出す(全体 errorMessage と並列) -->
+  {#if !posting && lastResults?.some((r) => !r.success)}
+    {@const failures = lastResults.filter((r) => !r.success)}
+    <div class="mt-2 text-xs text-red-700">
+      <button
+        onclick={() => handleReportError(failures.map((r) => `${r.platform}: ${r.error ?? '(no detail)'}`).join('\n'))}
+        title={t('errorReportHint')}
+        class="underline hover:text-red-900"
+      >{t('errorReportButton')} ({failures.length}) →</button>
+    </div>
   {/if}
 
   <!-- 全体プログレスバー(投稿中のみ表示)。各 SNS の状態は SNS 行に統合済み。 -->

@@ -67,7 +67,7 @@ const phase1After = await page.evaluate(() => ({
   bodyHasUpload: /Upload|Replace|Crop|Edit\s*image/i.test(document.body.innerText),
 }));
 console.log('phase 1 after:', phase1After);
-await page.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/tumblr-dropzone-test.png' });
+await page.screenshot({ path: 'scripts/tumblr-dropzone-test.png' });
 
 // Phase 2: if drop didn't work, click "Add photo" then look at what mounted
 if (!phase1After.hasBlobImg && !phase1After.imageBlocks) {
@@ -98,7 +98,7 @@ if (!phase1After.hasBlobImg && !phase1After.imageBlocks) {
       .slice(0, 10).map(b => ({ text: (b.textContent ?? '').slice(0, 50), aria: b.getAttribute('aria-label') })),
   }));
   console.log('phase 2:', JSON.stringify(phase2, null, 2));
-  await page.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/tumblr-after-addphoto.png' });
+  await page.screenshot({ path: 'scripts/tumblr-after-addphoto.png' });
 
   // Phase 3: try to drop on the new dropzone (in image block)
   if (phase2.dropZoneCount > 0) {
@@ -133,7 +133,7 @@ if (!phase1After.hasBlobImg && !phase1After.imageBlocks) {
       blobImgs: Array.from(document.querySelectorAll('img[src^="blob:"]')).map(i => i.src.slice(0, 50)),
     }));
     console.log('phase 3:', phase3);
-    await page.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/tumblr-after-drop2.png' });
+    await page.screenshot({ path: 'scripts/tumblr-after-drop2.png' });
   }
 }
 

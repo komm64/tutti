@@ -97,5 +97,20 @@
   "selectorUpdateFetch": { "message": "今すぐ取得" },
   "selectorUpdateFetching": { "message": "取得中..." },
   "selectorUpdateFetchedAt": { "message": "最終取得" },
-  "selectorUpdateActive": { "message": "件 override 中" }
+  "selectorUpdateActive": { "message": "件 override 中" },
+
+  "logsTitle": { "message": "ログ(障害報告用)" },
+  "logLevelLabel": { "message": "ログレベル" },
+  "logLevelHint": { "message": "Beta 中は INFO 推奨。動作不審の時にこの設定で出力されたログを「ダウンロード」して GitHub Issue に添付してください。" },
+  "logLevelOffDesc": { "message": "ログを残さない" },
+  "logLevelErrorDesc": { "message": "エラーのみ" },
+  "logLevelWarnDesc": { "message": "警告以上" },
+  "logLevelInfoDesc": { "message": "状態変化を含む(推奨)" },
+  "logLevelDebugDesc": { "message": "詳細(障害切り分け時のみ)" },
+  "logsDownload": { "message": "ログをダウンロード" },
+  "logsClear": { "message": "ログをクリア" },
+  "logsCount": { "message": "件保存中" },
+
+  "errorReportButton": { "message": "この問題を報告" },
+  "errorReportHint": { "message": "GitHub Issues に最近のログを添えて報告ページを開きます。" }
 }

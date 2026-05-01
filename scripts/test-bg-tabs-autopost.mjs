@@ -66,6 +66,6 @@ for (const s of samples) {
   if (s.probe?.progressText) console.log(`t+${s.t}s active:${s.activeTabUrl?.slice(0, 50)} | ${s.probe.progressText?.replace(/\n/g, ' | ')}`);
 }
 
-await popup.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/popup-progress.png' });
+await popup.screenshot({ path: 'scripts/popup-progress.png' });
 
 await browser.disconnect();

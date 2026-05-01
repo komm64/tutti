@@ -35,7 +35,7 @@ async function trace(name, url, screenshotPath) {
   await page.close();
 }
 
-await trace('Misskey', 'https://misskey.io/share?text=test', 'C:/Users/komm64/Projects/tutti/scripts/misskey-trace.png');
-await trace('Tumblr', 'https://www.tumblr.com/new/text', 'C:/Users/komm64/Projects/tutti/scripts/tumblr-trace.png');
+await trace('Misskey', 'https://misskey.io/share?text=test', 'scripts/misskey-trace.png');
+await trace('Tumblr', 'https://www.tumblr.com/new/text', 'scripts/tumblr-trace.png');
 
 await browser.disconnect();

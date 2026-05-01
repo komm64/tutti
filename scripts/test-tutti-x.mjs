@@ -73,6 +73,6 @@ for (let i = 0; i < 18; i++) {
   console.log(`t+${i}s`, JSON.stringify(state));
   if (state?.hasImg && state?.postBtn) break;
 }
-if (tab) await tab.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/x-tutti-flow.png' });
+if (tab) await tab.screenshot({ path: 'scripts/x-tutti-flow.png' });
 
 await browser.disconnect();

@@ -94,7 +94,7 @@ if (bsky) {
   console.log('\n=== bsky tab state ===');
   console.log(JSON.stringify(state, null, 2));
 
-  await bsky.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/bsky-state.png' });
+  await bsky.screenshot({ path: 'scripts/bsky-state.png' });
   console.log('screenshot saved');
 }
 

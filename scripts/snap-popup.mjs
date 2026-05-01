@@ -7,5 +7,5 @@ for (const p of await browser.pages()) {
 const popup = await browser.newPage();
 await popup.goto(`chrome-extension://${EXT_ID}/popup.html`);
 await new Promise(r => setTimeout(r, 1500));
-await popup.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/popup-v048.png' });
+await popup.screenshot({ path: 'scripts/popup-v048.png' });
 await browser.disconnect();

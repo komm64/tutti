@@ -14,5 +14,5 @@ const post = await page.evaluate(() => {
   return { fullText: article.innerText.slice(0, 400), tweetText, imgs };
 });
 console.log(JSON.stringify(post, null, 2));
-await page.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/x-post-content.png', fullPage: false });
+await page.screenshot({ path: 'scripts/x-post-content.png', fullPage: false });
 await browser.disconnect();

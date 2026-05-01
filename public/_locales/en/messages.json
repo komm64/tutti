@@ -97,5 +97,20 @@
   "selectorUpdateFetch": { "message": "Fetch now" },
   "selectorUpdateFetching": { "message": "Fetching..." },
   "selectorUpdateFetchedAt": { "message": "Last fetched" },
-  "selectorUpdateActive": { "message": "active overrides" }
+  "selectorUpdateActive": { "message": "active overrides" },
+
+  "logsTitle": { "message": "Logs (for issue reports)" },
+  "logLevelLabel": { "message": "Log level" },
+  "logLevelHint": { "message": "INFO is recommended during Beta. If something misbehaves, download the captured logs and attach them to a GitHub issue." },
+  "logLevelOffDesc": { "message": "no logs" },
+  "logLevelErrorDesc": { "message": "errors only" },
+  "logLevelWarnDesc": { "message": "warnings and above" },
+  "logLevelInfoDesc": { "message": "state changes (recommended)" },
+  "logLevelDebugDesc": { "message": "verbose (debugging only)" },
+  "logsDownload": { "message": "Download logs" },
+  "logsClear": { "message": "Clear logs" },
+  "logsCount": { "message": "entries stored" },
+
+  "errorReportButton": { "message": "Report this issue" },
+  "errorReportHint": { "message": "Opens GitHub Issues with recent logs prefilled." }
 }

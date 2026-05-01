@@ -1,3 +1,4 @@
+import { initLogLevelFromSettings, log } from '../src/utils/logger';
 import type { ImageAttachment, Message, PostResultMessage } from '../src/messages';
 import {
   MASTODON_SELECTORS,
@@ -75,11 +76,11 @@ function detectMastodonUser(): string | null {
       const r = s.fn();
       if (r) {
         const handle = r.startsWith('@') ? r : '@' + r;
-        console.log(`[Tutti] mastodon detection succeeded via "${s.name}" → ${handle}`);
+        log.info(`mastodon detection succeeded via "${s.name}" → ${handle}`);
         return handle;
       }
     } catch (e) {
-      console.warn(`[Tutti] mastodon strategy "${s.name}" threw:`, e);
+      log.warn(`mastodon strategy "${s.name}" threw:`, e);
     }
   }
 
@@ -122,7 +123,8 @@ export default defineContentScript({
     });
 
     void detectAndReportUser('mastodon', detectMastodonUser);
-    console.log('[Tutti] Mastodon content script ready');
+    void initLogLevelFromSettings();
+    log.info('Mastodon content script ready');
   },
 });
 

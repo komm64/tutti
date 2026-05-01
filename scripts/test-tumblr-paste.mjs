@@ -40,6 +40,6 @@ const after = await page.evaluate(() => ({
   hasImageBlock: !!document.querySelector('[data-block-type="image"], .image-block, [class*="image-block"]'),
 }));
 console.log('after paste:', after);
-await page.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/tumblr-paste.png' });
+await page.screenshot({ path: 'scripts/tumblr-paste.png' });
 
 await browser.disconnect();

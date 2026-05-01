@@ -118,6 +118,35 @@ export interface SelectorAudit {
   firstMatchPreview: string | null;
 }
 
+// ── Logger (各 context → background のログ集約) ───────────────────────────
+
+export type LogLevel = 'OFF' | 'ERROR' | 'WARN' | 'INFO' | 'DEBUG';
+
+export interface LogEntry {
+  /** 発行時刻 (ms epoch) */
+  ts: number;
+  level: LogLevel;
+  /** popup / background / SNS host 等の発行 context */
+  context: string;
+  message: string;
+}
+
+/** 任意 context → background: ログ 1 件追加 */
+export interface LogAppendMessage {
+  type: 'LOG_APPEND';
+  entry: LogEntry;
+}
+
+/** popup → background: バッファのスナップショット要求 */
+export interface LogExportRequestMessage {
+  type: 'LOG_EXPORT_REQUEST';
+}
+
+/** popup → background: バッファをクリア */
+export interface LogClearMessage {
+  type: 'LOG_CLEAR';
+}
+
 export type Message =
   | PostRequestMessage
   | PostToPlatformMessage
@@ -130,4 +159,7 @@ export type Message =
   | ConversionErrorMessage
   | DiagnoseRequestMessage
   | DiagnosePlatformMessage
-  | DiagnosePlatformResult;
+  | DiagnosePlatformResult
+  | LogAppendMessage
+  | LogExportRequestMessage
+  | LogClearMessage;

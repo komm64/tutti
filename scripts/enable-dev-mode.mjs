@@ -23,7 +23,7 @@ const result = await page.evaluate(() => {
 console.log('toggle click result:', result);
 
 await new Promise(r => setTimeout(r, 1500));
-const path = 'C:/Users/komm64/Projects/tutti/scripts/extensions-after-toggle.png';
+const path = 'scripts/extensions-after-toggle.png';
 await page.screenshot({ path });
 console.log('screenshot:', path);
 

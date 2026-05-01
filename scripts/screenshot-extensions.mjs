@@ -6,7 +6,7 @@ if (page.url() !== 'chrome://extensions/') {
   await page.goto('chrome://extensions/');
 }
 await new Promise(r => setTimeout(r, 1500));
-const path = 'C:/Users/komm64/Projects/tutti/scripts/extensions-current.png';
+const path = 'scripts/extensions-current.png';
 await page.screenshot({ path, fullPage: false });
 console.log('saved:', path);
 console.log('URL:', page.url());

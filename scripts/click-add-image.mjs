@@ -47,6 +47,6 @@ const popup = await page.evaluate(() => {
 });
 console.log('menus/dialogs:', JSON.stringify(popup, null, 2));
 
-await page.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/bsky-after-click.png' });
+await page.screenshot({ path: 'scripts/bsky-after-click.png' });
 
 await browser.disconnect();

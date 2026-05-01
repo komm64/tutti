@@ -83,6 +83,6 @@ if (xTab) {
   });
   console.log('\nposts on timeline:');
   console.log(JSON.stringify(posts, null, 2));
-  await xTab.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/x-post-with-text.png' });
+  await xTab.screenshot({ path: 'scripts/x-post-with-text.png' });
 }
 await browser.disconnect();

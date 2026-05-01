@@ -87,7 +87,7 @@ if (mast) {
     };
   });
   console.log('mastodon state:', JSON.stringify(state, null, 2));
-  await mast.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/mastodon-after-post.png' });
+  await mast.screenshot({ path: 'scripts/mastodon-after-post.png' });
 }
 
 console.log('\n=== logs ===');

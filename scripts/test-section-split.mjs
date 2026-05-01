@@ -13,7 +13,7 @@ await popup.evaluate(() => new Promise(r => chrome.storage.local.set({
 }, r)));
 await popup.reload();
 await new Promise(r => setTimeout(r, 1500));
-await popup.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/popup-section-split.png' });
+await popup.screenshot({ path: 'scripts/popup-section-split.png' });
 
 // restore
 await popup.evaluate(() => new Promise(r => chrome.storage.local.set({

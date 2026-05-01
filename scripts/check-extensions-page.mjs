@@ -9,7 +9,7 @@ try {
 }
 await new Promise((r) => setTimeout(r, 3000));
 console.log('URL:', page.url());
-const path = 'C:/Users/komm64/Projects/tutti/scripts/extensions-page.png';
+const path = 'scripts/extensions-page.png';
 await page.screenshot({ path });
 console.log('screenshot:', path);
 const html = await page.evaluate(() => document.body.innerText.slice(0, 2000));

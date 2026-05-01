@@ -47,7 +47,7 @@ async function tryDrop(label, url, dropSelectorList) {
     bodyHasEditOrRemove: /Edit|Remove|削除|✕|×/.test(document.body.innerText),
   }));
   console.log('  after drop:', after);
-  await page.screenshot({ path: `C:/Users/komm64/Projects/tutti/scripts/drop-${label.toLowerCase()}.png` });
+  await page.screenshot({ path: `scripts/drop-${label.toLowerCase()}.png` });
   await page.close();
 }
 

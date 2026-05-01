@@ -57,6 +57,6 @@ for (let i = 0; i < 25; i++) {
   console.log(`t+${i}s`, JSON.stringify(state));
   if (state?.hasEdit || state?.hasAlt) break;
 }
-if (mast) await mast.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/mastodon-bigger.png' });
+if (mast) await mast.screenshot({ path: 'scripts/mastodon-bigger.png' });
 
 await browser.disconnect();

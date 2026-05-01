@@ -83,7 +83,7 @@ for (let i = 0; i < 30; i++) {
 }
 
 if (xTab) {
-  await xTab.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/x-real-after-post.png' });
+  await xTab.screenshot({ path: 'scripts/x-real-after-post.png' });
 
   // Navigate to user timeline and look for the test text
   console.log('\nchecking timeline for test post...');
@@ -100,7 +100,7 @@ if (xTab) {
     };
   }, 'Tutti テスト投稿');
   console.log('timeline check:', JSON.stringify(timelineState, null, 2));
-  await xTab.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/x-real-timeline.png' });
+  await xTab.screenshot({ path: 'scripts/x-real-timeline.png' });
 }
 
 await browser.disconnect();

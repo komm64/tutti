@@ -26,6 +26,6 @@ const out = await popup.evaluate(() => {
 });
 console.log('=== diagnostics output ===');
 console.log(out);
-await popup.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/diagnostics-result.png' });
+await popup.screenshot({ path: 'scripts/diagnostics-result.png' });
 
 await browser.disconnect();

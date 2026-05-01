@@ -75,7 +75,7 @@ async function postOne(label, idx, urlMatch) {
 
   // screenshot SNS tab final state
   const tab = (await browser.pages()).find(p => urlMatch.test(p.url()));
-  if (tab) await tab.screenshot({ path: `C:/Users/komm64/Projects/tutti/scripts/realpost2-${label.toLowerCase()}.png` });
+  if (tab) await tab.screenshot({ path: `scripts/realpost2-${label.toLowerCase()}.png` });
   await popup.close();
 }
 

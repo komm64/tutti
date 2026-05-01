@@ -60,7 +60,7 @@ const ui = await page.evaluate(() => {
   };
 });
 console.log('UI state after inject:', JSON.stringify(ui, null, 2));
-await page.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/mastodon-inject-test.png' });
+await page.screenshot({ path: 'scripts/mastodon-inject-test.png' });
 
 // Try pattern B: drag-drop simulation
 console.log('\n=== TRY DRAG-DROP ===');
@@ -90,6 +90,6 @@ const ui2 = await page.evaluate(() => ({
   imgCount: document.querySelectorAll('.compose-form img').length,
 }));
 console.log('after drop UI:', JSON.stringify(ui2, null, 2));
-await page.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/mastodon-drop-test.png' });
+await page.screenshot({ path: 'scripts/mastodon-drop-test.png' });
 
 await browser.disconnect();

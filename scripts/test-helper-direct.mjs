@@ -59,5 +59,5 @@ const ui = await page.evaluate(() => ({
 }));
 console.log('UI 5s after inject:', JSON.stringify(ui, null, 2));
 
-await page.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/helper-direct-test.png' });
+await page.screenshot({ path: 'scripts/helper-direct-test.png' });
 await browser.disconnect();

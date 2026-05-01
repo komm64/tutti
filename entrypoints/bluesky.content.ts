@@ -1,3 +1,4 @@
+import { initLogLevelFromSettings, log } from '../src/utils/logger';
 import type { ImageAttachment, Message, PostResultMessage } from '../src/messages';
 import { BLUESKY_SELECTORS, blueskyAdapter } from '../src/adapters/bluesky';
 import { executePostFlow } from '../src/utils/post-flow';
@@ -44,7 +45,7 @@ function detectBlueskyUser(): string | null {
     const k = localStorage.key(i);
     if (k) debugKeys.push(k);
   }
-  console.warn('[Tutti] bluesky: handle 取得失敗。localStorage keys =', debugKeys);
+  log.warn('bluesky: handle 取得失敗。localStorage keys =', debugKeys);
   return null;
 }
 
@@ -100,7 +101,8 @@ export default defineContentScript({
     });
 
     void detectAndReportUser('bluesky', detectBlueskyUser);
-    console.log('[Tutti] Bluesky content script ready');
+    void initLogLevelFromSettings();
+    log.info('Bluesky content script ready');
   },
 });
 

@@ -88,7 +88,7 @@ console.log('clicked:', clicked);
 await new Promise(r => setTimeout(r, 3000));
 await snapshot('after Image click');
 
-await page.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/tumblr-after-image-block.png' });
+await page.screenshot({ path: 'scripts/tumblr-after-image-block.png' });
 
 // Step 3: collect all NEW elements that appeared. Look for dropzone divs / hidden inputs / placeholder buttons.
 const newStuff = await page.evaluate(() => {

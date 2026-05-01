@@ -54,7 +54,7 @@ async function probeMastodon() {
     }));
   });
   console.log('mastodon dialog:', JSON.stringify(dialog, null, 2));
-  await page.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/mastodon-alt-dialog.png' });
+  await page.screenshot({ path: 'scripts/mastodon-alt-dialog.png' });
   await page.close();
 }
 
@@ -99,7 +99,7 @@ async function probeTumblr() {
     }));
   });
   console.log('tumblr dialogs:', JSON.stringify(dialogs, null, 2));
-  await page.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/tumblr-tags-dialog.png' });
+  await page.screenshot({ path: 'scripts/tumblr-tags-dialog.png' });
   await page.close();
 }
 

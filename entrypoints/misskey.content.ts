@@ -1,3 +1,4 @@
+import { initLogLevelFromSettings, log } from '../src/utils/logger';
 import type { ImageAttachment, Message, PostResultMessage } from '../src/messages';
 import { MISSKEY_SELECTORS, misskeyAdapter } from '../src/adapters/misskey';
 import { executePostFlow } from '../src/utils/post-flow';
@@ -43,14 +44,14 @@ function detectMisskeyUser(): string | null {
       const r = s.fn();
       if (r) {
         const handle = r.startsWith('@') ? r : '@' + r;
-        console.log(`[Tutti] misskey detection succeeded via "${s.name}" → ${handle}`);
+        log.info(`misskey detection succeeded via "${s.name}" → ${handle}`);
         return handle;
       }
     } catch (e) {
-      console.warn(`[Tutti] misskey strategy "${s.name}" threw:`, e);
+      log.warn(`misskey strategy "${s.name}" threw:`, e);
     }
   }
-  console.warn('[Tutti] misskey: 全戦略失敗。localStorage keys =',
+  log.warn('misskey: 全戦略失敗。localStorage keys =',
     (() => { const ks: string[] = []; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k) ks.push(k); } return ks; })(),
   );
   return null;
@@ -84,7 +85,8 @@ export default defineContentScript({
     });
 
     void detectAndReportUser('misskey', detectMisskeyUser);
-    console.log('[Tutti] Misskey content script ready');
+    void initLogLevelFromSettings();
+    log.info('Misskey content script ready');
   },
 });
 

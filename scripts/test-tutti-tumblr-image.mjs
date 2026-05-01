@@ -60,6 +60,6 @@ for (let i = 0; i < 20; i++) {
   console.log(`t+${i}s`, JSON.stringify(state).slice(0, 300));
   if (state?.bodyHasUpload) break;
 }
-if (tab) await tab.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/tumblr-tutti-flow.png' });
+if (tab) await tab.screenshot({ path: 'scripts/tumblr-tutti-flow.png' });
 
 await browser.disconnect();

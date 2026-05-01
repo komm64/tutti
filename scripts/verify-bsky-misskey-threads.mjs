@@ -24,7 +24,7 @@ async function check(label, url, needle) {
     };
   }, needle).catch(() => null);
   console.log(JSON.stringify(state, null, 2));
-  await page.screenshot({ path: `C:/Users/komm64/Projects/tutti/scripts/verify2-${label.toLowerCase()}.png` });
+  await page.screenshot({ path: `scripts/verify2-${label.toLowerCase()}.png` });
   await page.close();
 }
 

@@ -41,6 +41,6 @@ const state = await page.evaluate(() => {
 });
 
 console.log(JSON.stringify(state, null, 2));
-await page.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/x-bg-check.png', fullPage: true });
+await page.screenshot({ path: 'scripts/x-bg-check.png', fullPage: true });
 
 await browser.disconnect();

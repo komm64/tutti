@@ -54,6 +54,6 @@ const restored = await popup2.evaluate(() => {
   };
 });
 console.log('restored UI:', restored);
-await popup2.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/popup-after-restore.png' });
+await popup2.screenshot({ path: 'scripts/popup-after-restore.png' });
 
 await browser.disconnect();

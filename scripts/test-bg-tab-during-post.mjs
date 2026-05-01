@@ -62,5 +62,5 @@ for (let i = 0; i < 50; i++) {
   if (done >= 3) break;
 }
 console.log(`\nelapsed: ${(Date.now() - startedAt) / 1000}s`);
-await popup.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/popup-3sns-final.png' });
+await popup.screenshot({ path: 'scripts/popup-3sns-final.png' });
 await browser.disconnect();

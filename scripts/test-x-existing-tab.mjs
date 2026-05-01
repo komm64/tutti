@@ -69,7 +69,7 @@ for (let i = 0; i < 8; i++) {
     };
   }).catch(() => null);
   console.log(`t+${i*2+2}s`, JSON.stringify(state));
-  await xHome.screenshot({ path: `C:/Users/komm64/Projects/tutti/scripts/x-existing-${i}.png` });
+  await xHome.screenshot({ path: `scripts/x-existing-${i}.png` });
 }
 
 await browser.disconnect();

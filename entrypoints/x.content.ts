@@ -1,3 +1,4 @@
+import { initLogLevelFromSettings, log } from '../src/utils/logger';
 import type { ImageAttachment, Message, PostResultMessage } from '../src/messages';
 import { X_SELECTORS, xAdapter } from '../src/adapters/x';
 import { executePostFlow } from '../src/utils/post-flow';
@@ -68,7 +69,8 @@ export default defineContentScript({
     });
 
     void detectAndReportUser('x', detectXUser);
-    console.log('[Tutti] X content script ready');
+    void initLogLevelFromSettings();
+    log.info('X content script ready');
   },
 });
 

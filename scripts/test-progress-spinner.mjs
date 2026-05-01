@@ -36,7 +36,7 @@ await popup.evaluate(() => Array.from(document.querySelectorAll('button')).find(
 // Capture during 1s, 4s, 8s
 for (const at of [1, 4, 8]) {
   await new Promise(r => setTimeout(r, at === 1 ? 1000 : at === 4 ? 3000 : 4000));
-  await popup.screenshot({ path: `C:/Users/komm64/Projects/tutti/scripts/preview-spinner-t${at}.png` });
+  await popup.screenshot({ path: `scripts/preview-spinner-t${at}.png` });
 }
 
 await browser.disconnect();

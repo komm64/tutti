@@ -70,7 +70,7 @@ const after = await page.evaluate(() => ({
   hasFigure: !!document.querySelector('.block-editor figure'),
 }));
 console.log('after:', after);
-await page.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/tumblr-drop-probe2.png' });
+await page.screenshot({ path: 'scripts/tumblr-drop-probe2.png' });
 
 // 3. Try clicking the "Image" block-type button to insert an image block, then look for input
 console.log('\n=== try click "Image" block ===');
@@ -98,6 +98,6 @@ const fis = await page.evaluate(() => {
   }));
 });
 console.log('file inputs after click:', fis);
-await page.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/tumblr-after-image-click.png' });
+await page.screenshot({ path: 'scripts/tumblr-after-image-click.png' });
 
 await browser.disconnect();

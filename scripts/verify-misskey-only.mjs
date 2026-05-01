@@ -22,7 +22,7 @@ await page.evaluate(() => {
 });
 await new Promise(r => setTimeout(r, 4000));
 
-await page.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/verify-misskey-notes.png' });
+await page.screenshot({ path: 'scripts/verify-misskey-notes.png' });
 
 // Look for any visible post text
 const text = await page.evaluate(() => document.body.innerText.slice(0, 3000));

@@ -1,4 +1,4 @@
-import type { PlatformId, PostResultMessage } from './messages';
+import type { LogLevel, PlatformId, PostResultMessage } from './messages';
 
 // ── 設定 (chrome.storage.sync) ──────────────────────────────────────────────
 
@@ -21,6 +21,12 @@ export interface Settings {
    * 形式は `src/utils/selector-overrides.ts` 参照。
    */
   selectorOverrideUrl: string;
+  /**
+   * ログレベル。Beta は INFO デフォルト、正式版で ERROR にしたい想定。
+   * Settings 画面のドロップダウンから切替。background は LOG_APPEND を
+   * level に関係なく ring buffer に貯めるので、後から絞ってダウンロードできる。
+   */
+  logLevel: LogLevel;
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -28,6 +34,7 @@ const DEFAULT_SETTINGS: Settings = {
   misskeyInstance: 'https://misskey.io',
   autoPost: false,
   selectorOverrideUrl: '',
+  logLevel: 'INFO',
 };
 
 export async function getSettings(): Promise<Settings> {
