@@ -6,12 +6,21 @@ import { readFileSync } from 'node:fs';
 
 const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222', protocolTimeout: 60000 });
 
-const scenes = [
+/**
+ * `LANG=en node scripts/gen-store-composite.mjs` で英語版を生成。
+ * 既定は日本語(env LANG が 'en' でないとき)。
+ */
+const LANG = process.env.LANG === 'en' ? 'en' : 'ja';
+const OUT_SUFFIX = LANG === 'en' ? '-en' : '';
+
+const SCENES_JA = [
   {
     name: '01-overview',
     eyebrow: 'CROSS-POSTING, ONE BUTTON',
     title: 'クロスポストの面倒を、\nまるごと肩代わり',
     subtitle: 'X / Bluesky / Threads / Tumblr / Mastodon / Misskey に\n同じ投稿を一発で。各 SNS の制約は Tutti が処理します。',
+    tagline: 'クロスポスト Chrome 拡張',
+    footer: 'クロスポストの面倒を全部肩代わり',
     palette: { from: '#0d9488', to: '#0f766e', ink: '#ffffff', sub: 'rgba(255,255,255,0.85)' },
   },
   {
@@ -19,6 +28,8 @@ const scenes = [
     eyebrow: 'WRITE ONCE',
     title: '書いて、選んで、\nボタンを押すだけ',
     subtitle: '文字数オーバーは自動分割。各 SNS の上限 (X 280 / Bluesky 300 /\nThreads 500 ...) を Tutti が自動で吸収します。',
+    tagline: 'クロスポスト Chrome 拡張',
+    footer: 'クロスポストの面倒を全部肩代わり',
     palette: { from: '#1e40af', to: '#1e3a8a', ink: '#ffffff', sub: 'rgba(255,255,255,0.82)' },
   },
   {
@@ -26,6 +37,8 @@ const scenes = [
     eyebrow: 'MEDIA HANDLED',
     title: '画像も自動でリサイズ',
     subtitle: 'Bluesky の 1MB 制限など各 SNS のサイズ上限に合わせて Canvas で\n自動リサイズ。drag & drop で 4 枚まで添付できます。',
+    tagline: 'クロスポスト Chrome 拡張',
+    footer: 'クロスポストの面倒を全部肩代わり',
     palette: { from: '#7c3aed', to: '#5b21b6', ink: '#ffffff', sub: 'rgba(255,255,255,0.85)' },
   },
   {
@@ -33,6 +46,8 @@ const scenes = [
     eyebrow: 'LIVE PROGRESS',
     title: '投稿中も状況がわかる',
     subtitle: '各 SNS の状態 (進行中 / 完了 / 失敗) が SNS 行に統合表示。\n失敗したらその場で原因が見えるので、リトライ判断もすぐ。',
+    tagline: 'クロスポスト Chrome 拡張',
+    footer: 'クロスポストの面倒を全部肩代わり',
     palette: { from: '#0e7490', to: '#155e75', ink: '#ffffff', sub: 'rgba(255,255,255,0.85)' },
   },
   {
@@ -40,9 +55,61 @@ const scenes = [
     eyebrow: 'SAFE BY DEFAULT',
     title: '初回はプレビューモードで安心',
     subtitle: '送信前に各 SNS の compose を開いて確認。投稿ボタンは押しません。\n誤投稿の事故を防ぐ Tutti のデフォルト動作です。',
+    tagline: 'クロスポスト Chrome 拡張',
+    footer: 'クロスポストの面倒を全部肩代わり',
     palette: { from: '#b45309', to: '#92400e', ink: '#ffffff', sub: 'rgba(255,255,255,0.88)' },
   },
 ];
+
+const SCENES_EN = [
+  {
+    name: '01-overview',
+    eyebrow: 'CROSS-POSTING, ONE BUTTON',
+    title: 'All cross-posting hassle,\nhandled.',
+    subtitle: 'Send the same post to X / Bluesky / Threads / Tumblr / Mastodon / Misskey in one click.\nTutti handles each network’s constraints for you.',
+    tagline: 'Cross-post Chrome extension',
+    footer: 'All cross-posting hassle, handled.',
+    palette: { from: '#0d9488', to: '#0f766e', ink: '#ffffff', sub: 'rgba(255,255,255,0.85)' },
+  },
+  {
+    name: '02-write',
+    eyebrow: 'WRITE ONCE',
+    title: 'Write once, pick networks,\nhit Post.',
+    subtitle: 'Long posts auto-split per network. The 280 / 300 / 500 character ceilings\nare absorbed automatically so you never have to think about them.',
+    tagline: 'Cross-post Chrome extension',
+    footer: 'All cross-posting hassle, handled.',
+    palette: { from: '#1e40af', to: '#1e3a8a', ink: '#ffffff', sub: 'rgba(255,255,255,0.82)' },
+  },
+  {
+    name: '03-image',
+    eyebrow: 'MEDIA HANDLED',
+    title: 'Images, automatically\nresized.',
+    subtitle: 'Canvas-based auto-resize fits each network’s limits (e.g. Bluesky’s 1 MB cap).\nDrop in up to 4 images per post.',
+    tagline: 'Cross-post Chrome extension',
+    footer: 'All cross-posting hassle, handled.',
+    palette: { from: '#7c3aed', to: '#5b21b6', ink: '#ffffff', sub: 'rgba(255,255,255,0.85)' },
+  },
+  {
+    name: '04-progress',
+    eyebrow: 'LIVE PROGRESS',
+    title: 'See exactly what’s\nposting, live.',
+    subtitle: 'Per-network status (in flight / done / failed) inline with each network row.\nFailures show the cause right there so you know whether to retry.',
+    tagline: 'Cross-post Chrome extension',
+    footer: 'All cross-posting hassle, handled.',
+    palette: { from: '#0e7490', to: '#155e75', ink: '#ffffff', sub: 'rgba(255,255,255,0.85)' },
+  },
+  {
+    name: '05-safety',
+    eyebrow: 'SAFE BY DEFAULT',
+    title: 'Preview-first, by default.',
+    subtitle: 'Tutti opens each network’s compose for review and stops just before the Post button.\nNo accidental posts on day one.',
+    tagline: 'Cross-post Chrome extension',
+    footer: 'All cross-posting hassle, handled.',
+    palette: { from: '#b45309', to: '#92400e', ink: '#ffffff', sub: 'rgba(255,255,255,0.88)' },
+  },
+];
+
+const scenes = LANG === 'en' ? SCENES_EN : SCENES_JA;
 
 // ロゴ T(SVG)— Tutti のアイコンと同じシルエット
 const LOGO_SVG = `<svg viewBox="0 0 64 64" width="36" height="36" xmlns="http://www.w3.org/2000/svg">
@@ -133,7 +200,7 @@ for (const scene of scenes) {
     <div class="brand-row">
       ${LOGO_SVG}
       <div class="name">Tutti</div>
-      <div class="tagline">クロスポスト Chrome 拡張</div>
+      <div class="tagline">${scene.tagline}</div>
     </div>
     <div class="eyebrow">${scene.eyebrow}</div>
     <h1>${scene.title}</h1>
@@ -147,13 +214,13 @@ for (const scene of scenes) {
   </div>
   <div class="footer">
     <span>tutti</span><span class="dot"></span>
-    <span>クロスポストの面倒を全部肩代わり</span>
+    <span>${scene.footer}</span>
   </div>
 </body></html>
   `;
   await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 15000 });
   await new Promise(r => setTimeout(r, 600));
-  const out = `docs/screenshots/${scene.name}-1280x800.png`;
+  const out = `docs/screenshots/${scene.name}${OUT_SUFFIX}-1280x800.png`;
   await page.screenshot({ path: out });
   console.log('wrote', out);
 }
