@@ -1,51 +1,78 @@
 // Web Store 提出用スクショ 5 枚を生成。各シーンの popup を 1280x800 キャンバスに
 // 配置 + キャッチコピー文字。Chrome Web Store の screenshot サイズは 1280x800
 // または 640x400。1280 で出すと拡縮なしでクリアに見える。
+//
+// 個人ハンドル漏洩対策(2026-05-01):
+//   - 全 SNS タブを閉じてから snap (content script の REPORT_USER で
+//     lastSeenUsers が上書きされるのを防ぐ)
+//   - lastSeenUsers は全 SNS で `@your.handle` 統一
+//   - popup 表示直前にも storage 再セット (レース回避)
+//   - LANG=ja|en で popup 内 UI 言語を切替 (browser.i18n.getMessage を monkey-patch)
+//
+// 使い方:
+//   LANG=ja node scripts/gen-store-screenshots.mjs
+//   LANG=en node scripts/gen-store-screenshots.mjs
 import puppeteer from 'puppeteer-core';
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 
+const LANG = process.env.LANG === 'en' ? 'en' : 'ja';
 const EXT_ID = 'dophemlpjldcejjdjefpjbgngodopkfe';
 mkdirSync('docs/screenshots', { recursive: true });
 
+// 該当 locale の messages.json を読み込んで popup の i18n を上書き
+const messagesPath = `public/_locales/${LANG}/messages.json`;
+const messages = JSON.parse(readFileSync(messagesPath, 'utf8'));
+
 const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222', protocolTimeout: 60000 });
 
-// Each scene: setup function + caption
+// SNS のタブを全部閉じる(content script で lastSeenUsers が上書きされるため)
+const SNS_HOSTS = [
+  'x.com', 'twitter.com', 'bsky.app',
+  'threads.net', 'threads.com',
+  'mastodon.social', 'misskey.io',
+  'tumblr.com',
+];
+for (const p of await browser.pages()) {
+  const url = p.url();
+  if (SNS_HOSTS.some((h) => url.includes(h))) {
+    console.log('[close]', url);
+    await p.close().catch(() => {});
+  }
+  if (url.includes('popup.html')) await p.close().catch(() => {});
+}
+
 const tmpImg = 'C:\\Users\\komm64\\AppData\\Local\\Temp\\tutti-test-100x100.png';
 
 const scenes = [
   {
     name: '01-overview',
-    title: 'クロスポスト、ボタン 1 つで',
-    subtitle: 'X / Bluesky / Threads / Tumblr / Mastodon / Misskey に同時投稿',
     autoPost: false,
-    text: '',
+    textJa: '',
+    textEn: '',
     image: false,
     selectIdxs: new Set([0, 1, 2, 3]),
   },
   {
     name: '02-write',
-    title: '書いて、選んで、押すだけ',
-    subtitle: '文字数オーバーは自動分割。各 SNS の制約を Tutti が処理',
     autoPost: false,
-    text: '今夜の作業はここまで!明日は新しい曲のミックスダウンに入る予定。\n\n#composing #musicproduction',
+    textJa: '今夜の作業はここまで!明日は新しい曲のミックスダウンに入る予定。\n\n#composing #musicproduction',
+    textEn: 'Wrapping up for tonight. Tomorrow I dive into the mixdown of the new track.\n\n#composing #musicproduction',
     image: false,
     selectIdxs: new Set([0, 1, 2, 3, 4]),
   },
   {
     name: '03-image',
-    title: '画像も自動でリサイズ',
-    subtitle: 'Bluesky の 1MB 制限など各 SNS の上限に合わせて自動調整',
     autoPost: false,
-    text: '今日のセッション、いい感じに録れた。\n\n#studiolife',
+    textJa: '今日のセッション、いい感じに録れた。\n\n#studiolife',
+    textEn: "Today's session came out great.\n\n#studiolife",
     image: true,
     selectIdxs: new Set([0, 1, 2, 3]),
   },
   {
     name: '04-progress',
-    title: '投稿中もちゃんと見える',
-    subtitle: '各 SNS のステータスが一目で分かる進捗 UI',
     autoPost: true,
-    text: 'Live show next weekend! Tickets at the link below 🎵',
+    textJa: '来週末ライブやります!チケットは下のリンクから 🎵',
+    textEn: 'Live show next weekend! Tickets at the link below 🎵',
     image: true,
     selectIdxs: new Set([0, 1, 3]),
     triggerPost: true,
@@ -53,78 +80,136 @@ const scenes = [
   },
   {
     name: '05-safety',
-    title: '初回はプレビューモード',
-    subtitle: '送信前に各 SNS の compose 画面で確認できる',
     autoPost: false,
-    text: 'Just shipped a new feature 🚀',
+    textJa: '新機能リリースしました 🚀',
+    textEn: 'Just shipped a new feature 🚀',
     image: false,
     selectIdxs: new Set([0, 1, 2]),
   },
 ];
 
+const FAKE_USERS = {
+  x: '@your.handle',
+  bluesky: '@your.handle',
+  threads: '@your.handle',
+  mastodon: '@your.handle',
+  misskey: '@your.handle',
+  tumblr: '@your.handle',
+};
+
 async function setupScene(scene) {
-  // Close existing popup
-  for (const p of await browser.pages()) {
-    if (p.url().includes('popup.html')) await p.close();
-  }
-  // Set settings + clear state
+  // Settings + storage を pre-seed
   const tmpPopup = await browser.newPage();
   await tmpPopup.goto(`chrome-extension://${EXT_ID}/popup.html`);
-  await new Promise(r => setTimeout(r, 800));
-  await tmpPopup.evaluate((scene) => Promise.all([
-    new Promise(r => chrome.storage.sync.set({ settings: { mastodonInstance: 'https://mastodon.social', misskeyInstance: 'https://misskey.io', autoPost: scene.autoPost, selectorOverrideUrl: '' } }, r)),
-    new Promise(r => chrome.storage.session.remove('draft', r)),
-    // Reset selection per scene by NOT setting selectedPlatforms, then setting via UI later
-    new Promise(r => chrome.storage.local.remove('selectedPlatforms', r)),
-    // Pre-populate lastSeenUsers so accounts show for marketing screenshot
-    new Promise(r => chrome.storage.local.set({ lastSeenUsers: {
-      x: '@your_handle',
-      bluesky: '@you.bsky.social',
-      threads: '@your.handle',
-      mastodon: '@you',
-      misskey: '@you',
-      tumblr: '@your-blog',
-    } }, r)),
-  ]), scene);
+  await new Promise((r) => setTimeout(r, 800));
+  await tmpPopup.evaluate(async (scene, fakeUsers) => {
+    await new Promise((r) => chrome.storage.sync.set({ settings: { mastodonInstance: 'https://mastodon.social', misskeyInstance: 'https://misskey.io', autoPost: scene.autoPost, selectorOverrideUrl: '', logLevel: 'INFO' } }, r));
+    await new Promise((r) => chrome.storage.session.remove('draft', r));
+    await new Promise((r) => chrome.storage.local.remove('selectedPlatforms', r));
+    await new Promise((r) => chrome.storage.local.set({ lastSeenUsers: fakeUsers }, r));
+  }, scene, FAKE_USERS);
   await tmpPopup.close();
 
   const popup = await browser.newPage();
+
+  // i18n 上書き(popup script load 前に install)
+  await popup.evaluateOnNewDocument((messagesArg, fakeUsers) => {
+    const getMsg = (key, subs) => {
+      const entry = messagesArg[key];
+      if (!entry || !entry.message) return '';
+      let msg = entry.message;
+      if (entry.placeholders && (Array.isArray(subs) ? subs.length > 0 : subs != null)) {
+        for (const [pname, pdef] of Object.entries(entry.placeholders)) {
+          const m = pdef.content && pdef.content.match(/\$(\d+)/);
+          if (!m) continue;
+          const idx = parseInt(m[1], 10) - 1;
+          const val = Array.isArray(subs) ? (subs[idx] ?? '') : (idx === 0 ? String(subs) : '');
+          msg = msg.replaceAll('$' + pname + '$', String(val));
+        }
+      }
+      return msg;
+    };
+    const installOverride = () => {
+      try {
+        if (typeof chrome !== 'undefined' && chrome.i18n) {
+          chrome.i18n.getMessage = getMsg;
+        }
+      } catch { /* ignore */ }
+      try {
+        if (typeof browser !== 'undefined' && browser && browser.i18n) {
+          browser.i18n.getMessage = getMsg;
+        }
+      } catch { /* ignore */ }
+    };
+    installOverride();
+    // browser が後から define される polyfill ケースに備えてフックする
+    let _browser = (typeof browser !== 'undefined') ? browser : undefined;
+    try {
+      Object.defineProperty(globalThis, 'browser', {
+        get() { return _browser; },
+        set(v) {
+          _browser = v;
+          installOverride();
+        },
+        configurable: true,
+      });
+    } catch { /* already non-configurable */ }
+    // 念のため lastSeenUsers も上書き(popup 起動と同時に reset)
+    try {
+      if (chrome?.storage?.local?.set) {
+        chrome.storage.local.set({ lastSeenUsers: fakeUsers });
+      }
+    } catch { /* ignore */ }
+  }, messages, FAKE_USERS);
+
   await popup.setViewport({ width: 800, height: 800, deviceScaleFactor: 2 });
   await popup.goto(`chrome-extension://${EXT_ID}/popup.html`);
-  await new Promise(r => setTimeout(r, 1500));
-  if (scene.text) {
-    await popup.evaluate((t) => { document.querySelector('textarea').focus(); }, null);
-    await popup.type('textarea', scene.text);
+  await new Promise((r) => setTimeout(r, 1500));
+
+  // text 注入(locale 別)
+  const sceneText = LANG === 'en' ? scene.textEn : scene.textJa;
+  if (sceneText) {
+    await popup.evaluate(() => { document.querySelector('textarea').focus(); });
+    await popup.type('textarea', sceneText);
   }
+
   if (scene.image) {
     const fi = await popup.$('input[type="file"]');
     await fi.uploadFile(tmpImg);
-    await new Promise(r => setTimeout(r, 800));
+    await new Promise((r) => setTimeout(r, 800));
   }
-  // Set selection
+
+  // SNS 選択
   await popup.evaluate((idxs) => {
     const cbs = Array.from(document.querySelectorAll('input[type="checkbox"][class*="accent-blue"]'));
     const platformCbs = cbs.slice(1);
     platformCbs.forEach((cb, i) => { const want = idxs.includes(i); if (cb.checked !== want) cb.click(); });
   }, [...scene.selectIdxs]);
-  await new Promise(r => setTimeout(r, 400));
+  await new Promise((r) => setTimeout(r, 400));
+
+  // スクショ直前に lastSeenUsers を再セット(content script からの REPORT_USER で
+  // 上書きされても勝てるように)
+  await popup.evaluate((fakeUsers) => new Promise((r) => chrome.storage.local.set({ lastSeenUsers: fakeUsers }, r)), FAKE_USERS);
+  await new Promise((r) => setTimeout(r, 300));
+
   if (scene.triggerPost) {
-    await popup.evaluate(() => Array.from(document.querySelectorAll('button')).find(b => /SNS に投稿|プレビュー|Preview|Post to/.test(b.textContent ?? ''))?.click());
-    await new Promise(r => setTimeout(r, scene.captureAfterMs ?? 3000));
+    await popup.evaluate(() => Array.from(document.querySelectorAll('button')).find((b) => /SNS に投稿|プレビュー|Preview|Post to/.test(b.textContent ?? ''))?.click());
+    await new Promise((r) => setTimeout(r, scene.captureAfterMs ?? 3000));
   }
+
   return popup;
 }
 
 for (const scene of scenes) {
-  console.log(`\n[scene] ${scene.name}: ${scene.title}`);
+  console.log(`\n[scene ${LANG}] ${scene.name}`);
   const popup = await setupScene(scene);
-  // Crop to the popup <main> element so the screenshot is exactly the popup
-  // content height (no trailing white from the surrounding viewport).
   const main = await popup.$('main');
   if (!main) throw new Error('no <main> in popup');
-  await main.screenshot({ path: `docs/screenshots/${scene.name}-popup.png` });
+  const out = `docs/screenshots/${scene.name}-popup-${LANG}.png`;
+  await main.screenshot({ path: out });
+  console.log('wrote', out);
   await popup.close();
 }
 
 await browser.disconnect();
-console.log('\ndone. Now run gen-store-composite.mjs to make 1280x800 banners.');
+console.log('\ndone. Run gen-store-composite.mjs (LANG=' + LANG + ') to make 1280x800 banners.');

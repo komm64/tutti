@@ -131,7 +131,8 @@ const page = await browser.newPage();
 await page.setViewport({ width: 1280, height: 800, deviceScaleFactor: 1 });
 
 for (const scene of scenes) {
-  const popupPng = readFileSync(`docs/screenshots/${scene.name}-popup.png`);
+  // popup スクショは locale 別に生成済み (gen-store-screenshots.mjs LANG=ja|en)
+  const popupPng = readFileSync(`docs/screenshots/${scene.name}-popup-${LANG}.png`);
   const popupB64 = popupPng.toString('base64');
   const html = `
 <!DOCTYPE html>
