@@ -14,25 +14,43 @@ import { detectAndReportUser } from '../src/utils/user-detect';
  * URL 内の数値 user id ではなく display 名を取りたいので、その後の avatar/name 要素から拾う。
  */
 function detectPixivUser(): string | null {
-  // header / nav の Profile / Account 系メニュー。Pixiv は user id 番号 + display name の構造
-  const RESERVED = new Set(['login', 'logout', 'settings', 'help']);
-  const nameEls = document.querySelectorAll<HTMLElement>(
-    'a[href^="/users/"] [aria-label], a[href^="/users/"] img[alt]',
-  );
-  for (const el of nameEls) {
-    const candidate =
-      (el.getAttribute('aria-label') ?? el.getAttribute('alt') ?? '').trim();
-    if (candidate && candidate.length >= 1 && !RESERVED.has(candidate.toLowerCase())) {
-      return candidate;
+  // 戦略 1: globals.userData (Pixiv が SSR で埋め込む user data) から
+  // window.dataLayer["pixiv-user-id"] や globalInitData
+  // (但し ISOLATED world からは page-context window が見えないので不可)
+  // 戦略 2: header / nav の self user link (`/users/<numeric-id>`) を辿って img alt / title 抽出
+  // 戦略 3: localStorage / cookie ベース (Pixiv は cookie に user_id を入れる時がある)
+
+  const RESERVED = new Set(['login', 'logout', 'settings', 'help', 'manga', 'illustration']);
+  const isLikely = (s: string | null | undefined): s is string =>
+    !!s && s.length >= 1 && s.length <= 40 && !RESERVED.has(s.toLowerCase());
+
+  // /users/<numeric-id> を持つ anchor を全部走査。img の alt / title / aria-label / 子テキストから取る
+  const userLinks = document.querySelectorAll<HTMLAnchorElement>('a[href*="/users/"]');
+  for (const link of userLinks) {
+    const href = link.getAttribute('href') ?? '';
+    // numeric id 検証 (search や検索結果の anchor を弾く)
+    if (!/\/users\/\d+(?:[/?#]|$)/.test(href)) continue;
+    // 候補 1: img alt / title
+    const img = link.querySelector('img');
+    if (img) {
+      const fromImg = (img.getAttribute('alt') ?? '').trim() || (img.getAttribute('title') ?? '').trim();
+      if (isLikely(fromImg)) return fromImg;
     }
+    // 候補 2: link 自身の aria-label / title
+    const fromLink = (link.getAttribute('aria-label') ?? '').trim() || (link.getAttribute('title') ?? '').trim();
+    if (isLikely(fromLink)) return fromLink;
+    // 候補 3: link 内の子要素 textContent (40 char 上限)
+    const childText = (link.textContent ?? '').trim().slice(0, 40);
+    if (isLikely(childText)) return childText;
   }
-  // fallback: header の dropdown trigger に付く screen name
+
+  // header の dropdown trigger fallback
   const accountBtn = document.querySelector<HTMLElement>(
-    '[aria-label*="account" i], [data-gtm-label*="account" i]',
+    '[aria-label*="account" i], [data-gtm-label*="account" i], button[aria-haspopup]',
   );
   if (accountBtn) {
-    const txt = accountBtn.textContent?.trim();
-    if (txt && txt.length >= 1) return txt.slice(0, 30);
+    const txt = accountBtn.textContent?.trim().slice(0, 40);
+    if (isLikely(txt)) return txt;
   }
   return null;
 }
