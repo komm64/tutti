@@ -44,7 +44,7 @@ function detectMisskeyUser(): string | null {
       const r = s.fn();
       if (r) {
         const handle = r.startsWith('@') ? r : '@' + r;
-        log.info(`misskey detection succeeded via "${s.name}" → ${handle}`);
+        log.info(`misskey detection succeeded via "${s.name}"`);
         return handle;
       }
     } catch (e) {

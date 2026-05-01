@@ -113,8 +113,7 @@ async function detectTumblrUser(): Promise<string | null> {
             response?: { user?: { name?: string; blogs?: { name?: string; primary?: boolean }[] } };
           };
           const user = data?.response?.user;
-          log.info(`tumblr API user.name=${user?.name} blogs=`,
-            user?.blogs?.map((b) => `${b?.name}${b?.primary ? '*' : ''}`).join(', '));
+          log.info(`tumblr API /user/info ok (user found=${!!user?.name}, blogs=${user?.blogs?.length ?? 0})`);
           const primary = user?.blogs?.find((b) => b?.primary);
           if (isLikelyUsername(primary?.name)) return primary!.name!;
           if (isLikelyUsername(user?.name)) return user!.name!;
@@ -223,7 +222,7 @@ async function detectTumblrUser(): Promise<string | null> {
     try {
       const r = await Promise.resolve(s.fn());
       if (r) {
-        log.info(`tumblr detection succeeded via "${s.name}" → @${r}`);
+        log.info(`tumblr detection succeeded via "${s.name}"`);
         return '@' + r;
       }
     } catch (e) {
@@ -363,7 +362,8 @@ function probePageWorldForUsername(
         return;
       }
       const payload = data.payload as Record<string, unknown> | null;
-      log.info('tumblr page-world probe payload:', payload);
+      // 値は handle/blog 名を含むのでログには載せず、構造のみ出す
+      log.info('tumblr page-world probe keys:', payload ? Object.keys(payload) : []);
       if (!payload) { resolve(null); return; }
       // 候補となるフィールドを順に当たる
       const candidates: unknown[] = [

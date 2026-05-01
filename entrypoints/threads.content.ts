@@ -103,7 +103,7 @@ function detectThreadsUser(): string | null {
     try {
       const r = s.fn();
       if (r) {
-        log.info(`threads detection succeeded via "${s.name}" → @${r}`);
+        log.info(`threads detection succeeded via "${s.name}"`);
         return '@' + r;
       }
     } catch (e) {

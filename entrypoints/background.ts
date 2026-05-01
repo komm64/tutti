@@ -146,14 +146,36 @@ async function handleDiagnoseRequest(): Promise<DiagnosticsReport> {
       });
     }
   }
+  // 診断 dump はユーザーが GitHub Issue 等に貼り付けて公開する想定なので、
+  // SNS handle / 投稿本文プレビューなど PII になり得るフィールドは present/absent
+  // のフラグに置き換える。handle そのものは popup の compose 行に表示しているので
+  // 自分の確認には diagnostic dump は不要。
+  const lastSeenRaw = await import('../src/storage').then((m) => m.getLastSeenUsers());
+  const lastSeenRedacted: Record<string, string> = {};
+  for (const [k, v] of Object.entries(lastSeenRaw)) {
+    if (v) lastSeenRedacted[k] = '<present>';
+  }
+  const historyRaw = (await import('../src/storage').then((m) => m.getPostHistory())).slice(0, 5);
+  const historyRedacted = historyRaw.map((h) => ({
+    id: h.id,
+    textPreview: `<redacted ${h.textPreview.length} chars>`,
+    platforms: h.platforms,
+    results: h.results,
+    hasMedia: h.hasMedia,
+    timestamp: h.timestamp,
+  }));
+  const platformsRedacted = platformResults.map((p) => ({
+    ...p,
+    detectedUser: p.detectedUser ? '<present>' : null,
+  }));
   return {
     version: browser.runtime.getManifest().version,
     generatedAt: new Date().toISOString(),
     userAgent: navigator.userAgent,
     settings: await getSettings(),
-    lastSeenUsers: await import('../src/storage').then((m) => m.getLastSeenUsers()),
-    recentHistory: (await import('../src/storage').then((m) => m.getPostHistory())).slice(0, 5),
-    platforms: platformResults,
+    lastSeenUsers: lastSeenRedacted,
+    recentHistory: historyRedacted,
+    platforms: platformsRedacted,
   };
 }
 
@@ -162,8 +184,18 @@ interface DiagnosticsReport {
   generatedAt: string;
   userAgent: string;
   settings: Awaited<ReturnType<typeof getSettings>>;
-  lastSeenUsers: Awaited<ReturnType<Awaited<typeof import('../src/storage')>['getLastSeenUsers']>>;
-  recentHistory: Awaited<ReturnType<Awaited<typeof import('../src/storage')>['getPostHistory']>>;
+  /** PII 除去済。値は '<present>' のフラグのみ */
+  lastSeenUsers: Record<string, string>;
+  /** PII 除去済。textPreview は文字数フラグに置換 */
+  recentHistory: Array<{
+    id: string;
+    textPreview: string;
+    platforms: PlatformId[];
+    results: Partial<Record<PlatformId, boolean>>;
+    hasMedia: boolean;
+    timestamp: number;
+  }>;
+  /** PII 除去済。detectedUser は '<present>' or null */
   platforms: DiagnosePlatformResult[];
 }
 

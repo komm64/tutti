@@ -27,7 +27,16 @@ interface Env {
   RATE_LIMIT_SECONDS?: string;
   /** Cloudflare KV namespace (オプション、なければ rate limit はスキップ) */
   RATE_LIMIT?: KVNamespace;
+  /**
+   * 受け入れる Origin のホワイトリスト(カンマ区切り)。未設定だと
+   * `chrome-extension://dophemlpjldcejjdjefpjbgngodopkfe` だけ許可。
+   * 拡張 ID が変わったとき(Edge / Firefox 用に publish した場合等)、wrangler
+   * secret 経由で増やせるよう env で持つ。
+   */
+  ALLOWED_ORIGINS?: string;
 }
+
+const DEFAULT_ALLOWED_ORIGIN = 'chrome-extension://dophemlpjldcejjdjefpjbgngodopkfe';
 
 interface ReportPayload {
   title: string;
@@ -38,28 +47,47 @@ interface ReportPayload {
 const MAX_TITLE = 200;
 const MAX_BODY = 50_000;
 
-const corsHeaders: Record<string, string> = {
-  // 拡張から fetch する。chrome-extension://<ID> や popup ページからの origin を
-  // ホワイトリストする厳密化はやってもいいが、worker の用途的に "post-only relay"
-  // なので緩めの CORS で許可しても被害は title/body のフォーマット的に GitHub
-  // issue 1 件ぶんのみ(rate limit + GitHub 側のレートリミットで吸収)
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-  'Access-Control-Max-Age': '86400',
-};
+function getAllowedOrigins(env: Env): string[] {
+  if (env.ALLOWED_ORIGINS) {
+    return env.ALLOWED_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean);
+  }
+  return [DEFAULT_ALLOWED_ORIGIN];
+}
+
+function buildCorsHeaders(origin: string | null, allowed: string[]): Record<string, string> {
+  // Origin が allowed リストに居れば echo back、それ以外は CORS ヘッダ自体を付けない
+  // (preflight も実 request も同じ判定を共有して spoofing 経路を作らない)
+  const ok = !!origin && allowed.includes(origin);
+  return {
+    ...(ok ? { 'Access-Control-Allow-Origin': origin } : {}),
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Max-Age': '86400',
+    Vary: 'Origin',
+  };
+}
 
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
+    const origin = req.headers.get('Origin');
+    const allowed = getAllowedOrigins(env);
+    const corsHeaders = buildCorsHeaders(origin, allowed);
+
     if (req.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: corsHeaders });
     }
     if (req.method !== 'POST') {
-      return jsonResponse({ error: 'method not allowed' }, 405);
+      return jsonResponse({ error: 'method not allowed' }, 405, corsHeaders);
+    }
+
+    // chrome-extension からの fetch は必ず Origin を送る。allow リストに無い場合
+    // (= 任意の Web ページ / 別拡張 / curl)は弾く。GitHub Issues 公開 spam を防止。
+    if (!origin || !allowed.includes(origin)) {
+      return jsonResponse({ error: 'forbidden origin' }, 403, corsHeaders);
     }
 
     if (!env.GITHUB_TOKEN) {
-      return jsonResponse({ error: 'server not configured (no GITHUB_TOKEN)' }, 500);
+      return jsonResponse({ error: 'server not configured (no GITHUB_TOKEN)' }, 500, corsHeaders);
     }
     const repo = env.GITHUB_REPO ?? 'komm64/tutti';
 
@@ -69,7 +97,7 @@ export default {
     if (env.RATE_LIMIT) {
       const lastTs = await env.RATE_LIMIT.get(`ip:${ip}`);
       if (lastTs && Date.now() - Number(lastTs) < limitSec * 1000) {
-        return jsonResponse({ error: 'rate limited, try again later' }, 429);
+        return jsonResponse({ error: 'rate limited, try again later' }, 429, corsHeaders);
       }
       await env.RATE_LIMIT.put(`ip:${ip}`, String(Date.now()), { expirationTtl: 3600 });
     }
@@ -79,17 +107,17 @@ export default {
     try {
       const text = await req.text();
       if (text.length > 200_000) {
-        return jsonResponse({ error: 'payload too large' }, 413);
+        return jsonResponse({ error: 'payload too large' }, 413, corsHeaders);
       }
       payload = JSON.parse(text) as Partial<ReportPayload>;
     } catch {
-      return jsonResponse({ error: 'invalid JSON' }, 400);
+      return jsonResponse({ error: 'invalid JSON' }, 400, corsHeaders);
     }
 
     const title = (payload.title ?? '').trim();
     const body = (payload.body ?? '').trim();
     if (!title || !body) {
-      return jsonResponse({ error: 'title and body are required' }, 400);
+      return jsonResponse({ error: 'title and body are required' }, 400, corsHeaders);
     }
 
     // GitHub Issue 作成
@@ -116,6 +144,7 @@ export default {
       return jsonResponse(
         { error: `github API ${ghRes.status}`, detail: detail.slice(0, 500) },
         502,
+        corsHeaders,
       );
     }
 
@@ -124,13 +153,13 @@ export default {
       ok: true,
       issueUrl: issue.html_url,
       issueNumber: issue.number,
-    });
+    }, 200, corsHeaders);
   },
 };
 
-function jsonResponse(data: unknown, status = 200): Response {
+function jsonResponse(data: unknown, status = 200, cors: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { 'Content-Type': 'application/json', ...corsHeaders },
+    headers: { 'Content-Type': 'application/json', ...cors },
   });
 }

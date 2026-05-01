@@ -122,6 +122,18 @@
   // proxy が落ちてた / network エラーの場合は GitHub URL fallback を提示。
   const REPORT_ENDPOINT = 'https://tutti-report.komm64.workers.dev';
 
+  /**
+   * 報告 body に紛れ込み得る @handle を redact する多重防御。
+   * - `@user.name`, `@user@instance.tld`, `https://x.com/@handle` 等を `@<redacted>` に
+   * - メールアドレスも redact する(誤って混入する可能性は低いが念のため)
+   * 公開 GitHub Issue に貼られる前提で過剰に保守的に潰す。
+   */
+  function redactPII(text: string): string {
+    return text
+      .replace(/@[\w.-]+(?:@[\w.-]+)?/g, '@<redacted>')
+      .replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, '<email-redacted>');
+  }
+
   async function buildReportPayload(errorText: string): Promise<{ title: string; body: string }> {
     let logsExcerpt = '';
     try {
@@ -134,11 +146,11 @@
         .join('\n');
     } catch { /* ignore */ }
     const ua = navigator.userAgent;
-    const title = errorText.split('\n')[0]?.slice(0, 80) || 'Tutti エラー報告';
+    const title = redactPII(errorText.split('\n')[0]?.slice(0, 80) || 'Tutti エラー報告');
     const body = [
       '## エラー',
       '```',
-      errorText.slice(0, 800),
+      redactPII(errorText.slice(0, 800)),
       '```',
       '',
       '## 環境',
@@ -147,7 +159,7 @@
       '',
       '## 直近のログ(最終 30 件)',
       '```',
-      logsExcerpt.slice(0, 6000) || '(no logs captured)',
+      redactPII(logsExcerpt.slice(0, 6000)) || '(no logs captured)',
       '```',
     ].join('\n');
     return { title, body };
