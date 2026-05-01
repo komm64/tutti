@@ -33,6 +33,8 @@ const SNS_HOSTS = [
   'https://tumblr.com/*',
   'https://www.pixiv.net/*',
   'https://pixiv.net/*',
+  'https://www.deviantart.com/*',
+  'https://deviantart.com/*',
 ];
 
 interface InjectFileSpec {

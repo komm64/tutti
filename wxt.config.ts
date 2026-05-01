@@ -20,6 +20,8 @@ export default defineConfig({
       'https://tumblr.com/*',
       'https://www.pixiv.net/*',
       'https://pixiv.net/*',
+      'https://www.deviantart.com/*',
+      'https://deviantart.com/*',
     ],
     // Mastodon はユーザー設定のインスタンスへのアクセスを optional で要求
     optional_host_permissions: ['https://*/*'],

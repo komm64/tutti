@@ -3,7 +3,7 @@
 // pick up the new code). Without this, you'd test against stale content script.
 import puppeteer from 'puppeteer-core';
 const EXT_ID = 'dophemlpjldcejjdjefpjbgngodopkfe';
-const SNS_RE = /^https:\/\/(x\.com|twitter\.com|bsky\.app|.*threads\.(net|com)|mastodon\.social|misskey\.io|.*tumblr\.com|.*pixiv\.net)\//;
+const SNS_RE = /^https:\/\/(x\.com|twitter\.com|bsky\.app|.*threads\.(net|com)|mastodon\.social|misskey\.io|.*tumblr\.com|.*pixiv\.net|.*deviantart\.com)\//;
 
 const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222', protocolTimeout: 240000 });
 const pages = await browser.pages();

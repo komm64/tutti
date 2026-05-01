@@ -48,9 +48,9 @@
   const MAX_IMAGES = 4;
 
   /**
-   * 表示順は X → Bluesky → Threads → Tumblr → Mastodon → Misskey → Pixiv の固定。
+   * 表示順は X → Bluesky → Threads → Tumblr → Mastodon → Misskey → Pixiv → DeviantArt の固定。
    * Bluesky は MAU 順なら 4 位だが、Tutti として推したい SNS なので X の隣 (2 位) に置く。
-   * その他は概ね MAU 順。Pixiv は image-only でクリエイター向けなので末尾に置く。
+   * その他は概ね MAU 順。Pixiv / DeviantArt は image-only クリエイター向けなので末尾。
    * 並び替えは lastSeenUsers 有無で section 分けするのみ。
    */
   const platforms: PlatformOption[] = [
@@ -61,10 +61,11 @@
     { id: 'mastodon', name: 'Mastodon', limit: 500, available: true },
     { id: 'misskey', name: 'Misskey', limit: 3000, available: true },
     { id: 'pixiv', name: 'Pixiv', limit: 1000, available: true },
+    { id: 'deviantart', name: 'DeviantArt', limit: 5000, available: true },
   ];
 
   let text = $state('');
-  // Pixiv は image-only かつ Beta(P12)で挙動未検証のため、初期値 false に。
+  // Pixiv / DeviantArt は image-only かつ Beta(P12)で挙動未検証のため、初期値 false に。
   // 他 SNS は従来通り true。
   let selected = $state<Record<PlatformId, boolean>>({
     x: true,
@@ -74,6 +75,7 @@
     misskey: true,
     tumblr: true,
     pixiv: false,
+    deviantart: false,
   });
   let images = $state<ImagePreview[]>([]);
   let video = $state<VideoPreview | null>(null);
