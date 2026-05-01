@@ -26,3 +26,8 @@ CONCEPT.md
 scripts/*.png
 # Brave launch helper (dev-machine specific paths)
 scripts/launch-test-brave.cmd
+
+# Local secrets (test account email, etc.). Use .env.example as template.
+.env
+.env.local
+.env.*.local
