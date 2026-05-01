@@ -335,14 +335,16 @@ async function postSingleChunk(
   // content script API は dryRun の概念で書かれているので boundary で変換。
   // autoPost: false → dryRun: true(検証だけ、Post クリックしない)
   const dryRun = !autoPost;
-  // SNS タブは常にバックグラウンド(active: false)で開く。
-  // popup は新タブが foreground に来ると閉じる Chrome 仕様なので、popup を
-  // 残すために autoPost ON/OFF どちらも背面化する。プレビュー(dry-run)時に
-  // SNS の compose を見たいユーザーはタブバーから手動で切替できる。
+  // SNS タブは原則バックグラウンド(active: false)で開いて popup を残す。
+  // ただし requiresForegroundTab: true な SNS (Pixiv / DeviantArt / Instagram
+  // のような heavy SPA + 多段 wizard) は background だと requestAnimationFrame /
+  // setTimeout がブラウザに throttle されて React state や file upload が
+  // 極端に遅くなる。popup が閉じる tradeoff を許容して foreground で開く。
+  const active = adapter.requiresForegroundTab === true;
   const tab = await openOrFocusTab(
     adapter.getComposeUrl(text),
     adapter.matchUrl,
-    false,
+    active,
   );
   if (typeof tab.id !== 'number') {
     throw new Error('SNS タブを開けませんでした');

@@ -52,4 +52,13 @@ export interface PlatformAdapter {
   imageConstraints: ImageConstraints;
   /** 受け付けるコンテンツ種別 */
   kinds: ContentKind[];
+  /**
+   * 投稿タブを foreground (active=true) で開く必要がある SNS。
+   * Pixiv / DeviantArt / Instagram のような多段 wizard + heavy SPA は
+   * background tab だとブラウザが requestAnimationFrame / setTimeout を
+   * throttle するため、file upload や React state が極端に遅くなる。
+   * popup が閉じる tradeoff を許容してでも foreground で動かす必要がある。
+   * 通常 (X / Bluesky / Mastodon 等) は false で popup 維持を優先。
+   */
+  requiresForegroundTab?: boolean;
 }

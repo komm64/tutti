@@ -40,6 +40,8 @@ export const instagramAdapter: PlatformAdapter = {
   },
   // text-only 不可、画像 + 短尺動画
   kinds: ['image', 'shortVideo'],
+  // IG は超重 SPA + 4 段 modal wizard。background tab で動かすのは無理
+  requiresForegroundTab: true,
 };
 
 export const INSTAGRAM_SELECTORS = {

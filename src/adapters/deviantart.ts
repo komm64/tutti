@@ -28,6 +28,8 @@ export const deviantartAdapter: PlatformAdapter = {
     maxImages: 1,
   },
   kinds: ['image'],
+  // DA も heavy SPA + wizard。Pixiv 同様 foreground tab が必須
+  requiresForegroundTab: true,
 };
 
 export const DEVIANTART_SELECTORS = {

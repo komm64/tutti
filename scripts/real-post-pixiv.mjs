@@ -13,7 +13,9 @@ const log = (...a) => {
 process.on('uncaughtException', (e) => { log('UNCAUGHT', e.message); process.exit(1); });
 
 const EXT_ID = 'dophemlpjldcejjdjefpjbgngodopkfe';
+log('connecting to brave on 9222...');
 const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222', protocolTimeout: 240000 });
+log('connected');
 
 async function attachAll() {
   for (const p of await browser.pages()) {

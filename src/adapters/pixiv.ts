@@ -37,6 +37,9 @@ export const pixivAdapter: PlatformAdapter = {
   },
   // Pixiv は画像必須なので text のみ投稿は不可。kinds から 'text' を除外
   kinds: ['image'],
+  // Pixiv は heavy SPA + 多段 form。background tab だと React state / file
+  // upload が throttle されて極端に遅くなる (実機 2026-05-02 確認)。foreground 必須
+  requiresForegroundTab: true,
 };
 
 export const PIXIV_SELECTORS = {
@@ -48,6 +51,17 @@ export const PIXIV_SELECTORS = {
   captionTextarea: 'textarea[name="comment"]',
   /** tag input (required)。Enter で 1 tag 確定 → input がクリアされて次が打てる */
   tagInput: 'input[placeholder="Tags"][maxlength="30"]',
+  /**
+   * Visible to (x_restrict) radio group の "All ages" ボタン。
+   * 必須項目だが Pixiv はデフォルト未選択。Tutti は General (All ages) を強制。
+   * 値: general / r18 / r18g
+   */
+  visibilityAllAges: 'input[type="radio"][name="x_restrict"][value="general"]',
+  /**
+   * AI-generated work (ai_type) の "No" radio。必須項目、デフォルト未選択。
+   * Tutti は notAiGenerated を強制 (AI artist の場合は将来 settings で切替予定)。
+   */
+  aiTypeNo: 'input[type="radio"][name="ai_type"][value="notAiGenerated"]',
   /**
    * 投稿ボタン。header の Post (gtm-work-post-button-in-header-click) は
    * 常時 enabled だが、画像 + title が無いとサーバ側で弾かれる。

@@ -42,6 +42,7 @@ export default defineContentScript({
   main() {
     browser.runtime.onMessage.addListener((rawMsg, _sender, sendResponse) => {
       const msg = rawMsg as Message;
+      log.info(`Pixiv listener got msg: type=${msg.type ?? '?'} platform=${(msg as { platform?: string }).platform ?? '?'}`);
       if (msg.type === 'DIAGNOSE_PLATFORM' && msg.platform === 'pixiv') {
         sendResponse(buildDiagnosis('pixiv', PIXIV_SELECTORS, detectPixivUser));
         return true;
@@ -75,6 +76,7 @@ async function runPost(
   images?: ImageAttachment[],
   dryRun?: boolean,
 ): Promise<PostResultMessage> {
+  log.info(`Pixiv runPost: dryRun=${dryRun} images=${images?.length ?? 0} textLen=${text.length}`);
   if (!images || images.length === 0) {
     throw new Error('Pixiv は画像が必須です(本文のみ投稿は不可)');
   }
@@ -118,6 +120,29 @@ async function runPost(
         await injectTagList(tags, sel.tagInput);
       },
       settleMs: 400,
+    },
+    {
+      // Visible to (x_restrict) も必須。クロスポスト content は基本一般向けなので
+      // "All ages" (general) を選択。AI artist や R-18 投稿は手動切替前提。
+      // React radio は input.click() で onChange が走る (delegated event)。
+      name: 'set-visibility',
+      action: async () => {
+        const r = document.querySelector<HTMLInputElement>(sel.visibilityAllAges);
+        if (!r) throw new Error('Pixiv: Visible to (x_restrict) radio が見つかりません');
+        r.click();
+      },
+      settleMs: 200,
+    },
+    {
+      // AI-generated work (ai_type) も必須。default は "No" (notAiGenerated)。
+      // AI artist 用の "Yes" 切替は将来 settings で expose 予定。
+      name: 'set-ai-flag',
+      action: async () => {
+        const r = document.querySelector<HTMLInputElement>(sel.aiTypeNo);
+        if (!r) throw new Error('Pixiv: AI-generated work (ai_type) radio が見つかりません');
+        r.click();
+      },
+      settleMs: 200,
     },
   ];
 

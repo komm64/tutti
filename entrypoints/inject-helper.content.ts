@@ -376,27 +376,64 @@ export default defineContentScript({
       console.log(`[Tutti inject-helper] tag-list: ${tags.length} tags into "${found.matchedPart}"`);
       const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
 
+      // React は controlled input に対して内部で _valueTracker を持っていて、
+      // 「DOM value が変わったか」を tracker.getValue() vs 現在値で判断する。
+      // tracker が空文字を覚えてると、setter で value=tag にしても "変わってない"
+      // 扱いになり onChange が発火しない。tracker を空にしておくと確実に発火。
+      function setReactInputValue(el: HTMLInputElement, value: string): void {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const tracker = (el as any)._valueTracker as { setValue: (v: string) => void } | undefined;
+        if (tracker) tracker.setValue('');
+        if (setter) setter.call(el, value);
+        else el.value = value;
+      }
+
       let committed = 0;
       for (const tag of tags) {
         input.focus();
-        if (setter) setter.call(input, tag);
-        else input.value = tag;
+        setReactInputValue(input, tag);
+        // input + change を両方発火。React は input イベントを listener として
+        // 登録するが、formik / react-hook-form 等は change を見ることもある
         input.dispatchEvent(new Event('input', { bubbles: true }));
-        await new Promise((r) => setTimeout(r, 120));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        await new Promise((r) => setTimeout(r, 150));
         // Enter で commit。React 系は keydown を見るので 3 種 dispatch
         const opts = { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true };
         input.dispatchEvent(new KeyboardEvent('keydown', opts));
         input.dispatchEvent(new KeyboardEvent('keypress', opts));
         input.dispatchEvent(new KeyboardEvent('keyup', opts));
-        await new Promise((r) => setTimeout(r, 250));
-        committed++;
+        // Enter 後 input が空に戻れば commit 成功 (chip 化された証拠)。最大 1.5s 待つ
+        const cleared = await waitFor(() => input.value === '', 1500);
+        if (cleared) {
+          committed++;
+          console.log(`[Tutti inject-helper] tag committed: "${tag}"`);
+        } else {
+          console.warn(`[Tutti inject-helper] tag NOT committed (input not cleared): "${tag}" current="${input.value}"`);
+          // Enter が効いてない場合のフォールバック: keydown だけ再試行
+          input.dispatchEvent(new KeyboardEvent('keydown', opts));
+          await new Promise((r) => setTimeout(r, 400));
+          if (input.value === '') {
+            committed++;
+            console.log(`[Tutti inject-helper] tag committed on retry: "${tag}"`);
+          }
+        }
       }
       return {
         source: RES_TAG,
         id: req.id,
         ok: committed > 0,
-        error: committed === 0 ? 'no tags committed' : undefined,
+        error: committed === 0 ? `no tags committed (tried ${tags.length})` : undefined,
       };
+    }
+
+    /** 条件が true になるまでポーリングで待つ。timeoutMs を超えたら false 返す */
+    async function waitFor(predicate: () => boolean, timeoutMs: number): Promise<boolean> {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        if (predicate()) return true;
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      return false;
     }
 
     async function handle(req: InjectRequest): Promise<InjectResponse> {
