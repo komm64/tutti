@@ -29,7 +29,7 @@ export const xAdapter: PlatformAdapter = {
 
 export const X_SELECTORS = {
   /** ホーム画面の inline compose の textarea(本命) */
-  textarea: '[data-testid="tweetTextarea_0"]',
+  textarea: '[data-testid="tweetTextarea_0"], [data-testid="composeText"]',
   /** ホーム画面の inline compose の Post ボタン */
   postButtonInline: '[data-testid="tweetButtonInline"]',
   /** modal compose の Post ボタン(home に modal が出てしまった場合の fallback) */
