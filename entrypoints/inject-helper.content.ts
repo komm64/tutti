@@ -37,6 +37,10 @@ const SNS_HOSTS = [
   'https://deviantart.com/*',
   'https://www.instagram.com/*',
   'https://instagram.com/*',
+  'https://www.tiktok.com/*',
+  'https://tiktok.com/*',
+  'https://*.youtube.com/*',
+  'https://youtube.com/*',
 ];
 
 interface InjectFileSpec {

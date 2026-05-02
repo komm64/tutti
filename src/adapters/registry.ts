@@ -7,8 +7,10 @@ import { mastodonAdapter } from './mastodon';
 import { misskeyAdapter } from './misskey';
 import { pixivAdapter } from './pixiv';
 import { threadsAdapter } from './threads';
+import { tiktokAdapter } from './tiktok';
 import { tumblrAdapter } from './tumblr';
 import { xAdapter } from './x';
+import { youtubeAdapter } from './youtube';
 
 /** 全プラットフォームのアダプタ登録簿。新 SNS 追加時はここに足す */
 export const adapters: Record<PlatformId, PlatformAdapter | undefined> = {
@@ -21,6 +23,8 @@ export const adapters: Record<PlatformId, PlatformAdapter | undefined> = {
   pixiv: pixivAdapter,
   deviantart: deviantartAdapter,
   instagram: instagramAdapter,
+  tiktok: tiktokAdapter,
+  youtube: youtubeAdapter,
 };
 
 export function getAdapter(id: PlatformId): PlatformAdapter | undefined {

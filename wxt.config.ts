@@ -24,6 +24,10 @@ export default defineConfig({
       'https://deviantart.com/*',
       'https://www.instagram.com/*',
       'https://instagram.com/*',
+      'https://www.tiktok.com/*',
+      'https://tiktok.com/*',
+      'https://*.youtube.com/*',
+      'https://youtube.com/*',
     ],
     // Mastodon はユーザー設定のインスタンスへのアクセスを optional で要求
     optional_host_permissions: ['https://*/*'],

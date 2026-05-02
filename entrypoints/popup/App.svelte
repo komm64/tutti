@@ -63,11 +63,13 @@
     { id: 'pixiv', name: 'Pixiv', limit: 1000, available: true },
     { id: 'deviantart', name: 'DeviantArt', limit: 5000, available: true },
     { id: 'instagram', name: 'Instagram', limit: 2200, available: true },
+    { id: 'tiktok', name: 'TikTok', limit: 2200, available: true },
+    { id: 'youtube', name: 'YouTube', limit: 5000, available: true },
   ];
 
   let text = $state('');
-  // Pixiv / DeviantArt / Instagram は image-only かつ Beta(P12)で挙動未検証のため、
-  // 初期値 false に。他 SNS は従来通り true。
+  // Pixiv / DeviantArt / Instagram は image-only、TikTok / YouTube は video-only で
+  // Beta (P12) 挙動未検証のため初期値 false。他 SNS は従来通り true。
   let selected = $state<Record<PlatformId, boolean>>({
     x: true,
     bluesky: true,
@@ -78,6 +80,8 @@
     pixiv: false,
     deviantart: false,
     instagram: false,
+    tiktok: false,
+    youtube: false,
   });
   let images = $state<ImagePreview[]>([]);
   let video = $state<VideoPreview | null>(null);
