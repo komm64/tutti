@@ -27,6 +27,8 @@ jobs:
       contents: write
       pull-requests: write
       issues: write
+      # OAuth token 認証 (CLAUDE_CODE_OAUTH_TOKEN) には OIDC token が必要
+      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
