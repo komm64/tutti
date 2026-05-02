@@ -610,6 +610,24 @@
     await processFiles(files);
   }
 
+  // ── クリップボード paste (画像 / 動画) ─────────────────────────
+  // textarea で Ctrl+V → clipboardData に File が居れば media として attach。
+  // テキスト + media が同時に居る場合は両方処理する (text は textarea に流す)。
+  async function handlePaste(e: ClipboardEvent) {
+    const items = e.clipboardData?.items;
+    if (!items || items.length === 0) return;
+    const files: File[] = [];
+    for (const item of Array.from(items)) {
+      if (item.kind !== 'file') continue;
+      if (!item.type.startsWith('image/') && !item.type.startsWith('video/')) continue;
+      const f = item.getAsFile();
+      if (f) files.push(f);
+    }
+    if (files.length === 0) return; // text-only paste は textarea にそのまま流す
+    e.preventDefault();
+    await processFiles(files);
+  }
+
   function removeImage(i: number) {
     URL.revokeObjectURL(images[i]!.previewUrl);
     images = images.filter((_, idx) => idx !== i);
@@ -780,6 +798,7 @@
 
   <textarea
     bind:value={text}
+    onpaste={handlePaste}
     disabled={posting}
     class="w-full h-32 border border-gray-300 rounded p-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:bg-gray-50"
     placeholder={t('textareaPlaceholder')}
