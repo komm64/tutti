@@ -1,0 +1,45 @@
+name: Auto-triage Tutti issue
+
+# 障害報告 issue (label: needs-triage) を Anthropic API に投げて selector
+# 候補を取得し、PR を作成するワークフロー。CF Workers proxy 経由で来る
+# 自動報告 issue にだけ反応するよう label で絞る。
+#
+# 必要な secret:
+#   ANTHROPIC_API_KEY — Claude API key
+#   GITHUB_TOKEN — workflow が自動付与 (permissions block で write 権限付与)
+
+on:
+  issues:
+    types: [opened, labeled]
+
+jobs:
+  triage:
+    # needs-triage ラベルが付いてる時だけ実行 (worker が auto-attach する)
+    if: contains(github.event.issue.labels.*.name, 'needs-triage')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Anthropic SDK
+        run: npm i --no-save @anthropic-ai/sdk@^0.40.0
+
+      - name: Run auto-triage
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/triage-issue.mjs

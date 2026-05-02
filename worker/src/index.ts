@@ -45,7 +45,10 @@ interface ReportPayload {
 }
 
 const MAX_TITLE = 200;
-const MAX_BODY = 50_000;
+// P13: diagnostics dump (selector audit + DOM snapshot) を含むので 80K に拡張。
+// GitHub Issue body の硬い上限は 65535 char だが、ここは byte cap で
+// それより前に worker 側で切る方針。GitHub 側 truncate に依存しない。
+const MAX_BODY = 65_000;
 
 function getAllowedOrigins(env: Env): string[] {
   if (env.ALLOWED_ORIGINS) {
@@ -106,7 +109,9 @@ export default {
     let payload: Partial<ReportPayload>;
     try {
       const text = await req.text();
-      if (text.length > 200_000) {
+      // 200K → 100K (diagnostics 含めても余裕で収まる)。spam で大量 text を
+      // 突っ込まれない最低限の防御。
+      if (text.length > 100_000) {
         return jsonResponse({ error: 'payload too large' }, 413, corsHeaders);
       }
       payload = JSON.parse(text) as Partial<ReportPayload>;
@@ -121,10 +126,17 @@ export default {
     }
 
     // GitHub Issue 作成
+    // body に <!-- tutti-diagnostics-begin --> を含む = popup の自動診断が attach 済 →
+    // GitHub Action 側で auto-triage 可能。"needs-triage" を付けて Action がそれを
+    // pickup する想定 (P13-B)。
+    const hasDiagnostics = body.includes('<!-- tutti-diagnostics-begin -->');
+    const labels = ['beta', 'auto-reported'];
+    if (hasDiagnostics) labels.push('needs-triage');
+
     const githubBody = {
       title: `[Tutti Beta] ${title}`.slice(0, MAX_TITLE),
       body: body.slice(0, MAX_BODY),
-      labels: ['beta', 'auto-reported'],
+      labels,
     };
 
     const ghRes = await fetch(`https://api.github.com/repos/${repo}/issues`, {

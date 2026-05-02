@@ -9,6 +9,7 @@ import type {
   PostToPlatformMessage,
 } from '../src/messages';
 import {
+  adapters,
   checkImageConstraint,
   checkVideoConstraint,
   getAdapter,
@@ -124,10 +125,11 @@ export default defineBackground(() => {
 async function handleDiagnoseRequest(): Promise<DiagnosticsReport> {
   const tabs = await browser.tabs.query({});
   const platformResults: DiagnosePlatformResult[] = [];
+  // 全 11 adapter を回す (P13 で multi-step 系も snapshot 取れるように)
+  const platformIds = Object.keys(adapters) as PlatformId[];
   for (const tab of tabs) {
     if (typeof tab.url !== 'string' || typeof tab.id !== 'number') continue;
-    const platform = (['x', 'bluesky', 'threads', 'mastodon', 'misskey', 'tumblr'] as const)
-      .find((p) => getAdapter(p)?.matchUrl(tab.url ?? ''));
+    const platform = platformIds.find((p) => getAdapter(p)?.matchUrl(tab.url ?? ''));
     if (!platform) continue;
     try {
       const res = (await browser.tabs.sendMessage(tab.id, {
@@ -143,6 +145,7 @@ async function handleDiagnoseRequest(): Promise<DiagnosticsReport> {
         url: tab.url,
         selectors: [],
         detectedUser: null,
+        domSnapshot: null,
       });
     }
   }

@@ -107,6 +107,12 @@ export interface DiagnosePlatformResult {
   selectors: SelectorAudit[];
   /** ログイン中ユーザー検出が成功したか(同じロジックで再実行) */
   detectedUser: string | null;
+  /**
+   * 障害時の DOM 構造 snapshot (redacted)。selector miss が 1 件以上ある時のみ
+   * 含める。AI に「壊れたページの DOM はこれ、新 selector を提案して」と
+   * 渡す入力。本文 text / image src / value 属性は strip 済み。
+   */
+  domSnapshot: string | null;
 }
 
 export interface SelectorAudit {

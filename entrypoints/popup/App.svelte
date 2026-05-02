@@ -158,9 +158,20 @@
         .map((e) => `[${new Date(e.ts).toISOString()}] ${e.level} (${e.context}) ${e.message}`)
         .join('\n');
     } catch { /* ignore */ }
+    // 診断 dump: selector audit + DOM snapshot (P13: AI が selector 修正を提案する材料)
+    let diagnoseExcerpt = '';
+    try {
+      const res = (await browser.runtime.sendMessage({ type: 'DIAGNOSE_REQUEST' })) as
+        | { report?: unknown }
+        | undefined;
+      if (res?.report) {
+        // 全体を pretty JSON にして body 末尾に貼る。auto-triage 用 marker で囲む
+        diagnoseExcerpt = JSON.stringify(res.report, null, 2);
+      }
+    } catch { /* ignore */ }
     const ua = navigator.userAgent;
     const title = redactPII(errorText.split('\n')[0]?.slice(0, 80) || 'Tutti エラー報告');
-    const body = [
+    const sections = [
       '## エラー',
       '```',
       redactPII(errorText.slice(0, 800)),
@@ -174,8 +185,21 @@
       '```',
       redactPII(logsExcerpt.slice(0, 6000)) || '(no logs captured)',
       '```',
-    ].join('\n');
-    return { title, body };
+    ];
+    if (diagnoseExcerpt) {
+      // worker 側 body cap が 50KB なので、diagnostics は 30KB を上限に切る
+      const capped = diagnoseExcerpt.slice(0, 30_000);
+      sections.push(
+        '',
+        '## Diagnostics (auto-triage 用、selector audit + redacted DOM snapshot)',
+        '<!-- tutti-diagnostics-begin -->',
+        '```json',
+        redactPII(capped),
+        '```',
+        '<!-- tutti-diagnostics-end -->',
+      );
+    }
+    return { title, body: sections.join('\n') };
   }
 
   // 1-click 報告 (proxy 経由)

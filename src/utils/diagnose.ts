@@ -1,4 +1,5 @@
 import type { DiagnosePlatformResult, PlatformId, SelectorAudit } from '../messages';
+import { snapshotDocument } from './dom-snapshot';
 
 /**
  * 各 SNS の content script から呼ぶ汎用 selector audit。
@@ -37,11 +38,21 @@ export function buildDiagnosis(
     if (typeof r === 'string') detectedUser = r;
     // Promise の場合は待たずに null のまま(診断は早く返したい)
   } catch { /* ignore */ }
+  const audits = Object.entries(selectors).map(([name, sel]) => auditSelector(name, sel));
+  // 1 件以上 selector miss があれば snapshot を attach。全 hit なら null で帯域節約
+  const hasMiss = audits.some((a) => a.matchCount === 0);
+  let domSnapshot: string | null = null;
+  if (hasMiss) {
+    try {
+      domSnapshot = snapshotDocument(8000);
+    } catch { /* ignore — 診断は best-effort */ }
+  }
   return {
     type: 'DIAGNOSE_PLATFORM_RESULT',
     platform,
     url: location.href,
-    selectors: Object.entries(selectors).map(([name, sel]) => auditSelector(name, sel)),
+    selectors: audits,
     detectedUser,
+    domSnapshot,
   };
 }
