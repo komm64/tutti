@@ -45,14 +45,29 @@ export const youtubeAdapter: PlatformAdapter = {
 
 export const YOUTUBE_SELECTORS = {
   /**
-   * studio.youtube.com の "Create" → "Upload videos" でモーダルが開き、
-   * 内部に file input がある。selector は probe 後に確定 (今は推測ベース)。
+   * Upload videos ボタン click で開く upload modal 内の file input。
+   * `#ytcp-uploads-dialog-file-picker` (custom element) 内に input[type=file][name="Filedata"]。
+   * accept 属性はなし (any file 受け入れる、サーバ側で video 判定)。
    */
-  fileInput: 'input[type="file"][accept*="video"]#file-loader, input[type="file"][accept*="video"]',
-  /** title input (required)、modal 内に出る */
-  titleInput: 'input[id="textbox"][aria-label*="title" i], textarea[id="textbox"][aria-label*="title" i]',
-  /** description: title と同じ "textbox" 系の contenteditable */
-  descriptionEditor: '#description-textarea #textbox, [aria-label*="description" i][contenteditable="true"]',
+  fileInput: '#ytcp-uploads-dialog-file-picker input[type="file"], input[type="file"][name="Filedata"]',
+  /**
+   * title 入力欄。実機 DOM は <div id="textbox" contenteditable> で、aria-label が
+   * "Add a title that describes your video..." (英語) / 言語依存。aria-label に
+   * "title" を含むかどうかで判別。
+   */
+  titleInput: 'div[id="textbox"][contenteditable="true"][aria-label*="title" i], div[id="textbox"][contenteditable="true"][aria-label*="タイトル" i]',
+  /**
+   * description 入力欄。同じく div#textbox contenteditable。aria-label は
+   * "Tell viewers about your video..." (英語) など、"viewers" や "video" 含むが
+   * "description" は含まない。description 用は **2 つ目の textbox** (DOM 順)。
+   * finder の方が確実なので content script 側で 2 つ目の textbox を取る。
+   */
+  descriptionEditor: 'div[id="textbox"][contenteditable="true"]:not([aria-label*="title" i]):not([aria-label*="タイトル" i])',
+  /**
+   * "Made for Kids" の "No" ラジオ。Details 段階の必須項目で、未選択だと
+   * Next が disabled。Tutti は default で No (Not made for kids) を選択。
+   */
+  notMadeForKidsRadio: 'tp-yt-paper-radio-button[name="VIDEO_MADE_FOR_KIDS_NOT_MFK"]',
   /** Next / Publish ボタン (text マッチで finder) */
   publishButton: '#done-button, ytcp-button[role="button"]',
 } as const;

@@ -1,0 +1,13 @@
+import { WebSocket } from 'ws';
+const r = await fetch('http://localhost:9222/json/list');
+const tabs = await r.json();
+const t = tabs.find(p => p.type === 'page' && /popup\.html|chrome:\/\/extensions/.test(p.url));
+const ws = new WebSocket(t.webSocketDebuggerUrl);
+let id = 0;
+const pending = new Map();
+ws.on('message', raw => { const m = JSON.parse(raw.toString()); if (m.id != null && pending.has(m.id)) { pending.get(m.id).resolve(m.result); pending.delete(m.id); } });
+await new Promise(r => ws.on('open', r));
+const evalJs = expr => new Promise(resolve => { const i = ++id; pending.set(i, { resolve }); ws.send(JSON.stringify({ id: i, method: 'Runtime.evaluate', params: { expression: expr, returnByValue: true, awaitPromise: true } })); }).then(r => r.result?.value);
+const buf = await evalJs(`new Promise(r => chrome.storage.local.get('logBuffer', d => r((d.logBuffer ?? []).filter(e => /youtube|YT/i.test((e.message ?? '') + (e.context ?? ''))).slice(-30))))`);
+console.log(JSON.stringify(buf, null, 2));
+ws.close();

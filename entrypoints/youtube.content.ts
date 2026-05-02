@@ -73,19 +73,22 @@ async function runPost(
 
   const steps: Step[] = [
     {
-      // Studio に到達したら Create → Upload を click して file input を出す
+      // YouTube Studio の "Upload videos" ボタン (id="upload-button" or
+      // aria-label="Upload videos") を直接 click。Create メニュー経由は不要。
       name: 'open-upload-modal',
       action: async () => {
-        // 既に file input があれば skip
         if (document.querySelector(sel.fileInput)) return;
-        // "Create" ボタン → "Upload videos"
-        const createBtn = Array.from(document.querySelectorAll<HTMLElement>('button, ytcp-button, [role="button"]'))
-          .find((b) => /^Create$|create video|新規作成|upload/i.test((b.textContent ?? '').trim()));
-        if (!createBtn) {
-          throw new Error('YouTube: Create ボタンが見つかりません (チャンネル未作成の可能性)');
+        // 直接 Upload videos ボタンを探す
+        const uploadBtn =
+          document.querySelector<HTMLElement>('#upload-button') ??
+          document.querySelector<HTMLElement>('[aria-label="Upload videos"]') ??
+          Array.from(document.querySelectorAll<HTMLElement>('button, ytcp-button, [role="button"]'))
+            .find((b) => /^Upload videos$|^動画をアップロード$/.test((b.textContent ?? '').trim()));
+        if (!uploadBtn) {
+          throw new Error('YouTube: Upload videos ボタンが見つかりません (Studio にいるか確認、チャンネル未作成?)');
         }
-        createBtn.click();
-        await waitForElement<HTMLElement>(sel.fileInput, 8000);
+        uploadBtn.click();
+        await waitForElement<HTMLElement>(sel.fileInput, 10000);
       },
       settleMs: 1500,
     },
@@ -97,31 +100,78 @@ async function runPost(
       settleMs: 200,
     },
     {
-      // metadata form 出現待ち + title 入力
+      // metadata form 出現待ち + title 入力。
+      // YouTube Studio は title / description どちらも div#textbox contenteditable で
+      // 両方とも id="textbox" (invalid HTML だが YouTube の慣習)。aria-label は
+      // 言語依存だが必ず存在するので「all #textbox の中で 1 つ目 = title」と扱う。
       name: 'fill-title',
       action: async () => {
-        const titleEl = await waitForElement<HTMLElement>(sel.titleInput, 30000);
-        if (!titleEl) {
-          throw new Error('YouTube: title input が出現しませんでした (upload 失敗?)');
+        // 60s 待機 (動画 upload + metadata mount 込み)
+        let textboxes: HTMLElement[] = [];
+        for (let i = 0; i < 60; i++) {
+          textboxes = Array.from(document.querySelectorAll<HTMLElement>(
+            'div[id="textbox"][contenteditable="true"]',
+          ));
+          if (textboxes.length >= 2) break;
+          await sleep(1000);
         }
-        await injectTextIntoElement(title, sel.titleInput);
+        if (textboxes.length < 1) {
+          throw new Error('YouTube: title 入力欄が出現しませんでした (upload 失敗 / channel 未作成?)');
+        }
+        const titleEl = textboxes[0]!;
+        // unique selector を生成して inject-helper に渡す
+        // (DOM 順を保つため getElementsByTagName で index 取って nth-of-type 風セレクタ)
+        // 最もシンプル: 直接 element に focus + paste するため DOM 経路を確保
+        // titleEl.id = 'tutti-yt-title-marker';
+        // sel.titleInput を上書きできないので ここで直接 inject する代わりに
+        // inject-helper の text mode は selector を取るので marker 付ける
+        const marker = `tutti-yt-title-${Date.now()}`;
+        titleEl.setAttribute('data-tutti-marker', marker);
+        await injectTextIntoElement(title, `[data-tutti-marker="${marker}"]`);
       },
       settleMs: 300,
     },
     {
       name: 'fill-description',
       action: async () => {
-        await injectTextIntoElement(text, sel.descriptionEditor);
+        const textboxes = Array.from(document.querySelectorAll<HTMLElement>(
+          'div[id="textbox"][contenteditable="true"]',
+        ));
+        if (textboxes.length < 2) {
+          // description は optional として skip 可。warn だけ
+          log.warn('YouTube: description editor が見つからず skip');
+          return;
+        }
+        const descEl = textboxes[1]!;
+        const marker = `tutti-yt-desc-${Date.now()}`;
+        descEl.setAttribute('data-tutti-marker', marker);
+        await injectTextIntoElement(text, `[data-tutti-marker="${marker}"]`);
       },
       settleMs: 300,
-      // YouTube wizard は Next/Publish の多段。advance で Next click
+    },
+    {
+      // Made for Kids 必須選択。Tutti default は "No, it's not 'Made for Kids'"
+      // (cross-post content は基本一般向け。明示的子ども向け作品は v0.5+ で
+      // settings に切替を expose 予定)。
+      // tp-yt-paper-radio-button の click() で aria-checked が更新され
+      // YouTube React 側で onChange が走る。
+      name: 'set-not-for-kids',
+      action: async () => {
+        const radio = document.querySelector<HTMLElement>(sel.notMadeForKidsRadio);
+        if (!radio) {
+          throw new Error('YouTube: "Made for Kids" の No radio が見つかりません');
+        }
+        radio.click();
+      },
+      settleMs: 500,
+      // Next ボタンを click して次の wizard step (Video elements) へ
       advance: {
         finder: () => {
           const btns = Array.from(document.querySelectorAll<HTMLElement>('button, ytcp-button'))
             .filter((b) => /^Next$|^次へ$/i.test((b.textContent ?? '').trim()));
           return btns.find((b) => !(b as HTMLButtonElement).disabled) ?? null;
         },
-        timeoutMs: 8000,
+        timeoutMs: 10000,
       },
       awaitNextDom: { selector: 'ytcp-button-shape', timeoutMs: 10000 },
     },
@@ -138,9 +188,9 @@ async function runPost(
             .filter((b) => /^Next$|^次へ$/i.test((b.textContent ?? '').trim()));
           return btns.find((b) => !(b as HTMLButtonElement).disabled) ?? null;
         },
-        timeoutMs: 8000,
+        timeoutMs: 20000,
       },
-      awaitNextDom: { selector: 'ytcp-button-shape', timeoutMs: 10000 },
+      awaitNextDom: { selector: 'ytcp-button-shape', timeoutMs: 15000 },
     },
     {
       name: 'advance-checks',
@@ -152,9 +202,9 @@ async function runPost(
             .filter((b) => /^Next$|^次へ$/i.test((b.textContent ?? '').trim()));
           return btns.find((b) => !(b as HTMLButtonElement).disabled) ?? null;
         },
-        timeoutMs: 8000,
+        timeoutMs: 20000,
       },
-      awaitNextDom: { selector: 'ytcp-button-shape', timeoutMs: 10000 },
+      awaitNextDom: { selector: 'ytcp-button-shape', timeoutMs: 15000 },
     },
   ];
 

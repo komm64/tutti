@@ -83,8 +83,16 @@ if (!popupTab.url.includes('popup.html')) {
   await new Promise((r) => setTimeout(r, 2500));
 }
 
-const png = readFileSync('scripts/all-sns-mastodon.png');
-const b64 = png.toString('base64');
+// video-only platform は mp4 を、それ以外は png を送る
+const VIDEO_PLATFORMS = new Set(['tiktok', 'youtube']);
+const isVideo = VIDEO_PLATFORMS.has(platform);
+const mediaPath = isVideo ? 'C:\\tmp\\test-sample.mp4' : 'scripts/all-sns-mastodon.png';
+const mediaType = isVideo ? 'video/mp4' : 'image/png';
+const mediaName = isVideo ? 'test-sample.mp4' : 'realpost.png';
+const mediaBin = readFileSync(mediaPath);
+const b64 = mediaBin.toString('base64');
+log(`media: ${mediaPath} (${mediaBin.length} bytes, ${mediaType})`);
+
 const ts = Date.now().toString().slice(-6);
 const testText = `Tutti realpost ${platform} ${ts}\n本文 line 2.`;
 
@@ -97,7 +105,7 @@ const dispatchResult = await popupCdp.evalJs(`(async () => {
     type: 'POST_REQUEST',
     text: ${JSON.stringify(testText)},
     platforms: [${JSON.stringify(platform)}],
-    images: [{ name: 'realpost.png', type: 'image/png', data: ${JSON.stringify(b64)} }],
+    images: [{ name: ${JSON.stringify(mediaName)}, type: ${JSON.stringify(mediaType)}, data: ${JSON.stringify(b64)}${isVideo ? ', durationS: 5' : ''} }],
   };
   const response = await chrome.runtime.sendMessage(message);
   return { ok: true, settings: s, response };

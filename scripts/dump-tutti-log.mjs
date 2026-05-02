@@ -16,6 +16,12 @@ await new Promise(r => ws.on('open', r));
 const evalJs = expr => new Promise(resolve => { const i = ++id; pending.set(i, { resolve }); ws.send(JSON.stringify({ id: i, method: 'Runtime.evaluate', params: { expression: expr, returnByValue: true, awaitPromise: true } })); }).then(r => r.result?.value);
 
 const logs = await evalJs(`new Promise(r => chrome.storage.local.get('logBuffer', d => r(d.logBuffer ?? [])))`);
-const recentPixiv = (logs ?? []).filter(e => /pixiv|tutti/i.test(e.message ?? '') || e.context?.includes('pixiv')).slice(-30);
-console.log(JSON.stringify(recentPixiv, null, 2));
+// 引数で platform/keyword 絞り込み
+const filter = process.argv[2];
+let entries = Array.isArray(logs) ? logs : [];
+if (filter) {
+  const re = new RegExp(filter, 'i');
+  entries = entries.filter(e => re.test(e.message ?? '') || re.test(e.context ?? ''));
+}
+console.log(JSON.stringify(entries.slice(-30), null, 2));
 ws.close();

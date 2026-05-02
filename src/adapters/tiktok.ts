@@ -46,10 +46,11 @@ export const TIKTOK_SELECTORS = {
    */
   fileInput: 'input[type="file"][accept*="video"]',
   /**
-   * caption editor。動画選択後に現れる contenteditable。aria-label が
-   * 言語依存なので class 名 + role でも fallback。
+   * caption editor。TikTok Studio は Draft.js (Facebook の rich text editor) を使う。
+   * `.public-DraftEditor-content` がエディタ本体 (`contenteditable=true`、role=combobox)。
+   * aria-label は付いてない、class が固定ID。動画選択後に現れる。
    */
-  captionEditor: '[contenteditable="true"][aria-label*="caption" i], [contenteditable="true"][aria-label*="説明" i], [data-placeholder*="caption" i]',
+  captionEditor: '.public-DraftEditor-content[contenteditable="true"], .DraftEditor-editorContainer [contenteditable="true"]',
   /**
    * Post button。caption 入力後に enable。テキスト "Post" / "投稿" / "公開"。
    */

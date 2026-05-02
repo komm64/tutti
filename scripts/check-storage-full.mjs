@@ -1,0 +1,15 @@
+import { WebSocket } from 'ws';
+const r = await fetch('http://localhost:9222/json/list');
+const tabs = await r.json();
+const t = tabs.find(p => p.type === 'page' && /popup\.html|chrome:\/\/extensions/.test(p.url));
+const ws = new WebSocket(t.webSocketDebuggerUrl);
+let id = 0;
+const pending = new Map();
+ws.on('message', raw => { const m = JSON.parse(raw.toString()); if (m.id != null && pending.has(m.id)) { pending.get(m.id).resolve(m.result); pending.delete(m.id); } });
+await new Promise(r => ws.on('open', r));
+const evalJs = expr => new Promise(resolve => { const i = ++id; pending.set(i, { resolve }); ws.send(JSON.stringify({ id: i, method: 'Runtime.evaluate', params: { expression: expr, returnByValue: true, awaitPromise: true } })); }).then(r => r.result?.value);
+const local = await evalJs(`new Promise(r => chrome.storage.local.get(null, d => r(Object.fromEntries(Object.entries(d).map(([k, v]) => [k, Array.isArray(v) ? v.length + ' items' : typeof v])))))`);
+console.log('local keys:', JSON.stringify(local, null, 2));
+const buf = await evalJs(`new Promise(r => chrome.storage.local.get('logBuffer', d => r((d.logBuffer ?? []).slice(-20))))`);
+console.log('last 20 logBuffer:', JSON.stringify(buf, null, 2));
+ws.close();
