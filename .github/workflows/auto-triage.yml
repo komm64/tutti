@@ -100,4 +100,7 @@ jobs:
             - GitHub Pages 経由 (`https://komm64.github.io/tutti/selectors.json`)
               で `docs/selectors.json` が配信されるので、merge 後数分で全ユーザに
               hot-fix が届く。だから docs/selectors.json も必ず更新する
-          claude_args: "--max-turns 30"
+          # default permission は全 deny。明示的に Bash/Read/Edit/Write を許可。
+          # Bash は git/gh しか使わないので scope を絞る (ランダムコマンド実行を防ぐ)。
+          # opus 指定: 提案質と JSON 出力安定のため。
+          claude_args: '--max-turns 30 --model opus --allowed-tools "Bash(git:*),Bash(gh:*),Bash(jq:*),Bash(cat:*),Read,Edit,Write,Glob,Grep"'
