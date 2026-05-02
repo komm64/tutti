@@ -204,7 +204,31 @@ async function runPost(
         },
         timeoutMs: 20000,
       },
-      awaitNextDom: { selector: 'ytcp-button-shape', timeoutMs: 15000 },
+      awaitNextDom: { selector: 'tp-yt-paper-radio-button[name="PUBLIC"], tp-yt-paper-radio-button', timeoutMs: 15000 },
+    },
+    {
+      // Visibility 段階。Tutti は cross-post なので default Public を選択。
+      // Private や Unlisted を使いたい場合は YouTube 側で後から変更する想定
+      // (Tutti の本旨は「全 SNS に投げる」なので Public が標準)。
+      name: 'set-public',
+      action: async () => {
+        // Public radio を待つ (Visibility step の DOM mount 待ち)
+        let publicRadio: HTMLElement | null = null;
+        for (let i = 0; i < 20; i++) {
+          publicRadio = document.querySelector<HTMLElement>(sel.publicVisibilityRadio);
+          if (publicRadio) break;
+          // text fallback: aria-label / textContent で "Public" / "公開" を探す
+          publicRadio = Array.from(document.querySelectorAll<HTMLElement>('tp-yt-paper-radio-button, [role="radio"]'))
+            .find((r) => /^(Public|公開)$/.test((r.textContent ?? '').trim().split('\n')[0]?.trim() ?? '')) ?? null;
+          if (publicRadio) break;
+          await sleep(500);
+        }
+        if (!publicRadio) {
+          throw new Error('YouTube: Public visibility radio が見つかりません');
+        }
+        publicRadio.click();
+      },
+      settleMs: 500,
     },
   ];
 

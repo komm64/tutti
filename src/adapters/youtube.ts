@@ -68,6 +68,12 @@ export const YOUTUBE_SELECTORS = {
    * Next が disabled。Tutti は default で No (Not made for kids) を選択。
    */
   notMadeForKidsRadio: 'tp-yt-paper-radio-button[name="VIDEO_MADE_FOR_KIDS_NOT_MFK"]',
+  /**
+   * Visibility wizard 段階の "Public" radio。これを選ばないと default の
+   * Private で publish される (= 投稿者しか見られない)。Tutti は cross-post
+   * 用なので default Public が望ましい。R-18 等は別 SNS で対応する想定。
+   */
+  publicVisibilityRadio: 'tp-yt-paper-radio-button[name="PUBLIC"]',
   /** Next / Publish ボタン (text マッチで finder) */
   publishButton: '#done-button, ytcp-button[role="button"]',
 } as const;
