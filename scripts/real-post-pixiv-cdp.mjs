@@ -104,7 +104,8 @@ const r = await fetch('http://localhost:9222/json/list');
 const tabs = await r.json();
 log(`tabs: ${tabs.length}`);
 
-const pixTab = tabs.find((t) => t.type === 'page' && /pixiv\.net\/illustration\/create/.test(t.url));
+// 任意の pixiv.net タブ。Tutti の openOrFocusTab が自動で /illustration/create に navigate
+const pixTab = tabs.find((t) => t.type === 'page' && /pixiv\.net\//.test(t.url));
 // popup として使えるタブ: 既に popup.html を開いてるか、chrome://extensions/、about:blank のいずれか
 const extTab = tabs.find((t) => t.type === 'page' && (
   /popup\.html/.test(t.url) || /chrome:\/\/extensions/.test(t.url) || t.url === 'about:blank'
@@ -131,7 +132,7 @@ await new Promise((res) => setTimeout(res, 2500));
 // configure storage
 log('configuring storage');
 await ext.evaluate(`Promise.all([
-  new Promise(r => chrome.storage.sync.set({ settings: { autoPost: false } }, r)),
+  new Promise(r => chrome.storage.sync.set({ settings: { autoPost: true } }, r)),
   new Promise(r => chrome.storage.session.remove('draft', r)),
   new Promise(r => chrome.storage.local.set({ selectedPlatforms: { pixiv: true, x: false, bluesky: false, threads: false, mastodon: false, misskey: false, tumblr: false, deviantart: false, instagram: false } }, r)),
 ])`, true);

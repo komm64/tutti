@@ -63,6 +63,12 @@ export const PIXIV_SELECTORS = {
    */
   aiTypeNo: 'input[type="radio"][name="ai_type"][value="notAiGenerated"]',
   /**
+   * Adult content (sexual) の "No" radio。必須項目、デフォルト未選択。
+   * クロスポスト content は基本 non-sexual なので false (No) を default。
+   * R-18 投稿者向けは将来 settings で切替予定。
+   */
+  sexualNo: 'input[type="radio"][name="sexual"][value="false"]',
+  /**
    * 投稿ボタン。header の Post (gtm-work-post-button-in-header-click) は
    * 常時 enabled だが、画像 + title が無いとサーバ側で弾かれる。
    * 画像 inject + title 入力後に click する。

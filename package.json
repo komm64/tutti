@@ -1,6 +1,6 @@
 {
   "name": "tutti",
-  "version": "0.4.15",
+  "version": "0.4.17",
   "description": "クロスポストの面倒を全部肩代わりする Chrome 拡張",
   "type": "module",
   "private": true,

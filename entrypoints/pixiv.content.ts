@@ -162,6 +162,17 @@ async function runPost(
       },
       settleMs: 200,
     },
+    {
+      // Adult content (sexual) も必須。クロスポスト content は基本 non-sexual。
+      // 4 つ目の hidden required field、これがないと bottom Post が disabled のまま。
+      name: 'set-adult-flag',
+      action: async () => {
+        const r = document.querySelector<HTMLInputElement>(sel.sexualNo);
+        if (!r) throw new Error('Pixiv: Adult content (sexual) radio が見つかりません');
+        r.click();
+      },
+      settleMs: 200,
+    },
   ];
 
   await executeMultiStepFlow({
@@ -170,21 +181,30 @@ async function runPost(
       // Pixiv は header Post (`.gtm-work-post-button-in-header-click`) と
       // bottom Post (form 内の charcoal-button) の 2 種類が DOM にある。
       // header は analytics-tagged で常時 enabled だが、実機 (2026-05-02) で
-      // click しても投稿が走らない (preview / scroll 系 CTA の可能性)。
-      // 実際の submit は bottom Post で、image + title が valid になると enabled。
-      // finder で bottom Post (header の gtm class を除いた最初の "Post" button) を優先する。
+      // click しても投稿が走らない (preview / scroll 系 CTA)。
+      // 実際の submit は bottom Post。全 required (image + title + tags +
+      // visibility + AI + adult) が埋まると enabled になる。
+      // finder は bottom Post (header の gtm class を除いた "Post" button) を返す。
+      // クリック前に scrollIntoView を呼んで、React がイベントを確実に受けるよう
+      // 視野内に持ってくる (実機検証で out-of-viewport の click が時々無視されてた)。
       finder: () => {
         const all = Array.from(document.querySelectorAll<HTMLButtonElement>('button'))
           .filter((b) => /^Post$|^投稿$/.test((b.textContent ?? '').trim()));
         const nonHeader = all.filter(
           (b) => !b.className.includes('gtm-work-post-button-in-header-click'),
         );
-        // 有効な bottom Post を最優先 → 無ければ header に fallback
         const enabled = nonHeader.find((b) => !b.disabled);
-        return enabled ?? nonHeader[0] ?? all[0] ?? null;
+        const target = enabled ?? nonHeader[0] ?? all[0] ?? null;
+        if (target) {
+          try { target.scrollIntoView({ block: 'center' }); } catch { /* ignore */ }
+        }
+        return target;
       },
       texts: ['Post', '投稿', 'Submit'],
-      // submit 後の navigation 待ち。Pixiv は /artworks/<id> へ redirect する
+      // 全 required field が valid になるまで時間がかかる (画像 upload 完了 + radio
+      // click の React 反映を含めて 5〜10s)。8s default だと足りないので 15s に
+      timeoutMs: 15000,
+      // submit 後の navigation 待ち。Pixiv は投稿成功で /users/<id> や /artworks/<id> へ遷移
       afterClickDelayMs: 3000,
     },
     dryRun,
