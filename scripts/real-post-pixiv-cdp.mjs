@@ -138,7 +138,21 @@ await ext.evaluate(`Promise.all([
 ])`, true);
 
 await ext.send('Page.reload');
-await new Promise((r) => setTimeout(r, 2000));
+await new Promise((r) => setTimeout(r, 2500));
+
+// popup の autoPost checkbox を ON に強制 (storage.sync.set だけだと race で
+// false に戻ることがあるので UI 経由で確実にトグル)
+log('forcing autoPost ON via UI');
+const autoPostState = await ext.evaluate(`(() => {
+  const cb = [...document.querySelectorAll('input[type="checkbox"]')]
+    .find(c => /autoPost|auto-?post|自動投稿/i.test(c.closest('label')?.textContent ?? '')
+              || /autoPost|Auto-post/.test(c.id ?? ''));
+  if (!cb) return { err: 'no autoPost checkbox' };
+  if (!cb.checked) cb.click();
+  return { wasChecked: cb.checked, label: cb.closest('label')?.textContent?.trim().slice(0, 40) };
+})()`);
+log('autoPost cb state:', autoPostState);
+await new Promise((r) => setTimeout(r, 600));
 
 // 画像と text を popup に流し込む
 const png = readFileSync('scripts/all-sns-mastodon.png');
