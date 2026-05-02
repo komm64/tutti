@@ -1,0 +1,71 @@
+name: E2E real-post smoke
+
+# self-hosted runner (Ubuntu CLI / Surface Windows) で実 SNS に投稿して、
+# Tutti が end-to-end で動くかを確認する workflow。
+# auto-triage が selector 修正 PR を出した直後の検証 / 定期 nightly 用。
+#
+# セットアップ手順は scripts/e2e/E2E-SETUP.md を参照。
+
+on:
+  workflow_dispatch:
+    inputs:
+      platforms:
+        description: "対象 platform (カンマ区切り、e.g. 'x' / 'x,bluesky')"
+        required: false
+        default: "x"
+      runner:
+        description: "self-hosted runner label"
+        type: choice
+        required: true
+        default: "ubuntu"
+        options:
+          - ubuntu
+          - surface
+      debug:
+        description: "headful + slowMo + 詳細ログ (Surface 推奨)"
+        type: boolean
+        default: false
+
+jobs:
+  e2e:
+    runs-on: [self-hosted, "${{ inputs.runner }}"]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build extension
+        shell: bash
+        run: |
+          npm ci
+          npm run build
+
+      - name: Run E2E (Ubuntu = xvfb-run wrap)
+        if: inputs.runner == 'ubuntu'
+        shell: bash
+        env:
+          E2E_USER_DATA_DIR: ${{ secrets.E2E_USER_DATA_DIR }}
+        run: |
+          xvfb-run -a node scripts/e2e/run.mjs \
+            --platforms "${{ inputs.platforms }}" \
+            ${{ inputs.debug && '--debug' || '' }}
+
+      - name: Run E2E (Surface = real display)
+        if: inputs.runner == 'surface'
+        shell: pwsh
+        env:
+          E2E_USER_DATA_DIR: ${{ secrets.E2E_USER_DATA_DIR }}
+        run: |
+          $args = @('scripts/e2e/run.mjs', '--platforms', '${{ inputs.platforms }}')
+          if ('${{ inputs.debug }}' -eq 'true') { $args += '--debug' }
+          node $args
+
+      - name: Upload artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-failure-${{ inputs.runner }}-${{ github.run_id }}
+          path: |
+            scripts/e2e/screenshots/**
+            scripts/e2e/logs/**
+          retention-days: 7
+          if-no-files-found: ignore
