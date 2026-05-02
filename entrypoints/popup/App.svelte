@@ -202,12 +202,63 @@
     return { title, body: sections.join('\n') };
   }
 
+  // ── 報告 dedup (client-side) ────────────────────────────────────────
+  // 同じエラー文を 24h 以内に何度も送ろうとする「borked browser state で
+  // retry-loop に陥ってるユーザー」 のケースを潰す。一人で issue tracker を
+  // 偏らせないため (一人 = 1 報告 / 24h / エラー種別)。
+  // 制限を回避できないように厳密な hash ではなく「お行儀のいい dedup」程度で OK。
+  const REPORT_DEDUP_KEY = 'reportDedup';
+  const REPORT_DEDUP_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+  async function hashReportKey(errorText: string): Promise<string> {
+    // 先頭 200 char (=同種エラーは大抵この範囲で一致)。SubtleCrypto で SHA-256 短縮。
+    const head = errorText.slice(0, 200);
+    const buf = new TextEncoder().encode(head);
+    const digest = await crypto.subtle.digest('SHA-256', buf);
+    return Array.from(new Uint8Array(digest)).slice(0, 8)
+      .map((b) => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  async function isRecentlyReported(hash: string): Promise<number | null> {
+    const stored = await browser.storage.local.get(REPORT_DEDUP_KEY);
+    const map = (stored[REPORT_DEDUP_KEY] as Record<string, number> | undefined) ?? {};
+    const ts = map[hash];
+    if (typeof ts !== 'number') return null;
+    if (Date.now() - ts > REPORT_DEDUP_WINDOW_MS) return null;
+    return ts;
+  }
+
+  async function markReported(hash: string): Promise<void> {
+    const stored = await browser.storage.local.get(REPORT_DEDUP_KEY);
+    const map = (stored[REPORT_DEDUP_KEY] as Record<string, number> | undefined) ?? {};
+    // 古いエントリ (24h 超過) を掃除して肥大化を防ぐ
+    const now = Date.now();
+    for (const k of Object.keys(map)) {
+      if (now - (map[k] ?? 0) > REPORT_DEDUP_WINDOW_MS) delete map[k];
+    }
+    map[hash] = now;
+    await browser.storage.local.set({ [REPORT_DEDUP_KEY]: map });
+  }
+
   // 1-click 報告 (proxy 経由)
   let reportSubmitting = $state(false);
-  let reportResult = $state<{ ok: boolean; issueUrl?: string; error?: string } | null>(null);
+  let reportResult = $state<{ ok: boolean; issueUrl?: string; error?: string; deduped?: boolean } | null>(null);
   async function handleReportError(errorText: string): Promise<void> {
     reportSubmitting = true;
     reportResult = null;
+    // dedup チェック: 同種エラーを 24h 以内に既に報告してたら送信スキップ
+    const hash = await hashReportKey(errorText);
+    const lastTs = await isRecentlyReported(hash);
+    if (lastTs !== null) {
+      const hours = Math.round((Date.now() - lastTs) / (60 * 60 * 1000));
+      reportResult = {
+        ok: false,
+        deduped: true,
+        error: `同じエラーは既に ${hours}h 前に報告済みです (24h cooldown)。`,
+      };
+      reportSubmitting = false;
+      return;
+    }
     const { title, body } = await buildReportPayload(errorText);
     try {
       const res = await fetch(REPORT_ENDPOINT, {
@@ -218,6 +269,8 @@
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; issueUrl?: string; error?: string };
       if (res.ok && data.ok) {
         reportResult = { ok: true, issueUrl: data.issueUrl };
+        // 成功時のみ dedup 記録 (失敗を再試行したいケースは妨げない)
+        void markReported(hash);
       } else {
         reportResult = { ok: false, error: data.error ?? `HTTP ${res.status}` };
       }
@@ -1008,6 +1061,18 @@
             {/if}
           </div>
           <div class="flex items-center justify-end">
+            <button
+              onclick={() => { errorDialogOpen = false; reportResult = null; }}
+              class="px-3 py-1.5 text-xs font-medium bg-gray-700 text-white rounded hover:bg-gray-800"
+            >{t('errorDialogClose')}</button>
+          </div>
+        {:else if reportResult && reportResult.deduped}
+          <!-- 24h cooldown: 同じエラーは既に送信済み。fallback も出さない (= 同じ issue が増えない) -->
+          <div class="text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded p-2 mb-3">
+            <p class="font-medium">既に報告済みです</p>
+            <p class="text-[11px] mt-0.5 break-all">{reportResult.error}</p>
+          </div>
+          <div class="flex items-center justify-end gap-2">
             <button
               onclick={() => { errorDialogOpen = false; reportResult = null; }}
               class="px-3 py-1.5 text-xs font-medium bg-gray-700 text-white rounded hover:bg-gray-800"

@@ -25,6 +25,12 @@ interface Env {
   GITHUB_REPO?: string;
   /** デフォルト 6 (= 1 IP / 6 秒)。spam 防止 throttle 値 */
   RATE_LIMIT_SECONDS?: string;
+  /**
+   * デフォルト 5。1 IP あたり 1 日 (UTC 区切り) に受け付ける報告数の上限。
+   * 一人のユーザーの borked browser state による retry-loop / 一人での issue
+   * tracker 偏らせ / Max sub quota の個人独占を防ぐ。
+   */
+  DAILY_LIMIT?: string;
   /** Cloudflare KV namespace (オプション、なければ rate limit はスキップ) */
   RATE_LIMIT?: KVNamespace;
   /**
@@ -95,14 +101,36 @@ export default {
     const repo = env.GITHUB_REPO ?? 'komm64/tutti';
 
     // rate limit (KV namespace が bind されてる場合のみ)
+    //
+    // 二段構え:
+    //   1. 連打防止 (RATE_LIMIT_SECONDS、default 6 秒): 同一 IP の連続 retry-loop
+    //   2. 日次上限 (DAILY_LIMIT、default 5 件/日): 一人のユーザーが特定の壊れ方で
+    //      issue tracker を偏らせない / Max sub quota が個人に独占されない
+    //
+    // 日次キーは `daily:<IP>:<YYYY-MM-DD UTC>`、TTL 25h で自動削除。
+    // (UTC 区切りなので 9:00 JST 跨ぎでリセット — 厳密より「だいたい 1 日」優先)
     const ip = req.headers.get('CF-Connecting-IP') ?? 'anonymous';
     const limitSec = Number(env.RATE_LIMIT_SECONDS ?? '6');
+    const dailyLimit = Number(env.DAILY_LIMIT ?? '5');
     if (env.RATE_LIMIT) {
       const lastTs = await env.RATE_LIMIT.get(`ip:${ip}`);
       if (lastTs && Date.now() - Number(lastTs) < limitSec * 1000) {
         return jsonResponse({ error: 'rate limited, try again later' }, 429, corsHeaders);
       }
+      const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD UTC
+      const dailyKey = `daily:${ip}:${today}`;
+      const dailyCount = Number((await env.RATE_LIMIT.get(dailyKey)) ?? '0');
+      if (dailyCount >= dailyLimit) {
+        return jsonResponse(
+          { error: `daily limit reached (${dailyLimit} reports/day per IP). Try again tomorrow.` },
+          429,
+          corsHeaders,
+        );
+      }
+      // ここで増やしておくと GitHub API 失敗でも消費。spam 抑止として妥当
+      // (失敗 retry の手間を増やしたくないなら GitHub 成功後に inc に変更)
       await env.RATE_LIMIT.put(`ip:${ip}`, String(Date.now()), { expirationTtl: 3600 });
+      await env.RATE_LIMIT.put(dailyKey, String(dailyCount + 1), { expirationTtl: 25 * 3600 });
     }
 
     // 本文 size cap (worker 自体は 100MB まで受けるが、ここで明示的に絞る)
