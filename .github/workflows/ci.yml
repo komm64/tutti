@@ -1,0 +1,39 @@
+name: CI
+
+# 全 PR と main push で typecheck + test + build を走らせる。
+# auto-triage workflow が作る PR にも自動で適用される (TS 文法破壊や既存
+# テスト regression を merge 前に catch)。
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript typecheck
+        run: npm run compile
+
+      - name: Unit tests (vitest)
+        run: npm run test
+
+      - name: Production build
+        run: npm run build
+
+      - name: Worker typecheck
+        working-directory: worker
+        run: |
+          npm ci
+          npx tsc --noEmit
