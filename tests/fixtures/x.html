@@ -1,0 +1,37 @@
+<!--
+  X (twitter.com / x.com) home inline compose の縮小 fixture。
+  実機 https://x.com/home の compose 領域から構造的要素を抽出。
+  selector-replay.test.ts が各 X_SELECTORS のマッチをここで検証する。
+
+  selector が壊れた時、auto-triage 提案 PR でこの fixture も更新するのが理想
+  (Claude が DOM snapshot を見て新 fixture を proposal する flow が将来必要)。
+-->
+<html>
+<body>
+<div role="main">
+  <div data-testid="primaryColumn">
+    <div data-testid="toolBar">
+      <input type="file" data-testid="fileInput" multiple style="display: none">
+    </div>
+    <div role="region" aria-label="Compose post">
+      <div data-testid="tweetTextarea_0RichTextInputContainer">
+        <div data-testid="tweetTextarea_0" role="textbox" contenteditable="true" aria-multiline="true" aria-label="Post text">
+          <div><br></div>
+        </div>
+      </div>
+      <div role="group">
+        <button data-testid="tweetButtonInline" role="button" aria-label="Post">
+          <span>Post</span>
+        </button>
+        <button data-testid="tweetButton" role="button" aria-label="Post">
+          <span>Post</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+<main>
+  <input type="file" data-testid="fileInput" multiple style="display: none">
+</main>
+</body>
+</html>

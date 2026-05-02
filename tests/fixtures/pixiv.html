@@ -1,0 +1,30 @@
+<!-- Pixiv /illustration/create form の縮小 fixture -->
+<html><body>
+<form>
+  <input type="file" name="files[]" accept="image/jpg,image/jpeg,image/png" multiple style="display:none">
+  <input name="title" placeholder="Title" maxlength="32">
+  <textarea name="comment" placeholder="Caption"></textarea>
+  <input placeholder="Tags" maxlength="30">
+
+  <fieldset>
+    <legend>Visible to</legend>
+    <input type="radio" name="x_restrict" value="general"> All ages
+    <input type="radio" name="x_restrict" value="r18"> R-18
+    <input type="radio" name="x_restrict" value="r18g"> R-18G
+  </fieldset>
+
+  <fieldset>
+    <legend>AI-generated work</legend>
+    <input type="radio" name="ai_type" value="notAiGenerated"> No
+    <input type="radio" name="ai_type" value="aiGenerated"> Yes
+  </fieldset>
+
+  <fieldset>
+    <legend>Adult content</legend>
+    <input type="radio" name="sexual" value="false"> No
+    <input type="radio" name="sexual" value="true"> Yes
+  </fieldset>
+
+  <button type="submit" class="charcoal-button gtm-work-post-button-in-header-click">Post</button>
+</form>
+</body></html>

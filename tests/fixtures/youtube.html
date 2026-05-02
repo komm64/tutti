@@ -1,0 +1,27 @@
+<!-- YouTube Studio upload wizard の縮小 fixture (Details + Visibility 段階) -->
+<html><body>
+<ytcp-uploads-dialog id="ytcp-uploads-dialog-file-picker">
+  <input type="file" name="Filedata">
+</ytcp-uploads-dialog>
+
+<!-- Details: title (1st textbox) + description (2nd textbox) -->
+<div id="textbox" contenteditable="true" aria-label="Add a title that describes your video"></div>
+<div id="textbox" contenteditable="true" aria-label="Tell viewers about your video"></div>
+
+<!-- Made for Kids radio -->
+<tp-yt-paper-radio-group>
+  <tp-yt-paper-radio-button name="VIDEO_MADE_FOR_KIDS_MFK">Yes, made for kids</tp-yt-paper-radio-button>
+  <tp-yt-paper-radio-button name="VIDEO_MADE_FOR_KIDS_NOT_MFK">No, not made for kids</tp-yt-paper-radio-button>
+</tp-yt-paper-radio-group>
+
+<!-- Visibility radio -->
+<tp-yt-paper-radio-group>
+  <tp-yt-paper-radio-button name="PRIVATE">Private</tp-yt-paper-radio-button>
+  <tp-yt-paper-radio-button name="UNLISTED">Unlisted</tp-yt-paper-radio-button>
+  <tp-yt-paper-radio-button name="PUBLIC">Public</tp-yt-paper-radio-button>
+</tp-yt-paper-radio-group>
+
+<ytcp-button-shape>
+  <button id="done-button" role="button">Publish</button>
+</ytcp-button-shape>
+</body></html>
