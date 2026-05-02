@@ -34,3 +34,6 @@ scripts/launch-test-brave.cmd
 .env
 .env.local
 .env.*.local
+
+# Claude Code session state (cron lock 等、commit しない)
+.claude/
