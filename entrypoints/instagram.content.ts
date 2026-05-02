@@ -1,6 +1,6 @@
 import { initLogLevelFromSettings, log } from '../src/utils/logger';
 import type { ImageAttachment, Message, PostResultMessage } from '../src/messages';
-import { INSTAGRAM_SELECTORS, instagramAdapter } from '../src/adapters/instagram';
+import { INSTAGRAM_SELECTORS } from '../src/adapters/instagram';
 import { executeMultiStepFlow, type Step } from '../src/utils/step-runner';
 import { injectImages, injectTextIntoElement } from '../src/utils/image';
 import { sleep, waitForElement } from '../src/utils/dom';

@@ -1,6 +1,6 @@
 import { initLogLevelFromSettings, log } from '../src/utils/logger';
 import type { ImageAttachment, Message, PostResultMessage } from '../src/messages';
-import { YOUTUBE_SELECTORS, buildYouTubeTitle, youtubeAdapter } from '../src/adapters/youtube';
+import { YOUTUBE_SELECTORS, buildYouTubeTitle } from '../src/adapters/youtube';
 import { executeMultiStepFlow, type Step } from '../src/utils/step-runner';
 import { injectImages, injectTextIntoElement } from '../src/utils/image';
 import { sleep, waitForElement } from '../src/utils/dom';

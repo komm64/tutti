@@ -1,6 +1,6 @@
 import { initLogLevelFromSettings, log } from '../src/utils/logger';
 import type { ImageAttachment, Message, PostResultMessage } from '../src/messages';
-import { TIKTOK_SELECTORS, buildTikTokCaption, tiktokAdapter } from '../src/adapters/tiktok';
+import { TIKTOK_SELECTORS, buildTikTokCaption } from '../src/adapters/tiktok';
 import { executeMultiStepFlow, type Step } from '../src/utils/step-runner';
 import { injectImages, injectTextIntoElement } from '../src/utils/image';
 import { sleep, waitForElement } from '../src/utils/dom';

@@ -1,6 +1,6 @@
 import { initLogLevelFromSettings, log } from '../src/utils/logger';
 import type { ImageAttachment, Message, PostResultMessage } from '../src/messages';
-import { PIXIV_SELECTORS, buildPixivTitle, extractPixivTags, pixivAdapter } from '../src/adapters/pixiv';
+import { PIXIV_SELECTORS, buildPixivTitle, extractPixivTags } from '../src/adapters/pixiv';
 import { executeMultiStepFlow, type Step } from '../src/utils/step-runner';
 import { injectImages, injectTagList, injectTextIntoElement } from '../src/utils/image';
 import { sleep } from '../src/utils/dom';

@@ -1,10 +1,6 @@
 import { initLogLevelFromSettings, log } from '../src/utils/logger';
 import type { ImageAttachment, Message, PostResultMessage } from '../src/messages';
-import {
-  DEVIANTART_SELECTORS,
-  buildDeviantArtTitle,
-  deviantartAdapter,
-} from '../src/adapters/deviantart';
+import { DEVIANTART_SELECTORS, buildDeviantArtTitle } from '../src/adapters/deviantart';
 import { executeMultiStepFlow, type Step } from '../src/utils/step-runner';
 import { injectImages, injectTextIntoElement } from '../src/utils/image';
 import { sleep, waitForElement } from '../src/utils/dom';
