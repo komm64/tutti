@@ -127,8 +127,8 @@ export default {
 
     // GitHub Issue 作成
     // body に <!-- tutti-diagnostics-begin --> を含む = popup の自動診断が attach 済 →
-    // GitHub Action 側で auto-triage 可能。"needs-triage" を付けて Action がそれを
-    // pickup する想定 (P13-B)。
+    // 自宅サーバの triage daemon (scripts/triage-issue.mjs) が `needs-triage`
+    // ラベル付き issue を polling して claude CLI で selector 提案 PR を作る (P13)。
     const hasDiagnostics = body.includes('<!-- tutti-diagnostics-begin -->');
     const labels = ['beta', 'auto-reported'];
     if (hasDiagnostics) labels.push('needs-triage');
