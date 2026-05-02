@@ -269,10 +269,20 @@ export default defineContentScript({
         // paste 反映が来なくなる。実質的なテキストが既にある時だけ削除する。
         const existing = (el.textContent ?? '').trim();
         if (existing.length > 0) {
+          // Selection API: 一般的な contenteditable 用 (TipTap / ProseMirror で OK)
           const sel = window.getSelection();
           if (sel) {
             sel.selectAllChildren(el);
             sel.deleteFromDocument();
+          }
+          // それでも消えてない場合 (Draft.js / Lexical の SyntheticSelection 管理):
+          // execCommand 経由で selectAll + delete。Draft.js は document.execCommand を
+          // フックして内部 state を同期するので、この経路で確実に消える
+          if ((el.textContent ?? '').trim().length > 0) {
+            try {
+              document.execCommand('selectAll', false);
+              document.execCommand('delete', false);
+            } catch { /* ignore */ }
           }
         }
         const dt = new DataTransfer();
