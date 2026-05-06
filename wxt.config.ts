@@ -12,6 +12,8 @@ export default defineConfig({
       'https://x.com/*',
       'https://twitter.com/*',
       'https://bsky.app/*',
+      // P15: Bluesky API path (default PDS)。custom PDS は optional で
+      'https://bsky.social/*',
       'https://www.threads.net/*',
       'https://www.threads.com/*',
       'https://mastodon.social/*',

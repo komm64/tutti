@@ -19,6 +19,11 @@ import { addToPostHistory, getSettings, setLastSeenUser } from '../src/storage';
 import { base64ByteLength } from '../src/utils/base64';
 import { fetchOverridesFrom } from '../src/utils/selector-overrides';
 import { splitText } from '../src/utils/split';
+import { getApiCredentials } from '../src/utils/api-credentials';
+import { postViaApi as postBlueskyApi } from '../src/api/bluesky';
+import { postViaApi as postMastodonApi } from '../src/api/mastodon';
+import { postViaApi as postMisskeyApi } from '../src/api/misskey';
+import type { ApiPostResult } from '../src/api/types';
 
 const READY_DELAY_MS = 800;
 const TAB_LOAD_TIMEOUT_MS = 15000;
@@ -329,12 +334,51 @@ async function resolveAdapter(platform: PlatformId): Promise<PlatformAdapter | u
   return adapter;
 }
 
+/**
+ * 設定された API credentials があれば API path で投稿。無ければ 'no-credentials'。
+ * P15 で対応してるのは Bluesky / Mastodon / Misskey の 3 platforms (Phase 1)。
+ */
+async function tryApiPath(
+  platform: PlatformId,
+  text: string,
+  images?: ImageAttachment[],
+): Promise<ApiPostResult | 'no-credentials'> {
+  const creds = await getApiCredentials();
+  if (platform === 'bluesky' && creds.bluesky) {
+    return await postBlueskyApi(creds.bluesky, { text, images });
+  }
+  if (platform === 'mastodon' && creds.mastodon) {
+    return await postMastodonApi(creds.mastodon, { text, images });
+  }
+  if (platform === 'misskey' && creds.misskey) {
+    return await postMisskeyApi(creds.misskey, { text, images });
+  }
+  return 'no-credentials';
+}
+
 async function postSingleChunk(
   adapter: PlatformAdapter,
   text: string,
   images?: ImageAttachment[],
 ): Promise<void> {
   const { autoPost } = await getSettings();
+
+  // ── API path (P15) ─────────────────────────────────────────────
+  // credentials が設定されてて autoPost=true (= 実投稿モード) のときは
+  // API 直送して終了。autoPost=false (= preview モード) のときは API は使わず
+  // 従来 DOM path で compose を開いてユーザーに見せる (preview の意味維持)。
+  if (autoPost) {
+    const apiResult = await tryApiPath(adapter.id, text, images);
+    if (apiResult === 'no-credentials') {
+      // 設定無し → DOM path に fallthrough
+    } else if (apiResult.success) {
+      log.info(`${adapter.id} via API ✓ ${apiResult.postUrl ?? ''}`);
+      return;
+    } else {
+      throw new Error(`API: ${apiResult.error ?? '不明なエラー'}`);
+    }
+  }
+
   // content script API は dryRun の概念で書かれているので boundary で変換。
   // autoPost: false → dryRun: true(検証だけ、Post クリックしない)
   const dryRun = !autoPost;
