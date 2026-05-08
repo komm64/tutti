@@ -21,7 +21,11 @@
 
 interface Env {
   GITHUB_TOKEN: string;
-  /** デフォルト "komm64/tutti"。テスト時に切り替えられるよう env で持つ */
+  /**
+   * デフォルト "komm64/tutti-issues" (private)。public な komm64/tutti には
+   * 報告を出さない (v0.4.32 → komm64/tutti#10 の browsing URL 漏洩事故への対応)。
+   * テスト時等に切り替えられるよう env で override 可能。
+   */
   GITHUB_REPO?: string;
   /** デフォルト 6 (= 1 IP / 6 秒)。spam 防止 throttle 値 */
   RATE_LIMIT_SECONDS?: string;
@@ -98,7 +102,7 @@ export default {
     if (!env.GITHUB_TOKEN) {
       return jsonResponse({ error: 'server not configured (no GITHUB_TOKEN)' }, 500, corsHeaders);
     }
-    const repo = env.GITHUB_REPO ?? 'komm64/tutti';
+    const repo = env.GITHUB_REPO ?? 'komm64/tutti-issues';
 
     // rate limit (KV namespace が bind されてる場合のみ)
     //
