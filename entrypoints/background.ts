@@ -130,8 +130,13 @@ export default defineBackground(() => {
 async function handleDiagnoseRequest(): Promise<DiagnosticsReport> {
   const tabs = await browser.tabs.query({});
   const platformResults: DiagnosePlatformResult[] = [];
-  // 全 11 adapter を回す (P13 で multi-step 系も snapshot 取れるように)
+  // 全 11 adapter を回す
   const platformIds = Object.keys(adapters) as PlatformId[];
+
+  function tabHost(tabUrl: string): string {
+    try { return new URL(tabUrl).host; } catch { return ''; }
+  }
+
   for (const tab of tabs) {
     if (typeof tab.url !== 'string' || typeof tab.id !== 'number') continue;
     const platform = platformIds.find((p) => getAdapter(p)?.matchUrl(tab.url ?? ''));
@@ -141,17 +146,20 @@ async function handleDiagnoseRequest(): Promise<DiagnosticsReport> {
         type: 'DIAGNOSE_PLATFORM',
         platform,
       })) as DiagnosePlatformResult | undefined;
-      if (res?.type === 'DIAGNOSE_PLATFORM_RESULT') platformResults.push(res);
+      if (res?.type !== 'DIAGNOSE_PLATFORM_RESULT') continue;
+      // **privacy critical**: compose 系 tab だけ result に含める。
+      // 全 selector が miss + detectedUser も無い tab は閲覧 / 視聴ページ等
+      // (例: youtube.com/watch?v=xxx)、ユーザの不関係 browsing を public Issue
+      // に流してしまう事故 (v0.4.32 で発生) を防ぐ。
+      const hasHit = res.selectors.some((s) => s.matchCount > 0);
+      const hasUser = !!res.detectedUser;
+      if (!hasHit && !hasUser) continue;
+      platformResults.push(res);
     } catch {
-      // content script unreachable (no listener yet, or tab not ready)
-      platformResults.push({
-        type: 'DIAGNOSE_PLATFORM_RESULT',
-        platform,
-        url: tab.url,
-        selectors: [],
-        detectedUser: null,
-        domSnapshot: null,
-      });
+      // content script unreachable (= まだ inject されてない or wrong page)。
+      // これも compose context じゃないので skip (privacy 寄りの判断)。
+      // 旧コードは tab.url を full URL で payload に入れていて leak の原因だった
+      void tabHost;
     }
   }
   // 診断 dump はユーザーが GitHub Issue 等に貼り付けて公開する想定なので、

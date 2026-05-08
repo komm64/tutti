@@ -84,7 +84,11 @@ function redactAttributes(el: Element): void {
     } else if (name === 'href' || name === 'src' || name === 'action' || name === 'formaction') {
       try {
         const u = new URL(value, location.href);
-        el.setAttribute(attr.name, u.origin + u.pathname);
+        // **privacy critical**: origin のみ。pathname も落とす。
+        // 例: `/@channelname` `/watch?v=abc` `/u/komm64` 等の path は user 識別子
+        // に直結するので残さない。AI 提案には origin だけあれば「どの host の元素か」
+        // は判別可能。
+        el.setAttribute(attr.name, u.origin);
       } catch {
         el.setAttribute(attr.name, URL_PLACEHOLDER);
       }

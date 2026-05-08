@@ -136,15 +136,20 @@
   const REPORT_ENDPOINT = 'https://tutti-report.komm64.workers.dev';
 
   /**
-   * 報告 body に紛れ込み得る @handle を redact する多重防御。
-   * - `@user.name`, `@user@instance.tld`, `https://x.com/@handle` 等を `@<redacted>` に
-   * - メールアドレスも redact する(誤って混入する可能性は低いが念のため)
-   * 公開 GitHub Issue に貼られる前提で過剰に保守的に潰す。
+   * 報告 body に紛れ込み得る PII を redact する多重防御。公開 GitHub Issue に
+   * 貼られる前提で過剰に保守的に潰す:
+   * - `@user.name`, `@user@instance.tld` 等 → `@<redacted>`
+   * - メールアドレス → `<email-redacted>`
+   * - URL の path / query / fragment → host のみ残す (v0.4.32 で
+   *   `youtube.com/watch?v=xxx` がそのまま漏れる事故があったので追加)
    */
   function redactPII(text: string): string {
     return text
       .replace(/@[\w.-]+(?:@[\w.-]+)?/g, '@<redacted>')
-      .replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, '<email-redacted>');
+      .replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, '<email-redacted>')
+      // URL: scheme://host/... → scheme://host/<…>
+      // 末尾の `/` 直前まで残し、それ以降の path / query / fragment を潰す
+      .replace(/(https?:\/\/[\w.-]+)(\/[^\s"'`<>]*)?/gi, (_m, base) => `${base}/<…>`);
   }
 
   async function buildReportPayload(errorText: string): Promise<{ title: string; body: string }> {
