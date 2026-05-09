@@ -17,6 +17,12 @@ import {
 import type { PlatformAdapter } from '../src/adapters/types';
 import { addToPostHistory, getSettings, setLastSeenUser } from '../src/storage';
 import { base64ByteLength } from '../src/utils/base64';
+import { putBinary, deleteBinary, getBinary } from '../src/utils/binary-transfer';
+import {
+  attachmentSize,
+  releaseAttachmentTransfers,
+  resolveAttachmentToBase64,
+} from '../src/utils/attachment';
 import { fetchOverridesFrom } from '../src/utils/selector-overrides';
 import { splitText } from '../src/utils/split';
 import { getApiCredentials } from '../src/utils/api-credentials';
@@ -238,6 +244,9 @@ async function handlePostRequest(
 
   notifyResults(results);
   void addToPostHistory(text, results, (adjustedImages?.length ?? 0) > 0);
+  // IndexedDB binary-transfer の cleanup (元 dataRef + 圧縮結果 dataRef 両方)
+  void releaseAttachmentTransfers(adjustedImages);
+  if (adjustedImages !== images) void releaseAttachmentTransfers(images);
   return results;
 }
 
@@ -256,7 +265,7 @@ async function maybeCompressVideoForBudget(
   const videoIdx = images.findIndex((m) => m.type.startsWith('video/'));
   if (videoIdx < 0) return images;
   const video = images[videoIdx]!;
-  const currentBytes = base64ByteLength(video.data);
+  const currentBytes = attachmentSize(video);
 
   // 選択中 SNS の中で「動画を受け付ける + maxBytes が定義されてる」やつだけ集計
   let minBytes = Infinity;
@@ -266,13 +275,27 @@ async function maybeCompressVideoForBudget(
     if (a.videoConstraints.maxBytes < minBytes) minBytes = a.videoConstraints.maxBytes;
   }
   if (minBytes === Infinity) return images;
-  if (currentBytes <= minBytes) return images; // 全 SNS の制限内、何もしない
+  if (currentBytes <= minBytes) return images;
 
   log.info(`P16: video ${(currentBytes / 1024 / 1024).toFixed(1)}MB → 目標 ${(minBytes / 1024 / 1024).toFixed(1)}MB に圧縮`);
 
+  // offscreen には dataRef だけ渡す (sendMessage 64MB cap 回避)。
+  // dataRef が無ければ data を IndexedDB に書いて id を作る
+  let inputRef = video.dataRef;
+  let inputRefOwned = false;
+  if (!inputRef) {
+    if (!video.data) {
+      log.warn('P16: video has neither data nor dataRef、スキップ');
+      return images;
+    }
+    const { base64ToUint8Array } = await import('../src/utils/base64');
+    inputRef = await putBinary(base64ToUint8Array(video.data));
+    inputRefOwned = true; // 自分で put したので自分で delete
+  }
+
   try {
     const compressed = await runOffscreenCompress({
-      videoData: video.data,
+      inputRef,
       mimeType: video.type,
       durationS: video.durationS ?? 0,
       targetBytes: minBytes,
@@ -280,15 +303,18 @@ async function maybeCompressVideoForBudget(
     log.info(`P16: 圧縮完了 ${(compressed.outputBytes / 1024 / 1024).toFixed(1)}MB`);
     const newImages = images.slice();
     newImages[videoIdx] = {
-      ...video,
-      type: 'video/mp4', // 出力は常に mp4
-      data: compressed.videoData,
-      // name 維持。durationS は変わらない
+      name: video.name,
+      type: 'video/mp4',
+      durationS: video.durationS,
+      dataRef: compressed.outputRef,
+      bytes: compressed.outputBytes,
     };
     return newImages;
   } catch (err) {
     log.warn(`P16: 圧縮失敗、元動画でそのまま投稿試行: ${err instanceof Error ? err.message : String(err)}`);
     return images;
+  } finally {
+    if (inputRefOwned && inputRef) await deleteBinary(inputRef).catch(() => {});
   }
 }
 
@@ -324,23 +350,23 @@ async function ensureOffscreen(): Promise<void> {
 }
 
 async function runOffscreenCompress(req: {
-  videoData: string;
+  inputRef: string;
   mimeType: string;
   durationS: number;
   targetBytes: number;
-}): Promise<{ videoData: string; outputBytes: number }> {
+}): Promise<{ outputRef: string; outputBytes: number }> {
   await ensureOffscreen();
   const res = (await browser.runtime.sendMessage({
     type: 'CONVERT_VIDEO',
-    videoData: req.videoData,
+    inputRef: req.inputRef,
     mimeType: req.mimeType,
     durationS: req.durationS,
     targetBytes: req.targetBytes,
-  })) as { type: string; videoData?: string; outputBytes?: number; error?: string } | undefined;
-  if (!res || res.type === 'CONVERSION_ERROR' || !res.videoData) {
+  })) as { type: string; outputRef?: string; outputBytes?: number; error?: string } | undefined;
+  if (!res || res.type === 'CONVERSION_ERROR' || !res.outputRef) {
     throw new Error(res?.error ?? '変換が応答しません');
   }
-  return { videoData: res.videoData, outputBytes: res.outputBytes ?? base64ByteLength(res.videoData) };
+  return { outputRef: res.outputRef, outputBytes: res.outputBytes ?? 0 };
 }
 
 async function postToPlatform(
@@ -375,7 +401,7 @@ async function postToPlatform(
     const err = checkVideoConstraint(
       platform,
       videoItem.durationS ?? 0,
-      base64ByteLength(videoItem.data),
+      attachmentSize(videoItem),
     );
     if (err) {
       return { type: 'POST_RESULT', platform, success: false, error: err };
@@ -384,7 +410,7 @@ async function postToPlatform(
     // 画像の制約チェック(動画がない場合のみ、画像と動画は排他)
     const err = checkImageConstraint(
       platform,
-      images.map((img) => base64ByteLength(img.data)),
+      images.map((img) => attachmentSize(img)),
     );
     if (err) {
       return { type: 'POST_RESULT', platform, success: false, error: err };
@@ -472,8 +498,16 @@ async function tryApiPath(
 async function postSingleChunk(
   adapter: PlatformAdapter,
   text: string,
-  images?: ImageAttachment[],
+  rawImages?: ImageAttachment[],
 ): Promise<void> {
+  // content script (web page origin) は extension IndexedDB を読めないので、
+  // ここで dataRef → base64 に materialize してから tab.sendMessage で渡す。
+  // 圧縮後の動画は通常 50MB 以下 (= base64 67MB) で 64MB cap ギリギリ。
+  // それを超える場合は適切な adapter constraint で前段で reject されてるはず。
+  let images: ImageAttachment[] | undefined;
+  if (rawImages && rawImages.length > 0) {
+    images = await Promise.all(rawImages.map((m) => resolveAttachmentToBase64(m)));
+  }
   const { autoPost } = await getSettings();
 
   // ── API path (P15) ─────────────────────────────────────────────

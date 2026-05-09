@@ -21,7 +21,7 @@
  */
 
 import type { BlueskyCredentials } from '../utils/api-credentials';
-import { base64ToUint8Array } from '../utils/base64';
+import { resolveAttachmentToBytes } from '../utils/attachment';
 import type { ApiPostInput, ApiPostResult, ApiTestResult } from './types';
 
 const DEFAULT_PDS = 'https://bsky.social';
@@ -89,7 +89,7 @@ export async function postViaApi(
     const imageRecords: { alt: string; image: { $type: 'blob'; ref: { $link: string }; mimeType: string; size: number } }[] = [];
     const images = (input.images ?? []).filter((m) => m.type.startsWith('image/')).slice(0, MAX_IMAGES);
     for (const img of images) {
-      const bytes = base64ToUint8Array(img.data);
+      const bytes = await resolveAttachmentToBytes(img);
       const blob = await uploadBlob(session, pds, bytes, img.type);
       imageRecords.push({ alt: '', image: blob });
     }

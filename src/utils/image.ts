@@ -71,7 +71,10 @@ export async function injectImages(
   const result = await sendInjectRequest({
     mode: 'input',
     selector: fileInputSelector,
-    files: images.map((img) => ({ name: img.name, type: img.type, data: img.data })),
+    files: images.map((img) => {
+      if (!img.data) throw new Error('image attachment missing data (binary-transfer materialize 漏れ)');
+      return { name: img.name, type: img.type, data: img.data };
+    }),
   });
 
   if (!result.ok) {
@@ -143,7 +146,10 @@ export async function dropImages(
   const result = await sendInjectRequest({
     mode: 'drop',
     selector: dropTargetSelector,
-    files: images.map((img) => ({ name: img.name, type: img.type, data: img.data })),
+    files: images.map((img) => {
+      if (!img.data) throw new Error('image attachment missing data (binary-transfer materialize 漏れ)');
+      return { name: img.name, type: img.type, data: img.data };
+    }),
   });
 
   if (!result.ok) {

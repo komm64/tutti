@@ -13,8 +13,21 @@ export type PlatformId = 'x' | 'bluesky' | 'threads' | 'mastodon' | 'misskey' | 
 export interface ImageAttachment {
   name: string;
   type: string; // MIME type
-  /** base64-encoded binary content */
-  data: string;
+  /**
+   * base64-encoded binary content。**dataRef がある場合は省略可** (sendMessage の
+   * 64MB 上限を超える binary は IndexedDB binary-transfer 経由で運ぶため)。
+   * popup の在庫状態 / 履歴では常に存在、message の wire format では dataRef
+   * 経由になり得る。
+   */
+  data?: string;
+  /**
+   * IndexedDB binary-transfer id。data 代わりに使う。
+   * `src/utils/binary-transfer.ts` の putBinary が返す id。受信側は
+   * `resolveAttachmentToBytes/Base64` で resolve してから使う。
+   */
+  dataRef?: string;
+  /** binary size (バイト)。base64 デコードしなくてもサイズが分かる */
+  bytes?: number;
   /** 動画の場合の尺(秒)。background での制約チェックに使う */
   durationS?: number;
 }
@@ -63,8 +76,12 @@ export interface CurrentUserMessage {
 /** background → offscreen: 動画変換リクエスト */
 export interface ConvertVideoMessage {
   type: 'CONVERT_VIDEO';
-  /** 動画 binary を base64 で運ぶ (sendMessage が ArrayBuffer を潰す MV3 仕様) */
-  videoData: string;
+  /**
+   * 入力動画の IndexedDB binary-transfer id (`src/utils/binary-transfer.ts`)。
+   * sendMessage の 64MB cap を回避するため拡張内 IndexedDB 経由で運ぶ。
+   * offscreen は getBinary(inputRef) で bytes を取得する。
+   */
+  inputRef: string;
   /** mime type (e.g. "video/mp4")。出力は常に mp4/h.264/aac */
   mimeType: string;
   /** 動画長 (秒)。bitrate 計算に使う */
@@ -81,10 +98,11 @@ export interface ConversionProgressMessage {
   stage?: 'load' | 'transcode';
 }
 
-/** offscreen → background: 変換完了 (base64 で返す) */
+/** offscreen → background: 変換完了 (IndexedDB ref で返す) */
 export interface ConversionCompleteMessage {
   type: 'CONVERSION_COMPLETE';
-  videoData: string;
+  /** 出力動画の IndexedDB binary-transfer id。background が getBinary で取得 */
+  outputRef: string;
   /** 出力後の byte 数 (popup 表示用) */
   outputBytes: number;
 }

@@ -13,6 +13,7 @@
     getAdapter,
   } from '../../src/adapters/registry';
   import { resizeImage } from '../../src/utils/image-resize';
+  import { packAttachmentForTransfer } from '../../src/utils/attachment';
   import { initLogLevelFromSettings } from '../../src/utils/logger';
   import {
     arrayBufferToBase64,
@@ -693,11 +694,15 @@
       media = [];
     }
 
+    // 大きい media (5MB+) は IndexedDB binary-transfer で運ぶ。sendMessage は
+    // 64MB cap があり base64 化した動画 (50MB → 67MB) だと一発で死ぬ
+    const wireMedia = await Promise.all(media.map((m) => packAttachmentForTransfer(m)));
+
     const message: PostRequestMessage = {
       type: 'POST_REQUEST',
       text,
       platforms: selectedIds,
-      images: media.length > 0 ? media : undefined,
+      images: wireMedia.length > 0 ? wireMedia : undefined,
     };
 
     try {

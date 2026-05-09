@@ -23,7 +23,7 @@
 
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import type { ConvertVideoMessage, Message } from '../../src/messages';
-import { arrayBufferToBase64, base64ToUint8Array } from '../../src/utils/base64';
+import { getBinary, putBinary } from '../../src/utils/binary-transfer';
 
 const AUDIO_KBPS = 128;
 const SAFETY_MARGIN = 0.92; // ffmpeg は target bitrate より少しオーバーすることがあるので余裕を持たせる
@@ -62,9 +62,9 @@ function computeVideoKbps(targetBytes: number, durationS: number): number {
   return Math.max(Math.floor(totalKbps - AUDIO_KBPS), MIN_VIDEO_KBPS);
 }
 
-async function compressVideo(msg: ConvertVideoMessage): Promise<{ data: string; size: number }> {
+async function compressVideo(msg: ConvertVideoMessage): Promise<{ outputRef: string; size: number }> {
   const ff = await getFfmpeg();
-  const inputBytes = base64ToUint8Array(msg.videoData);
+  const inputBytes = await getBinary(msg.inputRef);
   const inputName = 'input.mp4';
   const outputName = 'output.mp4';
 
@@ -101,7 +101,9 @@ async function compressVideo(msg: ConvertVideoMessage): Promise<{ data: string; 
   try { await ff.deleteFile(inputName); } catch { /* ignore */ }
   try { await ff.deleteFile(outputName); } catch { /* ignore */ }
 
-  return { data: arrayBufferToBase64(buffer), size: out.byteLength };
+  // 出力も IndexedDB binary-transfer 経由で background に渡す (sendMessage 64MB 回避)
+  const outputRef = await putBinary(new Uint8Array(buffer));
+  return { outputRef, size: out.byteLength };
 }
 
 browser.runtime.onMessage.addListener((rawMsg, _sender, sendResponse) => {
@@ -109,8 +111,8 @@ browser.runtime.onMessage.addListener((rawMsg, _sender, sendResponse) => {
   if (msg.type !== 'CONVERT_VIDEO') return;
 
   void compressVideo(msg)
-    .then(({ data, size }) =>
-      sendResponse({ type: 'CONVERSION_COMPLETE', videoData: data, outputBytes: size }),
+    .then(({ outputRef, size }) =>
+      sendResponse({ type: 'CONVERSION_COMPLETE', outputRef, outputBytes: size }),
     )
     .catch((err: unknown) => {
       const error = err instanceof Error ? err.message : String(err);

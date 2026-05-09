@@ -18,7 +18,7 @@
  */
 
 import type { MisskeyCredentials } from '../utils/api-credentials';
-import { base64ToUint8Array } from '../utils/base64';
+import { resolveAttachmentToBytes } from '../utils/attachment';
 import type { ApiPostInput, ApiPostResult, ApiTestResult } from './types';
 
 async function uploadFile(
@@ -51,7 +51,7 @@ export async function postViaApi(
   try {
     const fileIds: string[] = [];
     for (const m of input.images ?? []) {
-      const bytes = base64ToUint8Array(m.data);
+      const bytes = await resolveAttachmentToBytes(m);
       const id = await uploadFile(creds, bytes, m.type, m.name || `tutti-${Date.now()}`);
       fileIds.push(id);
     }

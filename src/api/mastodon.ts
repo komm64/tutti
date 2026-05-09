@@ -19,7 +19,7 @@
  */
 
 import type { MastodonCredentials } from '../utils/api-credentials';
-import { base64ToUint8Array } from '../utils/base64';
+import { resolveAttachmentToBytes } from '../utils/attachment';
 import type { ApiPostInput, ApiPostResult, ApiTestResult } from './types';
 
 async function uploadMedia(
@@ -52,7 +52,7 @@ export async function postViaApi(
   try {
     const mediaIds: string[] = [];
     for (const m of input.images ?? []) {
-      const bytes = base64ToUint8Array(m.data);
+      const bytes = await resolveAttachmentToBytes(m);
       const id = await uploadMedia(creds, bytes, m.type, m.name || `tutti-media-${Date.now()}`);
       mediaIds.push(id);
     }
