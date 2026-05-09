@@ -285,12 +285,11 @@ async function maybeCompressVideoForBudget(
   let inputRefOwned = false;
   if (!inputRef) {
     if (!video.data) {
-      log.warn('P16: video has neither data nor dataRef、スキップ');
-      return images;
+      throw new Error('動画 attachment に data も dataRef もありません (popup pack 漏れ?)');
     }
     const { base64ToUint8Array } = await import('../src/utils/base64');
     inputRef = await putBinary(base64ToUint8Array(video.data));
-    inputRefOwned = true; // 自分で put したので自分で delete
+    inputRefOwned = true;
   }
 
   try {
@@ -311,8 +310,12 @@ async function maybeCompressVideoForBudget(
     };
     return newImages;
   } catch (err) {
-    log.warn(`P16: 圧縮失敗、元動画でそのまま投稿試行: ${err instanceof Error ? err.message : String(err)}`);
-    return images;
+    // 旧コードはここで silent fallthrough して元動画で投稿試行 → constraint check で
+    // 「151MB > 50MB」のような誤解しやすい error が出ていた。
+    // 圧縮失敗は explicit に user に見せる
+    const detail = err instanceof Error ? err.message : String(err);
+    log.error(`P16: 圧縮失敗 — ${detail}`);
+    throw new Error(`動画の自動圧縮に失敗: ${detail}`);
   } finally {
     if (inputRefOwned && inputRef) await deleteBinary(inputRef).catch(() => {});
   }

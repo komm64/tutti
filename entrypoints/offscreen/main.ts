@@ -24,6 +24,9 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import type { ConvertVideoMessage, Message } from '../../src/messages';
 import { getBinary, putBinary } from '../../src/utils/binary-transfer';
+import { initLogLevelFromSettings, log } from '../../src/utils/logger';
+
+void initLogLevelFromSettings();
 
 const AUDIO_KBPS = 128;
 const SAFETY_MARGIN = 0.92; // ffmpeg は target bitrate より少しオーバーすることがあるので余裕を持たせる
@@ -34,6 +37,7 @@ let ffmpegPromise: Promise<FFmpeg> | null = null;
 async function getFfmpeg(): Promise<FFmpeg> {
   if (ffmpegPromise) return ffmpegPromise;
   ffmpegPromise = (async () => {
+    log.info('offscreen: ffmpeg.wasm load 開始');
     const ff = new FFmpeg();
     ff.on('progress', ({ progress }) => {
       void browser.runtime.sendMessage({
@@ -42,17 +46,33 @@ async function getFfmpeg(): Promise<FFmpeg> {
         stage: 'transcode',
       });
     });
+    ff.on('log', ({ message }) => {
+      // ffmpeg 自身の stderr/stdout (バンドル log)。エラー診断に便利だが verbose
+      log.debug(`ffmpeg: ${message}`);
+    });
     void browser.runtime.sendMessage({ type: 'CONVERSION_PROGRESS', progress: 0, stage: 'load' });
     // public/ffmpeg/ は WXT の PublicPath 型推論に乗ってないので cast。
     // ビルド時に scripts/copy-ffmpeg.mjs が確実に配置するので runtime では存在する。
     const getUrl = browser.runtime.getURL as (p: string) => string;
-    await ff.load({
-      coreURL: getUrl('/ffmpeg/ffmpeg-core.js'),
-      wasmURL: getUrl('/ffmpeg/ffmpeg-core.wasm'),
-    });
+    const coreURL = getUrl('/ffmpeg/ffmpeg-core.js');
+    const wasmURL = getUrl('/ffmpeg/ffmpeg-core.wasm');
+    log.info(`offscreen: ffmpeg load coreURL=${coreURL}`);
+    try {
+      await ff.load({ coreURL, wasmURL });
+      log.info('offscreen: ffmpeg.load 成功');
+    } catch (e) {
+      const msg = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+      log.error(`offscreen: ffmpeg.load 失敗 — ${msg}`);
+      throw new Error(`ffmpeg.load failed: ${msg}`);
+    }
     return ff;
   })();
-  return ffmpegPromise;
+  try {
+    return await ffmpegPromise;
+  } catch (e) {
+    ffmpegPromise = null; // 次回 retry 用に reset
+    throw e;
+  }
 }
 
 function computeVideoKbps(targetBytes: number, durationS: number): number {
