@@ -13,8 +13,8 @@ describe('checkVideoConstraint', () => {
     expect(err).toContain('60');
   });
 
-  it('Bluesky 50MB 超は拒否', () => {
-    const err = checkVideoConstraint('bluesky', 30, 60 * 1024 * 1024);
+  it('Bluesky 100MB 超は拒否 (P17 で 50→100MB に bump)', () => {
+    const err = checkVideoConstraint('bluesky', 30, 110 * 1024 * 1024);
     expect(err).toContain('ファイルサイズ');
   });
 

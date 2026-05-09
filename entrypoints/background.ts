@@ -11,9 +11,9 @@ import type {
 import {
   adapters,
   checkImageConstraint,
-  checkVideoConstraint,
   getAdapter,
 } from '../src/adapters/registry';
+import { getEffectiveVideoConstraints } from '../src/utils/effective-limits';
 import type { PlatformAdapter } from '../src/adapters/types';
 import { addToPostHistory, getSettings, setLastSeenUser } from '../src/storage';
 import { base64ByteLength } from '../src/utils/base64';
@@ -267,12 +267,15 @@ async function maybeCompressVideoForBudget(
   const video = images[videoIdx]!;
   const currentBytes = attachmentSize(video);
 
-  // 選択中 SNS の中で「動画を受け付ける + maxBytes が定義されてる」やつだけ集計
+  // 選択中 SNS の中で「動画を受け付ける + maxBytes が定義されてる」やつだけ集計。
+  // P17: probe + override 込みの有効値で集計 (= bsky 100MB 緩和等が反映される)
   let minBytes = Infinity;
   for (const p of platforms) {
     const a = getAdapter(p);
-    if (!a?.videoConstraints?.maxBytes) continue;
-    if (a.videoConstraints.maxBytes < minBytes) minBytes = a.videoConstraints.maxBytes;
+    if (!a?.videoConstraints) continue;
+    const eff = await getEffectiveVideoConstraints(p, a.videoConstraints);
+    if (!eff.maxBytes) continue;
+    if (eff.maxBytes < minBytes) minBytes = eff.maxBytes;
   }
   if (minBytes === Infinity) return images;
   if (currentBytes <= minBytes) return images;
@@ -401,13 +404,27 @@ async function postToPlatform(
         error: `${requiredKind === 'longVideo' ? '長尺動画' : '短動画'}に未対応`,
       };
     }
-    const err = checkVideoConstraint(
-      platform,
-      videoItem.durationS ?? 0,
-      attachmentSize(videoItem),
-    );
-    if (err) {
-      return { type: 'POST_RESULT', platform, success: false, error: err };
+    // P17: cache > probe > override > default の有効値で check
+    const effective = adapter.videoConstraints
+      ? await getEffectiveVideoConstraints(platform, adapter.videoConstraints)
+      : null;
+    if (effective) {
+      const durationS = videoItem.durationS ?? 0;
+      const bytes = attachmentSize(videoItem);
+      if (effective.maxDurationS > 0 && durationS > effective.maxDurationS) {
+        return {
+          type: 'POST_RESULT', platform, success: false,
+          error: `尺が長すぎます(上限 ${effective.maxDurationS}s、実際 ${Math.round(durationS)}s)`,
+        };
+      }
+      if (effective.maxBytes > 0 && bytes > effective.maxBytes) {
+        const limitMB = Math.round(effective.maxBytes / 1024 / 1024);
+        const actualMB = Math.round(bytes / 1024 / 1024);
+        return {
+          type: 'POST_RESULT', platform, success: false,
+          error: `ファイルサイズが大きすぎます(上限 ${limitMB}MB、実際 ${actualMB}MB)`,
+        };
+      }
     }
   } else if (images && images.length > 0) {
     // 画像の制約チェック(動画がない場合のみ、画像と動画は排他)

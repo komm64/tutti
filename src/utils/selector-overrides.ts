@@ -14,8 +14,16 @@ import type { PlatformId } from '../messages';
 
 export type SelectorOverrides = Partial<Record<PlatformId, Record<string, string>>>;
 
+/**
+ * 動画 constraint の remote override (selectors.json 内の `_videoConstraints` namespace)。
+ * Bluesky 100MB → 200MB に変わる等、時期によるグローバル変化を hot-fix で配信する。
+ * P17 で追加。
+ */
+export type VideoConstraintsOverrides = Partial<Record<PlatformId, { maxBytes?: number; maxDurationS?: number }>>;
+
 const STORAGE_KEY = 'selectorOverrides';
 const STORAGE_FETCHED_AT_KEY = 'selectorOverridesFetchedAt';
+const STORAGE_VIDEO_CONSTRAINTS_KEY = 'videoConstraintsOverrides';
 
 export async function getOverrides(): Promise<SelectorOverrides> {
   const stored = await browser.storage.local.get(STORAGE_KEY);
@@ -69,10 +77,13 @@ export async function fetchOverridesFrom(url: string): Promise<{ ok: boolean; er
     if (typeof data !== 'object' || data === null || Array.isArray(data)) {
       return { ok: false, error: 'JSON はオブジェクト形式が必要です' };
     }
-    // 簡易バリデーション: 各 platform のオブジェクトの値はすべて string
+    // 簡易バリデーション: 各 platform のオブジェクトの値はすべて string。
+    // `_` プレフィックスの key (`_meta`, `_videoConstraints`) は selector ではなく
+    // メタ情報として扱い、selector parser から除外する
     const valid: SelectorOverrides = {};
     let count = 0;
     for (const [platform, val] of Object.entries(data as Record<string, unknown>)) {
+      if (platform.startsWith('_')) continue;
       if (!val || typeof val !== 'object' || Array.isArray(val)) continue;
       const inner: Record<string, string> = {};
       for (const [k, v] of Object.entries(val as Record<string, unknown>)) {
@@ -84,8 +95,29 @@ export async function fetchOverridesFrom(url: string): Promise<{ ok: boolean; er
       if (Object.keys(inner).length > 0) valid[platform as PlatformId] = inner;
     }
     await setOverrides(valid);
+
+    // P17: 動画 constraint override の取り込み
+    const vcRaw = (data as Record<string, unknown>)['_videoConstraints'];
+    const vc: VideoConstraintsOverrides = {};
+    if (vcRaw && typeof vcRaw === 'object' && !Array.isArray(vcRaw)) {
+      for (const [platform, val] of Object.entries(vcRaw as Record<string, unknown>)) {
+        if (!val || typeof val !== 'object' || Array.isArray(val)) continue;
+        const c: { maxBytes?: number; maxDurationS?: number } = {};
+        const v = val as Record<string, unknown>;
+        if (typeof v['maxBytes'] === 'number' && v['maxBytes']! > 0) c.maxBytes = v['maxBytes'] as number;
+        if (typeof v['maxDurationS'] === 'number' && v['maxDurationS']! > 0) c.maxDurationS = v['maxDurationS'] as number;
+        if (Object.keys(c).length > 0) vc[platform as PlatformId] = c;
+      }
+    }
+    await browser.storage.local.set({ [STORAGE_VIDEO_CONSTRAINTS_KEY]: vc });
+
     return { ok: true, count };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
+}
+
+export async function getVideoConstraintsOverrides(): Promise<VideoConstraintsOverrides> {
+  const stored = await browser.storage.local.get(STORAGE_VIDEO_CONSTRAINTS_KEY);
+  return (stored[STORAGE_VIDEO_CONSTRAINTS_KEY] as VideoConstraintsOverrides | undefined) ?? {};
 }
