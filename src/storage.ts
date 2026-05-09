@@ -1,4 +1,5 @@
 import type { LogLevel, PlatformId, PostResultMessage } from './messages';
+import { clearDraftMedia, getDraftMedia, saveDraftMedia } from './utils/draft-media-store';
 
 // ── 設定 (chrome.storage.sync) ──────────────────────────────────────────────
 
@@ -81,25 +82,50 @@ export interface Draft {
 
 const DRAFT_KEY = 'draft';
 
+/**
+ * 旧仕様 (text + media 全部 storage.session) は session の 10MB quota を
+ * 超える動画で media が落ちる regression があった。media は IndexedDB に
+ * 逃がして、text 等の小さい state だけ session に置く。
+ *
+ * - text + 軽量メタ → storage.session (browser 終了で消える、従来通り)
+ * - images / video の base64 binary → IndexedDB
+ *   (browser 再起動を跨いで残るが、clearDraft で確実に消える)
+ */
 export async function getDraft(): Promise<Draft | null> {
-  const stored = await browser.storage.session.get(DRAFT_KEY);
-  return (stored[DRAFT_KEY] as Draft | undefined) ?? null;
+  const [stored, media] = await Promise.all([
+    browser.storage.session.get(DRAFT_KEY),
+    getDraftMedia(),
+  ]);
+  const text = (stored[DRAFT_KEY] as { text?: string } | undefined)?.text;
+  if (typeof text !== 'string' && !media) return null;
+  return {
+    text: text ?? '',
+    images: media?.images,
+    video: media?.video ?? null,
+  };
 }
 
 export async function saveDraft(draft: Draft): Promise<void> {
-  // session は約 10MB が目安。データが大きすぎる場合は media を落として
-  // 最低限 text だけは保存する(quota 例外でテキストごと失わないため)
-  try {
-    await browser.storage.session.set({ [DRAFT_KEY]: draft });
-  } catch (e) {
-    console.warn('[Tutti] saveDraft full quota error, retrying without media:', e);
-    const lite: Draft = { text: draft.text };
-    await browser.storage.session.set({ [DRAFT_KEY]: lite });
-  }
+  // text は session storage に (small、browser 終了で消える)
+  const textOnly = { text: draft.text };
+  const sessionPromise = browser.storage.session.set({ [DRAFT_KEY]: textOnly });
+
+  // media は IndexedDB に (large、quota 緩い、browser 再起動跨いでも残る)
+  const hasMedia = (draft.images && draft.images.length > 0) || draft.video;
+  const mediaPromise = hasMedia
+    ? saveDraftMedia({ images: draft.images, video: draft.video ?? null })
+    : clearDraftMedia();
+
+  await Promise.all([sessionPromise, mediaPromise.catch((e) => {
+    console.warn('[Tutti] saveDraftMedia (IndexedDB) failed:', e);
+  })]);
 }
 
 export async function clearDraft(): Promise<void> {
-  await browser.storage.session.remove(DRAFT_KEY);
+  await Promise.all([
+    browser.storage.session.remove(DRAFT_KEY),
+    clearDraftMedia(),
+  ]);
 }
 
 // ── SNS 選択(chrome.storage.local、永続) ─────────────────────────────────

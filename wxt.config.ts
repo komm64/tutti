@@ -33,6 +33,20 @@ export default defineConfig({
     ],
     // Mastodon はユーザー設定のインスタンスへのアクセスを optional で要求
     optional_host_permissions: ['https://*/*'],
+    // P16: ffmpeg.wasm の WebAssembly.compile に wasm-unsafe-eval が必要
+    // (MV3 default CSP は wasm-unsafe-eval を許可しないため明示)
+    content_security_policy: {
+      extension_pages: "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'",
+    },
+    // P16: ffmpeg-core 内部 Worker が postMessage で /ffmpeg/*.wasm を fetch するため
+    // 一応 web_accessible_resources にも入れておく (offscreen origin からの直接 access
+    // には不要だが、Worker context によっては別 origin 扱いされるケース対策)
+    web_accessible_resources: [
+      {
+        resources: ['ffmpeg/ffmpeg-core.js', 'ffmpeg/ffmpeg-core.wasm', 'assets/*'],
+        matches: ['<all_urls>'],
+      },
+    ],
     action: {
       default_title: '__MSG_appName__',
     },
