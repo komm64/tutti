@@ -63,21 +63,30 @@ export interface CurrentUserMessage {
 /** background → offscreen: 動画変換リクエスト */
 export interface ConvertVideoMessage {
   type: 'CONVERT_VIDEO';
-  videoData: ArrayBuffer;
-  /** 対象アスペクト比 e.g. "16:9" */
-  targetAspectRatio: string;
+  /** 動画 binary を base64 で運ぶ (sendMessage が ArrayBuffer を潰す MV3 仕様) */
+  videoData: string;
+  /** mime type (e.g. "video/mp4")。出力は常に mp4/h.264/aac */
+  mimeType: string;
+  /** 動画長 (秒)。bitrate 計算に使う */
+  durationS: number;
+  /** 目標 byte 数。video bitrate = (targetBytes * 8 / duration) - audioKbps を解いて算出 */
+  targetBytes: number;
 }
 
 /** offscreen → background: 変換進捗 */
 export interface ConversionProgressMessage {
   type: 'CONVERSION_PROGRESS';
   progress: number; // 0-1
+  /** 進捗段階 (load / transcode) */
+  stage?: 'load' | 'transcode';
 }
 
-/** offscreen → background: 変換完了 */
+/** offscreen → background: 変換完了 (base64 で返す) */
 export interface ConversionCompleteMessage {
   type: 'CONVERSION_COMPLETE';
-  videoData: ArrayBuffer;
+  videoData: string;
+  /** 出力後の byte 数 (popup 表示用) */
+  outputBytes: number;
 }
 
 /** offscreen → background: 変換エラー */

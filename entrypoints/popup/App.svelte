@@ -427,16 +427,31 @@
     history = [];
   }
 
+  // P16: 動画圧縮の進捗 (offscreen から broadcast)
+  let compressionProgress = $state<{ stage: 'load' | 'transcode'; progress: number } | null>(null);
+
   // background からの進捗ストリームを受信
   $effect(() => {
     const listener = (rawMsg: unknown) => {
       const msg = rawMsg as Message;
-      if (msg.type !== 'PLATFORM_PROGRESS') return;
-      const r = msg.result;
-      lastResults = lastResults
-        ? [...lastResults.filter((x) => x.platform !== r.platform), r]
-        : [r];
-      pendingPlatforms = pendingPlatforms.filter((p) => p !== r.platform);
+      if (msg.type === 'PLATFORM_PROGRESS') {
+        const r = msg.result;
+        lastResults = lastResults
+          ? [...lastResults.filter((x) => x.platform !== r.platform), r]
+          : [r];
+        pendingPlatforms = pendingPlatforms.filter((p) => p !== r.platform);
+        // 圧縮 → 投稿に進んだら progress UI 引っ込める
+        compressionProgress = null;
+        return;
+      }
+      if (msg.type === 'CONVERSION_PROGRESS') {
+        compressionProgress = { stage: msg.stage ?? 'transcode', progress: msg.progress };
+        return;
+      }
+      if (msg.type === 'CONVERSION_COMPLETE' || msg.type === 'CONVERSION_ERROR') {
+        compressionProgress = null;
+        return;
+      }
     };
     browser.runtime.onMessage.addListener(listener);
     return () => browser.runtime.onMessage.removeListener(listener);
@@ -988,8 +1003,23 @@
     </div>
   {/if}
 
+  <!-- P16: 動画圧縮中の進捗 (投稿の前段) -->
+  {#if posting && compressionProgress}
+    <div class="mt-2 flex items-center gap-2 text-[11px]">
+      <div class="flex-1 h-1 bg-gray-200 rounded overflow-hidden">
+        <div
+          class="h-full bg-amber-500 transition-all duration-300"
+          style:width="{compressionProgress.stage === 'load' ? 5 : Math.max(5, compressionProgress.progress * 100)}%"
+        ></div>
+      </div>
+      <span class="text-amber-700 shrink-0">
+        {compressionProgress.stage === 'load' ? '圧縮ツール読み込み中…' : `動画を圧縮中… ${Math.round(compressionProgress.progress * 100)}%`}
+      </span>
+    </div>
+  {/if}
+
   <!-- 全体プログレスバー(投稿中のみ表示)。各 SNS の状態は SNS 行に統合済み。 -->
-  {#if posting}
+  {#if posting && !compressionProgress}
     {@const totalSelected = selectedIds.length}
     {@const doneCount = lastResults?.length ?? 0}
     <div class="mt-2 flex items-center gap-2 text-[11px]">

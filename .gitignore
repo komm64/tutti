@@ -37,3 +37,6 @@ scripts/launch-test-brave.cmd
 
 # Claude Code session state (cron lock 等、commit しない)
 .claude/
+
+# ffmpeg.wasm runtime (postinstall + prebuild で node_modules からコピー)
+public/ffmpeg/

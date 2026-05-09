@@ -220,9 +220,12 @@ async function handlePostRequest(
   platforms: PlatformId[],
   images?: ImageAttachment[],
 ): Promise<PostResultMessage[]> {
+  // P16: 動画があり、いずれかの選択中 SNS の maxBytes を超える場合は事前に圧縮
+  const adjustedImages = await maybeCompressVideoForBudget(platforms, images);
+
   const results = await Promise.all(
     platforms.map(async (platform) => {
-      const result = await postToPlatform(platform, text, images);
+      const result = await postToPlatform(platform, text, adjustedImages);
       // 各プラットフォーム完了時に popup へストリーム配信(popup が開いていれば届く)
       void browser.runtime
         .sendMessage({ type: 'PLATFORM_PROGRESS', result })
@@ -234,8 +237,110 @@ async function handlePostRequest(
   );
 
   notifyResults(results);
-  void addToPostHistory(text, results, (images?.length ?? 0) > 0);
+  void addToPostHistory(text, results, (adjustedImages?.length ?? 0) > 0);
   return results;
+}
+
+/**
+ * 選択中 SNS の最小 maxBytes を求めて、動画サイズが超えてれば offscreen に
+ * 委譲して再エンコード。圧縮失敗時は元動画を返して既存 constraint check で
+ * エラー報告する従来挙動に倒す (= 「最低でも今までと同等」を保証)。
+ *
+ * 画像のみ / 動画なしの場合は何もせず images をそのまま返す。
+ */
+async function maybeCompressVideoForBudget(
+  platforms: PlatformId[],
+  images?: ImageAttachment[],
+): Promise<ImageAttachment[] | undefined> {
+  if (!images || images.length === 0) return images;
+  const videoIdx = images.findIndex((m) => m.type.startsWith('video/'));
+  if (videoIdx < 0) return images;
+  const video = images[videoIdx]!;
+  const currentBytes = base64ByteLength(video.data);
+
+  // 選択中 SNS の中で「動画を受け付ける + maxBytes が定義されてる」やつだけ集計
+  let minBytes = Infinity;
+  for (const p of platforms) {
+    const a = getAdapter(p);
+    if (!a?.videoConstraints?.maxBytes) continue;
+    if (a.videoConstraints.maxBytes < minBytes) minBytes = a.videoConstraints.maxBytes;
+  }
+  if (minBytes === Infinity) return images;
+  if (currentBytes <= minBytes) return images; // 全 SNS の制限内、何もしない
+
+  log.info(`P16: video ${(currentBytes / 1024 / 1024).toFixed(1)}MB → 目標 ${(minBytes / 1024 / 1024).toFixed(1)}MB に圧縮`);
+
+  try {
+    const compressed = await runOffscreenCompress({
+      videoData: video.data,
+      mimeType: video.type,
+      durationS: video.durationS ?? 0,
+      targetBytes: minBytes,
+    });
+    log.info(`P16: 圧縮完了 ${(compressed.outputBytes / 1024 / 1024).toFixed(1)}MB`);
+    const newImages = images.slice();
+    newImages[videoIdx] = {
+      ...video,
+      type: 'video/mp4', // 出力は常に mp4
+      data: compressed.videoData,
+      // name 維持。durationS は変わらない
+    };
+    return newImages;
+  } catch (err) {
+    log.warn(`P16: 圧縮失敗、元動画でそのまま投稿試行: ${err instanceof Error ? err.message : String(err)}`);
+    return images;
+  }
+}
+
+// chrome.offscreen は webextension-polyfill (= browser) 経由でブリッジされない
+// MV3 Chrome 専用 API。global chrome を直接使う。型は緩めに自分で書く。
+interface OffscreenApi {
+  createDocument(opts: { url: string; reasons: string[]; justification: string }): Promise<void>;
+  hasDocument?: () => Promise<boolean>;
+}
+const offscreenApi: OffscreenApi | undefined = (
+  globalThis as unknown as { chrome?: { offscreen?: OffscreenApi } }
+).chrome?.offscreen;
+
+let offscreenReady: Promise<void> | null = null;
+async function ensureOffscreen(): Promise<void> {
+  if (offscreenReady) return offscreenReady;
+  if (!offscreenApi) throw new Error('chrome.offscreen API が利用できません');
+  offscreenReady = (async () => {
+    const exists = offscreenApi.hasDocument ? await offscreenApi.hasDocument() : false;
+    if (exists) return;
+    await offscreenApi.createDocument({
+      url: 'offscreen.html',
+      reasons: ['WORKERS'],
+      justification: 'ffmpeg.wasm video transcoding for size compression',
+    });
+  })();
+  try {
+    await offscreenReady;
+  } catch (e) {
+    offscreenReady = null;
+    throw e;
+  }
+}
+
+async function runOffscreenCompress(req: {
+  videoData: string;
+  mimeType: string;
+  durationS: number;
+  targetBytes: number;
+}): Promise<{ videoData: string; outputBytes: number }> {
+  await ensureOffscreen();
+  const res = (await browser.runtime.sendMessage({
+    type: 'CONVERT_VIDEO',
+    videoData: req.videoData,
+    mimeType: req.mimeType,
+    durationS: req.durationS,
+    targetBytes: req.targetBytes,
+  })) as { type: string; videoData?: string; outputBytes?: number; error?: string } | undefined;
+  if (!res || res.type === 'CONVERSION_ERROR' || !res.videoData) {
+    throw new Error(res?.error ?? '変換が応答しません');
+  }
+  return { videoData: res.videoData, outputBytes: res.outputBytes ?? base64ByteLength(res.videoData) };
 }
 
 async function postToPlatform(
