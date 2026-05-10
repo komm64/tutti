@@ -110,22 +110,40 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
     return null;
   };
 
+  // ボタンの「存在 + enabled」を **両方満たす** まで loop で待つ。
+  // 旧コードは存在だけ確認 → 即 disabled チェック → throw だったので、
+  // メディアアップロード処理中 (例: Bluesky CDN への 50MB+ 動画 upload) で
+  // 数秒待てば enabled になるケースまで弾いていた。
+  // 動画ありの場合は upload 完了に時間が掛かるので timeout を多めに延長
+  // (caller が postButtonTimeoutMs に明示値を渡していなければ default 8s、
+  //  動画 attachment があれば 120s に bump)。
+  const isDisabled = (b: HTMLElement) =>
+    b.getAttribute('aria-disabled') === 'true' || (b as HTMLButtonElement).disabled;
+  const hasVideo = (images ?? []).some((m) => m.type.startsWith('video/'));
+  const effectiveTimeoutMs = postButtonTimeoutMs >= 30000
+    ? postButtonTimeoutMs
+    : (hasVideo ? Math.max(postButtonTimeoutMs, 120000) : postButtonTimeoutMs);
+
   let button: HTMLElement | null = null;
+  let lastFound: HTMLElement | null = null;
   const findStart = Date.now();
-  while (Date.now() - findStart < postButtonTimeoutMs) {
-    button = findButton();
-    if (button) break;
-    await sleep(200);
+  while (Date.now() - findStart < effectiveTimeoutMs) {
+    const candidate = findButton();
+    if (candidate) {
+      lastFound = candidate;
+      if (!isDisabled(candidate)) {
+        button = candidate;
+        break;
+      }
+    }
+    await sleep(300);
   }
   if (!button) {
-    throw new Error(
-      '投稿ボタンが見つかりませんでした。SNS の UI が更新された可能性があります(Tutti の更新が必要)',
-    );
-  }
-  if (
-    button.getAttribute('aria-disabled') === 'true' ||
-    (button as HTMLButtonElement).disabled
-  ) {
+    if (!lastFound) {
+      throw new Error(
+        '投稿ボタンが見つかりませんでした。SNS の UI が更新された可能性があります(Tutti の更新が必要)',
+      );
+    }
     throw new Error(
       'まだ投稿できる状態になっていません(文字数オーバー / メディア処理中 / 未ログインの可能性)',
     );
