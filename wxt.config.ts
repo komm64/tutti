@@ -48,7 +48,12 @@ export default defineConfig({
     // には不要だが、Worker context によっては別 origin 扱いされるケース対策)
     web_accessible_resources: [
       {
-        resources: ['ffmpeg/ffmpeg-core.js', 'ffmpeg/ffmpeg-core.wasm', 'assets/*'],
+        resources: [
+          'ffmpeg/ffmpeg-core.js',
+          'ffmpeg/ffmpeg-core.wasm',
+          'ffmpeg/ffmpeg-core.worker.js', // P19: core-mt の pthread worker
+          'assets/*',
+        ],
         matches: ['<all_urls>'],
       },
     ],

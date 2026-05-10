@@ -56,10 +56,12 @@ async function getFfmpeg(): Promise<FFmpeg> {
     const getUrl = browser.runtime.getURL as (p: string) => string;
     const coreURL = getUrl('/ffmpeg/ffmpeg-core.js');
     const wasmURL = getUrl('/ffmpeg/ffmpeg-core.wasm');
-    log.info(`offscreen: ffmpeg load coreURL=${coreURL}`);
+    // P19: core-mt は pthread worker URL を別途渡すと libx264 を並列化
+    const workerURL = getUrl('/ffmpeg/ffmpeg-core.worker.js');
+    log.info(`offscreen: ffmpeg load (core-mt) coreURL=${coreURL}, SAB=${typeof SharedArrayBuffer !== 'undefined'}, COI=${(globalThis as { crossOriginIsolated?: boolean }).crossOriginIsolated}`);
     try {
-      await ff.load({ coreURL, wasmURL });
-      log.info('offscreen: ffmpeg.load 成功');
+      await ff.load({ coreURL, wasmURL, workerURL });
+      log.info('offscreen: ffmpeg.load (core-mt) 成功');
     } catch (e) {
       const msg = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
       log.error(`offscreen: ffmpeg.load 失敗 — ${msg}`);
@@ -96,15 +98,18 @@ async function compressVideo(msg: ConvertVideoMessage): Promise<{ outputRef: str
 
   const videoKbps = computeVideoKbps(msg.targetBytes, msg.durationS);
 
-  // ffmpeg コマンド (wasm 単スレッドで実用化のため速度優先):
-  // -preset ultrafast: H.264 最速 preset (veryfast より 1.5-2x 速い、quality 多少落ちるが SNS 用途で十分)
-  // -tune fastdecode: SNS の Web 再生でデコードが速い
-  // -vf scale='min(1280,iw)': 1080p 入力を 720p までダウンスケール。pixel 数 1/2.25 で encode 時間も同等比削減
+  // ffmpeg コマンド (P19: core-mt + 全コア並列で速度最大化):
+  // -threads 0: ffmpeg / libx264 が hardwareConcurrency を取って全コア並列化
+  // -preset ultrafast: H.264 最速 preset
+  // -tune fastdecode: Web 再生時のデコード負荷も軽減
+  // -vf scale='min(1280,iw)': 1080p+ 入力を 720p まで縮小 (pixel 数 1/2.25)
   // -profile:v main + -pix_fmt yuv420p: 全 SNS 互換性確保
   // -movflags +faststart: moov atom を先頭にして Web 即再生
   await ff.exec([
+    '-threads', '0',
     '-i', inputName,
     '-c:v', 'libx264',
+    '-threads', '0',
     '-preset', 'ultrafast',
     '-tune', 'fastdecode',
     '-profile:v', 'main',
