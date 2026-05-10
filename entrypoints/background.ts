@@ -121,6 +121,14 @@ export default defineBackground(() => {
       void (async () => {
         try {
           const bytes = await getBinary(msg.dataRef);
+          if (bytes.length === 0) {
+            // 0-byte が IDB に書き込まれてた = どこかで silent failure。
+            // content script の materialize で「missing data」assert に
+            // つながる前にここで explicit error を返して原因切り分け可能にする。
+            log.warn(`GET_BINARY_CHUNK: dataRef=${msg.dataRef} は 0-byte (書き込み失敗の疑い)`);
+            sendResponse({ error: `IDB に 0-byte の binary (dataRef=${msg.dataRef})` });
+            return;
+          }
           const start = Math.max(0, msg.offset);
           const end = Math.min(start + msg.length, bytes.length);
           const slice = bytes.subarray(start, end);
@@ -130,7 +138,9 @@ export default defineBackground(() => {
           const { arrayBufferToBase64 } = await import('../src/utils/base64');
           sendResponse({ chunk: arrayBufferToBase64(buf), totalSize: bytes.length, end });
         } catch (e) {
-          sendResponse({ error: e instanceof Error ? e.message : String(e) });
+          const errMsg = e instanceof Error ? e.message : String(e);
+          log.error(`GET_BINARY_CHUNK 失敗: dataRef=${msg.dataRef} — ${errMsg}`);
+          sendResponse({ error: errMsg });
         }
       })();
       return true;

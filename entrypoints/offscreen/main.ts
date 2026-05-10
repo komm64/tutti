@@ -125,6 +125,13 @@ async function compressVideo(msg: ConvertVideoMessage): Promise<{ outputRef: str
   ]);
 
   const out = (await ff.readFile(outputName)) as Uint8Array;
+  log.info(`offscreen: ffmpeg.exec 完了 outputBytes=${out.byteLength} (kbps target=${videoKbps})`);
+  if (out.byteLength === 0) {
+    // 0-byte 出力は ffmpeg の引数不整合か入力 codec 非対応の silent failure。
+    // putBinary すると content script 側で「missing data」assert が発火するので、
+    // ここで明確に失敗させて popup にエラーを返す。
+    throw new Error('ffmpeg が 0-byte 出力 (引数不整合か入力 codec 非対応)');
+  }
   // ArrayBuffer は SharedArrayBuffer の場合があるので新規 ArrayBuffer に copy
   const buffer = new ArrayBuffer(out.byteLength);
   new Uint8Array(buffer).set(out);

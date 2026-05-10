@@ -78,8 +78,12 @@ export async function injectImages(
   const result = await sendInjectRequest({
     mode: 'input',
     selector: fileInputSelector,
-    files: images.map((img) => {
-      if (!img.data) throw new Error('image attachment missing data (binary-transfer materialize 漏れ)');
+    files: images.map((img, i) => {
+      if (!img.data) {
+        throw new Error(
+          `image attachment[${i}] missing data (materialize 漏れ): name=${img.name} type=${img.type} dataRef=${img.dataRef ? 'set' : 'unset'} bytes=${img.bytes ?? '?'} dataLen=${img.data === undefined ? 'undefined' : img.data.length}`,
+        );
+      }
       return { name: img.name, type: img.type, data: img.data };
     }),
   });
@@ -158,8 +162,12 @@ export async function dropImages(
   const result = await sendInjectRequest({
     mode: 'drop',
     selector: dropTargetSelector,
-    files: images.map((img) => {
-      if (!img.data) throw new Error('image attachment missing data (binary-transfer materialize 漏れ)');
+    files: images.map((img, i) => {
+      if (!img.data) {
+        throw new Error(
+          `image attachment[${i}] missing data (materialize 漏れ): name=${img.name} type=${img.type} dataRef=${img.dataRef ? 'set' : 'unset'} bytes=${img.bytes ?? '?'} dataLen=${img.data === undefined ? 'undefined' : img.data.length}`,
+        );
+      }
       return { name: img.name, type: img.type, data: img.data };
     }),
   });

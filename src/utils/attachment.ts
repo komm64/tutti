@@ -100,6 +100,11 @@ export async function resolveAttachmentToBase64ViaMessage(
     combined.set(p, pos);
     pos += p.length;
   }
+  if (combined.length === 0) {
+    throw new Error(
+      `binary-transfer materialize: 0-byte 取得 (dataRef=${att.dataRef}、IDB に空の binary が書き込まれてる疑い)`,
+    );
+  }
   return {
     name: att.name,
     type: att.type,
