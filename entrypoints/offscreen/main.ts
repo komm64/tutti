@@ -56,12 +56,10 @@ async function getFfmpeg(): Promise<FFmpeg> {
     const getUrl = browser.runtime.getURL as (p: string) => string;
     const coreURL = getUrl('/ffmpeg/ffmpeg-core.js');
     const wasmURL = getUrl('/ffmpeg/ffmpeg-core.wasm');
-    // P19: core-mt は pthread worker URL を別途渡すと libx264 を並列化
-    const workerURL = getUrl('/ffmpeg/ffmpeg-core.worker.js');
-    log.info(`offscreen: ffmpeg load (core-mt) coreURL=${coreURL}, SAB=${typeof SharedArrayBuffer !== 'undefined'}, COI=${(globalThis as { crossOriginIsolated?: boolean }).crossOriginIsolated}`);
+    log.info(`offscreen: ffmpeg load (single-thread) coreURL=${coreURL}, SAB=${typeof SharedArrayBuffer !== 'undefined'}, COI=${(globalThis as { crossOriginIsolated?: boolean }).crossOriginIsolated}`);
     try {
-      await ff.load({ coreURL, wasmURL, workerURL });
-      log.info('offscreen: ffmpeg.load (core-mt) 成功');
+      await ff.load({ coreURL, wasmURL });
+      log.info('offscreen: ffmpeg.load (single-thread) 成功');
     } catch (e) {
       const msg = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
       log.error(`offscreen: ffmpeg.load 失敗 — ${msg}`);

@@ -51,7 +51,6 @@ export default defineConfig({
         resources: [
           'ffmpeg/ffmpeg-core.js',
           'ffmpeg/ffmpeg-core.wasm',
-          'ffmpeg/ffmpeg-core.worker.js', // P19: core-mt の pthread worker
           'assets/*',
         ],
         matches: ['<all_urls>'],

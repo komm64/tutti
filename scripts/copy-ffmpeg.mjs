@@ -12,12 +12,14 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, '..');
-// **multi-thread (core-mt) ESM build を使う**。
-// - core-mt: SharedArrayBuffer + pthread worker で libx264 を並列化、2-4x 高速
-// - ESM build: @ffmpeg/ffmpeg 0.12+ の Worker は type: "module" なので
-//   await import(coreURL) で取得可能な ESM 形式が必須 (UMD は default export なし)
-// - MV3 offscreen は crossOriginIsolated 既定 true なので SAB 利用可
-const src = resolve(root, 'node_modules/@ffmpeg/core-mt/dist/esm');
+// **single-thread @ffmpeg/core ESM build を使う**。
+// 旧 v0.4.44 で core-mt (multi-thread) を試したが「圧縮ツール読み込み中」で
+// hang する報告。MV3 offscreen が SharedArrayBuffer を許可するには COOP/COEP
+// ヘッダで cross-origin-isolated にする必要があり、これは extension 内の
+// 静的ファイルでは declarativeNetRequest 等で別途仕込む必要があって複雑。
+// 安定動作を優先して single-thread に戻す。性能差は ultrafast + 720p downscale
+// で多くカバー済 (vs 旧 default の 6-12x 高速)
+const src = resolve(root, 'node_modules/@ffmpeg/core/dist/esm');
 const dst = resolve(root, 'public/ffmpeg');
 
 if (!existsSync(src)) {
@@ -28,8 +30,8 @@ if (!existsSync(src)) {
 
 mkdirSync(dst, { recursive: true });
 
-// core-mt は 3 ファイル: js (loader) + wasm (本体) + worker.js (pthread worker)
-for (const file of ['ffmpeg-core.js', 'ffmpeg-core.wasm', 'ffmpeg-core.worker.js']) {
+// single-thread は 2 ファイル: loader js + wasm
+for (const file of ['ffmpeg-core.js', 'ffmpeg-core.wasm']) {
   const from = resolve(src, file);
   const to = resolve(dst, file);
   copyFileSync(from, to);
