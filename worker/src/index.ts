@@ -38,6 +38,13 @@ interface Env {
   /** Cloudflare KV namespace (オプション、なければ rate limit はスキップ) */
   RATE_LIMIT?: KVNamespace;
   /**
+   * "1" / "true" にすると連打防止 + 日次上限の両方を完全 skip。
+   * 個人 dev で issue 連投したいときに `wrangler secret put DISABLE_RATE_LIMIT`
+   * で ON、不要になったら `wrangler secret delete DISABLE_RATE_LIMIT` で OFF。
+   * 公開後は絶対に外しておくこと (= secret 削除 = 元の rate limit 動作に戻る)。
+   */
+  DISABLE_RATE_LIMIT?: string;
+  /**
    * 受け入れる Origin のホワイトリスト(カンマ区切り)。未設定だと
    * `chrome-extension://dophemlpjldcejjdjefpjbgngodopkfe` だけ許可。
    * 拡張 ID が変わったとき(Edge / Firefox 用に publish した場合等)、wrangler
@@ -116,7 +123,8 @@ export default {
     const ip = req.headers.get('CF-Connecting-IP') ?? 'anonymous';
     const limitSec = Number(env.RATE_LIMIT_SECONDS ?? '6');
     const dailyLimit = Number(env.DAILY_LIMIT ?? '5');
-    if (env.RATE_LIMIT) {
+    const rateLimitDisabled = env.DISABLE_RATE_LIMIT === '1' || env.DISABLE_RATE_LIMIT === 'true';
+    if (env.RATE_LIMIT && !rateLimitDisabled) {
       const lastTs = await env.RATE_LIMIT.get(`ip:${ip}`);
       if (lastTs && Date.now() - Number(lastTs) < limitSec * 1000) {
         return jsonResponse({ error: 'rate limited, try again later' }, 429, corsHeaders);
