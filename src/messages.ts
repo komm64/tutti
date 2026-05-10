@@ -180,6 +180,14 @@ export interface LogClearMessage {
   type: 'LOG_CLEAR';
 }
 
+/**
+ * popup → background: 圧縮 / 投稿の進行状態を問い合わせ。popup を閉じて
+ * 再 open した時に、進行中の作業の UI を復活させるために使う。
+ */
+export interface GetBgStateMessage {
+  type: 'GET_BG_STATE';
+}
+
 export type Message =
   | PostRequestMessage
   | PostToPlatformMessage
@@ -195,4 +203,5 @@ export type Message =
   | DiagnosePlatformResult
   | LogAppendMessage
   | LogExportRequestMessage
+  | GetBgStateMessage
   | LogClearMessage;

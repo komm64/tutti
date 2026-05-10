@@ -434,6 +434,24 @@
   let compressionStartedAt = $state<number | null>(null);
   let compressionEtaS = $state<number | null>(null);
 
+  // P19: popup 閉じ→再 open 時、background が保持してる進行状態を復元する。
+  // 進行中なら progress UI を再表示。完了なら history が更新される (既存 flow)。
+  $effect(() => {
+    void browser.runtime.sendMessage({ type: 'GET_BG_STATE' }).then((res: unknown) => {
+      const r = res as { compression?: { stage: 'load' | 'transcode'; progress: number } | null; posting?: boolean } | undefined;
+      if (r?.posting) {
+        posting = true;
+        if (r.compression) {
+          compressionProgress = r.compression;
+          if (r.compression.stage === 'transcode' && r.compression.progress > 0.05) {
+            // ETA は復元時に再計算 (started_at は再 open 時刻に近似、進捗は減衰させる)
+            compressionStartedAt = Date.now();
+          }
+        }
+      }
+    }).catch(() => { /* background sleep してたら null 戻り、無視 */ });
+  });
+
   // background からの進捗ストリームを受信
   $effect(() => {
     const listener = (rawMsg: unknown) => {

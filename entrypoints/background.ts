@@ -47,6 +47,12 @@ const LOG_BUFFER_MAX = 1000;
 let logBuffer: LogEntry[] = [];
 let logPersistTimer: ReturnType<typeof setTimeout> | undefined;
 
+// P19: popup 閉じ→再開時に進捗 UI を復活させるための memo。
+// service worker が sleep するとリセットされるが、active な圧縮中は in-flight
+// promise が SW を起こし続けるので問題なし。
+let compressionStateInMemory: { progress: number; stage: 'load' | 'transcode' } | null = null;
+let postingInMemory: boolean = false;
+
 async function loadLogBuffer(): Promise<void> {
   try {
     const stored = await browser.storage.local.get(LOG_BUFFER_KEY);
@@ -94,6 +100,20 @@ export default defineBackground(() => {
     if (msg.type === 'CURRENT_USER') {
       void setLastSeenUser(msg.platform, msg.username);
       return; // fire-and-forget
+    }
+
+    // P19: 進捗 UI を popup 閉じ→再開でも復活させるため、background で進捗状態を覚える
+    if (msg.type === 'CONVERSION_PROGRESS') {
+      compressionStateInMemory = { progress: msg.progress, stage: msg.stage ?? 'transcode' };
+      return; // popup 側でも listen してるので fire-and-forget
+    }
+    if (msg.type === 'CONVERSION_COMPLETE' || msg.type === 'CONVERSION_ERROR') {
+      compressionStateInMemory = null;
+      return; // 同上
+    }
+    if (msg.type === 'GET_BG_STATE') {
+      sendResponse({ compression: compressionStateInMemory, posting: postingInMemory });
+      return true;
     }
 
     if (msg.type === 'LOG_APPEND') {
@@ -226,6 +246,8 @@ async function handlePostRequest(
   platforms: PlatformId[],
   images?: ImageAttachment[],
 ): Promise<PostResultMessage[]> {
+  postingInMemory = true;
+  try {
   // P16: 動画があり、いずれかの選択中 SNS の maxBytes を超える場合は事前に圧縮
   const adjustedImages = await maybeCompressVideoForBudget(platforms, images);
 
@@ -248,6 +270,10 @@ async function handlePostRequest(
   void releaseAttachmentTransfers(adjustedImages);
   if (adjustedImages !== images) void releaseAttachmentTransfers(images);
   return results;
+  } finally {
+    postingInMemory = false;
+    compressionStateInMemory = null;
+  }
 }
 
 /**

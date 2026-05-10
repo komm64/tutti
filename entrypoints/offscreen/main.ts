@@ -96,23 +96,21 @@ async function compressVideo(msg: ConvertVideoMessage): Promise<{ outputRef: str
 
   const videoKbps = computeVideoKbps(msg.targetBytes, msg.durationS);
 
-  // ffmpeg コマンド (P19: core-mt + 全コア並列で速度最大化):
-  // -threads 0: ffmpeg / libx264 が hardwareConcurrency を取って全コア並列化
+  // ffmpeg コマンド (single-thread でも実用速度を出す追加 tweak):
   // -preset ultrafast: H.264 最速 preset
-  // -tune fastdecode: Web 再生時のデコード負荷も軽減
-  // -vf scale='min(1280,iw)': 1080p+ 入力を 720p まで縮小 (pixel 数 1/2.25)
+  // -tune zerolatency,fastdecode: lookahead 無効 + デコード軽量化
+  // -vf scale + fps=30: 1080p → 720p、60fps → 30fps (フレーム数 1/2 = encode 時間 1/2)
+  // -g 240: GOP 長く (I-frame 削減)。SNS 用途で seek 性能落としても問題ない
   // -profile:v main + -pix_fmt yuv420p: 全 SNS 互換性確保
-  // -movflags +faststart: moov atom を先頭にして Web 即再生
   await ff.exec([
-    '-threads', '0',
     '-i', inputName,
     '-c:v', 'libx264',
-    '-threads', '0',
     '-preset', 'ultrafast',
-    '-tune', 'fastdecode',
+    '-tune', 'zerolatency,fastdecode',
     '-profile:v', 'main',
     '-pix_fmt', 'yuv420p',
-    '-vf', "scale='min(1280,iw)':-2:force_original_aspect_ratio=decrease",
+    '-vf', "scale='min(1280,iw)':-2:force_original_aspect_ratio=decrease,fps=30",
+    '-g', '240',
     '-b:v', `${videoKbps}k`,
     '-maxrate', `${Math.floor(videoKbps * 1.2)}k`,
     '-bufsize', `${videoKbps * 2}k`,
