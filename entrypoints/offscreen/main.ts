@@ -96,16 +96,23 @@ async function compressVideo(msg: ConvertVideoMessage): Promise<{ outputRef: str
 
   const videoKbps = computeVideoKbps(msg.targetBytes, msg.durationS);
 
-  // ffmpeg コマンド: 元解像度を保ったまま h.264 + aac で再エンコード
-  // -movflags +faststart で moov atom を先頭にする (Web 再生で先頭読みが効く)
-  // -preset veryfast: wasm 環境では fast 系でないと現実的でない (default は medium)
+  // ffmpeg コマンド (wasm 単スレッドで実用化のため速度優先):
+  // -preset ultrafast: H.264 最速 preset (veryfast より 1.5-2x 速い、quality 多少落ちるが SNS 用途で十分)
+  // -tune fastdecode: SNS の Web 再生でデコードが速い
+  // -vf scale='min(1280,iw)': 1080p 入力を 720p までダウンスケール。pixel 数 1/2.25 で encode 時間も同等比削減
+  // -profile:v main + -pix_fmt yuv420p: 全 SNS 互換性確保
+  // -movflags +faststart: moov atom を先頭にして Web 即再生
   await ff.exec([
     '-i', inputName,
     '-c:v', 'libx264',
+    '-preset', 'ultrafast',
+    '-tune', 'fastdecode',
+    '-profile:v', 'main',
+    '-pix_fmt', 'yuv420p',
+    '-vf', "scale='min(1280,iw)':-2:force_original_aspect_ratio=decrease",
     '-b:v', `${videoKbps}k`,
     '-maxrate', `${Math.floor(videoKbps * 1.2)}k`,
     '-bufsize', `${videoKbps * 2}k`,
-    '-preset', 'veryfast',
     '-c:a', 'aac',
     '-b:a', `${AUDIO_KBPS}k`,
     '-movflags', '+faststart',

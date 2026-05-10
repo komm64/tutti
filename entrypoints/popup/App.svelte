@@ -430,6 +430,9 @@
 
   // P16: 動画圧縮の進捗 (offscreen から broadcast)
   let compressionProgress = $state<{ stage: 'load' | 'transcode'; progress: number } | null>(null);
+  // ETA 計算: 圧縮開始 timestamp と最後に観測した progress から残り時間を推定
+  let compressionStartedAt = $state<number | null>(null);
+  let compressionEtaS = $state<number | null>(null);
 
   // background からの進捗ストリームを受信
   $effect(() => {
@@ -447,10 +450,24 @@
       }
       if (msg.type === 'CONVERSION_PROGRESS') {
         compressionProgress = { stage: msg.stage ?? 'transcode', progress: msg.progress };
+        // ETA 計算 (transcode stage 中に ~5% 以上進んでいれば推定可能)
+        if (msg.stage === 'transcode' && msg.progress > 0.05) {
+          if (compressionStartedAt === null) compressionStartedAt = Date.now();
+          const elapsed = (Date.now() - compressionStartedAt) / 1000;
+          const total = elapsed / msg.progress;
+          compressionEtaS = Math.max(0, Math.round(total - elapsed));
+        } else if (msg.stage === 'transcode' && compressionStartedAt === null) {
+          compressionStartedAt = Date.now();
+          compressionEtaS = null;
+        } else {
+          compressionEtaS = null;
+        }
         return;
       }
       if (msg.type === 'CONVERSION_COMPLETE' || msg.type === 'CONVERSION_ERROR') {
         compressionProgress = null;
+        compressionStartedAt = null;
+        compressionEtaS = null;
         return;
       }
     };
@@ -1018,7 +1035,14 @@
         ></div>
       </div>
       <span class="text-amber-700 shrink-0">
-        {compressionProgress.stage === 'load' ? '圧縮ツール読み込み中…' : `動画を圧縮中… ${Math.round(compressionProgress.progress * 100)}%`}
+        {#if compressionProgress.stage === 'load'}
+          圧縮ツール読み込み中…
+        {:else}
+          動画を圧縮中… {Math.round(compressionProgress.progress * 100)}%
+          {#if compressionEtaS !== null && compressionEtaS > 0}
+            <span class="text-amber-600">(残り{compressionEtaS >= 60 ? `約${Math.ceil(compressionEtaS / 60)}分` : `${compressionEtaS}秒`})</span>
+          {/if}
+        {/if}
       </span>
     </div>
   {/if}
