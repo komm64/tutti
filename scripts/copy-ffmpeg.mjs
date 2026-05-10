@@ -12,7 +12,11 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, '..');
-const src = resolve(root, 'node_modules/@ffmpeg/core/dist/umd');
+// ESM build を使う。@ffmpeg/ffmpeg 0.12+ の Worker は `type: "module"` で生成され、
+// その中で classic `importScripts` は使えず必ず `await import(coreURL)` 経由になる。
+// import 経由で取れるのは ESM build (`export default createFFmpegCore`) のみ。
+// 旧 UMD コピーだと "failed to import ffmpeg-core.js" になる (komm64/tutti-issues#3)
+const src = resolve(root, 'node_modules/@ffmpeg/core/dist/esm');
 const dst = resolve(root, 'public/ffmpeg');
 
 if (!existsSync(src)) {

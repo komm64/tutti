@@ -36,7 +36,9 @@ export default defineConfig({
     // P16: ffmpeg.wasm の WebAssembly.compile に wasm-unsafe-eval が必要
     // (MV3 default CSP は wasm-unsafe-eval を許可しないため明示)
     content_security_policy: {
-      extension_pages: "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'",
+      // wasm-unsafe-eval: ffmpeg.wasm の WebAssembly.compile に必須
+      // worker-src 'self' blob:: ffmpeg.wasm が blob URL Worker を作る場合の保険
+      extension_pages: "script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; object-src 'self'",
     },
     // P16: ffmpeg-core 内部 Worker が postMessage で /ffmpeg/*.wasm を fetch するため
     // 一応 web_accessible_resources にも入れておく (offscreen origin からの直接 access
