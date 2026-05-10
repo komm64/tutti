@@ -98,22 +98,21 @@ async function compressVideo(msg: ConvertVideoMessage): Promise<{ outputRef: str
 
   // ffmpeg コマンド (single-thread でも実用速度を目指す):
   // -preset ultrafast: H.264 最速 preset (x264 の中で最速)
-  // -tune zerolatency,fastdecode: lookahead 無効 + デコード軽量化
-  // -vf scale='min(854,iw)': 元の解像度の min(854px,元) に幅 cap = 480p (854x480)
-  //   720p (1280) からさらに縮小して **pixel 数 ~1/2 で encode 時間ほぼ半減**。
-  //   SNS 用途は 480p で実用上問題なし (各 SNS が結局再エンコードする)
+  // -tune zerolatency: lookahead 無効 (ffmpeg.wasm の x264 build はカンマ区切り
+  //   tune `zerolatency,fastdecode` を silent fail で 0-byte 出力にしてた、v0.4.52)
+  // -vf scale='min(854,iw)': 元の解像度の min(854px,元) に幅 cap = 480p
   // -fps=30: 60fps 入力なら半減
   // -g 240: GOP 長く (I-frame 削減)。SNS で seek 性能下がっても影響少
-  // -profile:v baseline: ultrafast は B-frame なしなので main → baseline に降格 OK、
-  //   復号負荷も少し下がる
+  // -profile:v は指定しない: ultrafast は内部で baseline 相当 + B-frame なしを既に強制
+  //   してるので、追加で `-profile:v baseline` を付けると ffmpeg.wasm 環境で
+  //   引数チェックに引っかかって silent fail してた (v0.4.50 で発覚)
   await ff.exec([
     '-i', inputName,
     '-c:v', 'libx264',
     '-preset', 'ultrafast',
-    '-tune', 'zerolatency,fastdecode',
-    '-profile:v', 'baseline',
+    '-tune', 'zerolatency',
     '-pix_fmt', 'yuv420p',
-    '-vf', "scale='min(854,iw)':-2:force_original_aspect_ratio=decrease,fps=30",
+    '-vf', "scale='min(854,iw)':-2,fps=30",
     '-g', '240',
     '-b:v', `${videoKbps}k`,
     '-maxrate', `${Math.floor(videoKbps * 1.1)}k`,
