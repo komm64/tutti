@@ -116,6 +116,26 @@ export default defineBackground(() => {
       return true;
     }
 
+    // P19: content script からの chunked binary 取得 (tabs.sendMessage 64MB cap 回避)
+    if (msg.type === 'GET_BINARY_CHUNK') {
+      void (async () => {
+        try {
+          const bytes = await getBinary(msg.dataRef);
+          const start = Math.max(0, msg.offset);
+          const end = Math.min(start + msg.length, bytes.length);
+          const slice = bytes.subarray(start, end);
+          // SAB 由来の場合があるので clean ArrayBuffer に copy
+          const buf = new ArrayBuffer(slice.byteLength);
+          new Uint8Array(buf).set(slice);
+          const { arrayBufferToBase64 } = await import('../src/utils/base64');
+          sendResponse({ chunk: arrayBufferToBase64(buf), totalSize: bytes.length, end });
+        } catch (e) {
+          sendResponse({ error: e instanceof Error ? e.message : String(e) });
+        }
+      })();
+      return true;
+    }
+
     if (msg.type === 'LOG_APPEND') {
       appendLog(msg.entry);
       return; // fire-and-forget
@@ -546,14 +566,14 @@ async function postSingleChunk(
   text: string,
   rawImages?: ImageAttachment[],
 ): Promise<void> {
-  // content script (web page origin) は extension IndexedDB を読めないので、
-  // ここで dataRef → base64 に materialize してから tab.sendMessage で渡す。
-  // 圧縮後の動画は通常 50MB 以下 (= base64 67MB) で 64MB cap ギリギリ。
-  // それを超える場合は適切な adapter constraint で前段で reject されてるはず。
-  let images: ImageAttachment[] | undefined;
-  if (rawImages && rawImages.length > 0) {
-    images = await Promise.all(rawImages.map((m) => resolveAttachmentToBase64(m)));
-  }
+  // content script は extension IndexedDB を直接読めないので、binary は
+  // background→content の tab.sendMessage で chunked 配信する形に変更
+  // (旧コードは ここで全 base64 化して 64MB cap で死んでいた、tutti-issues#4)。
+  // dataRef を持ったまま content script に渡し、content 側が GET_BINARY_CHUNK
+  // で 30MB 単位で取得して assemble する。
+  // API path (autoPost=true && creds) は dataRef でも data でも resolve できる
+  // のでそちらは特別扱い不要。
+  const images = rawImages;
   const { autoPost } = await getSettings();
 
   // ── API path (P15) ─────────────────────────────────────────────

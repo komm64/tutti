@@ -188,6 +188,18 @@ export interface GetBgStateMessage {
   type: 'GET_BG_STATE';
 }
 
+/**
+ * content script → background: 大きな binary を chunked で取得する。
+ * tabs.sendMessage の 64MB cap を回避するため、media を base64 で全送りせず
+ * dataRef を渡しておいて content script 側でこの message を loop 呼び出し。
+ */
+export interface GetBinaryChunkMessage {
+  type: 'GET_BINARY_CHUNK';
+  dataRef: string;
+  offset: number;
+  length: number;
+}
+
 export type Message =
   | PostRequestMessage
   | PostToPlatformMessage
@@ -204,4 +216,5 @@ export type Message =
   | LogAppendMessage
   | LogExportRequestMessage
   | GetBgStateMessage
+  | GetBinaryChunkMessage
   | LogClearMessage;

@@ -44,7 +44,7 @@ export async function packAttachmentForTransfer(att: ImageAttachment): Promise<I
   };
 }
 
-/** content script 等 base64 を期待する側に渡す前に materialize */
+/** content script 等 base64 を期待する側に渡す前に materialize (extension 内 IndexedDB 直接アクセス) */
 export async function resolveAttachmentToBase64(att: ImageAttachment): Promise<ImageAttachment> {
   if (att.data) return att;
   if (!att.dataRef) throw new Error('attachment has no data and no dataRef');
@@ -58,6 +58,54 @@ export async function resolveAttachmentToBase64(att: ImageAttachment): Promise<I
     durationS: att.durationS,
     bytes: bytes.length,
     data: arrayBufferToBase64(buf),
+  };
+}
+
+/**
+ * Content script 用: extension IndexedDB に直接アクセスできない context から
+ * background に GET_BINARY_CHUNK を loop 投げて binary を assemble する。
+ *
+ * tabs.sendMessage の 64MB cap を回避する設計 (1 メッセージ ≤ 30MB binary =
+ * base64 ≤ 40MB に抑える)。複数 chunk なら 2-N メッセージで完結。
+ */
+export async function resolveAttachmentToBase64ViaMessage(
+  att: ImageAttachment,
+): Promise<ImageAttachment> {
+  if (att.data) return att;
+  if (!att.dataRef) throw new Error('attachment has no data and no dataRef');
+
+  const CHUNK = 30 * 1024 * 1024;
+  let offset = 0;
+  let totalSize = 0;
+  const parts: Uint8Array[] = [];
+  while (true) {
+    const res = (await browser.runtime.sendMessage({
+      type: 'GET_BINARY_CHUNK',
+      dataRef: att.dataRef,
+      offset,
+      length: CHUNK,
+    })) as { chunk?: string; totalSize?: number; end?: number; error?: string } | undefined;
+    if (!res || res.error || typeof res.chunk !== 'string') {
+      throw new Error(`GET_BINARY_CHUNK failed: ${res?.error ?? 'no response'}`);
+    }
+    const chunkBytes = base64ToUint8Array(res.chunk);
+    parts.push(chunkBytes);
+    totalSize = res.totalSize ?? 0;
+    offset = res.end ?? offset + chunkBytes.length;
+    if (offset >= totalSize) break;
+  }
+  const combined = new Uint8Array(totalSize);
+  let pos = 0;
+  for (const p of parts) {
+    combined.set(p, pos);
+    pos += p.length;
+  }
+  return {
+    name: att.name,
+    type: att.type,
+    durationS: att.durationS,
+    bytes: combined.length,
+    data: arrayBufferToBase64(combined.buffer as ArrayBuffer),
   };
 }
 

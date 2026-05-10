@@ -63,10 +63,17 @@ async function sendInjectRequest(req: Omit<InjectRequest, 'source' | 'id'>): Pro
  * ここでは戻り値を信用してそのまま続行できる(固定 sleep 不要)。
  */
 export async function injectImages(
-  images: ImageAttachment[],
+  rawImages: ImageAttachment[],
   fileInputSelector: string,
 ): Promise<void> {
   await waitForElement<HTMLInputElement>(fileInputSelector, 5000);
+
+  // 大きな media は dataRef 経由 (background→content の 64MB cap 回避)。
+  // ここで chunked sendMessage で base64 を組み立てる。
+  const { resolveAttachmentToBase64ViaMessage } = await import('./attachment');
+  const images = await Promise.all(
+    rawImages.map((m) => (m.data ? Promise.resolve(m) : resolveAttachmentToBase64ViaMessage(m))),
+  );
 
   const result = await sendInjectRequest({
     mode: 'input',
@@ -138,10 +145,15 @@ export async function injectTagList(
  * helper がアップロード完了まで待つので戻り値時点で確実にサーバ受領済み。
  */
 export async function dropImages(
-  images: ImageAttachment[],
+  rawImages: ImageAttachment[],
   dropTargetSelector: string,
 ): Promise<void> {
   await waitForElement<HTMLElement>(dropTargetSelector, 5000);
+
+  const { resolveAttachmentToBase64ViaMessage } = await import('./attachment');
+  const images = await Promise.all(
+    rawImages.map((m) => (m.data ? Promise.resolve(m) : resolveAttachmentToBase64ViaMessage(m))),
+  );
 
   const result = await sendInjectRequest({
     mode: 'drop',
