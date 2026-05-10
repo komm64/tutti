@@ -28,8 +28,8 @@ import { initLogLevelFromSettings, log } from '../../src/utils/logger';
 
 void initLogLevelFromSettings();
 
-const AUDIO_KBPS = 128;
-const SAFETY_MARGIN = 0.92; // ffmpeg は target bitrate より少しオーバーすることがあるので余裕を持たせる
+const AUDIO_KBPS = 96; // 128k → 96k に削減、AAC LC で SNS 用途は十分
+const SAFETY_MARGIN = 0.85; // ultrafast preset は target bitrate を 10-15% overshoot しがちなので margin 大きめ
 const MIN_VIDEO_KBPS = 200; // 200kbps を下回ると視認性が崩壊するので fallback
 
 let ffmpegPromise: Promise<FFmpeg> | null = null;
@@ -96,23 +96,27 @@ async function compressVideo(msg: ConvertVideoMessage): Promise<{ outputRef: str
 
   const videoKbps = computeVideoKbps(msg.targetBytes, msg.durationS);
 
-  // ffmpeg コマンド (single-thread でも実用速度を出す追加 tweak):
-  // -preset ultrafast: H.264 最速 preset
+  // ffmpeg コマンド (single-thread でも実用速度を目指す):
+  // -preset ultrafast: H.264 最速 preset (x264 の中で最速)
   // -tune zerolatency,fastdecode: lookahead 無効 + デコード軽量化
-  // -vf scale + fps=30: 1080p → 720p、60fps → 30fps (フレーム数 1/2 = encode 時間 1/2)
-  // -g 240: GOP 長く (I-frame 削減)。SNS 用途で seek 性能落としても問題ない
-  // -profile:v main + -pix_fmt yuv420p: 全 SNS 互換性確保
+  // -vf scale='min(854,iw)': 元の解像度の min(854px,元) に幅 cap = 480p (854x480)
+  //   720p (1280) からさらに縮小して **pixel 数 ~1/2 で encode 時間ほぼ半減**。
+  //   SNS 用途は 480p で実用上問題なし (各 SNS が結局再エンコードする)
+  // -fps=30: 60fps 入力なら半減
+  // -g 240: GOP 長く (I-frame 削減)。SNS で seek 性能下がっても影響少
+  // -profile:v baseline: ultrafast は B-frame なしなので main → baseline に降格 OK、
+  //   復号負荷も少し下がる
   await ff.exec([
     '-i', inputName,
     '-c:v', 'libx264',
     '-preset', 'ultrafast',
     '-tune', 'zerolatency,fastdecode',
-    '-profile:v', 'main',
+    '-profile:v', 'baseline',
     '-pix_fmt', 'yuv420p',
-    '-vf', "scale='min(1280,iw)':-2:force_original_aspect_ratio=decrease,fps=30",
+    '-vf', "scale='min(854,iw)':-2:force_original_aspect_ratio=decrease,fps=30",
     '-g', '240',
     '-b:v', `${videoKbps}k`,
-    '-maxrate', `${Math.floor(videoKbps * 1.2)}k`,
+    '-maxrate', `${Math.floor(videoKbps * 1.1)}k`,
     '-bufsize', `${videoKbps * 2}k`,
     '-c:a', 'aac',
     '-b:a', `${AUDIO_KBPS}k`,

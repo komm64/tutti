@@ -11,11 +11,12 @@ export const blueskyAdapter: PlatformAdapter = {
   prefillsViaUrl: true,
   videoConstraints: {
     maxDurationS: 60,
-    // 2026-05 時点で 100MB に緩和。ただしユーザーの認証状態 / アプリ毎の
-    // 残量クォータで変動するので、`src/api/limits-probe.ts` の
-    // `app.bsky.video.getUploadLimits` で実際の値を取りに行く (P17)。
-    // ここはあくまで最終 fallback
-    maxBytes: 100 * 1024 * 1024,
+    // Bluesky UI 上の「100MB」は SI MB (= 100,000,000 bytes) で、 100 * 1024 * 1024
+    // (= 104.86 MB SI) は超過する。さらに ffmpeg ultrafast preset は target bitrate
+    // を 10-20% overshoot しがち。これらマージンを取って **80 MiB** に設定。
+    // 80 MiB ≈ 83.9 MB SI で、20% overshoot しても 100 MB SI の Bluesky cap に
+    // 余裕で収まる。getUploadLimits API probe (P17) で実値が取れたらそちらを優先。
+    maxBytes: 80 * 1024 * 1024,
   },
   imageConstraints: {
     maxBytesPerImage: 1024 * 1024, // 1MB(Bluesky は厳しい)
