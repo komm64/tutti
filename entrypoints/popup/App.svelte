@@ -252,18 +252,22 @@
   async function handleReportError(errorText: string): Promise<void> {
     reportSubmitting = true;
     reportResult = null;
-    // dedup チェック: 同種エラーを 24h 以内に既に報告してたら送信スキップ
+    // dedup チェック: 同種エラーを 24h 以内に既に報告してたら送信スキップ。
+    // Settings で disableReportDedup=true なら skip (個人 dev で連投したいとき用)。
+    const settings = await getSettings();
     const hash = await hashReportKey(errorText);
-    const lastTs = await isRecentlyReported(hash);
-    if (lastTs !== null) {
-      const hours = Math.round((Date.now() - lastTs) / (60 * 60 * 1000));
-      reportResult = {
-        ok: false,
-        deduped: true,
-        error: `同じエラーは既に ${hours}h 前に報告済みです (24h cooldown)。`,
-      };
-      reportSubmitting = false;
-      return;
+    if (!settings.disableReportDedup) {
+      const lastTs = await isRecentlyReported(hash);
+      if (lastTs !== null) {
+        const hours = Math.round((Date.now() - lastTs) / (60 * 60 * 1000));
+        reportResult = {
+          ok: false,
+          deduped: true,
+          error: `同じエラーは既に ${hours}h 前に報告済みです (24h cooldown)。`,
+        };
+        reportSubmitting = false;
+        return;
+      }
     }
     const { title, body } = await buildReportPayload(errorText);
     try {
@@ -275,8 +279,9 @@
       const data = (await res.json().catch(() => ({}))) as { ok?: boolean; issueUrl?: string; error?: string };
       if (res.ok && data.ok) {
         reportResult = { ok: true, issueUrl: data.issueUrl };
-        // 成功時のみ dedup 記録 (失敗を再試行したいケースは妨げない)
-        void markReported(hash);
+        // 成功時のみ dedup 記録 (失敗を再試行したいケースは妨げない)。
+        // disableReportDedup=true なら記録もスキップ (storage clean を保つ)
+        if (!settings.disableReportDedup) void markReported(hash);
       } else {
         reportResult = { ok: false, error: data.error ?? `HTTP ${res.status}` };
       }

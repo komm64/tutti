@@ -28,6 +28,13 @@ export interface Settings {
    * level に関係なく ring buffer に貯めるので、後から絞ってダウンロードできる。
    */
   logLevel: LogLevel;
+  /**
+   * popup の「Report」 client-side dedup (24h cooldown) を無効化する。
+   * 個人 dev で同じエラーを連続報告したいとき用。default false (= dedup 有効、
+   * 一般ユーザーが同じ borked browser state で issue tracker を埋めるのを防ぐ)。
+   * options 画面の checkbox から切替、ON にすると既存の dedup 履歴も clear する。
+   */
+  disableReportDedup: boolean;
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -41,6 +48,7 @@ const DEFAULT_SETTINGS: Settings = {
   // この default を継続使用する想定。
   selectorOverrideUrl: 'https://komm64.github.io/tutti/selectors.json',
   logLevel: 'INFO',
+  disableReportDedup: false,
 };
 
 export async function getSettings(): Promise<Settings> {

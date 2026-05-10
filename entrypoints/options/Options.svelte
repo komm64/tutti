@@ -25,6 +25,7 @@
   let logLevel = $state<LogLevel>('INFO');
   let logCount = $state(0);
   let logStatus = $state<string | null>(null);
+  let disableReportDedup = $state(false);
   let saved = $state(false);
   let loading = $state(true);
 
@@ -53,6 +54,7 @@
       misskeyInstance = s.misskeyInstance;
       selectorOverrideUrl = s.selectorOverrideUrl;
       logLevel = s.logLevel;
+      disableReportDedup = s.disableReportDedup;
       overrideFetchedAt = at;
       overrideCount = Object.values(ov).reduce((sum, v) => sum + Object.keys(v ?? {}).length, 0);
       // API credentials のロード (パスワード / トークンは UI に出すと見えるので
@@ -229,7 +231,12 @@
       alert(t('alertPermissionDenied'));
       return;
     }
-    await saveSettings({ mastodonInstance: m, misskeyInstance: k, selectorOverrideUrl, logLevel });
+    await saveSettings({ mastodonInstance: m, misskeyInstance: k, selectorOverrideUrl, logLevel, disableReportDedup });
+    // disableReportDedup=true にしたら既存の dedup 履歴も clear
+    // (再 enable まで storage に dead key が残らないように)
+    if (disableReportDedup) {
+      void browser.storage.local.remove('reportDedup').catch(() => {});
+    }
     mastodonInstance = m;
     misskeyInstance = k;
     saved = true;
@@ -422,6 +429,10 @@
         {#if logStatus}
           <p class="text-xs" class:text-green-600={logStatus.startsWith('✓')} class:text-red-600={logStatus.startsWith('✗')}>{logStatus}</p>
         {/if}
+        <label class="flex items-center gap-2 pt-2 text-sm text-gray-700 cursor-pointer">
+          <input type="checkbox" bind:checked={disableReportDedup} class="rounded" />
+          <span>Report の 24h cooldown を無効化 (個人 dev で連投したいとき)</span>
+        </label>
       </div>
     </section>
 
