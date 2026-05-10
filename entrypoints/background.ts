@@ -408,17 +408,26 @@ async function runOffscreenCompress(req: {
   targetBytes: number;
 }): Promise<{ outputRef: string; outputBytes: number }> {
   await ensureOffscreen();
-  const res = (await browser.runtime.sendMessage({
-    type: 'CONVERT_VIDEO',
-    inputRef: req.inputRef,
-    mimeType: req.mimeType,
-    durationS: req.durationS,
-    targetBytes: req.targetBytes,
-  })) as { type: string; outputRef?: string; outputBytes?: number; error?: string } | undefined;
-  if (!res || res.type === 'CONVERSION_ERROR' || !res.outputRef) {
-    throw new Error(res?.error ?? '変換が応答しません');
+  try {
+    const res = (await browser.runtime.sendMessage({
+      type: 'CONVERT_VIDEO',
+      inputRef: req.inputRef,
+      mimeType: req.mimeType,
+      durationS: req.durationS,
+      targetBytes: req.targetBytes,
+    })) as { type: string; outputRef?: string; outputBytes?: number; error?: string } | undefined;
+    if (!res || res.type === 'CONVERSION_ERROR' || !res.outputRef) {
+      throw new Error(res?.error ?? '変換が応答しません');
+    }
+    return { outputRef: res.outputRef, outputBytes: res.outputBytes ?? 0 };
+  } finally {
+    // 圧縮終了 (成功 / 失敗) を popup に通知して進捗 UI を引っ込める。
+    // 旧コードは offscreen の CONVERSION_COMPLETE が sendResponse 経由で
+    // popup に届かず、進捗バーが「100%」のまま固まってた (popup は
+    // PLATFORM_PROGRESS 到来までは消さない)。
+    compressionStateInMemory = null;
+    void browser.runtime.sendMessage({ type: 'CONVERSION_COMPLETE' }).catch(() => { /* popup 閉じてれば失敗、無視 */ });
   }
-  return { outputRef: res.outputRef, outputBytes: res.outputBytes ?? 0 };
 }
 
 async function postToPlatform(
