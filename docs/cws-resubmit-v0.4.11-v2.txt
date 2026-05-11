@@ -1,0 +1,127 @@
+================================================================
+Chrome Web Store v0.4.11 再申請 #2 用 description (2026-05-11)
+================================================================
+2026-05-11 reject (Yellow Argon: keyword spam, 2 回目) への対応:
+1 回目改修で comma-separated 1 行に縮めたが、それすら NG 判定。
+SNS 名の列挙を本文から完全削除。ユーザは screenshots / GitHub
+README で対応 SNS を確認する形に倒した。
+zip / screenshots は v0.4.11 のまま、description のみ差し替え。
+================================================================
+
+
+================================================================
+[1] Short description (English) — 132 chars max
+================================================================
+----- COPY FROM HERE -----
+Cross-post once to your social networks. Auto-resize images, auto-thread long text, preview before publishing — fully local.
+----- COPY UNTIL HERE -----
+
+
+================================================================
+[2] Short description (日本語)
+================================================================
+----- COPY FROM HERE -----
+複数 SNS への投稿を 1 クリックで。画像の自動リサイズ・長文の自動スレッド分割・公開前プレビュー対応、すべてブラウザ内で完結します。
+----- COPY UNTIL HERE -----
+
+
+================================================================
+[3] Long description (English)
+================================================================
+----- COPY FROM HERE -----
+Tutti is a Chrome extension that lets you publish to multiple social networks in a single click. Type once in Tutti's popup, pick which networks to send to, and Tutti handles the rest using your existing browser sessions.
+
+What Tutti does
+
+• Multi-network broadcast — one popup, send to multiple networks at the same time.
+• Auto-thread split — text exceeding a network's character limit is automatically split into a continuation thread with "(1/N)" prefixes.
+• Image attachment with auto-resize — up to 4 images per post, scaled via Canvas to fit each network's per-image size cap.
+• Video pass-through — duration and file size are validated against each network's limits before posting.
+• Live per-network progress — each row shows in-flight, completed, or failed status as it happens, with the cause inlined on failure.
+• Preview mode (default) — Tutti opens each compose page for review and stops just before clicking Post; flip Auto-post on when you're ready to publish for real.
+• Persistent draft — closing and reopening the popup keeps your text, attached media, and selections.
+• Built-in diagnostics — one-click dump for filing issues when a network changes its UI.
+
+Why Tutti
+
+• Local — works entirely from your browser, reusing existing logged-in sessions.
+• Privacy-first — your post content never touches a third-party server.
+• User-triggered — Tutti only posts when you click; no scheduled or automated posts.
+• Free — no subscription, no paid API.
+
+How it works
+Tutti drives each network's web compose page using your existing browser session. Posts go through the same path as if you had typed and clicked manually, just automated.
+
+See the screenshots above for the list of networks Tutti currently supports. The project page on GitHub has the full feature documentation.
+
+Source code: https://github.com/komm64/tutti
+Privacy policy: https://komm64.github.io/tutti/
+----- COPY UNTIL HERE -----
+
+
+================================================================
+[4] Long description (日本語)
+================================================================
+----- COPY FROM HERE -----
+Tutti は複数 SNS への投稿を 1 クリックでこなす Chrome 拡張です。Tutti のポップアップに 1 度書いて、送信先の SNS を選ぶだけ。あとは Tutti がブラウザの既存ログインを使って各 SNS に流します。
+
+主な機能
+
+• マルチ SNS 同時投稿 — 1 つのポップアップから選択した SNS にまとめて送信。
+• 文字数超過の自動スレッド分割 — 各 SNS の文字数上限を超える長文は「(1/N)」付きで自動的に連投スレッドに分割。
+• 画像の自動リサイズ — 1 投稿あたり最大 4 枚。Canvas で各 SNS のサイズ上限に自動で収めます。
+• 動画パススルー — 尺とファイルサイズを各 SNS の制約と照合してから投稿。
+• 各 SNS のライブ進捗 — SNS 行に「投稿中 / 完了 / 失敗」がリアルタイムで表示。失敗時は原因もその場で見えます。
+• プレビューモード(初期値) — 各 SNS の compose を開いて確認し Post 直前で停止。慣れてきたら自動投稿 ON で実投稿。
+• 下書き・選択の永続化 — popup を閉じても本文・添付メディア・送信先選択がそのまま残ります。
+• 内蔵 診断 ボタン — SNS の UI が変わった時に開発者へ送る JSON ダンプをワンクリックで生成。
+
+なぜ Tutti
+
+• ブラウザ完結 — 各 SNS の既存ログインセッションをそのまま再利用。
+• プライバシー第一 — 投稿内容が第三者サーバーを経由しません。
+• ユーザー操作起点 — クリックした瞬間だけ動作。スケジュール投稿はしません。
+• 無料 — サブスクなし、有料 API 不使用。
+
+仕組み
+Tutti は各 SNS の Web 投稿ページを既存ログインのまま自動操作します。手動で入力 → Post を押すのと同じ経路を Tutti が代行するイメージです。
+
+対応 SNS の一覧は上のスクリーンショットを参照してください。GitHub のプロジェクトページに機能ドキュメントが揃っています。
+
+ソースコード: https://github.com/komm64/tutti
+プライバシーポリシー: https://komm64.github.io/tutti/
+----- COPY UNTIL HERE -----
+
+
+================================================================
+申請手順
+================================================================
+1. https://chrome.google.com/webstore/devconsole を開く
+2. Tutti を選択
+3. 左メニュー: "Store listing"
+4. 言語タブを English にして:
+   - Summary (= short description) に [1] を貼り付け
+   - Description (= long description) に [3] を貼り付け
+5. 言語タブを 日本語 に切り替えて:
+   - Summary に [2] を貼り付け
+   - Description に [4] を貼り付け
+6. zip / screenshots / icon / promo tile はいじらない (v0.4.11 そのまま)
+7. 右上 "Submit for review" を押す
+8. 1〜3 週間で結果が email + dashboard に届く
+
+それでも reject されたら appeal で「networks are visible only in
+screenshots and never enumerated in description text」を強調する。
+
+
+================================================================
+diff (1 回目 → 2 回目)
+================================================================
+[3] EN:
+- 削除: "Currently supported networks: X, Bluesky, Threads, Mastodon, Misskey, Tumblr."
++ 置換: "See the screenshots above for the list of networks Tutti currently supports.
+        The project page on GitHub has the full feature documentation."
+
+[4] JA:
+- 削除: "対応 SNS: X, Bluesky, Threads, Mastodon, Misskey, Tumblr。"
++ 置換: "対応 SNS の一覧は上のスクリーンショットを参照してください。GitHub の
+        プロジェクトページに機能ドキュメントが揃っています。"
