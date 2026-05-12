@@ -60,6 +60,9 @@ adapter 実装は済んでいるが実投稿の動作確認が浅いものを「
   失敗時は DOM にフォールバックしない (= 明示的に user へ通知)
 - **multi-step**: 複数モーダルの wizard 型 UI 用 (P12 framework)
 
+各 SNS の文字数 / サイズ制約 / 検証状態 / 既知の不安定点は
+[docs/platform-matrix.md](./docs/platform-matrix.md) に一覧。
+
 ## インストール
 
 ### Chrome Web Store
