@@ -1,6 +1,65 @@
-# Tutti E2E real-post smoke test (self-hosted runner)
+# Tutti E2E real-post smoke test
 
-## 目的
+実投稿テストは **2 系統** に分けて運用する。
+
+| 系統 | 走る場所 | 対象 SNS | 投稿経路 | trigger |
+|---|---|---|---|---|
+| **API smoke** | GitHub-hosted runner (Ubuntu) | Bluesky / Mastodon / Misskey | 公式 API 直叩き (`src/api/`) | nightly + workflow_dispatch |
+| **DOM smoke** | self-hosted runner (Ubuntu+xvfb / Surface) | X / Threads / Tumblr / Pixiv / TikTok / YouTube / Instagram / DeviantArt | Playwright で拡張 load → DOM 操作 | workflow_dispatch のみ (anti-bot 配慮) |
+
+API smoke は credentials が repo secrets にあれば毎晩自動で回る (= cheap)。
+DOM smoke は anti-bot 対策で self-hosted runner 必須 (= 手動 trigger 中心)。
+
+---
+
+## API smoke (GitHub-hosted runner)
+
+### 目的
+
+公式 API のある SNS については、UI 変更の影響を受けない API path が
+壊れていないか毎晩確認する。auto-triage で selector が直されても
+API path に regression が無いか確かめる役目も兼ねる。
+
+### 必要な repo secrets
+
+```
+E2E_BLUESKY_IDENTIFIER  = tutti-test.bsky.social のようなテスト垢 handle
+E2E_BLUESKY_PASSWORD    = Settings → App Passwords で発行した password
+
+E2E_MASTODON_INSTANCE   = https://mastodon.social (末尾スラッシュなし)
+E2E_MASTODON_TOKEN      = /settings/applications で発行 (scope: write:statuses, write:media)
+
+E2E_MISSKEY_INSTANCE    = https://misskey.io
+E2E_MISSKEY_TOKEN       = Settings → API → アクセストークン (scope: write:notes, write:drive)
+```
+
+セットしない SNS は workflow 内で skip される (= CI 失敗ではない、部分セットでも通る)。
+
+### ローカル実行
+
+```bash
+export E2E_BLUESKY_IDENTIFIER=...
+export E2E_BLUESKY_PASSWORD=...
+# (他の SNS は同様、もしくは抜けば skip)
+npm run test:e2e-api
+```
+
+vitest が `scripts/e2e-api/` 配下の `*.test.ts` を実行、各 SNS で
+post → URL 検証 → deleteRecord で cleanup。テスト垢の timeline に
+投稿は残らない。
+
+### 失敗時の動き
+
+workflow が fail → 通知 → 中身を確認:
+- API regression (= `src/api/<sns>.ts` 側の bug)
+- credentials の期限切れ (Mastodon の token は revoke 可能)
+- SNS API の仕様変更 (rare、API は DOM より stable)
+
+---
+
+## DOM smoke (self-hosted runner)
+
+### 目的
 
 auto-triage が出した PR の selector を、`docs/selectors.json` に流す前に
 **実際の SNS で投稿が通るか** を自動検証する。GitHub-hosted runner では

@@ -1,0 +1,44 @@
+name: E2E API smoke
+
+# 公式 API 経由 (Bluesky / Mastodon / Misskey) で実 test 垢に
+# 投稿 → URL 検証 → 削除 を回す smoke test。
+#
+# DOM driver (X / Threads / Tumblr / Pixiv / TikTok / YouTube / Instagram /
+# DeviantArt) は anti-bot 対策で GitHub-hosted runner だと不安定なので、
+# こちらは self-hosted runner で別 workflow (e2e.yml) に分けてる。
+#
+# 必要な repo secrets (どれか欠けてもその SNS だけ skip される、失敗はしない):
+#   E2E_BLUESKY_IDENTIFIER  / E2E_BLUESKY_PASSWORD
+#   E2E_MASTODON_INSTANCE   / E2E_MASTODON_TOKEN
+#   E2E_MISSKEY_INSTANCE    / E2E_MISSKEY_TOKEN
+
+on:
+  schedule:
+    # 毎日 18:00 UTC = 03:00 JST (日本の活動時間外で投稿時間が分散しないよう)
+    - cron: '0 18 * * *'
+  workflow_dispatch:
+
+jobs:
+  e2e-api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run API E2E smoke
+        env:
+          E2E_BLUESKY_IDENTIFIER: ${{ secrets.E2E_BLUESKY_IDENTIFIER }}
+          E2E_BLUESKY_PASSWORD: ${{ secrets.E2E_BLUESKY_PASSWORD }}
+          E2E_MASTODON_INSTANCE: ${{ secrets.E2E_MASTODON_INSTANCE }}
+          E2E_MASTODON_TOKEN: ${{ secrets.E2E_MASTODON_TOKEN }}
+          E2E_MISSKEY_INSTANCE: ${{ secrets.E2E_MISSKEY_INSTANCE }}
+          E2E_MISSKEY_TOKEN: ${{ secrets.E2E_MISSKEY_TOKEN }}
+        run: npm run test:e2e-api
