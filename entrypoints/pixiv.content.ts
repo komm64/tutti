@@ -1,6 +1,11 @@
 import { initLogLevelFromSettings, log } from '../src/utils/logger';
 import type { ImageAttachment, Message, PostResultMessage } from '../src/messages';
-import { PIXIV_SELECTORS, buildPixivTitle, extractPixivTags } from '../src/adapters/pixiv';
+import {
+  PIXIV_SELECTORS,
+  buildPixivTitle,
+  extractPixivTags,
+  stripHashtagsForPixivCaption,
+} from '../src/adapters/pixiv';
 import { executeMultiStepFlow, type Step } from '../src/utils/step-runner';
 import { injectImages, injectTagList, injectTextIntoElement } from '../src/utils/image';
 import { sleep } from '../src/utils/dom';
@@ -102,6 +107,10 @@ async function runPost(
   const sel = await resolveSelectors('pixiv', PIXIV_SELECTORS);
   const title = buildPixivTitle(text);
   const tags = extractPixivTags(text);
+  // hashtag は tags フィールドに入れたので caption からは除く (Pixiv は caption 内
+  // `#word` を auto-link しないので、両方に出すと末尾が「#a #b #c」だけになって
+  // 意味がない)
+  const caption = stripHashtagsForPixivCaption(text);
 
   // Pixiv は単一ページ form なので advance なしの sequential step で表現する。
   // 1) 画像注入 / 2) title / 3) caption / 4) tags → finalize で Post
@@ -125,8 +134,8 @@ async function runPost(
     {
       name: 'fill-caption',
       action: async () => {
-        // text 全文を caption に入れる(Pixiv は事実上文字数無制限)
-        await injectTextIntoElement(text, sel.captionTextarea);
+        // hashtag を除いた caption を入れる (Pixiv は事実上文字数無制限)
+        await injectTextIntoElement(caption, sel.captionTextarea);
       },
       settleMs: 200,
     },

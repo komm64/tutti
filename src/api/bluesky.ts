@@ -22,6 +22,7 @@
 
 import type { BlueskyCredentials } from '../utils/api-credentials';
 import { resolveAttachmentToBytes } from '../utils/attachment';
+import { buildBlueskyFacets } from './bluesky-facets';
 import type { ApiPostInput, ApiPostResult, ApiTestResult } from './types';
 
 const DEFAULT_PDS = 'https://bsky.social';
@@ -94,11 +95,14 @@ export async function postViaApi(
       imageRecords.push({ alt: '', image: blob });
     }
 
+    // facets: #hashtag / bare URL を clickable にする。無いと plain text 扱い。
+    const facets = buildBlueskyFacets(input.text);
     const record: Record<string, unknown> = {
       $type: 'app.bsky.feed.post',
       text: input.text,
       createdAt: new Date().toISOString(),
       langs: ['ja', 'en'],
+      ...(facets.length > 0 ? { facets } : {}),
     };
     if (imageRecords.length > 0) {
       record['embed'] = {

@@ -106,3 +106,18 @@ export function extractPixivTags(text: string): string[] {
   }
   return tags.length > 0 ? tags : ['Tutti'];
 }
+
+/**
+ * Pixiv caption から hashtag (`#word`) を取り除く。
+ * Pixiv は caption 内 `#word` を auto-link しないので、tags フィールドに
+ * 移したら caption からは消す方が自然 (= 「#anime #fanart」が caption 末尾
+ * に残るだけになるので)。前後の空白も整理。
+ */
+export function stripHashtagsForPixivCaption(text: string): string {
+  return text
+    .replace(/(?:^|\s)#[\p{L}\p{N}_]{1,30}/gu, '')
+    .replace(/[ \t]{2,}/g, ' ')
+    .replace(/\n[ \t]+/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}

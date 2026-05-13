@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildPixivTitle, extractPixivTags } from './pixiv';
+import { buildPixivTitle, extractPixivTags, stripHashtagsForPixivCaption } from './pixiv';
 
 describe('buildPixivTitle', () => {
   it('1 行目を 40 char で切る', () => {
@@ -72,5 +72,36 @@ describe('extractPixivTags', () => {
     // "user@host#anchor" の # は本文の #tag じゃなく fragment
     // 現実装では \B# だが、url 内の # も拾う可能性 → 許容範囲とする
     expect(extractPixivTags('contact@example.com nothing else')).toEqual(['Tutti']);
+  });
+});
+
+describe('stripHashtagsForPixivCaption', () => {
+  it('末尾の hashtag 群を削る', () => {
+    expect(stripHashtagsForPixivCaption('本文だよ #anime #fanart')).toBe('本文だよ');
+  });
+
+  it('文中の hashtag も削る', () => {
+    expect(stripHashtagsForPixivCaption('hello #greet world')).toBe('hello world');
+  });
+
+  it('hashtag 無しはそのまま', () => {
+    expect(stripHashtagsForPixivCaption('plain text here')).toBe('plain text here');
+  });
+
+  it('連続 hashtag を 1 space に縮める', () => {
+    expect(stripHashtagsForPixivCaption('a #x #y #z b')).toBe('a b');
+  });
+
+  it('改行構造は保つ (3 連続改行は 2 に縮める)', () => {
+    const input = 'line1 #a\n\nline2\n\n\nline3';
+    expect(stripHashtagsForPixivCaption(input)).toBe('line1\n\nline2\n\nline3');
+  });
+
+  it('全部 hashtag なら空文字', () => {
+    expect(stripHashtagsForPixivCaption('#a #b #c')).toBe('');
+  });
+
+  it('日本語 hashtag も削る', () => {
+    expect(stripHashtagsForPixivCaption('お気に入り #日本語タグ です')).toBe('お気に入り です');
   });
 });

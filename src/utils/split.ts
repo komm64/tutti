@@ -2,12 +2,34 @@
  * テキストを指定文字数以下のチャンクに分割する。
  * 複数チャンクになる場合は先頭に "(1/N) " 形式の連番を付ける。
  * 分割は単語境界を優先し、単語が limit を超える場合のみ途中で切る。
+ *
+ * **hashtag 保護**: 境界が `#word` の word 中に来た場合、'#' の直前まで
+ * 巻き戻して hashtag を次チャンクに持ち越す。これしないと "#anim" + "e" の
+ * ように途切れて意味が壊れる。
  */
 export function splitText(text: string, limit: number): string[] {
   if (text.length <= limit) return [text];
 
   function prefixLen(i: number, total: number): number {
     return `(${i + 1}/${total}) `.length;
+  }
+
+  /** split 位置が hashtag の word 中なら '#' 直前まで巻き戻す */
+  function avoidSplittingHashtag(s: string, pos: number): number {
+    if (pos >= s.length) return pos;
+    // 後方探索: pos から前に向かって [\p{L}\p{N}_] が続く間、'#' に当たれば
+    // その位置 (直前の space 込みなら更に前) で切る
+    let i = pos;
+    while (i > 0 && /[\p{L}\p{N}_]/u.test(s[i]!)) i--;
+    if (i >= 0 && s[i] === '#') {
+      // hashtag 開始位置。直前の whitespace ごとに切る
+      let cut = i;
+      while (cut > 0 && /\s/.test(s[cut - 1]!)) cut--;
+      // ただし cut が 0 = chunk まるごと hashtag だけになる場合は元の位置を返す
+      // (= 巨大 hashtag 単発で chunk 全部食う) — その場合は素直に途中で切る
+      if (cut > 0) return cut;
+    }
+    return pos;
   }
 
   function doSplit(effectiveLimit: number): string[] {
@@ -20,7 +42,8 @@ export function splitText(text: string, limit: number): string[] {
         break;
       }
       const spaceIdx = remaining.lastIndexOf(' ', effectiveLimit - 1);
-      const splitAt = spaceIdx > 0 ? spaceIdx : effectiveLimit;
+      let splitAt = spaceIdx > 0 ? spaceIdx : effectiveLimit;
+      splitAt = avoidSplittingHashtag(remaining, splitAt);
       chunks.push(remaining.slice(0, splitAt).trimEnd());
       remaining = remaining.slice(splitAt).trimStart();
     }

@@ -61,4 +61,17 @@ describe('splitText', () => {
       expect(c.length).toBeLessThanOrEqual(limit);
     });
   });
+
+  it('hashtag を境界で途中切断しない', () => {
+    // 各 chunk に出る '#word' は完全な hashtag であること (途中切れの
+    // '#impor' / '#anim' のような不完全 tag は出てはいけない)
+    const text = 'AAAAAAAAAA BBBBBBBBBB #important here CCC';
+    const chunks = splitText(text, 20);
+    for (const c of chunks) {
+      const matches = c.match(/#[\p{L}\p{N}_]+/gu) ?? [];
+      for (const tag of matches) {
+        expect(['#important']).toContain(tag);
+      }
+    }
+  });
 });
