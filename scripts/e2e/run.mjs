@@ -54,12 +54,13 @@ console.log(`[e2e] extension=${extensionDir}`);
 // 同じプロセスで動かすので TikTok 等の session 継続検査を騙せる。
 async function openCtx(platform) {
   if (cdpEndpoint) {
-    const browser = await chromium.connectOverCDP(cdpEndpoint);
-    // 既存の context (= login 済) を使う
+    // 拡張ありの Chromium に attach する場合、Playwright の target 列挙が
+    // 遅いことがあるので timeout を長めに
+    const browser = await chromium.connectOverCDP(cdpEndpoint, { timeout: 90_000 });
     const ctxs = browser.contexts();
     const ctx = ctxs[0];
     if (!ctx) throw new Error('[e2e] CDP: 既存 context が無い');
-    return { ctx, close: async () => { await browser.close(); } };
+    return { ctx, close: async () => { /* keep browser alive on CDP mode */ } };
   }
   const ctx = await chromium.launchPersistentContext(userDataDir, {
     headless: false,
