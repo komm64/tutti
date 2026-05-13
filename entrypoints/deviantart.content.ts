@@ -109,13 +109,20 @@ async function runPost(
       },
       settleMs: 300,
     },
-    // Step 3: description 入力 (TipTap / ProseMirror)。
-    // DA の wizard は実機検証 (2026-05-01) で metadata page で Submit が
-    // 直接 enabled になることを確認。Next を経由せずに finalize へ進む。
+    // Step 3: description 入力 (TipTap / ProseMirror)。**best-effort**。
+    // DA は description 必須でないので、editor が見つからない / 注入に失敗した
+    // 場合は warn して続行 (= title だけで投稿)。Surface 実機 2026-05-13:
+    // DA Studio UI 更新で description 編集領域が lazy-mount or iframe 化された
+    // 疑い。これを必須にすると投稿が完全停止するので緩める。
     {
       name: 'fill-description',
       action: async () => {
-        await injectTextIntoElement(text, sel.descriptionEditor);
+        try {
+          await injectTextIntoElement(text, sel.descriptionEditor);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          log.warn(`DA: description 入力をスキップ (title だけで続行) — ${msg}`);
+        }
       },
       settleMs: 500,
     },
