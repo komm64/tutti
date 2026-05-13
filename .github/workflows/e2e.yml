@@ -10,9 +10,9 @@ on:
   workflow_dispatch:
     inputs:
       platforms:
-        description: "対象 platform (カンマ区切り、e.g. 'x' / 'x,bluesky')"
+        description: "対象 platform (カンマ区切り、e.g. 'x' / 'x,threads,tumblr'). 利用可能: x, threads, tumblr, pixiv, tiktok, youtube"
         required: false
-        default: "x"
+        default: "x,threads,tumblr"
       runner:
         description: "self-hosted runner label"
         type: choice

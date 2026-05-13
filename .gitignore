@@ -35,6 +35,10 @@ scripts/launch-test-chrome.bat
 # Browser test profiles (Chrome / Brave の user-data-dir、~数 GB)
 test-data/
 
+# E2E test fixtures (image / video の binary。各自 local で用意)
+scripts/e2e/fixtures/*
+!scripts/e2e/fixtures/README.md
+
 # Local secrets (test account email, etc.). Use .env.example as template.
 .env
 .env.local
