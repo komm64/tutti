@@ -8,18 +8,20 @@
 import { ensureLoggedIn, sendPostMessage, timestampedText } from '../_lib.mjs';
 
 const URL_GLOB = 'https://bsky.app/*';
-const COMPOSE_URL = 'https://bsky.app/intent/compose';
 // ログイン確認: compose dialog の textbox が現れる
 const TEXTBOX = '[contenteditable="true"][role="textbox"]';
 
 export async function run({ ctx, debug }) {
   const text = timestampedText('bluesky');
+  // Bluesky は prefillsViaUrl: true なので URL に text を載せて初期化。
+  // 載せないと post button が disabled (= "投稿できる状態じゃない") で死ぬ
+  const composeUrl = `https://bsky.app/intent/compose?text=${encodeURIComponent(text)}`;
   const page = await ctx.newPage();
   page.on('console', (m) => {
     if (debug || m.type() === 'error') console.log(`[bsky:browser:${m.type()}]`, m.text());
   });
 
-  await page.goto(COMPOSE_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await page.goto(composeUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
   await page.waitForTimeout(2000);
 
   const auth = await ensureLoggedIn(page, TEXTBOX, 'bluesky');
