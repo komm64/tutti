@@ -49,13 +49,27 @@ export async function sendPostMessage(ctx, { urlGlob, platform, text, images, au
       const tabs = await chrome.tabs.query({ url: urlGlob });
       const tab = tabs[0];
       if (!tab) return { ok: false, error: `no tab for ${urlGlob}` };
-      const result = await chrome.tabs.sendMessage(tab.id, {
-        type: 'POST_TO_PLATFORM',
-        platform,
-        text,
-        images: images ?? [],
-        autoPost,
-      });
+      // Pixiv 等は post button click 直後に Pixiv が navigation するので、
+      // content script の sendResponse 前に message channel が閉じて
+      // "asynchronous response" エラーが出ることがある。実投稿は landing
+      // しているケースが多いので、この特定エラーは success として扱う
+      // (background postSingleChunk と同じ救済ロジック、v0.4.56 で確立)。
+      let result;
+      try {
+        result = await chrome.tabs.sendMessage(tab.id, {
+          type: 'POST_TO_PLATFORM',
+          platform,
+          text,
+          images: images ?? [],
+          autoPost,
+        });
+      } catch (e) {
+        const msg = (e && e.message) ? e.message : String(e);
+        if (msg.includes('asynchronous response') || msg.includes('message channel closed')) {
+          return { ok: true, raw: { _channelClosedAsSuccess: true, note: msg } };
+        }
+        throw e;
+      }
       return { ok: result?.success === true, raw: result };
     },
     { urlGlob, platform, text, images: images ?? [], autoPost },

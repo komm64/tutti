@@ -11,7 +11,9 @@
 
 import { ensureLoggedIn, sendPostMessage, timestampedText } from '../_lib.mjs';
 
-const URL_GLOB = 'https://www.threads.*/*';
+// Chrome の match pattern は TLD 部分の `*` (例 'https://www.threads.*/*') を受け
+// 付けない。array で 2 個渡すと chrome.tabs.query が or 条件で検索してくれる。
+const URL_GLOB = ['https://www.threads.com/*', 'https://www.threads.net/*'];
 const COMPOSE_URL = 'https://www.threads.com/intent/post';
 const TEXTAREA = 'div[contenteditable="true"][role="textbox"], div[contenteditable="plaintext-only"]';
 

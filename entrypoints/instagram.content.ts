@@ -86,15 +86,18 @@ async function runPost(
   //   4. Next click → Modal #4 caption + Share
   //   5. caption 入力 → finalize で "Share" click
   const steps: Step[] = [
-    // Step 1a: sidebar の "Create" trigger を click して popover メニューを開く
+    // Step 1: sidebar の "Create" trigger を click。
     //
-    // 2024+ の IG では sidebar "Create" は **popover を開くだけ** で、
-    // Post / Reel / Story / Live のサブメニューから "Post" を選んで初めて
-    // file dialog が立ち上がる。旧コードは regex /new post|create/i で雑に
-    // どれかを click してたので "Create story" 等を踏んで file dialog が
-    // 立たず、Step 2 で file input が見つからずに死んでた (issue #15 で発覚)。
+    // 現代 IG (2025+) では sidebar の "Create" を click すると、popover を
+    // 経由せず **直接 file input 付きの "Create new post" dialog** が開く
+    // (Surface 実機 2026-05-13 で確認)。strict な svg[aria-label] 検出で
+    // "Create story" 等の似た UI 要素を踏まないようにする。
+    //
+    // 一部 A/B test variant では popover (Post/Reel/Story/Live) を挟む形に
+    // なってる可能性があるが、その場合は file input が 10s 出ないので
+    // step 2 で明示的に throw → auto-triage で variant 対応する流れ
     {
-      name: 'open-create-popover',
+      name: 'open-create-modal',
       action: async () => {
         // 既に dialog 内に file input があれば skip (再投稿等)
         const existingFi = document.querySelector(sel.fileInput);
@@ -107,16 +110,15 @@ async function runPost(
           throw new Error('IG: sidebar の "Create" / "New post" trigger が見つかりません');
         }
         trigger.click();
+        // dialog mount を waitForElement で待つ。step-runner の awaitNextDom は
+        // advance click 後にしか動かないので、advance が無い step (= 単発 click) は
+        // action 内で待つ必要がある
+        const fi = await waitForElement<HTMLInputElement>(sel.fileInput, 10000);
+        if (!fi) {
+          throw new Error('IG: "Create new post" dialog が出現しませんでした (file input 不在)');
+        }
       },
-      settleMs: 400,
-      // Step 1b: popover 内の "Post" メニュー項目を click。
-      // (Create サイドバーは popover を開いただけなので、ここで投稿種別を選ぶ)
-      advance: {
-        finder: () => findCreateSubmenuItem(['Post', '投稿']),
-        timeoutMs: 5000,
-      },
-      // Post を click すると dialog with file input が mount される
-      awaitNextDom: { selector: '[role="dialog"] input[type="file"]', timeoutMs: 10000 },
+      settleMs: 300,
     },
     // Step 2: image inject。Modal #2 (Crop) に自動遷移する
     {
