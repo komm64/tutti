@@ -79,6 +79,12 @@ async function runPost(
 
   const sel = await resolveSelectors('instagram', INSTAGRAM_SELECTORS);
 
+  // IG は "Turn on Notifications" / "Save Your Login Info?" / "Cookie Banner" 等の
+  // ポップアップが wizard 中に被さってくるので、先に dismiss しておく。
+  // Surface 実機 2026-05-13 で発覚: 通知許可 dialog が Create dialog に被さって
+  // findDialogButtonByText が誤検索する事故を防ぐ
+  dismissOverlayDialogs();
+
   // Wizard 構造 (2026-05-01 検証):
   //   1. Create button click → Modal #1 (file 選択)
   //   2. file inject → Modal #2 "Crop" (Next で進む)
@@ -229,6 +235,31 @@ async function verifyInstagramPosted(timeoutMs = 30_000): Promise<void> {
 }
 
 /**
+ * "Turn on Notifications" / "Save Your Login Info?" / "Cookie Banner" 等の
+ * 邪魔な overlay dialog を dismiss して wizard 操作の妨げを排除。
+ * 安全なボタン ("Not Now" / "あとで" / "Decline") のみ click、危険なボタン
+ * ("Turn On" / "Allow" / "Save") は触らない。
+ */
+function dismissOverlayDialogs(): void {
+  const SAFE_DISMISS_TEXTS = ['Not Now', 'あとで', 'いいえ', 'No thanks', 'Decline', '後で'];
+  const dialogs = document.querySelectorAll<HTMLElement>('[role="dialog"]');
+  for (const dialog of dialogs) {
+    // Create dialog 自体は dismiss しない (aria-label で識別)
+    const aria = dialog.getAttribute('aria-label') ?? '';
+    if (/create|投稿/i.test(aria)) continue;
+    const buttons = Array.from(dialog.querySelectorAll<HTMLElement>('button, [role="button"]'));
+    for (const b of buttons) {
+      const t = (b.textContent ?? '').trim();
+      if (SAFE_DISMISS_TEXTS.includes(t)) {
+        log.info(`IG: dismissing overlay dialog via "${t}"`);
+        b.click();
+        break;
+      }
+    }
+  }
+}
+
+/**
  * sidebar の "Create" trigger を多段戦略で探す。
  * IG sidebar はテキストラベル無しの SVG アイコンで構成されるため、aria-label
  * からの逆引きが最も堅い。複数 locale 対応 + 旧 layout fallback も用意。
@@ -278,14 +309,18 @@ function findCreateSubmenuItem(texts: string[]): HTMLElement | null {
 }
 
 /**
- * dialog 内で text が完全一致 (trim 後) する button / [role="button"] を探す。
- * dialog 外の "Next" 等(別 UI 要素)を誤って拾わないため scope を限定。
+ * Create dialog 内で text が完全一致 (trim 後) する button / [role="button"] を
+ * 探す。Notification dialog 等 別の overlay dialog の同名 button を誤検出
+ * しないため、aria-label が "Create"/"投稿" を含む dialog に scope する。
  * 同じテキストが複数あれば最後のものを返す (大抵は最下部の primary action)。
  */
 function findDialogButtonByText(texts: string[]): HTMLElement | null {
-  const dialogs = document.querySelectorAll<HTMLElement>('[role="dialog"]');
+  const dialogs = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"]'));
+  // Create dialog (aria-label="Create new post" 等) を優先
+  const createDialogs = dialogs.filter((d) => /create|投稿/i.test(d.getAttribute('aria-label') ?? ''));
+  const target = createDialogs.length > 0 ? createDialogs : dialogs;
   let lastMatch: HTMLElement | null = null;
-  for (const dialog of dialogs) {
+  for (const dialog of target) {
     const buttons = dialog.querySelectorAll<HTMLElement>('button, [role="button"]');
     for (const b of buttons) {
       const t = (b.textContent ?? '').trim();
