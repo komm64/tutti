@@ -86,9 +86,15 @@ async function runPost(
   //   4. Next click → Modal #4 caption + Share
   //   5. caption 入力 → finalize で "Share" click
   const steps: Step[] = [
-    // Step 1: Create button click + file 選択 modal が開くまで待つ
+    // Step 1a: sidebar の "Create" trigger を click して popover メニューを開く
+    //
+    // 2024+ の IG では sidebar "Create" は **popover を開くだけ** で、
+    // Post / Reel / Story / Live のサブメニューから "Post" を選んで初めて
+    // file dialog が立ち上がる。旧コードは regex /new post|create/i で雑に
+    // どれかを click してたので "Create story" 等を踏んで file dialog が
+    // 立たず、Step 2 で file input が見つからずに死んでた (issue #15 で発覚)。
     {
-      name: 'open-create-modal',
+      name: 'open-create-popover',
       action: async () => {
         // 既に dialog 内に file input があれば skip (再投稿等)
         const existingFi = document.querySelector(sel.fileInput);
@@ -96,21 +102,21 @@ async function runPost(
           log.info('IG: create modal already open, skipping Create click');
           return;
         }
-        // Create トリガー: aria-label "New post" or text 中に "Create" / "New post"
-        const all = Array.from(document.querySelectorAll<HTMLElement>(
-          'a, button, [role="link"], [role="button"]',
-        ));
-        const target = all.find((b) => {
-          const haystack = (b.getAttribute('aria-label') ?? '') + ' ' + ((b.textContent ?? '').trim());
-          return /new post|create/i.test(haystack);
-        });
-        if (!target) {
-          throw new Error('IG: "Create" / "New post" ボタンが見つかりません');
+        const trigger = findCreateTrigger();
+        if (!trigger) {
+          throw new Error('IG: sidebar の "Create" / "New post" trigger が見つかりません');
         }
-        target.click();
+        trigger.click();
       },
-      // file input が dialog に mount されるまで少し待つ
-      settleMs: 1500,
+      settleMs: 400,
+      // Step 1b: popover 内の "Post" メニュー項目を click。
+      // (Create サイドバーは popover を開いただけなので、ここで投稿種別を選ぶ)
+      advance: {
+        finder: () => findCreateSubmenuItem(['Post', '投稿']),
+        timeoutMs: 5000,
+      },
+      // Post を click すると dialog with file input が mount される
+      awaitNextDom: { selector: '[role="dialog"] input[type="file"]', timeoutMs: 10000 },
     },
     // Step 2: image inject。Modal #2 (Crop) に自動遷移する
     {
@@ -218,6 +224,55 @@ async function verifyInstagramPosted(timeoutMs = 30_000): Promise<void> {
   throw new Error(
     `IG: Share click 後 ${timeoutMs / 1000}s 経っても dialog が閉じませんでした(投稿が完了してない可能性、UI が変わった疑い)`,
   );
+}
+
+/**
+ * sidebar の "Create" trigger を多段戦略で探す。
+ * IG sidebar はテキストラベル無しの SVG アイコンで構成されるため、aria-label
+ * からの逆引きが最も堅い。複数 locale 対応 + 旧 layout fallback も用意。
+ */
+function findCreateTrigger(): HTMLElement | null {
+  // 戦略 1: SVG の aria-label から (最も堅い。Locale 違いに強い)
+  const ariaLabels = ['New post', '新規投稿', 'Crear', 'Nuevo', 'Создать', '새 게시물'];
+  for (const label of ariaLabels) {
+    const svg = document.querySelector<SVGElement>(`svg[aria-label="${label}"]`);
+    const parent = svg?.closest('a, button, [role="link"], [role="button"]') as HTMLElement | null;
+    if (parent) return parent;
+  }
+  // 戦略 2: aria-label 完全一致 (regex でない、broad match 回避)
+  const exactAria = ['New post', '新規投稿', 'Create'];
+  for (const aria of exactAria) {
+    const el = document.querySelector<HTMLElement>(`a[aria-label="${aria}"], button[aria-label="${aria}"], [role="link"][aria-label="${aria}"], [role="button"][aria-label="${aria}"]`);
+    if (el) return el;
+  }
+  return null;
+}
+
+/**
+ * sidebar Create → popover で出る投稿種別メニュー (Post / Reel / Story / Live)。
+ * popover は ロール無し / span 単独 などのことも多いため、document 全体で
+ * text 完全一致を探す。scope を [role="menu"] や [role="dialog"] に絞ると
+ * popover が role 無しの場合に外れるので絞らない。
+ */
+function findCreateSubmenuItem(texts: string[]): HTMLElement | null {
+  // 戦略 1: clickable element の textContent 完全一致
+  const clickables = document.querySelectorAll<HTMLElement>(
+    'div[role="button"], button, a[role="link"], a[role="button"], [tabindex="0"]',
+  );
+  for (const el of clickables) {
+    const t = (el.textContent ?? '').trim();
+    if (texts.includes(t)) return el;
+  }
+  // 戦略 2: span / div の textContent 完全一致 → 親の clickable を返す
+  const all = document.querySelectorAll<HTMLElement>('span, div');
+  for (const el of all) {
+    const t = (el.textContent ?? '').trim();
+    if (texts.includes(t)) {
+      const clickable = el.closest('div[role="button"], button, a, [tabindex="0"]') as HTMLElement | null;
+      if (clickable) return clickable;
+    }
+  }
+  return null;
 }
 
 /**

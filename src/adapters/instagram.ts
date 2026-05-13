@@ -51,9 +51,13 @@ export const INSTAGRAM_SELECTORS = {
    */
   fileInput: '[role="dialog"] input[type="file"]',
   /**
-   * caption editor: lexical-style contenteditable div。aria-label が日本語 UI でも
-   * "Write a caption..." なので en 固定で問題なさそう (確証は弱いが selector
-   * override で逃げ道あり)。
+   * caption editor: lexical-style contenteditable div。aria-label が言語ごとに
+   * 変わるので複数 locale を試す + 最後に aria-label 無し contenteditable へ
+   * フォールバック。selector override (docs/selectors.json) で更に追加可能。
    */
-  captionEditor: '[role="dialog"] div[contenteditable="true"][aria-label="Write a caption..."]',
+  captionEditor:
+    '[role="dialog"] div[contenteditable="true"][aria-label="Write a caption..."],' +
+    '[role="dialog"] div[contenteditable="true"][aria-label="キャプションを書く..."],' +
+    '[role="dialog"] div[contenteditable="true"][aria-label*="caption" i],' +
+    '[role="dialog"] div[contenteditable="true"][aria-label*="キャプション"]',
 } as const;
