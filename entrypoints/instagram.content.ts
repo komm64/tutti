@@ -140,7 +140,11 @@ async function runPost(
       settleMs: 200,
       // Crop 画面の Next ボタン click で進む
       advance: {
-        finder: () => findDialogButtonByText(['Next', '次へ']),
+        // upload エラー (file too small 等) も polling 中に検出する
+        finder: () => {
+          checkForIgErrorDialog();
+          return findDialogButtonByText(['Next', '次へ']);
+        },
         timeoutMs: 15000, // upload + crop 画面 mount に時間かかる
       },
       // Edit (filter) 画面の Next ボタンが出るまで待つ
@@ -150,14 +154,17 @@ async function runPost(
     {
       name: 'skip-filter',
       action: async () => {
-        // IG が "Something went wrong" 等のエラー dialog を表示してる場合は
-        // ここで explicit に throw する (button 不在で固まる前に検出)
-        checkForIgErrorDialog();
-        // それ以外は filter を default のまま放置で OK
+        // filter は default のまま (画像加工しない)
       },
       settleMs: 500,
       advance: {
-        finder: () => findDialogButtonByText(['Next', '次へ']),
+        // polling のたびにエラー dialog 検出も走らせて、IG 側が
+        // 'Something went wrong' / 'File too small' 等を後から被せた場合に
+        // 即座に explicit error にする
+        finder: () => {
+          checkForIgErrorDialog();
+          return findDialogButtonByText(['Next', '次へ']);
+        },
         timeoutMs: 8000,
       },
       // caption editor が出るまで待つ
