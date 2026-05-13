@@ -150,7 +150,10 @@ async function runPost(
     {
       name: 'skip-filter',
       action: async () => {
-        // 何もしない (filter は default のまま)
+        // IG が "Something went wrong" 等のエラー dialog を表示してる場合は
+        // ここで explicit に throw する (button 不在で固まる前に検出)
+        checkForIgErrorDialog();
+        // それ以外は filter を default のまま放置で OK
       },
       settleMs: 500,
       advance: {
@@ -254,6 +257,27 @@ function dismissOverlayDialogs(): void {
         log.info(`IG: dismissing overlay dialog via "${t}"`);
         b.click();
         break;
+      }
+    }
+  }
+}
+
+/**
+ * IG が wizard 中に表示する error dialog ("Something went wrong", "File too small"
+ * 等) を検出。見つかれば throw して silent stall を防ぐ。
+ * step.action / advance の前後で呼ぶと、step が button 不在で固まる前にエラー化できる。
+ */
+function checkForIgErrorDialog(): void {
+  const ERROR_KEYWORDS = [
+    'Something went wrong', '問題が発生', "couldn't be uploaded", 'アップロードできませんでした',
+    'too small', '小さすぎ', 'too large', '大きすぎ',
+  ];
+  const dialogs = document.querySelectorAll<HTMLElement>('[role="dialog"]');
+  for (const dialog of dialogs) {
+    const text = (dialog.textContent ?? '').slice(0, 500);
+    for (const kw of ERROR_KEYWORDS) {
+      if (text.includes(kw)) {
+        throw new Error(`IG: エラー dialog 検出 — ${text.slice(0, 200)}`);
       }
     }
   }
