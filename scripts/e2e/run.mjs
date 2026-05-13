@@ -31,6 +31,11 @@ const platforms = platformsIdx >= 0 ? (args[platformsIdx + 1] ?? 'x').split(',')
 const userDataDir = process.env.E2E_USER_DATA_DIR
   ?? resolve(process.env.HOME ?? process.env.USERPROFILE ?? '/tmp', '.tutti-e2e-chrome');
 
+// CDP attach mode: 起動中の Chromium に接続する (TikTok 等 session 継続性を見る
+// anti-bot 対策)。事前に Tutti-test-login.bat を `--remote-debugging-port=9222`
+// 付きで起動しておく必要がある。E2E_CDP=http://localhost:9222 で有効化
+const cdpEndpoint = process.env.E2E_CDP;
+
 if (!existsSync(extensionDir)) {
   console.error(`[e2e] extension dir not found: ${extensionDir}`);
   console.error('[e2e] Run `npm run build` first.');
@@ -38,10 +43,37 @@ if (!existsSync(extensionDir)) {
 }
 
 console.log(`[e2e] platforms=${platforms.join(',')} debug=${debug}`);
-console.log(`[e2e] user-data-dir=${userDataDir}`);
+if (cdpEndpoint) {
+  console.log(`[e2e] mode=CDP attach (${cdpEndpoint})`);
+} else {
+  console.log(`[e2e] user-data-dir=${userDataDir}`);
+}
 console.log(`[e2e] extension=${extensionDir}`);
 
-// 各 platform の test module を dynamic import
+// CDP mode: 単一の Browser に何度も attach して各 platform module を回す。
+// 同じプロセスで動かすので TikTok 等の session 継続検査を騙せる。
+async function openCtx(platform) {
+  if (cdpEndpoint) {
+    const browser = await chromium.connectOverCDP(cdpEndpoint);
+    // 既存の context (= login 済) を使う
+    const ctxs = browser.contexts();
+    const ctx = ctxs[0];
+    if (!ctx) throw new Error('[e2e] CDP: 既存 context が無い');
+    return { ctx, close: async () => { await browser.close(); } };
+  }
+  const ctx = await chromium.launchPersistentContext(userDataDir, {
+    headless: false,
+    slowMo: debug ? 250 : 0,
+    args: [
+      `--disable-extensions-except=${extensionDir}`,
+      `--load-extension=${extensionDir}`,
+      '--no-first-run',
+      '--no-default-browser-check',
+    ],
+  });
+  return { ctx, close: async () => { await ctx.close(); } };
+}
+
 const results = [];
 for (const platform of platforms) {
   const modulePath = resolve(__dirname, 'platforms', `${platform}.mjs`);
@@ -51,18 +83,7 @@ for (const platform of platforms) {
     continue;
   }
   console.log(`[e2e] launching Chrome for ${platform}...`);
-  const ctx = await chromium.launchPersistentContext(userDataDir, {
-    headless: false, // anti-bot: 必ず headful (Xvfb で virtual display 提供)
-    slowMo: debug ? 250 : 0,
-    args: [
-      `--disable-extensions-except=${extensionDir}`,
-      `--load-extension=${extensionDir}`,
-      '--no-first-run',
-      '--no-default-browser-check',
-    ],
-  });
-  // Chrome 拡張 ID は load 時に決まる。chrome.runtime ID をポップアップから取得すると
-  // 信頼できる ($E2E_EXTENSION_ID で override も可)
+  const { ctx, close } = await openCtx(platform);
   const extensionId = process.env.E2E_EXTENSION_ID ?? await detectExtensionId(ctx);
   console.log(`[e2e] extension id=${extensionId}`);
 
@@ -75,7 +96,7 @@ for (const platform of platforms) {
     result = { ok: false, error: e?.message ?? String(e) };
     console.error(`[e2e] ${platform}: ERROR`, e);
   } finally {
-    await ctx.close();
+    await close();
   }
   results.push({ platform, ...result });
 }
