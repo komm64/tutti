@@ -29,6 +29,11 @@ submission-guide.md
 scripts/*.png
 # Brave launch helper (dev-machine specific paths)
 scripts/launch-test-brave.cmd
+# Chrome launch helper (dev-machine specific paths; 内部 path も書かれる)
+scripts/launch-test-chrome.bat
+
+# Browser test profiles (Chrome / Brave の user-data-dir、~数 GB)
+test-data/
 
 # Local secrets (test account email, etc.). Use .env.example as template.
 .env
