@@ -504,6 +504,19 @@ async function postToPlatform(
 
   const chunks = splitText(text, adapter.charLimit);
 
+  // X は thread chaining 対応 (v0.4.56〜)。chunks > 1 のときは 1 つの compose に
+  // 全 chunk を「+」ボタンで連結した thread として投稿する。
+  // 他 SNS は従来通り chunk ごとに sleep 挟んで sequential 投稿 (= independent posts)。
+  if (chunks.length > 1 && adapter.id === 'x') {
+    try {
+      await postSingleChunk(adapter, chunks[0]!, images, chunks);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { type: 'POST_RESULT', platform, success: false, error: `thread 投稿失敗: ${msg}` };
+    }
+    return { type: 'POST_RESULT', platform, success: true };
+  }
+
   for (let i = 0; i < chunks.length; i++) {
     if (i > 0) await sleep(CHUNK_INTERVAL_MS);
     const chunkImages = i === 0 ? images : undefined;
@@ -584,6 +597,9 @@ async function postSingleChunk(
   adapter: PlatformAdapter,
   text: string,
   rawImages?: ImageAttachment[],
+  /** X thread mode (v0.4.56〜)。指定時は content script が text を無視して
+   *  全 chunk を 1 つの compose に並べて投稿する。images は 1 個目にだけ付く */
+  textChunks?: string[],
 ): Promise<void> {
   // content script は extension IndexedDB を直接読めないので、binary は
   // background→content の tab.sendMessage で chunked 配信する形に変更
@@ -633,13 +649,32 @@ async function postSingleChunk(
     type: 'POST_TO_PLATFORM',
     platform: adapter.id,
     text,
+    textChunks,
     images,
     dryRun,
   };
-  const response = (await browser.tabs.sendMessage(
-    tab.id,
-    message,
-  )) as PostResultMessage | undefined;
+  let response: PostResultMessage | undefined;
+  try {
+    response = (await browser.tabs.sendMessage(
+      tab.id,
+      message,
+    )) as PostResultMessage | undefined;
+  } catch (err) {
+    // SNS の compose form 送信完了直後に tab が navigation / reload する SNS
+    // (Mastodon の /share?text=… 等) では、content script が sendResponse する
+    // 前に message channel が閉じてしまい
+    // "A listener indicated an asynchronous response by returning true, but
+    //  the message channel closed before a response was received"
+    // で reject される。実投稿は landing しているケースが多いので、この
+    // 特定エラーは success として扱う (Tutti は楽観的に成功扱い、UI 上で確認)。
+    // tutti-issues#14 (mastodon)
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes('asynchronous response') || msg.includes('message channel closed')) {
+      log.warn(`${adapter.id}: post 後の channel closed を成功扱い (tab navigation のため) — ${msg}`);
+      return;
+    }
+    throw err;
+  }
 
   if (!response) {
     throw new Error('SNS ページが応答しません(タブを再読み込みしてください)');

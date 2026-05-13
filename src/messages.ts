@@ -45,6 +45,12 @@ export interface PostToPlatformMessage {
   type: 'POST_TO_PLATFORM';
   platform: PlatformId;
   text: string;
+  /**
+   * thread mode: 文字数オーバーで分割されたチャンクを 1 つの compose 内に
+   * 連投スレッドとして並べる場合 (X のみ対応 v0.4.56〜)。指定時は text フィールド
+   * は無視され、textChunks の各要素が 1 ポストになる。images は最初のチャンクにだけ付く。
+   */
+  textChunks?: string[];
   images?: ImageAttachment[];
   /** dry-run: compose に流し込むが post button は押さない */
   dryRun?: boolean;
