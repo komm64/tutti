@@ -16,9 +16,14 @@ export function timestampedText(label) {
   return `tutti e2e ${label} ${new Date().toISOString()}`;
 }
 
-export async function ensureLoggedIn(page, selector, label) {
-  const found = await page.locator(selector).first().count()
-    .then((n) => n > 0)
+/**
+ * SPA は navigation 直後だと要素が未マウントのことが多い。
+ * waitForSelector で 10s タイムアウト付き polling すれば、ログイン済みなのに
+ * 「未ログイン」と誤判定する事故を回避できる (実機 2026-05-13)。
+ */
+export async function ensureLoggedIn(page, selector, label, timeoutMs = 10000) {
+  const found = await page.waitForSelector(selector, { timeout: timeoutMs, state: 'attached' })
+    .then(() => true)
     .catch(() => false);
   if (!found) {
     return { ok: false, error: `not logged in (${label} — test account session expired?)` };
