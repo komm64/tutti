@@ -166,13 +166,58 @@ async function runPost(
     dryRun,
   });
 
-  await sleep(500);
+  // dry-run は finalize click をスキップしてるので verify も skip
+  if (!dryRun) {
+    await verifyInstagramPosted();
+  }
 
   return {
     type: 'POST_RESULT',
     platform: 'instagram',
     success: true,
   };
+}
+
+/**
+ * Share click 後に **実際に投稿が成立したか** を verify する。
+ *
+ * これが無いと「Share button を click した」だけで `success: true` を返してしまい、
+ * - IG 側で error toast が出ていた / dialog 内エラーで止まっていた
+ * - wizard が想定外に追加された (Audience step 等) で Share 押下に至っていなかった
+ * といった silent failure を user が「Tutti は成功と言ったが投稿が無い」と
+ * 経験することになる (2026-05-13 ユーザ報告)。
+ *
+ * 検証方針: Share click 後の dialog が消える / または "shared" 系の成功 UI に
+ * 切り替わるのを最大 30s 待つ。timeout / 内部に error text を発見した場合は throw。
+ */
+async function verifyInstagramPosted(timeoutMs = 30_000): Promise<void> {
+  const ERROR_TEXT_RE = /error|failed|try again|too large|please try|エラー|失敗|もう一度/i;
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const dialog = document.querySelector<HTMLElement>('[role="dialog"]');
+    if (!dialog) {
+      // dialog 消失 = post 確定。返却 OK
+      log.info('IG: post verified (dialog closed)');
+      return;
+    }
+    // dialog はまだあるが、success 状態 ("Your post has been shared" 等) に
+    // 切り替わっていれば OK
+    const txt = (dialog.textContent ?? '').slice(0, 500);
+    if (/shared|共有しました|posted/i.test(txt)) {
+      log.info('IG: post verified (success message visible)');
+      return;
+    }
+    // エラー表示が出ている場合は即時 throw
+    if (ERROR_TEXT_RE.test(txt)) {
+      throw new Error(
+        `IG: Share 後の dialog にエラー表示が出ました — ${txt.slice(0, 200)}`,
+      );
+    }
+    await sleep(500);
+  }
+  throw new Error(
+    `IG: Share click 後 ${timeoutMs / 1000}s 経っても dialog が閉じませんでした(投稿が完了してない可能性、UI が変わった疑い)`,
+  );
 }
 
 /**
