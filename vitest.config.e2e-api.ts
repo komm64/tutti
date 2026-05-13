@@ -9,10 +9,9 @@ export default defineConfig({
   test: {
     include: ['scripts/e2e-api/**/*.test.ts'],
     environment: 'node',
-    // 各 SNS の API 呼び出しが直列で実行されるよう pool=single (forks) にする
+    // 各 SNS の API 呼び出しが直列で実行されるよう fileParallelism を切る。
     // anti-spam: 並列で 3 SNS 同時に書き込みに行かないように
     pool: 'forks',
-    forks: { singleFork: true },
     fileParallelism: false,
     testTimeout: 30_000,
   },
