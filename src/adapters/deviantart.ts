@@ -43,8 +43,18 @@ export const DEVIANTART_SELECTORS = {
   fileInput: 'button input[type="file"][accept*="image/png"][multiple]',
   /** タイトル input。dialog 内に出る */
   titleInput: 'input[name="title"]',
-  /** description: TipTap (ProseMirror) の contenteditable div */
-  descriptionEditor: 'div.tiptap.ProseMirror[contenteditable="true"]',
+  /**
+   * description editor。DA は TipTap (ProseMirror) ベースだが class が頻繁に
+   * 変わるので多段 selector。aria-label / placeholder 経由の fallback も。
+   * docs/selectors.json override で更に追加可能。
+   */
+  descriptionEditor:
+    'div.tiptap.ProseMirror[contenteditable="true"],' +
+    'div.ProseMirror[contenteditable="true"],' +
+    '[contenteditable="true"][aria-label*="description" i],' +
+    '[contenteditable="true"][aria-placeholder*="description" i],' +
+    '[contenteditable="true"][aria-placeholder*="story" i],' +
+    'main [contenteditable="true"]:not([role="combobox"])',
   /** Next button: 次ページ (categorization 画面) へ進む */
   nextButton: 'button[aria-label="Next"]',
   /**
