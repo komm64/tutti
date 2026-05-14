@@ -39,6 +39,9 @@ test-data/
 scripts/e2e/fixtures/*
 !scripts/e2e/fixtures/README.md
 
+# Local scratch / brainstorm notes
+tmp/
+
 # Local secrets (test account email, etc.). Use .env.example as template.
 .env
 .env.local
