@@ -174,13 +174,17 @@ async function runPost(
     {
       name: 'fill-caption',
       action: async () => {
-        await injectTextIntoElement(text, sel.captionEditor);
-        // caption inject 後、Lexical の internal state まで反映されたかを Share
-        // button の状態で verify する (v0.4.58)。Lexical は paste を microtask で
-        // setState するため、見かけ上 DOM にテキストが入っていても Share button が
-        // 内部で disabled のまま、という silent failure があり得る。
-        // Note: text が空でも IG は画像のみで Share 可なので、enable 条件として
-        // 「button が disabled でない」ことだけを polling する。
+        // 本文がある場合のみ caption inject (空文字 inject は Lexical の
+        // placeholder structure <p><br></p> を破壊するリスクあり、v0.4.59)
+        if (text) {
+          await injectTextIntoElement(text, sel.captionEditor);
+        }
+        // caption inject 後 (or 画像のみ投稿時は upload 完了後)、Lexical の
+        // internal state まで反映されたかを Share button の状態で verify する。
+        // Lexical は paste を microtask で setState するため、見かけ上 DOM に
+        // テキストが入っていても Share button が内部で disabled のまま、
+        // という silent failure があり得る。本文無しでも画像処理後の Share
+        // enable polling は意味があるのでそのまま実行する。
         await waitForShareEnabled(8000);
       },
       settleMs: 500,

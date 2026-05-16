@@ -249,6 +249,14 @@ export default defineContentScript({
       const text = req.text ?? '';
       console.log(`[Tutti inject-helper] text target matched "${found.matchedPart}" (${el.tagName})`);
 
+      // v0.4.59: 空文字 inject は no-op で成功扱い (画像のみ投稿の正常 path)。
+      // 旧コードは空文字でも paste → polling → ok 判定 (visible.length > 0) で
+      // false 返してエラーになり、画像のみ投稿 (本文なし) が X / Tumblr / IG で
+      // 失敗していた (user 報告 2026-05-16)。
+      if (text === '') {
+        return { source: RES_TAG, id: req.id, ok: true };
+      }
+
       el.focus();
 
       if (el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement) {

@@ -75,10 +75,13 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
     if (!textarea) {
       throw new Error('投稿入力欄が見つかりませんでした。ログイン済みか確認してください');
     }
-    // MAIN world 経由でテキスト挿入(React/Lexical の input listener が
-    // ISOLATED world からの execCommand を取りこぼすため)
-    await injectTextIntoElement(text, textareaSelector);
-    await sleep(300);
+    // 本文がある場合のみ MAIN world 経由でテキスト挿入。空文字 inject は
+    // (一部 framework で) editor の placeholder structure を壊すリスクが
+    // あるので skip (画像のみ投稿のための path、v0.4.59)。
+    if (text) {
+      await injectTextIntoElement(text, textareaSelector);
+      await sleep(300);
+    }
   }
 
   if (images && images.length > 0) {
