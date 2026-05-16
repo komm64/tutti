@@ -701,9 +701,31 @@
 
   async function handlePost() {
     if (!canPost) return;
+    await submitPostFor(selectedIds, /* isRetry */ false);
+  }
+
+  /**
+   * v0.4.58: 失敗 SNS の手動再送。
+   * 直前の text / images / video が popup state に残っている前提 (= 全成功でない
+   * 場合は handlePost が clear しないので残る)。失敗した platform だけを対象に
+   * もう一度 background へ送る。
+   */
+  async function handleRetryFailed() {
+    if (!lastResults || posting) return;
+    const failedIds = lastResults.filter((r) => !r.success).map((r) => r.platform);
+    if (failedIds.length === 0) return;
+    // 既存の失敗 entry だけ消す。成功 entry は維持して result panel に表示し続ける
+    lastResults = lastResults.filter((r) => r.success);
+    await submitPostFor(failedIds, /* isRetry */ true);
+  }
+
+  async function submitPostFor(platforms: PlatformId[], isRetry: boolean) {
+    if (platforms.length === 0) return;
     posting = true;
-    lastResults = [];
-    pendingPlatforms = [...selectedIds];
+    if (!isRetry) {
+      lastResults = [];
+    }
+    pendingPlatforms = [...platforms];
     errorMessage = null;
 
     let media: ImageAttachment[];
@@ -712,7 +734,7 @@
     } else if (images.length > 0) {
       // 選択中プラットフォームの最小画像サイズ制約に合わせてリサイズ
       const minLimit = Math.min(
-        ...selectedIds
+        ...platforms
           .map((id) => getAdapter(id)?.imageConstraints.maxBytesPerImage)
           .filter((x): x is number => typeof x === 'number'),
       );
@@ -741,7 +763,7 @@
     const message: PostRequestMessage = {
       type: 'POST_REQUEST',
       text,
-      platforms: selectedIds,
+      platforms,
       images: wireMedia.length > 0 ? wireMedia : undefined,
     };
 
@@ -754,10 +776,23 @@
       } else if (response.error) {
         errorMessage = response.error;
       } else if (response.results) {
-        lastResults = response.results;
+        // retry の場合は既存の成功 entries を残してマージ。新規 (= 失敗だった
+        // platform の新結果) を上書き、別の platform は既存 entry を維持。
+        if (isRetry) {
+          const incoming = response.results;
+          const incomingIds = new Set(incoming.map((r) => r.platform));
+          lastResults = [
+            ...(lastResults ?? []).filter((r) => !incomingIds.has(r.platform)),
+            ...incoming,
+          ];
+        } else {
+          lastResults = response.results;
+        }
         pendingPlatforms = []; // 進捗ストリームの取りこぼし保険
-        // 投稿成功(部分成功含む)で下書きをクリア
-        if (response.results.some((r) => r.success)) {
+        // 全成功(retry 後を含む)で下書きをクリア。retry 後の lastResults に
+        // failure が 1 件でも残ってたら text / media は維持する (= 再々送可能)
+        const allSuccess = (lastResults ?? []).every((r) => r.success);
+        if (allSuccess) {
           text = '';
           images.forEach((img) => URL.revokeObjectURL(img.previewUrl));
           images = [];
@@ -1036,15 +1071,21 @@
       >{t('errorReportButton')} →</button>
     </div>
   {/if}
-  <!-- 失敗した SNS がある場合も同じ Report ボタンを出す(全体 errorMessage と並列) -->
+  <!-- 失敗した SNS がある場合: 再送ボタン + Report ボタンを並べる(全体 errorMessage と並列) -->
   {#if !posting && lastResults?.some((r) => !r.success)}
     {@const failures = lastResults.filter((r) => !r.success)}
-    <div class="mt-2 text-xs text-red-700">
+    <div class="mt-2 flex items-center gap-3 text-xs text-red-700">
+      <button
+        onclick={handleRetryFailed}
+        disabled={text.trim().length === 0 && images.length === 0 && !video}
+        title="失敗した {failures.length} 件をもう一度送信"
+        class="px-2 py-1 rounded bg-red-600 text-white hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium"
+      >失敗だけ再送 ({failures.length}) ↻</button>
       <button
         onclick={() => handleReportError(failures.map((r) => `${r.platform}: ${r.error ?? '(no detail)'}`).join('\n'))}
         title={t('errorReportHint')}
         class="underline hover:text-red-900"
-      >{t('errorReportButton')} ({failures.length}) →</button>
+      >{t('errorReportButton')} →</button>
     </div>
   {/if}
 

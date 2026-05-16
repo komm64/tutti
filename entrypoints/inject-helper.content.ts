@@ -261,12 +261,16 @@ export default defineContentScript({
         el.dispatchEvent(new Event('change', { bubbles: true }));
       } else {
         // contenteditable (Draft.js / Lexical / TipTap / ProseMirror):
-        // execCommand('insertText') は X の Lexical で state 更新が来ない実績あり。
-        // 最も確実なのは clipboard paste の simulation。これで Lexical/Draft の
-        // onPaste ハンドラが起動し、内部 state が更新される(X 2026-04-30 検証で確認)。
-        // ただし IG (Lexical) は空の editor で selectAllChildren+delete すると
-        // editor の placeholder structure (<p><br></p>) を内部で壊して以後の
-        // paste 反映が来なくなる。実質的なテキストが既にある時だけ削除する。
+        // 経路は 2 段だけにする (v0.4.58):
+        //   1) paste event simulation → 最大 600ms polling で反映確認
+        //   2) ダメなら textContent 直接代入 + InputEvent
+        //
+        // 旧コードは paste → 120ms wait → execCommand('insertText') → 80ms wait
+        // → textContent= の 3 段 fallback だったが、Lexical の paste は内部
+        // microtask 経由で setState されるため 120ms では間に合わず、
+        // execCommand('insertText') が **paste 反映前** に発火 → Lexical state と
+        // DOM が二重挿入される (= 文字化けの原因、X で実機報告 2026-05-16)。
+        // execCommand 経由は重複挿入の温床なので chain から削除した。
         const existing = (el.textContent ?? '').trim();
         if (existing.length > 0) {
           // Selection API: 一般的な contenteditable 用 (TipTap / ProseMirror で OK)
@@ -294,20 +298,28 @@ export default defineContentScript({
         });
         el.dispatchEvent(pasteEv);
 
-        // Lexical / ProseMirror など framework によっては paste 反映が
-        // 非同期で setState 経由 (microtask)。すぐ textContent を読むと
-        // 「まだ空」と誤判定して fallback が二重三重に走る。少し待つ。
-        await new Promise((r) => setTimeout(r, 120));
+        // Lexical / ProseMirror などは paste 反映が microtask 経由で setState される
+        // ため、ここで polling して「先頭 16 char が DOM に出現するまで」最大 600ms 待つ。
+        // 短いテキスト (改行のみ等) も拾えるよう slice 範囲は短めに取る。
+        const matchSnippet = text.slice(0, Math.min(16, text.length));
+        const visibleNow = (): string =>
+          (el as HTMLElement).innerText ?? el.textContent ?? '';
+        const pasted = await waitFor(
+          () => matchSnippet === '' || visibleNow().includes(matchSnippet),
+          600,
+        );
 
-        // paste でダメだった場合のフォールバック: execCommand → 直接 textContent
-        const matchSnippet = text.slice(0, Math.min(20, text.length));
-        if (!(el.textContent ?? '').includes(matchSnippet)) {
-          document.execCommand('insertText', false, text);
-          await new Promise((r) => setTimeout(r, 80));
-        }
-        if (!(el.textContent ?? '').includes(matchSnippet)) {
+        // paste が効かない framework (rare) のみ最終手段: textContent 直接代入。
+        // execCommand('insertText') は paste と二重発火で文字化けの原因になるため
+        // chain から外した。textContent= は state を破壊するリスクはあるが、paste が
+        // 600ms 待っても効いてない時点で「framework が paste を聞いていない」ので
+        // どちらにせよ DOM 直編集しか手段がない。
+        if (!pasted) {
           el.textContent = text;
-          el.dispatchEvent(new InputEvent('input', { bubbles: true, data: text, inputType: 'insertText' }));
+          el.dispatchEvent(new InputEvent('input', {
+            bubbles: true, data: text, inputType: 'insertText',
+          }));
+          await new Promise((r) => setTimeout(r, 80));
         }
       }
 

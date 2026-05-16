@@ -509,7 +509,7 @@ async function postToPlatform(
   // 他 SNS は従来通り chunk ごとに sleep 挟んで sequential 投稿 (= independent posts)。
   if (chunks.length > 1 && adapter.id === 'x') {
     try {
-      await postSingleChunk(adapter, chunks[0]!, images, chunks);
+      await postSingleChunkWithRetry(adapter, chunks[0]!, images, chunks);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       return { type: 'POST_RESULT', platform, success: false, error: `thread 投稿失敗: ${msg}` };
@@ -522,7 +522,14 @@ async function postToPlatform(
     const chunkImages = i === 0 ? images : undefined;
 
     try {
-      await postSingleChunk(adapter, chunks[i]!, chunkImages);
+      // v0.4.58: 1 chunk 目だけ自動 retry (1 回限り)。
+      // 2 chunk 目以降は retry すると重複投稿のリスクがある (前の chunk が
+      // 部分的に成功しているケース) ので retry しない。
+      if (i === 0) {
+        await postSingleChunkWithRetry(adapter, chunks[i]!, chunkImages);
+      } else {
+        await postSingleChunk(adapter, chunks[i]!, chunkImages);
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       return {
@@ -535,6 +542,36 @@ async function postToPlatform(
   }
 
   return { type: 'POST_RESULT', platform, success: true };
+}
+
+/**
+ * postSingleChunk を最大 2 回呼ぶ wrapper (v0.4.58)。失敗時に 1 回だけ自動 retry。
+ *
+ * 条件:
+ *   - autoPost ON のときだけ retry (preview モードは selector / UI mismatch が
+ *     原因で失敗することが多く、retry しても同じ場所で詰まるため無意味)
+ *   - retry の前に 1.5s sleep して SNS 側 transient state の落ち着きを待つ
+ *
+ * 「自動再試行 (1 回だけ) + 失敗 SNS の手動再送 UI」の前半に対応。
+ * 完全な復旧は popup 側の再送 UI に委ねる。
+ */
+async function postSingleChunkWithRetry(
+  adapter: PlatformAdapter,
+  text: string,
+  rawImages?: ImageAttachment[],
+  textChunks?: string[],
+): Promise<void> {
+  const { autoPost } = await getSettings();
+  try {
+    await postSingleChunk(adapter, text, rawImages, textChunks);
+    return;
+  } catch (err) {
+    if (!autoPost) throw err;
+    const msg = err instanceof Error ? err.message : String(err);
+    log.warn(`${adapter.id}: 1 回目失敗 → 1.5s 後 retry — ${msg}`);
+    await sleep(1500);
+    await postSingleChunk(adapter, text, rawImages, textChunks);
+  }
 }
 
 /**

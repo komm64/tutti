@@ -175,6 +175,13 @@ async function runPost(
       name: 'fill-caption',
       action: async () => {
         await injectTextIntoElement(text, sel.captionEditor);
+        // caption inject 後、Lexical の internal state まで反映されたかを Share
+        // button の状態で verify する (v0.4.58)。Lexical は paste を microtask で
+        // setState するため、見かけ上 DOM にテキストが入っていても Share button が
+        // 内部で disabled のまま、という silent failure があり得る。
+        // Note: text が空でも IG は画像のみで Share 可なので、enable 条件として
+        // 「button が disabled でない」ことだけを polling する。
+        await waitForShareEnabled(8000);
       },
       settleMs: 500,
     },
@@ -200,6 +207,34 @@ async function runPost(
     platform: 'instagram',
     success: true,
   };
+}
+
+/**
+ * Share button が disabled でなくなるまで poll する (v0.4.58)。
+ * caption inject が Lexical の internal state まで届かないと button が
+ * disabled のままで finalize が空打ちになる silent failure の検出用。
+ *
+ * 戻り値で結果を返すのではなく、enable にならなければ throw して step を
+ * 失敗扱いにする(= step-runner が retry 候補に渡せる)。
+ */
+async function waitForShareEnabled(timeoutMs: number): Promise<void> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const share = findDialogButtonByText(['Share', '共有', 'Post']);
+    if (share) {
+      const ariaDisabled = share.getAttribute('aria-disabled');
+      const elDisabled = (share as HTMLButtonElement).disabled;
+      if (!elDisabled && ariaDisabled !== 'true') {
+        log.info('IG: Share button enable を確認');
+        return;
+      }
+    }
+    // share button 不在は wizard 中の他の step 表示の可能性もあるので polling 継続
+    await sleep(200);
+  }
+  throw new Error(
+    'IG: caption 入力後に Share button が enable になりませんでした (Lexical state 反映失敗の可能性)',
+  );
 }
 
 /**
