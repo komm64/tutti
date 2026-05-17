@@ -152,6 +152,12 @@ async function runPost(
           throw new Error('IG: file input が dialog 内に出現しませんでした');
         }
         await injectImages(images, sel.fileInput);
+        // v0.4.61: Crop dialog が mount された直後に Original aspect ratio を選んで、
+        // 横長/縦長の写真が IG default の 1:1 で左右 (or 上下) 見切れるのを回避。
+        // 失敗は warn のみで続行 (IG が許す範囲外なら IG 側で勝手に fit させる、
+        // ユーザー報告は: 2026-05-17 横長で左右見切れ)。
+        await sleep(800); // Crop dialog 内部 render 待ち
+        await selectOriginalCrop();
       },
       settleMs: 200,
       // Crop 画面の Next ボタン click で進む
@@ -227,6 +233,65 @@ async function runPost(
     platform: 'instagram',
     success: true,
   };
+}
+
+/**
+ * Crop dialog 内の "Select crop" を click → popover の "Original" を click して
+ * 元アスペクト比を保つ (v0.4.61)。IG が許す範囲外でも IG 側で fit するので
+ * 失敗は warn のみで続行 (= 既存挙動 = 1:1 default)。
+ */
+async function selectOriginalCrop(): Promise<void> {
+  const cropBtn = findCropAspectButton();
+  if (!cropBtn) {
+    log.warn('IG: "Select crop" button が Crop dialog に見つかりません (UI 変更?)、default 1:1 で続行');
+    return;
+  }
+  cropBtn.click();
+  await sleep(400);
+  const originalItem = findCropOption([
+    'Original', 'オリジナル', '元のサイズ', '元の比率', 'Original ratio',
+  ]);
+  if (!originalItem) {
+    log.warn('IG: Crop popover に "Original" 系の選択肢が無い、default 1:1 で続行');
+    cropBtn.click(); // popover を閉じる (toggle)
+    await sleep(200);
+    return;
+  }
+  originalItem.click();
+  log.info('IG: Original aspect ratio を選択');
+  await sleep(400);
+}
+
+function findCropAspectButton(): HTMLElement | null {
+  const dialogs = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"]'));
+  const cropDlg = dialogs.find((d) => /Crop|切り抜き|トリミング/i.test(d.getAttribute('aria-label') ?? '')) ?? dialogs[dialogs.length - 1];
+  if (!cropDlg) return null;
+  const btn = Array.from(cropDlg.querySelectorAll<HTMLElement>('button, [role="button"]'))
+    .find((b) => {
+      const t = (b.textContent ?? '').trim();
+      return t === 'Select crop' || t === 'トリミング' || t === '切り抜き';
+    });
+  return btn ?? null;
+}
+
+function findCropOption(texts: string[]): HTMLElement | null {
+  const candidates = document.querySelectorAll<HTMLElement>(
+    'button, [role="button"], [role="menuitem"], [role="radio"], [role="option"]',
+  );
+  for (const el of candidates) {
+    const t = (el.textContent ?? '').trim();
+    if (texts.includes(t)) return el;
+  }
+  // span 内に label がある case (button は親)
+  const spans = document.querySelectorAll<HTMLElement>('span, div');
+  for (const el of spans) {
+    const t = (el.textContent ?? '').trim();
+    if (texts.includes(t)) {
+      const clickable = el.closest('button, [role="button"], [role="menuitem"], [role="radio"]') as HTMLElement | null;
+      if (clickable) return clickable;
+    }
+  }
+  return null;
 }
 
 /**
