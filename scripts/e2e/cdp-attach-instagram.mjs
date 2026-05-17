@@ -83,20 +83,23 @@ async function findSw() {
 let swTarget = await findSw();
 if (!swTarget) {
   console.log(`[ig-cdp] Tutti SW idle, waking via popup.html navigation`);
-  const wakePage = await browser.newPage();
-  try {
-    await wakePage.goto(`chrome-extension://${extId}/popup.html`, { timeout: 10000 });
-  } catch (e) {
-    // popup.html は MV3 だと action popup として開かれる前提なので
-    // 直接 navigate で 404 になることもあるが、SW は wake するはず
+  // chrome.runtime.reload() 直後など 5s では足りないケースがあるので、
+  // popup を 3 回 navigate + 最大 20s 待つ
+  for (let attempt = 1; attempt <= 3 && !swTarget; attempt++) {
+    const wakePage = await browser.newPage();
+    try {
+      await wakePage.goto(`chrome-extension://${extId}/popup.html`, { timeout: 10000 });
+    } catch (e) {
+      // popup.html は MV3 だと action popup として開かれる前提
+    }
+    for (let i = 0; i < 70; i++) {
+      swTarget = await findSw();
+      if (swTarget) break;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    await wakePage.close().catch(() => {});
+    if (!swTarget) console.log(`  attempt ${attempt}: SW not yet visible, retrying...`);
   }
-  // SW が active になるまで最大 5s 待つ
-  for (let i = 0; i < 50; i++) {
-    swTarget = await findSw();
-    if (swTarget) break;
-    await new Promise((r) => setTimeout(r, 100));
-  }
-  await wakePage.close().catch(() => {});
 }
 if (!swTarget) {
   console.error('[ig-cdp] FAIL: Tutti 拡張 SW を wake できなかった (Tutti が load されてない可能性)');
