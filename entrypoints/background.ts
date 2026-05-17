@@ -25,6 +25,7 @@ import {
 } from '../src/utils/attachment';
 import { fetchOverridesFrom } from '../src/utils/selector-overrides';
 import { splitText } from '../src/utils/split';
+import { letterboxToSquare } from '../src/utils/image-letterbox';
 import { getApiCredentials } from '../src/utils/api-credentials';
 import { postViaApi as postBlueskyApi } from '../src/api/bluesky';
 import { postViaApi as postMastodonApi } from '../src/api/mastodon';
@@ -502,6 +503,16 @@ async function postToPlatform(
     }
   }
 
+  // v0.4.62: IG は default crop が 1:1 のため横長/縦長写真の端が見切れる。
+  // Tutti 側で正方形 letterbox (ぼかし背景 + 中央配置) に変換して、
+  // 画像全体を保ちながら IG の 1:1 制約に合わせる。他 platform には影響なし。
+  if (adapter.id === 'instagram' && images && images.length > 0) {
+    const hasVideo = images.some((m) => m.type.startsWith('video/'));
+    if (!hasVideo) {
+      images = await letterboxImagesForInstagram(images);
+    }
+  }
+
   const chunks = splitText(text, adapter.charLimit);
 
   // X は thread chaining 対応 (v0.4.56〜)。chunks > 1 のときは 1 つの compose に
@@ -606,6 +617,40 @@ async function resolveAdapter(platform: PlatformId): Promise<PlatformAdapter | u
   }
 
   return adapter;
+}
+
+/**
+ * IG 用に画像を正方形 letterbox 変換 (v0.4.62)。横長/縦長写真の端が IG default
+ * 1:1 crop で見切れる問題を回避。dataRef だけの大画像は resolve してから変換。
+ * 変換失敗は warn のみで元画像にフォールバック (= 既存挙動 = 1:1 で見切れる)。
+ */
+async function letterboxImagesForInstagram(
+  images: ImageAttachment[],
+): Promise<ImageAttachment[]> {
+  return await Promise.all(
+    images.map(async (img) => {
+      try {
+        // base64 を持ってない (= dataRef のみ) なら resolve
+        let data = img.data;
+        if (!data) {
+          const resolved = await resolveAttachmentToBase64(img);
+          data = resolved.data;
+        }
+        if (!data) throw new Error('letterbox: data missing after resolve');
+        const out = await letterboxToSquare(data, img.type);
+        if (!out.changed) return img; // 既に square、元の object のまま
+        return {
+          name: img.name.replace(/\.[^.]+$/, '.jpg'),
+          type: out.type,
+          data: out.data,
+          // letterbox 後は別 binary なので dataRef は外して data のみで運ぶ
+        };
+      } catch (e) {
+        log.warn(`IG letterbox 失敗、元画像で続行: ${e instanceof Error ? e.message : String(e)}`);
+        return img;
+      }
+    }),
+  );
 }
 
 /**
