@@ -116,6 +116,22 @@ async function runPost(
           throw new Error('IG: sidebar の "Create" / "New post" trigger が見つかりません');
         }
         trigger.click();
+        // v0.4.60: Create click 後、variant 判別 — 一部アカウント (Personal でも)
+        // sidebar "+" → "Post / Live video / Ad" の popover が挟まる variant が
+        // ある (user 報告 2026-05-17、本垢 Brave で再現)。fixture でいうと
+        // ren.fujimoto.89 では popover 出ずに直接 dialog だが、別アカウントでは
+        // popover 経由になる。short wait のあと file input が直接見えれば直接
+        // variant、見えなければ popover の "Post" を選ぶ。
+        await sleep(800);
+        if (!document.querySelector(sel.fileInput)) {
+          const postItem = findCreateSubmenuItem(['Post', '投稿', 'Publicación', 'Publication']);
+          if (postItem) {
+            log.info('IG: popover variant detected, clicking "Post" submenu item');
+            postItem.click();
+          } else {
+            log.warn('IG: popover の Post も file input も見つからず、10s 待機継続 (variant 不明)');
+          }
+        }
         // dialog mount を waitForElement で待つ。step-runner の awaitNextDom は
         // advance click 後にしか動かないので、advance が無い step (= 単発 click) は
         // action 内で待つ必要がある
