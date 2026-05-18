@@ -54,6 +54,20 @@ let logPersistTimer: ReturnType<typeof setTimeout> | undefined;
 let compressionStateInMemory: { progress: number; stage: 'load' | 'transcode' } | null = null;
 let postingInMemory: boolean = false;
 
+/**
+ * v0.4.63: 投稿中の richer な state を background 側で保持する。popup を閉じて
+ * 再 open しても「2/7 完了」「残り 5 が pending」が正しく復元できるようにする。
+ * 旧コードは postingInMemory: boolean だけで、popup が閉じた瞬間に進捗が消えて
+ * 開き直すと「全部 Queue...」と表示されるバグの原因になっていた。
+ */
+interface PostingState {
+  platforms: PlatformId[];
+  pending: Set<PlatformId>;
+  results: PostResultMessage[];
+  startedAt: number;
+}
+let postingStateInMemory: PostingState | null = null;
+
 async function loadLogBuffer(): Promise<void> {
   try {
     const stored = await browser.storage.local.get(LOG_BUFFER_KEY);
@@ -113,7 +127,19 @@ export default defineBackground(() => {
       return; // 同上
     }
     if (msg.type === 'GET_BG_STATE') {
-      sendResponse({ compression: compressionStateInMemory, posting: postingInMemory });
+      sendResponse({
+        compression: compressionStateInMemory,
+        posting: postingInMemory,
+        // v0.4.63: 投稿中の platform 別の進捗を popup に返す。pending / results を
+        // popup 側で再現してリッチな UI を復元する。
+        postingState: postingStateInMemory
+          ? {
+              platforms: postingStateInMemory.platforms,
+              pending: Array.from(postingStateInMemory.pending),
+              results: postingStateInMemory.results.slice(),
+            }
+          : null,
+      });
       return true;
     }
 
@@ -272,28 +298,59 @@ interface DiagnosticsReport {
   platforms: DiagnosePlatformResult[];
 }
 
+/**
+ * v0.4.63: 投稿の並列度上限。旧コードは `Promise.all` で全 SNS を完全並列に
+ * 投げていた (11 SNS 選択時は 11 tab 同時 open) ため Chrome のリソース上限を
+ * 突き、各 SNS の content script 初期化 / file upload / network が互いに
+ * 干渉して「全 SNS 成功することがまずない」状態だった。並列度 3 に絞ると
+ * 各 SNS が落ち着いて処理される。所要時間は 11 SNS × 各 10s ≒ 40s と
+ * 実用的な範囲に収まる。
+ */
+const POST_CONCURRENCY = 3;
+
 async function handlePostRequest(
   text: string,
   platforms: PlatformId[],
   images?: ImageAttachment[],
 ): Promise<PostResultMessage[]> {
   postingInMemory = true;
+  postingStateInMemory = {
+    platforms: [...platforms],
+    pending: new Set(platforms),
+    results: [],
+    startedAt: Date.now(),
+  };
   try {
   // P16: 動画があり、いずれかの選択中 SNS の maxBytes を超える場合は事前に圧縮
   const adjustedImages = await maybeCompressVideoForBudget(platforms, images);
 
-  const results = await Promise.all(
-    platforms.map(async (platform) => {
-      const result = await postToPlatform(platform, text, adjustedImages);
-      // 各プラットフォーム完了時に popup へストリーム配信(popup が開いていれば届く)
-      void browser.runtime
-        .sendMessage({ type: 'PLATFORM_PROGRESS', result })
-        .catch(() => {
-          /* popup が閉じている場合は送信失敗するが無視 */
-        });
-      return result;
-    }),
-  );
+  // 並列度制限 (POST_CONCURRENCY 同時) の worker pool。
+  // 各 worker は queue から platform を取り出して処理 → 結果を state と
+  // PLATFORM_PROGRESS broadcast に流し込む → 次の platform を取りに行く。
+  const queue: PlatformId[] = [...platforms];
+  const results: PostResultMessage[] = [];
+  const workers: Promise<void>[] = [];
+  const workerCount = Math.min(POST_CONCURRENCY, queue.length);
+  for (let i = 0; i < workerCount; i++) {
+    workers.push((async () => {
+      while (queue.length > 0) {
+        const platform = queue.shift();
+        if (!platform) break;
+        const result = await postToPlatform(platform, text, adjustedImages);
+        results.push(result);
+        // background 側の state を更新 (popup 再 open 時に GET_BG_STATE で復元される)
+        if (postingStateInMemory) {
+          postingStateInMemory.pending.delete(platform);
+          postingStateInMemory.results.push(result);
+        }
+        // popup へストリーム配信(popup が開いていれば届く、閉じてれば↑の state で復元)
+        void browser.runtime
+          .sendMessage({ type: 'PLATFORM_PROGRESS', result })
+          .catch(() => { /* popup 閉じてれば失敗、無視 */ });
+      }
+    })());
+  }
+  await Promise.all(workers);
 
   notifyResults(results);
   void addToPostHistory(text, results, (adjustedImages?.length ?? 0) > 0);
@@ -303,6 +360,7 @@ async function handlePostRequest(
   return results;
   } finally {
     postingInMemory = false;
+    postingStateInMemory = null;
     compressionStateInMemory = null;
   }
 }

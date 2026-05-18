@@ -439,13 +439,29 @@
   let compressionStartedAt = $state<number | null>(null);
   let compressionEtaS = $state<number | null>(null);
 
-  // P19: popup 閉じ→再 open 時、background が保持してる進行状態を復元する。
-  // 進行中なら progress UI を再表示。完了なら history が更新される (既存 flow)。
+  // P19 / v0.4.63: popup 閉じ→再 open 時、background が保持してる進行状態を
+  // 復元する。pending / 完了済 results / 圧縮進捗 を全部復元することで、
+  // 「2/7 完了済み、5 投稿中」のような中間状態でも閉じ→開きで正しく表示される。
+  // 旧コードは posting boolean だけ復元していたので、再 open すると pending /
+  // results が空 → 全 SNS が isQueued (「Queue...」) と誤表示されていた。
   $effect(() => {
     void browser.runtime.sendMessage({ type: 'GET_BG_STATE' }).then((res: unknown) => {
-      const r = res as { compression?: { stage: 'load' | 'transcode'; progress: number } | null; posting?: boolean } | undefined;
+      const r = res as {
+        compression?: { stage: 'load' | 'transcode'; progress: number } | null;
+        posting?: boolean;
+        postingState?: {
+          platforms: PlatformId[];
+          pending: PlatformId[];
+          results: PostResultMessage[];
+        } | null;
+      } | undefined;
       if (r?.posting) {
         posting = true;
+        if (r.postingState) {
+          // 進行中の platform 一覧 と既に終わった result を popup に流し込む
+          pendingPlatforms = [...r.postingState.pending];
+          lastResults = [...r.postingState.results];
+        }
         if (r.compression) {
           compressionProgress = r.compression;
           if (r.compression.stage === 'transcode' && r.compression.progress > 0.05) {
