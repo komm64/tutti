@@ -147,7 +147,7 @@
     }
   },
   "constraintImageTooLarge": {
-    "message": "$N$ 枚目が大きすぎます(上限 $MAX$MB、実際 $ACTUAL$MB)",
+    "message": "$N$枚目が大きすぎます(上限 $MAX$MB、実際 $ACTUAL$MB)",
     "placeholders": {
       "N": { "content": "$1" },
       "MAX": { "content": "$2" },

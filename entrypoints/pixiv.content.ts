@@ -18,44 +18,40 @@ import { detectAndReportUser } from '../src/utils/user-detect';
  * `a[href^="/users/<id>"]` のうち最初に現れるものは大抵 self-link。
  * URL 内の数値 user id ではなく display 名を取りたいので、その後の avatar/name 要素から拾う。
  */
+/**
+ * Pixiv のログイン中ユーザー検出。
+ *
+ * 旧コードは `a[href*="/users/"]` を全走査して最初の anchor の img alt /
+ * aria-label / textContent を返していた。 が、 Pixiv home の「おすすめのユーザー」
+ * widget / illustration card の作者リンク / フォロワー一覧などに `/users/<id>`
+ * リンクが大量にあって **first match が他ユーザーになる** ことが頻発する
+ * (= 「全然違う人の名前が出る」 bug の典型)。
+ *
+ * 修正方針: **header 領域内の self link のみ**採用、 body の card 内 link は
+ * 拾わない。 header 内に self link が無いページ (= 詳細ページや login 前)
+ * では null を返す方が誤検出よりマシ。
+ */
 function detectPixivUser(): string | null {
-  // 戦略 1: globals.userData (Pixiv が SSR で埋め込む user data) から
-  // window.dataLayer["pixiv-user-id"] や globalInitData
-  // (但し ISOLATED world からは page-context window が見えないので不可)
-  // 戦略 2: header / nav の self user link (`/users/<numeric-id>`) を辿って img alt / title 抽出
-  // 戦略 3: localStorage / cookie ベース (Pixiv は cookie に user_id を入れる時がある)
-
   const RESERVED = new Set(['login', 'logout', 'settings', 'help', 'manga', 'illustration']);
   const isLikely = (s: string | null | undefined): s is string =>
     !!s && s.length >= 1 && s.length <= 40 && !RESERVED.has(s.toLowerCase());
 
-  // /users/<numeric-id> を持つ anchor を全部走査。img の alt / title / aria-label / 子テキストから取る
-  const userLinks = document.querySelectorAll<HTMLAnchorElement>('a[href*="/users/"]');
+  // header 配下の self user link (`/users/<numeric-id>`) のみ採用
+  const headerEl = document.querySelector('header') ?? document.querySelector('[class*="header" i]');
+  if (!headerEl) return null;
+  const userLinks = headerEl.querySelectorAll<HTMLAnchorElement>('a[href*="/users/"]');
   for (const link of userLinks) {
     const href = link.getAttribute('href') ?? '';
-    // numeric id 検証 (search や検索結果の anchor を弾く)
     if (!/\/users\/\d+(?:[/?#]|$)/.test(href)) continue;
-    // 候補 1: img alt / title
     const img = link.querySelector('img');
     if (img) {
       const fromImg = (img.getAttribute('alt') ?? '').trim() || (img.getAttribute('title') ?? '').trim();
       if (isLikely(fromImg)) return fromImg;
     }
-    // 候補 2: link 自身の aria-label / title
     const fromLink = (link.getAttribute('aria-label') ?? '').trim() || (link.getAttribute('title') ?? '').trim();
     if (isLikely(fromLink)) return fromLink;
-    // 候補 3: link 内の子要素 textContent (40 char 上限)
     const childText = (link.textContent ?? '').trim().slice(0, 40);
     if (isLikely(childText)) return childText;
-  }
-
-  // header の dropdown trigger fallback
-  const accountBtn = document.querySelector<HTMLElement>(
-    '[aria-label*="account" i], [data-gtm-label*="account" i], button[aria-haspopup]',
-  );
-  if (accountBtn) {
-    const txt = accountBtn.textContent?.trim().slice(0, 40);
-    if (isLikely(txt)) return txt;
   }
   return null;
 }

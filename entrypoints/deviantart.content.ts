@@ -9,25 +9,35 @@ import { resolveSelectors } from '../src/utils/selector-overrides';
 import { detectAndReportUser } from '../src/utils/user-detect';
 
 /**
- * DeviantArt のログイン中ユーザー名検出。
- * header の avatar や user menu link から user URL slug を抽出する。
+ * DeviantArt のログイン中ユーザー検出。
+ *
+ * 旧コードは `header a[href^="/"]` を含めて走査して、 anchor の data-username
+ * もしくは href slug を返していた。 だが DA の header には Submit / Browse /
+ * 通知 popover などの link が並び、 さらに body 側にも作者 link が大量にあって
+ * **first match が他ユーザーになる** 事故が起きやすい (「全然違う人の名前が
+ * 出る」 bug の典型)。
+ *
+ * 修正方針: own profile を strongly 同定する `a[data-username]` を first、
+ * その次に `a[aria-label*="profile" i]`。 header の slug 走査は廃止。
  */
 function detectDeviantArtUser(): string | null {
   const RESERVED = new Set(['login', 'logout', 'settings', 'help', 'studio', 'submit', 'home']);
-  // user link は href="/<username>" の形が多い
-  const links = document.querySelectorAll<HTMLAnchorElement>(
-    'header a[href^="/"], a[aria-label*="profile" i], a[data-username]',
+
+  // 戦略 1: data-username (DA の own profile link 専用 attribute)
+  const dataMatch = document.querySelector<HTMLAnchorElement>('a[data-username]');
+  const dataUser = dataMatch?.getAttribute('data-username') ?? '';
+  if (/^[\w-]{2,}$/.test(dataUser) && !RESERVED.has(dataUser.toLowerCase())) {
+    return dataUser;
+  }
+
+  // 戦略 2: aria-label*="profile" が指す自分の profile link
+  const profileLink = document.querySelector<HTMLAnchorElement>(
+    'a[aria-label*="profile" i][href^="/"]',
   );
-  for (const a of links) {
-    const dataUser = a.getAttribute('data-username');
-    if (dataUser && /^[\w-]{2,}$/.test(dataUser) && !RESERVED.has(dataUser.toLowerCase())) {
-      return dataUser;
-    }
-    const href = a.getAttribute('href') ?? '';
-    const m = href.match(/^\/([^/?#]+)$/);
-    if (m && m[1] && /^[\w-]{2,}$/.test(m[1]) && !RESERVED.has(m[1].toLowerCase())) {
-      return m[1];
-    }
+  const href = profileLink?.getAttribute('href') ?? '';
+  const m = href.match(/^\/([^/?#]+)$/);
+  if (m && m[1] && /^[\w-]{2,}$/.test(m[1]) && !RESERVED.has(m[1].toLowerCase())) {
+    return m[1];
   }
   return null;
 }

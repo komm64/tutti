@@ -9,19 +9,19 @@ import { resolveSelectors } from '../src/utils/selector-overrides';
 import { detectAndReportUser } from '../src/utils/user-detect';
 
 /**
- * YouTube logged-in user 検出。Studio header の channel 名 / Account menu から。
+ * YouTube logged-in user 検出。
+ *
+ * **Studio (`studio.youtube.com`) のみに限定**。 通常 youtube.com の home /
+ * 視聴ページには `[class*="channel-name"]` にマッチする要素が feed の推奨動画
+ * 由来でいくつも存在し、 「first match wins」 で他チャンネル名を拾ってしまう
+ * (= 「全然違う人の名前が出る」 bug の典型)。 Studio は logged-in account
+ * 専用の `ytcp-account-info` を提供しているのでそれだけ見る。
  */
 function detectYouTubeUser(): string | null {
-  // header の channel name (Studio)
-  const channelEl = document.querySelector<HTMLElement>(
-    'ytcp-account-info, [id="account-name"], [class*="channel-name" i]',
-  );
-  const txt = channelEl?.textContent?.trim();
-  if (txt && txt.length > 0 && txt.length <= 50) return txt;
-  // www.youtube.com の avatar menu
-  const avatar = document.querySelector<HTMLElement>('button[aria-label*="account" i] img, #avatar-btn');
-  const alt = avatar?.getAttribute('alt') ?? avatar?.getAttribute('aria-label') ?? '';
-  if (alt && alt.length > 0) return alt.slice(0, 50);
+  if (!/(^|\.)studio\.youtube\.com$/.test(location.hostname)) return null;
+  const el = document.querySelector<HTMLElement>('ytcp-account-info');
+  const txt = el?.textContent?.trim();
+  if (txt && txt.length > 0 && txt.length <= 80) return txt;
   return null;
 }
 

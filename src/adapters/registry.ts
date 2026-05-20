@@ -38,14 +38,15 @@ export function findAdapterByUrl(url: string): PlatformAdapter | undefined {
   return undefined;
 }
 
-// chrome.i18n.getMessage は MV3 の全 context (popup / background / content) で動作。
-// fallback は messages.json が読めない環境向けの英語 literal。
+// browser.i18n.getMessage は MV3 の全 context (popup / background / content) で動作。
+// fallback は messages.json が読めない環境 (vitest 等) 向けの key literal。
 function t(key: string, subs: (string | number)[] = []): string {
   try {
-    const s = chrome.i18n.getMessage(key, subs.map(String));
+    const s = (globalThis as { browser?: { i18n?: { getMessage: (k: string, s: string[]) => string } } })
+      .browser?.i18n?.getMessage(key, subs.map(String));
     if (s) return s;
   } catch {
-    // chrome.i18n が無い test 環境
+    // browser.i18n が無い test 環境
   }
   return key;
 }

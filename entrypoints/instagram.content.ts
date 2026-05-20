@@ -9,7 +9,11 @@ import { resolveSelectors } from '../src/utils/selector-overrides';
 import { detectAndReportUser } from '../src/utils/user-detect';
 
 /**
- * Instagram のログイン中ユーザー名検出。Profile sidebar link の slug が一番堅い。
+ * Instagram のログイン中ユーザー名検出。
+ *
+ * 旧コード戦略 2 (`a[href^="/"]` 全走査) は home feed の post 作者 link を
+ * 拾ってしまい **「全然違う人の名前が表示される」 bug の典型** だった。
+ * 削除して、 side nav の Profile link (aria-label で同定) のみ採用。
  */
 function detectInstagramUser(): string | null {
   const RESERVED = new Set([
@@ -20,18 +24,13 @@ function detectInstagramUser(): string | null {
   const isLikely = (s: string | undefined | null): s is string =>
     !!s && /^[\w._]{2,30}$/.test(s) && !RESERVED.has(s.toLowerCase());
 
-  // 戦略 1: side nav の Profile link (href="/<username>/")
-  const profileLink = document.querySelector<HTMLAnchorElement>(
-    'a[href$="/"][role="link"][tabindex="0"]',
+  // side nav の Profile link を aria-label で同定 (ja/en/zh 対応)。
+  // logged-in user 専用の link で href が `/<username>/`。
+  const navProfile = document.querySelector<HTMLAnchorElement>(
+    'a[aria-label*="Profile" i][href^="/"], a[aria-label*="プロフィール"][href^="/"], a[aria-label*="个人主页" i][href^="/"]',
   );
-  const m1 = profileLink?.getAttribute('href')?.match(/^\/([^/?#]+)\/$/);
-  if (isLikely(m1?.[1])) return m1![1]!;
-
-  // 戦略 2: 任意の anchor 内 self-link (header の avatar 等)
-  for (const a of document.querySelectorAll<HTMLAnchorElement>('a[href^="/"]')) {
-    const m = a.getAttribute('href')?.match(/^\/([^/?#]+)\/$/);
-    if (isLikely(m?.[1])) return m![1]!;
-  }
+  const m = navProfile?.getAttribute('href')?.match(/^\/([^/?#]+)\/$/);
+  if (isLikely(m?.[1])) return m![1]!;
   return null;
 }
 

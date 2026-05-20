@@ -9,20 +9,31 @@ import { resolveSelectors } from '../src/utils/selector-overrides';
 import { detectAndReportUser } from '../src/utils/user-detect';
 
 /**
- * TikTok のログイン中ユーザー検出。header の avatar / username 表示から拾う。
+ * TikTok のログイン中ユーザー検出。
+ *
+ * **For You feed / Following feed の page でも `a[href*="/@"]` が大量にあって**
+ * 「first match wins」で他クリエイターの handle を拾ってしまう (「全然違う人の
+ * 名前が出る」 bug の典型)。 logged-in user 固有の data-e2e 経由のみ採用、
+ * 全 anchor 走査の fallback は廃止。 検出できなければ null を返す方が誤検出より
+ * マシ。
  */
 function detectTikTokUser(): string | null {
-  const RESERVED = new Set(['login', 'logout', 'settings', 'help', 'studio', 'tiktokstudio']);
-  // /@username パターンを持つ anchor
-  const links = document.querySelectorAll<HTMLAnchorElement>('a[href*="/@"]');
-  for (const a of links) {
-    const m = a.getAttribute('href')?.match(/\/@([\w.-]{2,30})/);
-    if (m && m[1] && !RESERVED.has(m[1].toLowerCase())) return '@' + m[1];
+  // 戦略 1: TikTok Studio の logged-in user 表示 (`data-e2e="profile-username"`
+  // 等は own profile / studio user-info 系のみで使われる)
+  const own = document.querySelector<HTMLElement>(
+    '[data-e2e="profile-username"], [data-e2e="user-info"] [data-e2e*="username" i]',
+  );
+  const ownTxt = own?.textContent?.trim();
+  if (ownTxt && ownTxt.length > 0 && ownTxt.length <= 30) {
+    return ownTxt.startsWith('@') ? ownTxt : '@' + ownTxt;
   }
-  // data-e2e attribute (TikTok の test id 慣習)
-  const userEl = document.querySelector<HTMLElement>('[data-e2e*="profile-username" i], [data-e2e*="username" i]');
-  const txt = userEl?.textContent?.trim();
-  if (txt && txt.length > 0 && txt.length <= 30) return txt;
+  // 戦略 2: header の avatar trigger 内に own profile への link がある場合のみ
+  const RESERVED = new Set(['login', 'logout', 'settings', 'help', 'studio', 'tiktokstudio']);
+  const headerProfile = document.querySelector<HTMLAnchorElement>(
+    'header a[href*="/@"], [data-e2e*="profile-icon" i] a[href*="/@"]',
+  );
+  const m = headerProfile?.getAttribute('href')?.match(/\/@([\w.-]{2,30})/);
+  if (m && m[1] && !RESERVED.has(m[1].toLowerCase())) return '@' + m[1];
   return null;
 }
 
