@@ -582,7 +582,7 @@
             const adapter = getAdapter(p.id);
             if (!adapter) return [p.id, null];
             if (images.length > adapter.imageConstraints.maxImages) {
-              return [p.id, `画像が多すぎます(上限 ${adapter.imageConstraints.maxImages} 枚)`];
+              return [p.id, t('constraintTooManyImages', String(adapter.imageConstraints.maxImages))];
             }
             return [p.id, null];
           }),

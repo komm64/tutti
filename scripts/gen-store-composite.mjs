@@ -18,7 +18,7 @@ const SCENES_JA = [
     name: '01-overview',
     eyebrow: 'CROSS-POSTING, ONE BUTTON',
     title: 'クロスポストの面倒を、\nまるごと肩代わり',
-    subtitle: 'X / Bluesky / Threads / Tumblr / Mastodon / Misskey に\n同じ投稿を一発で。各 SNS の制約は Tutti が処理します。',
+    subtitle: '対応する各 SNS に同じ投稿を一発で。\n各 SNS の制約 (文字数 / 画像サイズ / アスペクト比 等) は Tutti が処理します。',
     tagline: 'クロスポスト Chrome 拡張',
     footer: 'クロスポストの面倒を全部肩代わり',
     palette: { from: '#0d9488', to: '#0f766e', ink: '#ffffff', sub: 'rgba(255,255,255,0.85)' },
@@ -66,7 +66,7 @@ const SCENES_EN = [
     name: '01-overview',
     eyebrow: 'CROSS-POSTING, ONE BUTTON',
     title: 'All cross-posting hassle,\nhandled.',
-    subtitle: 'Send the same post to X / Bluesky / Threads / Tumblr / Mastodon / Misskey in one click.\nTutti handles each network’s constraints for you.',
+    subtitle: 'Send the same post to all your networks in one click.\nTutti handles each network’s constraints (character limit, image size, aspect ratio).',
     tagline: 'Cross-post Chrome extension',
     footer: 'All cross-posting hassle, handled.',
     palette: { from: '#0d9488', to: '#0f766e', ink: '#ffffff', sub: 'rgba(255,255,255,0.85)' },
@@ -117,7 +117,7 @@ const LOGO_SVG = `<svg viewBox="0 0 64 64" width="36" height="36" xmlns="http://
   <path d="M16 18 H48 V26 H37 V50 H27 V26 H16 Z" fill="#0d9488" />
 </svg>`;
 
-// SNS chip 行(brand-color の小さいタグ)
+// SNS chip 行(brand-color の小さいタグ)。表示順は popup と揃える。
 const SNS_CHIPS = `
   <span class="chip" style="background:#000;color:white;">X</span>
   <span class="chip" style="background:#0085ff;color:white;">Bluesky</span>
@@ -125,6 +125,11 @@ const SNS_CHIPS = `
   <span class="chip" style="background:#001935;color:white;">Tumblr</span>
   <span class="chip" style="background:#6364ff;color:white;">Mastodon</span>
   <span class="chip" style="background:#86b300;color:white;">Misskey</span>
+  <span class="chip" style="background:#0096fa;color:white;">Pixiv</span>
+  <span class="chip" style="background:#00e59b;color:#0b1a16;">DeviantArt</span>
+  <span class="chip" style="background:#e1306c;color:white;">Instagram</span>
+  <span class="chip" style="background:#010101;color:#25f4ee;">TikTok</span>
+  <span class="chip" style="background:#ff0000;color:white;">YouTube</span>
 `;
 
 const page = await browser.newPage();

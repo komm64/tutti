@@ -31,6 +31,8 @@ const SNS_HOSTS = [
   'threads.net', 'threads.com',
   'mastodon.social', 'misskey.io',
   'tumblr.com',
+  'pixiv.net', 'deviantart.com',
+  'instagram.com', 'tiktok.com', 'youtube.com', 'studio.youtube.com',
 ];
 for (const p of await browser.pages()) {
   const url = p.url();
@@ -41,7 +43,8 @@ for (const p of await browser.pages()) {
   if (url.includes('popup.html')) await p.close().catch(() => {});
 }
 
-const tmpImg = 'C:\\Users\\komm64\\AppData\\Local\\Temp\\tutti-test-100x100.png';
+// 添付サンプル画像 (scripts/gen-attach-image.mjs で先に生成)
+const tmpImg = 'docs/screenshots/attach-sample.png';
 
 const scenes = [
   {
@@ -95,6 +98,11 @@ const FAKE_USERS = {
   mastodon: '@your.handle',
   misskey: '@your.handle',
   tumblr: '@your.handle',
+  pixiv: '@your.handle',
+  deviantart: '@your.handle',
+  instagram: '@your.handle',
+  tiktok: '@your.handle',
+  youtube: '@your.handle',
 };
 
 async function setupScene(scene) {
@@ -107,6 +115,19 @@ async function setupScene(scene) {
     await new Promise((r) => chrome.storage.session.remove('draft', r));
     await new Promise((r) => chrome.storage.local.remove('selectedPlatforms', r));
     await new Promise((r) => chrome.storage.local.set({ lastSeenUsers: fakeUsers }, r));
+    // media draft は IndexedDB (tutti-draft / media / current) に残るので明示的に消す
+    await new Promise((resolve) => {
+      const req = indexedDB.open('tutti-draft', 1);
+      req.onsuccess = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains('media')) { db.close(); return resolve(); }
+        const tx = db.transaction('media', 'readwrite');
+        tx.objectStore('media').delete('current');
+        tx.oncomplete = () => { db.close(); resolve(); };
+        tx.onerror = () => { db.close(); resolve(); };
+      };
+      req.onerror = () => resolve();
+    });
   }, scene, FAKE_USERS);
   await tmpPopup.close();
 

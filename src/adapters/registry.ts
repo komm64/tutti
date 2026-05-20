@@ -38,6 +38,18 @@ export function findAdapterByUrl(url: string): PlatformAdapter | undefined {
   return undefined;
 }
 
+// chrome.i18n.getMessage は MV3 の全 context (popup / background / content) で動作。
+// fallback は messages.json が読めない環境向けの英語 literal。
+function t(key: string, subs: (string | number)[] = []): string {
+  try {
+    const s = chrome.i18n.getMessage(key, subs.map(String));
+    if (s) return s;
+  } catch {
+    // chrome.i18n が無い test 環境
+  }
+  return key;
+}
+
 /**
  * 動画がプラットフォームの制約を満たすか確認する。
  * @returns null = OK、string = エラー理由
@@ -48,17 +60,17 @@ export function checkVideoConstraint(
   bytes: number,
 ): string | null {
   const adapter = getAdapter(id);
-  if (!adapter) return 'アダプタ未実装';
-  if (!adapter.videoConstraints) return '動画投稿に未対応';
+  if (!adapter) return t('constraintAdapterMissing');
+  if (!adapter.videoConstraints) return t('constraintVideoUnsupported');
 
   const { maxDurationS, maxBytes } = adapter.videoConstraints;
   if (maxDurationS > 0 && durationS > maxDurationS) {
-    return `尺が長すぎます(上限 ${maxDurationS}s、実際 ${Math.round(durationS)}s)`;
+    return t('constraintVideoTooLong', [maxDurationS, Math.round(durationS)]);
   }
   if (maxBytes > 0 && bytes > maxBytes) {
     const limitMB = Math.round(maxBytes / 1024 / 1024);
     const actualMB = Math.round(bytes / 1024 / 1024);
-    return `ファイルサイズが大きすぎます(上限 ${limitMB}MB、実際 ${actualMB}MB)`;
+    return t('constraintVideoTooLarge', [limitMB, actualMB]);
   }
   return null;
 }
@@ -72,17 +84,17 @@ export function checkImageConstraint(
   imageSizes: number[],
 ): string | null {
   const adapter = getAdapter(id);
-  if (!adapter) return 'アダプタ未実装';
+  if (!adapter) return t('constraintAdapterMissing');
 
   const { maxBytesPerImage, maxImages } = adapter.imageConstraints;
   if (imageSizes.length > maxImages) {
-    return `画像が多すぎます(上限 ${maxImages} 枚)`;
+    return t('constraintTooManyImages', [maxImages]);
   }
   for (let i = 0; i < imageSizes.length; i++) {
     if (imageSizes[i]! > maxBytesPerImage) {
       const limitMB = (maxBytesPerImage / 1024 / 1024).toFixed(1);
       const actualMB = (imageSizes[i]! / 1024 / 1024).toFixed(1);
-      return `${i + 1}枚目が大きすぎます(上限 ${limitMB}MB、実際 ${actualMB}MB)`;
+      return t('constraintImageTooLarge', [i + 1, limitMB, actualMB]);
     }
   }
   return null;

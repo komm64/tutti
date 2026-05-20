@@ -122,5 +122,36 @@
   "errorDialogReported": { "message": "✓ 報告ありがとうございます。Issue を作成しました:" },
   "errorDialogReportFailed": { "message": "報告の送信に失敗しました" },
   "errorDialogClose": { "message": "閉じる" },
-  "errorDialogOpenGitHub": { "message": "GitHub で直接開く" }
+  "errorDialogOpenGitHub": { "message": "GitHub で直接開く" },
+
+  "constraintAdapterMissing": { "message": "アダプタ未実装" },
+  "constraintVideoUnsupported": { "message": "動画投稿に未対応" },
+  "constraintVideoTooLong": {
+    "message": "尺が長すぎます(上限 $MAX$s、実際 $ACTUAL$s)",
+    "placeholders": {
+      "MAX": { "content": "$1" },
+      "ACTUAL": { "content": "$2" }
+    }
+  },
+  "constraintVideoTooLarge": {
+    "message": "ファイルサイズが大きすぎます(上限 $MAX$MB、実際 $ACTUAL$MB)",
+    "placeholders": {
+      "MAX": { "content": "$1" },
+      "ACTUAL": { "content": "$2" }
+    }
+  },
+  "constraintTooManyImages": {
+    "message": "画像が多すぎます(上限 $MAX$ 枚)",
+    "placeholders": {
+      "MAX": { "content": "$1" }
+    }
+  },
+  "constraintImageTooLarge": {
+    "message": "$N$ 枚目が大きすぎます(上限 $MAX$MB、実際 $ACTUAL$MB)",
+    "placeholders": {
+      "N": { "content": "$1" },
+      "MAX": { "content": "$2" },
+      "ACTUAL": { "content": "$3" }
+    }
+  }
 }

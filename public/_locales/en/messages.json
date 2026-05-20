@@ -122,5 +122,36 @@
   "errorDialogReported": { "message": "✓ Thanks. Issue created:" },
   "errorDialogReportFailed": { "message": "Failed to submit report" },
   "errorDialogClose": { "message": "Close" },
-  "errorDialogOpenGitHub": { "message": "Open in GitHub" }
+  "errorDialogOpenGitHub": { "message": "Open in GitHub" },
+
+  "constraintAdapterMissing": { "message": "Adapter not implemented" },
+  "constraintVideoUnsupported": { "message": "Videos not supported" },
+  "constraintVideoTooLong": {
+    "message": "Video too long (max $MAX$s, actual $ACTUAL$s)",
+    "placeholders": {
+      "MAX": { "content": "$1" },
+      "ACTUAL": { "content": "$2" }
+    }
+  },
+  "constraintVideoTooLarge": {
+    "message": "Video file too large (max $MAX$ MB, actual $ACTUAL$ MB)",
+    "placeholders": {
+      "MAX": { "content": "$1" },
+      "ACTUAL": { "content": "$2" }
+    }
+  },
+  "constraintTooManyImages": {
+    "message": "Too many images (max $MAX$)",
+    "placeholders": {
+      "MAX": { "content": "$1" }
+    }
+  },
+  "constraintImageTooLarge": {
+    "message": "Image $N$ too large (max $MAX$ MB, actual $ACTUAL$ MB)",
+    "placeholders": {
+      "N": { "content": "$1" },
+      "MAX": { "content": "$2" },
+      "ACTUAL": { "content": "$3" }
+    }
+  }
 }
