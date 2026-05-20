@@ -292,11 +292,20 @@
     }
   }
 
-  /** fallback: GitHub Issue ページを prefill 付きで開く(proxy 失敗時にユーザーが選択) */
+  /**
+   * fallback: 報告 proxy が落ちてる時に user が手動送信する経路。
+   * tutti の Issues は OFF (PII 防御で意図的、 auto_triage_pipeline 経路で
+   * private repo に流すのが正規) なので、 email 経由に倒す。 body は
+   * clipboard にも入れて、 mailto: の URL length 制限を回避。
+   */
   async function openGitHubIssueDirect(errorText: string): Promise<void> {
     const { title, body } = await buildReportPayload(errorText);
-    const url = `https://github.com/komm64/tutti/issues/new?title=${encodeURIComponent('[Tutti Beta] ' + title)}&body=${encodeURIComponent(body)}`;
     try { await navigator.clipboard.writeText(body); } catch { /* ignore */ }
+    const subject = `[Tutti Beta] ${title}`;
+    // mailto: の body は length 制限あり (~2000 chars on Windows)、 短い注記だけ入れて
+    // 残りは clipboard から paste してもらう
+    const note = '本文は clipboard にコピー済です。 メールに貼り付けて送信してください。 / Full report copied to clipboard, please paste into the email body.';
+    const url = `mailto:contact@komm64.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(note)}`;
     window.open(url, '_blank');
   }
   // 永続選択を読み込んだあとに autoPost トグルが変わったら保存

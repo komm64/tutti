@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tutti — Support</title>
+<style>
+  :root {
+    --fg: #1f2937;
+    --muted: #6b7280;
+    --brand: #0d9488;
+    --bg: #ffffff;
+    --line: #e5e7eb;
+    --accent-bg: #f0fdfa;
+  }
+  html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif; color: var(--fg); }
+  body { max-width: 720px; margin: 0 auto; padding: 2rem 1.5rem 4rem; line-height: 1.7; }
+  header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
+  h1 { font-size: 1.75rem; margin: 0; }
+  .tagline { color: var(--muted); margin: 0.25rem 0 1.5rem; }
+  .icon { width: 48px; height: 48px; border-radius: 8px; background: var(--brand); display: grid; place-items: center; color: white; font-weight: 700; font-size: 1.25rem; flex-shrink: 0; }
+  nav { font-size: 0.9rem; color: var(--muted); margin-bottom: 2rem; }
+  nav a { color: var(--brand); text-decoration: none; margin-right: 1rem; }
+  nav a:hover { text-decoration: underline; }
+  h2 { font-size: 1.2rem; margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--line); }
+  h3 { font-size: 1rem; margin-top: 1.5rem; }
+  ul, ol { padding-left: 1.5rem; }
+  code { background: #f3f4f6; padding: 0.1em 0.4em; border-radius: 4px; font-size: 0.9em; }
+  .callout {
+    background: var(--accent-bg);
+    border-left: 3px solid var(--brand);
+    padding: 0.75rem 1rem;
+    margin: 1rem 0;
+    border-radius: 4px;
+  }
+  .callout p { margin: 0.25rem 0; }
+  a { color: var(--brand); }
+  footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<header>
+  <div class="icon">T</div>
+  <div>
+    <h1>Tutti — Support</h1>
+    <p class="tagline">困ったときの連絡先と FAQ / Support resources and FAQ</p>
+  </div>
+</header>
+
+<nav>
+  <a href="https://github.com/komm64/tutti">GitHub</a>
+  <a href="./index.html">Privacy Policy</a>
+  <a href="#help-en">English</a>
+</nav>
+
+<!-- ─────────────────────── 日本語版 ─────────────────────── -->
+
+<section id="help-ja">
+
+<h2>困ったときは</h2>
+
+<h3>1. 投稿でエラーが出た / 期待通り動かない</h3>
+<p>
+popup の <strong>「診断」 ボタン → 「報告する」</strong> から送ってください。
+これが正規経路です。 内部で個人ハンドル / URL / メールアドレスを redact し、
+私たちの private な issue tracker に届きます。 そこから自動で selector 修正の
+PR が作られて、 数日中に hot-fix が全ユーザーに配信される仕組みになっています。
+</p>
+
+<div class="callout">
+<p><strong>なぜ正規経路を使ってほしい?</strong></p>
+<p>
+popup の Report ボタンを経由した報告には、 投稿の最終状態 / DOM snapshot /
+selector 検出結果が自動添付されます。 これがあると selector breakage の修正が
+桁違いに早くなります。 個人特定可能な情報は送信前に多段で redact されます。
+</p>
+</div>
+
+<h3>2. 使い方の質問 / 機能の要望</h3>
+<p>
+<a href="mailto:contact@komm64.com">contact@komm64.com</a> に直接メールしてください。
+個人 SNS のスクショ / ハンドル等を貼っても外部に漏れない経路です。
+</p>
+
+<h3>3. インストール / アカウント関連</h3>
+<p>
+Tutti は <strong>各 SNS の既存ブラウザログインを再利用</strong>します。
+Tutti 側でアカウントを登録する手順はありません。 popup を開いて投稿先 SNS
+にチェックを入れたタイミングで、 該当 SNS にすでにログイン済の Chrome 拡張
+セッションがそのまま使われます。
+</p>
+
+<h2>よくある質問</h2>
+
+<h3>Q. 投稿が失敗しました</h3>
+<p>
+SNS 側の DOM 構造が変わった可能性があります。 <strong>popup の診断ボタン →
+報告する</strong> で送ってください。 多くの場合、 数日中に hot-fix が
+selectors.json 経由で自動配信されます (拡張本体の更新は不要)。
+</p>
+
+<h3>Q. ログインを覚えてくれない</h3>
+<p>
+Tutti は各 SNS の Chrome ログイン状態をそのまま使います。 SNS タブで先に
+ブラウザログインしてから Tutti を使ってください。 シークレットモードでは
+SNS 側のログインが切れているので動きません。
+</p>
+
+<h3>Q. 投稿の文字数が SNS によって違うけど大丈夫?</h3>
+<p>
+各 SNS の文字数上限を超えた長文は自動でスレッド分割されます。 上限以内なら
+そのまま投稿されます。
+</p>
+
+<h3>Q. 画像 / 動画のサイズが大きすぎると言われる</h3>
+<p>
+画像は各 SNS のサイズ制限に合わせて Canvas で自動リサイズされます。 動画は
+SNS 別の上限を超える場合、 ffmpeg.wasm で自動圧縮を試みます。 それでも
+上限を超える動画はエラーになります。 SNS のネイティブアプリで一度
+アップロードできるサイズか確認してください。
+</p>
+
+<h3>Q. Tutti は私の投稿内容を見ていますか?</h3>
+<p>
+いいえ。 投稿内容は第三者サーバーを一切経由しません。 各 SNS の Web 投稿
+ページに直接 inject されます。 詳細は<a href="./index.html">プライバシー
+ポリシー</a>を参照してください。 唯一例外は popup の「報告する」 ボタンを
+押した時のみで、 これは redact 済のエラー情報を private な issue tracker に
+転送します。
+</p>
+
+<h3>Q. 寄付 / 支援 はできますか?</h3>
+<p>
+現在準備中です。 まずは Tutti を使い続けてもらえれば嬉しいです。
+SNS UI の変更に追従しつづける継続保守がコストの中心なので、 安定した
+品質を維持するために将来 Ko-fi 等の支援導線を設ける予定です。
+</p>
+
+</section>
+
+<!-- ─────────────────────── English ─────────────────────── -->
+
+<section id="help-en">
+
+<h2>Need help?</h2>
+
+<h3>1. Posting failed / something behaves oddly</h3>
+<p>
+Use the <strong>"Diagnose" → "Report" button inside the popup</strong>.
+This is the canonical channel. The report is redacted (handles, URLs, emails)
+and forwarded to our private issue tracker, where a selector fix PR is opened
+automatically and pushed as a hot-fix to all users within days.
+</p>
+
+<div class="callout">
+<p><strong>Why use the in-product Report button?</strong></p>
+<p>
+The popup's Report flow automatically attaches the final compose state,
+a redacted DOM snapshot, and selector audit results — exactly what's needed
+to fix selector breakage fast. PII is stripped through multiple layers before
+sending.
+</p>
+</div>
+
+<h3>2. General questions / feature requests</h3>
+<p>
+Email us at <a href="mailto:contact@komm64.com">contact@komm64.com</a>.
+This is a private channel, safe to share screenshots / personal handles with.
+</p>
+
+<h3>3. Install / account questions</h3>
+<p>
+Tutti <strong>reuses your existing browser logins</strong> for each social
+network. There's no separate Tutti account or login step. Once you're logged
+in to a social network in the same Chrome profile, Tutti can post from there.
+</p>
+
+<h2>FAQ</h2>
+
+<h3>Q. My post failed.</h3>
+<p>
+This usually means a social network changed its DOM. Use
+<strong>Diagnose → Report</strong> in the popup. A selector hot-fix usually
+ships within days via <code>selectors.json</code> auto-update (no extension
+update required).
+</p>
+
+<h3>Q. Tutti doesn't remember my login.</h3>
+<p>
+Tutti relies on the network's normal browser login. Log in to each network
+in Chrome first, then Tutti can post on your behalf. Incognito mode doesn't
+work because the network sessions aren't there.
+</p>
+
+<h3>Q. Character limits differ per network — is that a problem?</h3>
+<p>
+No. Long posts that exceed a network's character limit are automatically
+split into a continuation thread. Posts within the limit go through as-is.
+</p>
+
+<h3>Q. I'm told my image / video is too large.</h3>
+<p>
+Images are auto-resized via Canvas to fit each network's size limit. Videos
+are auto-compressed with ffmpeg.wasm when above a network's cap. If even
+compression can't fit, you'll see an error — please verify the file uploads
+via the network's native app first.
+</p>
+
+<h3>Q. Does Tutti see my post content?</h3>
+<p>
+No. Post content never passes through a third-party server. Tutti injects
+directly into each network's web compose page. See our
+<a href="./index.html">Privacy Policy</a> for details. The only exception is
+when you press the in-product Report button, which sends redacted error
+information to our private issue tracker.
+</p>
+
+<h3>Q. Can I donate?</h3>
+<p>
+Not yet — we're working on a low-pressure support channel. The biggest
+ongoing cost is keeping up with each social network's UI changes; future
+Ko-fi flows will fund that maintenance.
+</p>
+
+</section>
+
+<footer>
+  Tutti is a Chrome extension by <a href="https://github.com/komm64">komm64</a>.
+  Contact: <a href="mailto:contact@komm64.com">contact@komm64.com</a>
+</footer>
+
+</body>
+</html>

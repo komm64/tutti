@@ -122,7 +122,7 @@
   "errorDialogReported": { "message": "✓ 報告ありがとうございます。Issue を作成しました:" },
   "errorDialogReportFailed": { "message": "報告の送信に失敗しました" },
   "errorDialogClose": { "message": "閉じる" },
-  "errorDialogOpenGitHub": { "message": "GitHub で直接開く" },
+  "errorDialogOpenGitHub": { "message": "メールで送る" },
 
   "constraintAdapterMissing": { "message": "アダプタ未実装" },
   "constraintVideoUnsupported": { "message": "動画投稿に未対応" },

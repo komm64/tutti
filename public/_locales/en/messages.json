@@ -122,7 +122,7 @@
   "errorDialogReported": { "message": "✓ Thanks. Issue created:" },
   "errorDialogReportFailed": { "message": "Failed to submit report" },
   "errorDialogClose": { "message": "Close" },
-  "errorDialogOpenGitHub": { "message": "Open in GitHub" },
+  "errorDialogOpenGitHub": { "message": "Send by email" },
 
   "constraintAdapterMissing": { "message": "Adapter not implemented" },
   "constraintVideoUnsupported": { "message": "Videos not supported" },
