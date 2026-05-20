@@ -18,7 +18,7 @@ const SCENES_JA = [
     name: '01-overview',
     eyebrow: 'CROSS-POSTING, ONE BUTTON',
     title: 'クロスポストの面倒を、\nまるごと肩代わり',
-    subtitle: '対応する各 SNS に同じ投稿を一発で。\n各 SNS の制約 (文字数 / 画像サイズ / アスペクト比 等) は Tutti が処理します。',
+    subtitle: '対応する各 SNS に同じ投稿を一発で。\n各 SNS の制約は Tutti が処理します。',
     tagline: 'クロスポスト Chrome 拡張',
     footer: 'クロスポストの面倒を全部肩代わり',
     palette: { from: '#0d9488', to: '#0f766e', ink: '#ffffff', sub: 'rgba(255,255,255,0.85)' },
@@ -27,7 +27,7 @@ const SCENES_JA = [
     name: '02-write',
     eyebrow: 'WRITE ONCE',
     title: '書いて、選んで、\nボタンを押すだけ',
-    subtitle: '文字数オーバーは自動分割。各 SNS の上限 (X 280 / Bluesky 300 /\nThreads 500 ...) を Tutti が自動で吸収します。',
+    subtitle: '各 SNS の文字数上限を超えた長文は\n自動でスレッド分割して連投します。',
     tagline: 'クロスポスト Chrome 拡張',
     footer: 'クロスポストの面倒を全部肩代わり',
     palette: { from: '#1e40af', to: '#1e3a8a', ink: '#ffffff', sub: 'rgba(255,255,255,0.82)' },
@@ -36,7 +36,7 @@ const SCENES_JA = [
     name: '03-image',
     eyebrow: 'MEDIA HANDLED',
     title: '画像も自動でリサイズ',
-    subtitle: 'Bluesky の 1MB 制限など各 SNS のサイズ上限に合わせて Canvas で\n自動リサイズ。drag & drop で 4 枚まで添付できます。',
+    subtitle: '各 SNS の画像サイズ制限に合わせて\nCanvas で自動リサイズ。最大 4 枚まで添付。',
     tagline: 'クロスポスト Chrome 拡張',
     footer: 'クロスポストの面倒を全部肩代わり',
     palette: { from: '#7c3aed', to: '#5b21b6', ink: '#ffffff', sub: 'rgba(255,255,255,0.85)' },
@@ -44,8 +44,8 @@ const SCENES_JA = [
   {
     name: '04-progress',
     eyebrow: 'LIVE PROGRESS',
-    title: '投稿中も状況がわかる',
-    subtitle: '各 SNS の状態 (進行中 / 完了 / 失敗) が SNS 行に統合表示。\n失敗したらその場で原因が見えるので、リトライ判断もすぐ。',
+    title: '投稿中の状況も\n一目でわかる',
+    subtitle: '各 SNS の状態 (進行中 / 完了 / 失敗) が SNS 行に統合表示。\n失敗時は原因がその場で見えます。',
     tagline: 'クロスポスト Chrome 拡張',
     footer: 'クロスポストの面倒を全部肩代わり',
     palette: { from: '#0e7490', to: '#155e75', ink: '#ffffff', sub: 'rgba(255,255,255,0.85)' },
@@ -53,8 +53,8 @@ const SCENES_JA = [
   {
     name: '05-safety',
     eyebrow: 'SAFE BY DEFAULT',
-    title: '初回はプレビューモードで安心',
-    subtitle: '送信前に各 SNS の compose を開いて確認。投稿ボタンは押しません。\n誤投稿の事故を防ぐ Tutti のデフォルト動作です。',
+    title: '初回はプレビュー\nモードで安心',
+    subtitle: '送信前に各 SNS の compose を開いて確認。\nPost ボタンは押しません。慣れたら自動投稿に切替。',
     tagline: 'クロスポスト Chrome 拡張',
     footer: 'クロスポストの面倒を全部肩代わり',
     palette: { from: '#b45309', to: '#92400e', ink: '#ffffff', sub: 'rgba(255,255,255,0.88)' },
@@ -65,8 +65,8 @@ const SCENES_EN = [
   {
     name: '01-overview',
     eyebrow: 'CROSS-POSTING, ONE BUTTON',
-    title: 'All cross-posting hassle,\nhandled.',
-    subtitle: 'Send the same post to all your networks in one click.\nTutti handles each network’s constraints (character limit, image size, aspect ratio).',
+    title: 'All cross-posting\nhassle, handled.',
+    subtitle: 'Send the same post to all your networks in one click.\nEach network’s constraints are handled for you.',
     tagline: 'Cross-post Chrome extension',
     footer: 'All cross-posting hassle, handled.',
     palette: { from: '#0d9488', to: '#0f766e', ink: '#ffffff', sub: 'rgba(255,255,255,0.85)' },
@@ -74,8 +74,8 @@ const SCENES_EN = [
   {
     name: '02-write',
     eyebrow: 'WRITE ONCE',
-    title: 'Write once, pick networks,\nhit Post.',
-    subtitle: 'Long posts auto-split per network. The 280 / 300 / 500 character ceilings\nare absorbed automatically so you never have to think about them.',
+    title: 'Write once,\npick networks, post.',
+    subtitle: 'Long posts that exceed a network’s character limit\nare automatically split into a continuation thread.',
     tagline: 'Cross-post Chrome extension',
     footer: 'All cross-posting hassle, handled.',
     palette: { from: '#1e40af', to: '#1e3a8a', ink: '#ffffff', sub: 'rgba(255,255,255,0.82)' },
@@ -84,7 +84,7 @@ const SCENES_EN = [
     name: '03-image',
     eyebrow: 'MEDIA HANDLED',
     title: 'Images, automatically\nresized.',
-    subtitle: 'Canvas-based auto-resize fits each network’s limits (e.g. Bluesky’s 1 MB cap).\nDrop in up to 4 images per post.',
+    subtitle: 'Canvas-based auto-resize fits each network’s\nimage size limit. Up to 4 images per post.',
     tagline: 'Cross-post Chrome extension',
     footer: 'All cross-posting hassle, handled.',
     palette: { from: '#7c3aed', to: '#5b21b6', ink: '#ffffff', sub: 'rgba(255,255,255,0.85)' },
@@ -92,8 +92,8 @@ const SCENES_EN = [
   {
     name: '04-progress',
     eyebrow: 'LIVE PROGRESS',
-    title: 'See exactly what’s\nposting, live.',
-    subtitle: 'Per-network status (in flight / done / failed) inline with each network row.\nFailures show the cause right there so you know whether to retry.',
+    title: 'See what’s posting,\nlive.',
+    subtitle: 'Per-network status (in flight / done / failed) is shown\ninline on each network row, with cause on failure.',
     tagline: 'Cross-post Chrome extension',
     footer: 'All cross-posting hassle, handled.',
     palette: { from: '#0e7490', to: '#155e75', ink: '#ffffff', sub: 'rgba(255,255,255,0.85)' },
@@ -101,8 +101,8 @@ const SCENES_EN = [
   {
     name: '05-safety',
     eyebrow: 'SAFE BY DEFAULT',
-    title: 'Preview-first, by default.',
-    subtitle: 'Tutti opens each network’s compose for review and stops just before the Post button.\nNo accidental posts on day one.',
+    title: 'Preview-first,\nby default.',
+    subtitle: 'Tutti opens each network’s compose for review\nand stops just before the Post button.',
     tagline: 'Cross-post Chrome extension',
     footer: 'All cross-posting hassle, handled.',
     palette: { from: '#b45309', to: '#92400e', ink: '#ffffff', sub: 'rgba(255,255,255,0.88)' },
@@ -152,32 +152,32 @@ for (const scene of scenes) {
       radial-gradient(circle at 85% 15%, rgba(255,255,255,0.18), transparent 55%),
       radial-gradient(circle at 15% 85%, rgba(0,0,0,0.18), transparent 55%),
       linear-gradient(135deg, ${scene.palette.from} 0%, ${scene.palette.to} 100%);
-    display: grid; grid-template-columns: 1fr 540px; gap: 56px;
-    padding: 70px 80px 70px 80px;
+    display: grid; grid-template-columns: 1fr 440px; gap: 48px;
+    padding: 60px 64px 80px 64px;
     align-items: center;
   }
   /* 左: text column */
-  .left { color: ${scene.palette.ink}; min-width: 0; }
-  .brand-row { display: flex; align-items: center; gap: 14px; margin-bottom: 36px; }
-  .brand-row .name { font-weight: 800; font-size: 24px; letter-spacing: -0.01em; }
-  .brand-row .tagline { font-size: 13px; color: ${scene.palette.sub}; padding-left: 14px; border-left: 1px solid rgba(255,255,255,0.3); }
+  .left { color: ${scene.palette.ink}; min-width: 0; max-width: 620px; }
+  .brand-row { display: flex; align-items: center; gap: 14px; margin-bottom: 32px; }
+  .brand-row .name { font-weight: 800; font-size: 22px; letter-spacing: -0.01em; }
+  .brand-row .tagline { font-size: 12px; color: ${scene.palette.sub}; padding-left: 14px; border-left: 1px solid rgba(255,255,255,0.3); }
   .eyebrow {
-    display: inline-block; font-size: 12px; font-weight: 800; letter-spacing: 0.18em;
-    color: ${scene.palette.sub}; margin-bottom: 18px;
-    padding: 6px 12px; background: rgba(255,255,255,0.14); border-radius: 999px;
+    display: inline-block; font-size: 11px; font-weight: 800; letter-spacing: 0.18em;
+    color: ${scene.palette.sub}; margin-bottom: 16px;
+    padding: 5px 11px; background: rgba(255,255,255,0.14); border-radius: 999px;
   }
   h1 {
-    font-size: 60px; font-weight: 900; line-height: 1.18;
-    letter-spacing: -0.025em; margin-bottom: 22px; white-space: pre-line;
+    font-size: 50px; font-weight: 900; line-height: 1.15;
+    letter-spacing: -0.025em; margin-bottom: 20px; white-space: pre-line;
   }
-  .sub { font-size: 20px; line-height: 1.6; color: ${scene.palette.sub}; max-width: 540px; white-space: pre-line; }
-  /* SNS chip row */
-  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 32px; }
-  .chip { font-size: 11px; font-weight: 700; padding: 5px 10px; border-radius: 999px; letter-spacing: 0.02em; }
+  .sub { font-size: 17px; line-height: 1.55; color: ${scene.palette.sub}; max-width: 580px; white-space: pre-line; }
+  /* SNS chip row — 11 chip 入る max-width 確保 (popup card と被らない) */
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 28px; max-width: 620px; }
+  .chip { font-size: 10px; font-weight: 700; padding: 4px 9px; border-radius: 999px; letter-spacing: 0.02em; }
   /* 右: popup card */
   .right { display: flex; align-items: center; justify-content: center; }
   .card {
-    width: 460px;
+    width: 420px;
     background: white; border-radius: 14px;
     box-shadow:
       0 40px 70px -20px rgba(0,0,0,0.4),
@@ -188,9 +188,9 @@ for (const scene of scenes) {
   .card img { width: 100%; height: auto; display: block; }
   /* footer */
   .footer {
-    position: absolute; bottom: 26px; left: 80px;
+    position: absolute; bottom: 24px; left: 64px;
     display: flex; align-items: center; gap: 10px;
-    font-size: 12px; color: rgba(255,255,255,0.55); letter-spacing: 0.05em;
+    font-size: 11px; color: rgba(255,255,255,0.55); letter-spacing: 0.05em;
   }
   .footer .dot { width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: 0.5; }
   /* 大きい背景の T (decorative) */
