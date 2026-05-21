@@ -72,12 +72,17 @@ const scenes = [
     selectIdxs: new Set([0, 1, 2, 3]),
   },
   {
+    // scene 04 は autoPost ON で本当に投稿が走る (progress UI を撮るのに必要)。
+    // 過去に複数 SNS (X / Bluesky / Tumblr) を選んでいて、 スクショ生成のたびに
+    // dummy 垢で実投稿が複数 SNS に landing する事故を起こしていた。
+    // **Bluesky 1 件に絞って blast radius を最小化**。 progress UI の visual は
+    // 単発になるが、 安全性優先。
     name: '04-progress',
     autoPost: true,
     textJa: '来週末ライブやります!チケットは下のリンクから 🎵',
     textEn: 'Live show next weekend! Tickets at the link below 🎵',
     image: true,
-    selectIdxs: new Set([0, 1, 3]),
+    selectIdxs: new Set([1]),
     triggerPost: true,
     captureAfterMs: 4000,
   },
