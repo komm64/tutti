@@ -7,10 +7,14 @@ export const xAdapter: PlatformAdapter = {
   matchUrl: (url) => /^https:\/\/(x|twitter)\.com\//.test(url),
   /**
    * X はホーム画面の inline compose ("What's happening?") を使う。
-   * /intent/post URL prefill は modal を開くが、その modal は home の inline
-   * compose と draft state を共有するせいで「裏のホームにテキストが漏れる」
-   * 現象が出る。inline compose に DOM 直接 inject すれば draft 共有問題は
-   * 起きないし、modal/inline どちらの post button を踏むか問題も消える。
+   * 旧: thread mode (chunks>1) は `/compose/post` modal を介して 1 compose に
+   *     複数 textbox を連結する実装だったが、 X UI 変更で Add post button が
+   *     navigation 引き起こすようになり完全失敗 (v0.4.65 user 報告)。
+   * v0.4.66〜: thread chaining は捨てて、 chunks > 1 は generic chunks loop で
+   *     各 chunk を別 tweet として post (background.ts 側で処理)。 ここは
+   *     単 chunk 用の inline compose URL に戻る。
+   * /intent/post URL prefill は home の draft state と共有して漏れる現象が
+   * 出るので使わない (prefillsViaUrl=false で DOM inject)。
    */
   getComposeUrl: () => 'https://x.com/home',
   prefillsViaUrl: false,
@@ -28,15 +32,12 @@ export const xAdapter: PlatformAdapter = {
 };
 
 export const X_SELECTORS = {
-  /** ホーム画面の inline compose の textarea(本命) */
-  textarea: '[data-testid="tweetTextarea_0"]',
+  /** ホーム画面の inline compose の textarea */
+  textarea: '[data-testid="tweetTextarea_0"][role="textbox"]',
   /** ホーム画面の inline compose の Post ボタン */
   postButtonInline: '[data-testid="tweetButtonInline"]',
-  /** modal compose の Post ボタン(home に modal が出てしまった場合の fallback) */
+  /** modal compose の Post ボタン (fallback) */
   postButton: '[data-testid="tweetButton"]',
-  /**
-   * 画像添付用 hidden file input。inline compose を最優先、無ければグローバル fallback。
-   * inject-helper.findEl は カンマ区切りを左から順に試す実装。
-   */
+  /** 画像添付の hidden file input */
   fileInput: 'main input[data-testid="fileInput"], input[data-testid="fileInput"]',
 } as const;

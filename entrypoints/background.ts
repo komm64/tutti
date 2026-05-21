@@ -573,19 +573,13 @@ async function postToPlatform(
 
   const chunks = splitText(text, adapter.charLimit);
 
-  // X は thread chaining 対応 (v0.4.56〜)。chunks > 1 のときは 1 つの compose に
-  // 全 chunk を「+」ボタンで連結した thread として投稿する。
-  // 他 SNS は従来通り chunk ごとに sleep 挟んで sequential 投稿 (= independent posts)。
-  if (chunks.length > 1 && adapter.id === 'x') {
-    try {
-      await postSingleChunkWithRetry(adapter, chunks[0]!, images, chunks);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return { type: 'POST_RESULT', platform, success: false, error: `thread 投稿失敗: ${msg}` };
-    }
-    return { type: 'POST_RESULT', platform, success: true };
-  }
-
+  // X の thread chaining (v0.4.56〜v0.4.65) は `[data-testid="addButton"]` を
+  // click して 1 compose に複数 textbox を連結する実装だったが、 X UI 変更で
+  // Add post button が `<a href="/compose/post">` anchor になり click が
+  // 自己 navigation を引き起こして modal を破壊することが判明
+  // (user 報告 2026-05-21 「X 完全失敗」、 probe 2026-05-22 で確定)。
+  // v0.4.66〜 は X も他 SNS と同じ generic chunks loop で chunk ごとに別 tweet
+  // を投稿する方針に変更。 thread 連結は失うが reliable な投稿を優先。
   for (let i = 0; i < chunks.length; i++) {
     if (i > 0) await sleep(CHUNK_INTERVAL_MS);
     const chunkImages = i === 0 ? images : undefined;
