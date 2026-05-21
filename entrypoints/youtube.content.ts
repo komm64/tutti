@@ -4,6 +4,7 @@ import { YOUTUBE_SELECTORS, buildYouTubeTitle } from '../src/adapters/youtube';
 import { executeMultiStepFlow, type Step } from '../src/utils/step-runner';
 import { injectImages, injectTextIntoElement } from '../src/utils/image';
 import { sleep, waitForElement } from '../src/utils/dom';
+import { waitForPostUrl } from '../src/utils/url-capture';
 import { buildDiagnosis } from '../src/utils/diagnose';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { detectAndReportUser } from '../src/utils/user-detect';
@@ -250,9 +251,25 @@ async function runPost(
 
   await sleep(500);
 
+  // dryRun でなければ Studio が channel content listing もしくは個別 video
+  // URL に navigate するのを待つ (= 「本当の完了」)。
+  let url: string | undefined;
+  if (!dryRun) {
+    const captured = await waitForPostUrl([
+      /^https:\/\/studio\.youtube\.com\/channel\/[^/]+\/videos/,
+      /^https:\/\/studio\.youtube\.com\/video\/[\w-]+\/edit/,
+      /^https:\/\/(?:www\.)?youtube\.com\/(?:watch\?v=|shorts\/)[\w-]+/,
+    ], 90000);
+    if (!captured) {
+      throw new Error('YouTube: 投稿後 listing / video URL に navigate されませんでした');
+    }
+    url = captured;
+  }
+
   return {
     type: 'POST_RESULT',
     platform: 'youtube',
     success: true,
+    url,
   };
 }

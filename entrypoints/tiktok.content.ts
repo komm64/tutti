@@ -4,6 +4,7 @@ import { TIKTOK_SELECTORS, buildTikTokCaption } from '../src/adapters/tiktok';
 import { executeMultiStepFlow, type Step } from '../src/utils/step-runner';
 import { injectImages, injectTextIntoElement } from '../src/utils/image';
 import { sleep, waitForElement } from '../src/utils/dom';
+import { waitForPostUrl } from '../src/utils/url-capture';
 import { buildDiagnosis } from '../src/utils/diagnose';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { detectAndReportUser } from '../src/utils/user-detect';
@@ -130,9 +131,26 @@ async function runPost(
 
   await sleep(500);
 
+  // dryRun でなければ TikTok Studio が /tiktokstudio/content (= 投稿一覧) へ
+  // navigate するのを待つ (= 「本当の完了」)。
+  // 個別の post URL (https://www.tiktok.com/@user/video/<id>) は studio 上では
+  // 動画 thumbnail 経由でしか取れないので、 listing URL で完了 proof とする。
+  let url: string | undefined;
+  if (!dryRun) {
+    const captured = await waitForPostUrl([
+      /^https:\/\/(?:www\.)?tiktok\.com\/tiktokstudio\/content/,
+      /^https:\/\/(?:www\.)?tiktok\.com\/@[^/]+\/video\/\d+/,
+    ], 60000);
+    if (!captured) {
+      throw new Error('TikTok: 投稿後 listing / video URL に redirect されませんでした');
+    }
+    url = captured;
+  }
+
   return {
     type: 'POST_RESULT',
     platform: 'tiktok',
     success: true,
+    url,
   };
 }

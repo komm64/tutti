@@ -3,6 +3,7 @@ import type { ImageAttachment, Message, PostResultMessage } from '../src/message
 import { THREADS_SELECTORS, threadsAdapter } from '../src/adapters/threads';
 import { findClickableByText } from '../src/utils/dom';
 import { executePostFlow } from '../src/utils/post-flow';
+import { waitForPostUrl } from '../src/utils/url-capture';
 import { buildDiagnosis } from '../src/utils/diagnose';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { detectAndReportUser } from '../src/utils/user-detect';
@@ -198,10 +199,24 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     dryRun,
   });
 
+  // dryRun でなければ post URL を捕捉 (= 本当に landing したことの証跡)。
+  // Threads は post 直後に /@<user>/post/<id> へ redirect する。
+  let url: string | undefined;
+  if (!dryRun) {
+    const captured = await waitForPostUrl([
+      /^https:\/\/(?:www\.)?threads\.(?:com|net)\/@[^/]+\/post\/[\w-]+/,
+    ], 20000);
+    if (!captured) {
+      throw new Error('Threads: 投稿後 URL に redirect されませんでした (post が landing してない疑い)');
+    }
+    url = captured;
+  }
+
   return {
     type: 'POST_RESULT',
     platform: 'threads',
     success: true,
+    url,
   };
 }
 

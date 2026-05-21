@@ -9,6 +9,7 @@ import {
 import { executeMultiStepFlow, type Step } from '../src/utils/step-runner';
 import { injectImages, injectTagList, injectTextIntoElement } from '../src/utils/image';
 import { sleep } from '../src/utils/dom';
+import { waitForPostUrl } from '../src/utils/url-capture';
 import { buildDiagnosis } from '../src/utils/diagnose';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { detectAndReportUser } from '../src/utils/user-detect';
@@ -273,9 +274,26 @@ async function runPost(
   // dry-run 時に念のため compose ページの state を 0.5s 安定させる
   await sleep(500);
 
+  // dryRun でなければ Pixiv が /artworks/<id> もしくは /users/<id> に redirect
+  // するのを待つ (= 「本当の完了」)。timeout なら error 扱い。
+  let url: string | undefined;
+  if (!dryRun) {
+    const captured = await waitForPostUrl([
+      /^https:\/\/(?:www\.)?pixiv\.net\/[a-z]+\/artworks\/\d+/,
+      /^https:\/\/(?:www\.)?pixiv\.net\/artworks\/\d+/,
+      /^https:\/\/(?:www\.)?pixiv\.net\/[a-z]+\/users\/\d+/,
+      /^https:\/\/(?:www\.)?pixiv\.net\/users\/\d+/,
+    ], 30000);
+    if (!captured) {
+      throw new Error('Pixiv: 投稿後 URL に redirect されませんでした');
+    }
+    url = captured;
+  }
+
   return {
     type: 'POST_RESULT',
     platform: 'pixiv',
     success: true,
+    url,
   };
 }

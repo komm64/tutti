@@ -467,9 +467,23 @@
       if (r?.posting) {
         posting = true;
         if (r.postingState) {
-          // 進行中の platform 一覧 と既に終わった result を popup に流し込む
-          pendingPlatforms = [...r.postingState.pending];
-          lastResults = [...r.postingState.results];
+          // 進行中の platform 一覧 と既に終わった result を popup に流し込む。
+          //
+          // **race 対策**: GET_BG_STATE 応答が遅延している間に PLATFORM_PROGRESS
+          // listener が既に新しい result を popup state に積んでいる可能性がある
+          // (BG snapshot → popup の間で完了する platform)。 単純 overwrite だと
+          // 既に done の platform が pending に戻り、 spinner が止まらなく見える。
+          // → 既に lastResults にある platform は pending から除き、 results は
+          //   merge (重複は新しい方を採用)。
+          const knownDone = new Set((lastResults ?? []).map((x) => x.platform));
+          pendingPlatforms = r.postingState.pending.filter((p) => !knownDone.has(p));
+          const mergedResults = [...r.postingState.results];
+          for (const x of (lastResults ?? [])) {
+            const idx = mergedResults.findIndex((y) => y.platform === x.platform);
+            if (idx === -1) mergedResults.push(x);
+            else mergedResults[idx] = x;
+          }
+          lastResults = mergedResults;
         }
         if (r.compression) {
           compressionProgress = r.compression;
@@ -1033,6 +1047,15 @@
         <span class="inline-block w-3.5 h-3.5 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin shrink-0"></span>
       {:else if isQueued}
         <span class="text-gray-300 shrink-0">⌛</span>
+      {:else if result?.success && result.url}
+        <a
+          href={result.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={result.url}
+          class="text-green-600 hover:text-green-700 shrink-0 leading-none"
+          onclick={(e) => e.stopPropagation()}
+        >✓↗</a>
       {:else if result?.success}
         <span class="text-green-600 shrink-0">✓</span>
       {:else if result && !result.success}

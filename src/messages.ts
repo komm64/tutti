@@ -62,6 +62,13 @@ export interface PostResultMessage {
   platform: PlatformId;
   success: boolean;
   error?: string;
+  /**
+   * 投稿後の post URL (= 「本当に landing した」 証跡)。 redirect 型 SNS では
+   * navigation 完了後の location、 API 型は public API から最新 post を引いた
+   * URL、 DOM scrape 型は自分の timeline から拾う。 取得経路がない / 失敗した
+   * 場合は省略 (success=true でも url なし状態あり、 popup は link なしで表示)。
+   */
+  url?: string;
 }
 
 /** background → popup: 1 プラットフォーム完了時の進捗通知(ストリーミング) */

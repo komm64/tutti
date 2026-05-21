@@ -4,6 +4,7 @@ import { DEVIANTART_SELECTORS, buildDeviantArtTitle } from '../src/adapters/devi
 import { executeMultiStepFlow, type Step } from '../src/utils/step-runner';
 import { injectImages, injectTextIntoElement } from '../src/utils/image';
 import { sleep, waitForElement } from '../src/utils/dom';
+import { waitForPostUrl } from '../src/utils/url-capture';
 import { buildDiagnosis } from '../src/utils/diagnose';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { detectAndReportUser } from '../src/utils/user-detect';
@@ -155,9 +156,22 @@ async function runPost(
 
   await sleep(500);
 
+  // dryRun でなければ DA が /<user>/art/<title>-<id> へ redirect するのを待つ
+  let url: string | undefined;
+  if (!dryRun) {
+    const captured = await waitForPostUrl([
+      /^https:\/\/(?:www\.)?deviantart\.com\/[^/]+\/art\/[^/?#]+/,
+    ], 30000);
+    if (!captured) {
+      throw new Error('DeviantArt: 投稿後 URL に redirect されませんでした');
+    }
+    url = captured;
+  }
+
   return {
     type: 'POST_RESULT',
     platform: 'deviantart',
     success: true,
+    url,
   };
 }
