@@ -269,65 +269,93 @@ export default defineContentScript({
         el.dispatchEvent(new Event('change', { bubbles: true }));
       } else {
         // contenteditable (Draft.js / Lexical / TipTap / ProseMirror):
-        // 経路は 2 段だけにする (v0.4.58):
-        //   1) paste event simulation → 最大 600ms polling で反映確認
-        //   2) ダメなら textContent 直接代入 + InputEvent
+        // 経路 (v0.4.66〜):
+        //   1) framework 判定 (data-lexical-editor 属性で Lexical を識別)
+        //   2) Lexical: focus + selectAll/delete + execCommand('insertText')
+        //      ← paste 経由は DOM は更新するが Lexical state が同期しない
+        //         silent failure が IG で発生 (user 報告 2026-05-21: caption 空投稿)
+        //   3) 他 framework: paste event → polling → textContent fallback (旧 v0.4.58 path)
         //
-        // 旧コードは paste → 120ms wait → execCommand('insertText') → 80ms wait
-        // → textContent= の 3 段 fallback だったが、Lexical の paste は内部
-        // microtask 経由で setState されるため 120ms では間に合わず、
-        // execCommand('insertText') が **paste 反映前** に発火 → Lexical state と
-        // DOM が二重挿入される (= 文字化けの原因、X で実機報告 2026-05-16)。
-        // execCommand 経由は重複挿入の温床なので chain から削除した。
-        const existing = (el.textContent ?? '').trim();
-        if (existing.length > 0) {
-          // Selection API: 一般的な contenteditable 用 (TipTap / ProseMirror で OK)
-          const sel = window.getSelection();
-          if (sel) {
-            sel.selectAllChildren(el);
-            sel.deleteFromDocument();
-          }
-          // それでも消えてない場合 (Draft.js / Lexical の SyntheticSelection 管理):
-          // execCommand 経由で selectAll + delete。Draft.js は document.execCommand を
-          // フックして内部 state を同期するので、この経路で確実に消える
-          if ((el.textContent ?? '').trim().length > 0) {
+        // 旧 v0.4.58 paste-only path は X の文字化け (paste と execCommand の
+        // 二重発火) を防ぐためだったが、 IG では paste が DOM のみ更新で state
+        // 未同期になり caption 空投稿が発生。 framework 別に分岐する。
+        const isLexical =
+          !!el.closest('[data-lexical-editor]') ||
+          el.matches('[data-lexical-editor]');
+
+        if (isLexical) {
+          // Lexical: execCommand で beforeinput を発火させて state 同期。
+          // 既存テキストは selectAll + delete で先に消す (execCommand が
+          // cursor 位置に挿入するので空の状態から始める必要)。
+          el.focus();
+          // Selection を editor 配下に置く (focus だけだと selection が他に
+          // 残ったままのことがある)
+          const sel0 = window.getSelection();
+          if (sel0) {
             try {
-              document.execCommand('selectAll', false);
-              document.execCommand('delete', false);
+              sel0.removeAllRanges();
+              const range = document.createRange();
+              range.selectNodeContents(el);
+              sel0.addRange(range);
             } catch { /* ignore */ }
           }
-        }
-        const dt = new DataTransfer();
-        dt.setData('text/plain', text);
-        const pasteEv = new ClipboardEvent('paste', {
-          bubbles: true,
-          cancelable: true,
-          clipboardData: dt,
-        });
-        el.dispatchEvent(pasteEv);
-
-        // Lexical / ProseMirror などは paste 反映が microtask 経由で setState される
-        // ため、ここで polling して「先頭 16 char が DOM に出現するまで」最大 600ms 待つ。
-        // 短いテキスト (改行のみ等) も拾えるよう slice 範囲は短めに取る。
-        const matchSnippet = text.slice(0, Math.min(16, text.length));
-        const visibleNow = (): string =>
-          (el as HTMLElement).innerText ?? el.textContent ?? '';
-        const pasted = await waitFor(
-          () => matchSnippet === '' || visibleNow().includes(matchSnippet),
-          600,
-        );
-
-        // paste が効かない framework (rare) のみ最終手段: textContent 直接代入。
-        // execCommand('insertText') は paste と二重発火で文字化けの原因になるため
-        // chain から外した。textContent= は state を破壊するリスクはあるが、paste が
-        // 600ms 待っても効いてない時点で「framework が paste を聞いていない」ので
-        // どちらにせよ DOM 直編集しか手段がない。
-        if (!pasted) {
-          el.textContent = text;
+          try {
+            document.execCommand('selectAll', false);
+            document.execCommand('delete', false);
+          } catch { /* ignore */ }
+          try {
+            document.execCommand('insertText', false, text);
+          } catch { /* ignore */ }
+          // Lexical の setState が microtask 経由 + React 1 tick で走るので
+          // 余裕を持って 1500ms 待つ。 IG の Share submit 時に Lexical state が
+          // まだ commit 中だと caption が空で送られる事故 (v0.4.66 既知)。
+          await new Promise((r) => setTimeout(r, 1500));
+          // Lexical state が「自身が編集中」 で hold する場合があるので、
+          // input event を追加 dispatch して state commit を促す。
           el.dispatchEvent(new InputEvent('input', {
             bubbles: true, data: text, inputType: 'insertText',
           }));
-          await new Promise((r) => setTimeout(r, 80));
+          await new Promise((r) => setTimeout(r, 200));
+        } else {
+          // 非 Lexical (Draft.js / TipTap / ProseMirror): paste event 経由
+          const existing = (el.textContent ?? '').trim();
+          if (existing.length > 0) {
+            const sel = window.getSelection();
+            if (sel) {
+              sel.selectAllChildren(el);
+              sel.deleteFromDocument();
+            }
+            if ((el.textContent ?? '').trim().length > 0) {
+              try {
+                document.execCommand('selectAll', false);
+                document.execCommand('delete', false);
+              } catch { /* ignore */ }
+            }
+          }
+          const dt = new DataTransfer();
+          dt.setData('text/plain', text);
+          const pasteEv = new ClipboardEvent('paste', {
+            bubbles: true,
+            cancelable: true,
+            clipboardData: dt,
+          });
+          el.dispatchEvent(pasteEv);
+
+          const matchSnippet = text.slice(0, Math.min(16, text.length));
+          const visibleNow = (): string =>
+            (el as HTMLElement).innerText ?? el.textContent ?? '';
+          const pasted = await waitFor(
+            () => matchSnippet === '' || visibleNow().includes(matchSnippet),
+            600,
+          );
+
+          if (!pasted) {
+            el.textContent = text;
+            el.dispatchEvent(new InputEvent('input', {
+              bubbles: true, data: text, inputType: 'insertText',
+            }));
+            await new Promise((r) => setTimeout(r, 80));
+          }
         }
       }
 

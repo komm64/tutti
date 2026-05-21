@@ -138,7 +138,9 @@ const scenarios = [
   {
     id: 'instagram-caption-fill',
     platform: 'instagram',
-    text: makeText(100),
+    // 「tutti-test-...」 のような repetitive text を IG が spam として silent
+    // strip する疑いを排除するため、 自然な短いテキストで test
+    text: `Live show last night was amazing #music ${ts.slice(0, 16)}`,
     withImage: true,
     expect: 'caption が空白でなく反映 (Lexical state 同期)',
   },
