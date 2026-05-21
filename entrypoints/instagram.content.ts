@@ -199,6 +199,22 @@ async function runPost(
         // placeholder structure <p><br></p> を破壊するリスクあり、v0.4.59)
         if (text) {
           await injectTextIntoElement(text, sel.captionEditor);
+          // caption DOM verify + retry (v0.4.66): IG の Lexical editor は
+          // paste の DOM 反映が遅延することがあり、 旧コードは Share button が
+          // image 添付済みで enable のため caption 空のまま投稿される silent
+          // failure が起こっていた (user 報告 2026-05-21: 「画像 OK だが本文空」)。
+          // 反映を polling で verify し、 入ってなければ 1 回だけ retry。
+          const ok = await waitForCaptionPopulated(sel.captionEditor, text, 3000);
+          if (!ok) {
+            log.warn('IG: caption 反映が確認できず再注入を試行');
+            await injectTextIntoElement(text, sel.captionEditor);
+            const ok2 = await waitForCaptionPopulated(sel.captionEditor, text, 4000);
+            if (!ok2) {
+              throw new Error(
+                'IG: caption editor に本文が反映されませんでした (Lexical state 同期失敗)',
+              );
+            }
+          }
         }
         // caption inject 後 (or 画像のみ投稿時は upload 完了後)、Lexical の
         // internal state まで反映されたかを Share button の状態で verify する。
@@ -291,6 +307,34 @@ function findCropOption(texts: string[]): HTMLElement | null {
     }
   }
   return null;
+}
+
+/**
+ * IG caption editor に inject した本文が DOM に反映されたかを polling で確認 (v0.4.66)。
+ * IG (Lexical) は paste event → React setState → DOM 反映の経路で 600ms 以上
+ * 掛かることがあり、 inject-helper の verify (visible.length > 0) は placeholder
+ * の残骸等で誤って ok=true を返すことがある。 ここでは本文先頭 20 char が
+ * editor の innerText に出現するかを厳密チェックする。
+ *
+ * 戻り値で結果を返すので、 caller が retry / throw の判断をする。
+ */
+async function waitForCaptionPopulated(
+  captionEditorSelector: string,
+  text: string,
+  timeoutMs: number,
+): Promise<boolean> {
+  const snippet = text.slice(0, Math.min(20, text.length)).trim();
+  if (!snippet) return true;
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const editors = document.querySelectorAll<HTMLElement>(captionEditorSelector);
+    for (const el of editors) {
+      const visible = (el.innerText ?? el.textContent ?? '').trim();
+      if (visible.includes(snippet)) return true;
+    }
+    await sleep(150);
+  }
+  return false;
 }
 
 /**

@@ -2,6 +2,7 @@ import { initLogLevelFromSettings, log } from '../src/utils/logger';
 import type { ImageAttachment, Message, PostResultMessage } from '../src/messages';
 import { BLUESKY_SELECTORS, blueskyAdapter } from '../src/adapters/bluesky';
 import { executePostFlow } from '../src/utils/post-flow';
+import { sleep } from '../src/utils/dom';
 import { buildDiagnosis } from '../src/utils/diagnose';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { detectAndReportUser } from '../src/utils/user-detect';
@@ -118,6 +119,29 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     images,
     dryRun,
   });
+
+  // dryRun でなければ compose modal が閉じる (= post 完了) のを verify。
+  // Bluesky は Publish click をトリガに image upload + record create が走るので、
+  // click 後 ~ 数秒は modal が開いたままになる。 旧コードは afterClickDelayMs=1500
+  // で即 return → 直後に handlePostRequest が次 chunk の URL に tab.update する
+  // と、 in-flight の upload を kill して chunk 0 が silent fail
+  // ((1/2) 飛ばずに (2/2) のみ投稿される、 user 報告 2026-05-21)。
+  if (!dryRun) {
+    const stillOpen = () =>
+      document.querySelector('[data-testid="composer"]') ||
+      document.querySelector('[contenteditable="true"][role="textbox"]');
+    const deadline = Date.now() + 30_000;
+    while (Date.now() < deadline) {
+      if (!stillOpen()) break;
+      await sleep(300);
+    }
+    if (stillOpen()) {
+      throw new Error(
+        'Bluesky: Publish click 後に compose modal が閉じませんでした (画像 upload 失敗 / サイズ超過 / その他エラーの可能性)',
+      );
+    }
+    log.info('Bluesky: post 完了 verify (modal closed)');
+  }
 
   return {
     type: 'POST_RESULT',

@@ -137,24 +137,40 @@ async function runThreadPost(
     await injectImages(images, sel.fileInput);
   }
 
+  // chunks > 1 + image の場合は injectImages 直後に "Add post" がまだ
+  // disabled / 不在の状態が起こり得る (media upload 直後の UI 再描画)。
+  // upload 完了は injectImages 内の PerformanceObserver で待ってるが、
+  // X の thread UI の "Add post" は disabled 状態を経由するので polling で待つ
   for (let i = 1; i < chunks.length; i++) {
-    const addBtn = findAddPostButton();
+    const addBtn = await waitForAddPostButton(8000);
     if (!addBtn) {
       throw new Error(`X thread: ${i}/${chunks.length} 番目の "Add post" ボタンが見つかりません (X UI が変わった可能性)`);
     }
+    // 既存の textarea 数を覚えておいて、 click 後に「増えた」 ことを確認する
+    // (旧コードは sel.textarea で queryAll してたが sel.textarea は
+    //  `[data-testid="tweetTextarea_0"]` で _0 にしか match せず、 chunks > 1
+    //  時に常に all[1]=undefined → 「N 番目の textarea が出現しません」 で完全失敗
+    //  していた。 user 報告 2026-05-21)。 全 tweetTextarea_* を取る selector に変更
+    const ALL_TEXTAREAS = '[data-testid^="tweetTextarea_"]';
+    const before = document.querySelectorAll<HTMLElement>(ALL_TEXTAREAS).length;
     addBtn.click();
-    // 新しい textarea (= 既存の N 番目とは別) が mount されるまで待つ
-    await sleep(400);
-    const all = document.querySelectorAll<HTMLElement>(sel.textarea);
-    // N+1 番目 (= 最後の textarea) が新規挿入分
-    const newTa = all[i];
-    if (!newTa) {
-      throw new Error(`X thread: ${i + 1} 番目の textarea が出現しません`);
+    // 新しい textarea が mount されるまで polling (sleep 400 だと低スペで間に合わない)
+    let newTa: HTMLElement | null = null;
+    const deadline = Date.now() + 5000;
+    while (Date.now() < deadline) {
+      const cur = document.querySelectorAll<HTMLElement>(ALL_TEXTAREAS);
+      if (cur.length > before) {
+        newTa = cur[cur.length - 1] ?? null; // 末尾 = 今追加された
+        break;
+      }
+      await sleep(150);
     }
-    // 個別の selector を作って inject
+    if (!newTa) {
+      throw new Error(`X thread: ${i + 1} 番目の textarea が出現しません ("Add post" click が反映されなかった可能性)`);
+    }
     // tweetTextarea_0 / _1 / _2 ... のように data-testid に index が入る
     const testid = newTa.getAttribute('data-testid');
-    const selector = testid ? `[data-testid="${testid}"]` : sel.textarea;
+    const selector = testid ? `[data-testid="${testid}"]` : ALL_TEXTAREAS;
     await injectTextIntoElement(chunks[i]!, selector);
   }
 
@@ -174,6 +190,23 @@ async function runThreadPost(
 
   postAll.click();
   await sleep(2000);
+}
+
+/**
+ * findAddPostButton を polling で待つ。 media upload 直後は UI 再描画で
+ * 一時的に "Add post" が disabled / 不在になることがある。
+ */
+async function waitForAddPostButton(timeoutMs: number): Promise<HTMLElement | null> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const btn = findAddPostButton();
+    if (btn && !(btn as HTMLButtonElement).disabled && btn.getAttribute('aria-disabled') !== 'true') {
+      return btn;
+    }
+    await sleep(150);
+  }
+  // 最後に disabled でも返してみる (旧 sync findAddPostButton 互換)
+  return findAddPostButton();
 }
 
 /**
