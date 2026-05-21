@@ -178,6 +178,61 @@ async function runPost(
       },
       settleMs: 200,
     },
+    {
+      // Pixiv は時々 "Security check" / captcha section を出して bottom Post を
+      // disabled のまま放置する (dummy 垢 / 新規 session で発生)。 完全な
+      // 自動突破は困難 (reCAPTCHA や類似) なので、 「Tutti が代わりに完了する」
+      // のではなく「user に banner で完了を促し、 enable 化したら投稿続行」 の
+      // semi-auto fallback に倒す。 5 分以内に完了されなければ timeout エラー。
+      name: 'await-security-check-if-needed',
+      action: async () => {
+        if (dryRun) return; // dry-run では post button click しないので security check も不要
+        const isPostDisabled = (): boolean => {
+          const btns = Array.from(document.querySelectorAll<HTMLButtonElement>('button'));
+          const bottoms = btns.filter((b) =>
+            /^Post$|^投稿$/.test((b.textContent ?? '').trim()) &&
+            !b.className.includes('gtm-work-post-button-in-header-click'),
+          );
+          return bottoms.length > 0 && bottoms.every((b) => b.disabled);
+        };
+        const hasSecurityCheck = (): boolean => {
+          const text = document.body?.innerText ?? '';
+          return /Security check|セキュリティチェック|reCAPTCHA/i.test(text);
+        };
+        // 200ms 程度 React state 反映を待つ (radio click 後)
+        await new Promise((r) => setTimeout(r, 200));
+        if (!isPostDisabled() || !hasSecurityCheck()) return;
+
+        // banner overlay 注入 (既存があれば再利用)
+        let banner = document.getElementById('tutti-pixiv-security-banner');
+        if (!banner) {
+          banner = document.createElement('div');
+          banner.id = 'tutti-pixiv-security-banner';
+          banner.style.cssText = [
+            'position:fixed', 'top:16px', 'left:50%', 'transform:translateX(-50%)',
+            'z-index:99999', 'background:#fef3c7', 'color:#92400e', 'padding:12px 20px',
+            'border-radius:8px', 'font-weight:600', 'box-shadow:0 4px 12px rgba(0,0,0,0.25)',
+            'font-family:system-ui,-apple-system,sans-serif', 'font-size:14px', 'max-width:560px',
+            'line-height:1.5', 'border:1px solid #fbbf24',
+          ].join(';');
+          document.body.appendChild(banner);
+        }
+        banner.textContent = '⚠ Tutti: Pixiv のセキュリティチェックを完了してください。 完了次第、 自動で投稿します。 / Please complete Pixiv security check; posting will resume automatically.';
+
+        const deadline = Date.now() + 5 * 60 * 1000;
+        while (Date.now() < deadline) {
+          await new Promise((r) => setTimeout(r, 1000));
+          if (!isPostDisabled()) {
+            banner.textContent = '✓ Security check OK、 投稿継続中... / Posting...';
+            setTimeout(() => banner.remove(), 2000);
+            return;
+          }
+        }
+        banner.textContent = '✗ Tutti: Security check が 5 分以内に完了されませんでした';
+        throw new Error('Pixiv: Security check が 5 分以内に完了しませんでした (user 待機 timeout)');
+      },
+      settleMs: 100,
+    },
   ];
 
   await executeMultiStepFlow({
