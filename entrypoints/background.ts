@@ -573,26 +573,39 @@ async function postToPlatform(
 
   const chunks = splitText(text, adapter.charLimit);
 
-  // X の thread chaining (v0.4.56〜v0.4.65) は `[data-testid="addButton"]` を
-  // click して 1 compose に複数 textbox を連結する実装だったが、 X UI 変更で
-  // Add post button が `<a href="/compose/post">` anchor になり click が
-  // 自己 navigation を引き起こして modal を破壊することが判明
-  // (user 報告 2026-05-21 「X 完全失敗」、 probe 2026-05-22 で確定)。
-  // v0.4.66〜 は X も他 SNS と同じ generic chunks loop で chunk ごとに別 tweet
-  // を投稿する方針に変更。 thread 連結は失うが reliable な投稿を優先。
+  // chunks > 1 は reply chain (thread 連結) で post する (v0.4.67〜)。
+  // 各 SNS で chunk i+1 を chunk i への reply として post する path を用意:
+  //   X: chunk 0 を /home の inline compose で post → URL capture →
+  //      tweet_id 抽出 → chunk 1 を /intent/post?in_reply_to_status_id=<id>
+  //      で post → 繰り返し
+  //   他 SNS: 当面 generic loop (別 post として連投)。 後続 PR で reply chain 化。
+  let prevPostUrl: string | undefined;
   for (let i = 0; i < chunks.length; i++) {
     if (i > 0) await sleep(CHUNK_INTERVAL_MS);
     const chunkImages = i === 0 ? images : undefined;
+
+    // X reply chain: chunk i (i >= 1) は前 chunk への reply。
+    // X intent URL の reply param は `in_reply_to=` (probe 2026-05-22 で確定。
+    // `in_reply_to_status_id=` だと "Replying to @" が出ず別 tweet として扱われる)
+    let overrideUrl: string | undefined;
+    if (adapter.id === 'x' && i > 0 && prevPostUrl) {
+      const m = prevPostUrl.match(/\/status\/(\d+)/);
+      if (m && m[1]) {
+        overrideUrl = `https://x.com/intent/post?in_reply_to=${m[1]}`;
+      }
+    }
 
     try {
       // v0.4.58: 1 chunk 目だけ自動 retry (1 回限り)。
       // 2 chunk 目以降は retry すると重複投稿のリスクがある (前の chunk が
       // 部分的に成功しているケース) ので retry しない。
+      let result: PostResultMessage;
       if (i === 0) {
-        await postSingleChunkWithRetry(adapter, chunks[i]!, chunkImages);
+        result = await postSingleChunkWithRetry(adapter, chunks[i]!, chunkImages, undefined, overrideUrl);
       } else {
-        await postSingleChunk(adapter, chunks[i]!, chunkImages);
+        result = await postSingleChunk(adapter, chunks[i]!, chunkImages, undefined, overrideUrl);
       }
+      if (result.url) prevPostUrl = result.url;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       return {
@@ -604,7 +617,8 @@ async function postToPlatform(
     }
   }
 
-  return { type: 'POST_RESULT', platform, success: true };
+  // 最後 chunk の URL を返す (popup で thread の先頭/末尾どちらに飛ぶかは UI で決める)
+  return { type: 'POST_RESULT', platform, success: true, url: prevPostUrl };
 }
 
 /**
@@ -623,17 +637,17 @@ async function postSingleChunkWithRetry(
   text: string,
   rawImages?: ImageAttachment[],
   textChunks?: string[],
-): Promise<void> {
+  overrideUrl?: string,
+): Promise<PostResultMessage> {
   const { autoPost } = await getSettings();
   try {
-    await postSingleChunk(adapter, text, rawImages, textChunks);
-    return;
+    return await postSingleChunk(adapter, text, rawImages, textChunks, overrideUrl);
   } catch (err) {
     if (!autoPost) throw err;
     const msg = err instanceof Error ? err.message : String(err);
     log.warn(`${adapter.id}: 1 回目失敗 → 1.5s 後 retry — ${msg}`);
     await sleep(1500);
-    await postSingleChunk(adapter, text, rawImages, textChunks);
+    return await postSingleChunk(adapter, text, rawImages, textChunks, overrideUrl);
   }
 }
 
@@ -734,7 +748,10 @@ async function postSingleChunk(
   /** X thread mode (v0.4.56〜)。指定時は content script が text を無視して
    *  全 chunk を 1 つの compose に並べて投稿する。images は 1 個目にだけ付く */
   textChunks?: string[],
-): Promise<void> {
+  /** adapter.getComposeUrl(text) を override (reply chain で reply target を
+   *  含む URL に切り替える等)。 指定無しなら adapter の default を使う。 */
+  overrideUrl?: string,
+): Promise<PostResultMessage> {
   // content script は extension IndexedDB を直接読めないので、binary は
   // background→content の tab.sendMessage で chunked 配信する形に変更
   // (旧コードは ここで全 base64 化して 64MB cap で死んでいた、tutti-issues#4)。
@@ -749,13 +766,14 @@ async function postSingleChunk(
   // credentials が設定されてて autoPost=true (= 実投稿モード) のときは
   // API 直送して終了。autoPost=false (= preview モード) のときは API は使わず
   // 従来 DOM path で compose を開いてユーザーに見せる (preview の意味維持)。
-  if (autoPost) {
+  // override URL (reply chain) は DOM path 専用なので skip。
+  if (autoPost && !overrideUrl) {
     const apiResult = await tryApiPath(adapter.id, text, images);
     if (apiResult === 'no-credentials') {
       // 設定無し → DOM path に fallthrough
     } else if (apiResult.success) {
       log.info(`${adapter.id} via API ✓ ${apiResult.postUrl ?? ''}`);
-      return;
+      return { type: 'POST_RESULT', platform: adapter.id, success: true, url: apiResult.postUrl };
     } else {
       throw new Error(`API: ${apiResult.error ?? '不明なエラー'}`);
     }
@@ -771,7 +789,7 @@ async function postSingleChunk(
   // 極端に遅くなる。popup が閉じる tradeoff を許容して foreground で開く。
   const active = adapter.requiresForegroundTab === true;
   const tab = await openOrFocusTab(
-    adapter.getComposeUrl(text),
+    overrideUrl ?? adapter.getComposeUrl(text),
     adapter.matchUrl,
     active,
   );
@@ -805,7 +823,7 @@ async function postSingleChunk(
     const msg = err instanceof Error ? err.message : String(err);
     if (msg.includes('asynchronous response') || msg.includes('message channel closed')) {
       log.warn(`${adapter.id}: post 後の channel closed を成功扱い (tab navigation のため) — ${msg}`);
-      return;
+      return { type: 'POST_RESULT', platform: adapter.id, success: true };
     }
     throw err;
   }
@@ -814,6 +832,7 @@ async function postSingleChunk(
     throw new Error('SNS ページが応答しません(タブを再読み込みしてください)');
   }
   if (!response.success) throw new Error(response.error ?? '投稿に失敗しました');
+  return response;
 }
 
 async function openOrFocusTab(
