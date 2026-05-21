@@ -93,13 +93,15 @@ console.log(`[fixture] image: ${imgB64.length} chars b64 (~${Math.round(imgB64.l
 
 const ts = new Date().toISOString().replace(/[:.]/g, '-');
 
-// テキスト生成 (length は実機で wraparound しないよう ASCII で固定文字)
+// テキスト生成 (各 chunk が unique になるよう ts と random nonce を毎行に埋める。
+// X / Bluesky など重複検出するサービスを通すため)
+const nonce = Math.random().toString(36).slice(2, 10);
 function makeText(len) {
-  const base = `tutti-test-${ts} `;
+  const base = `tutti-test-${ts}-${nonce} `;
   let s = base;
   let i = 0;
   while (s.length < len) {
-    s += `chunk${i} line${i} `;
+    s += `[${nonce}-${i}] chunk${i} hello world `;
     i++;
   }
   return s.slice(0, len);

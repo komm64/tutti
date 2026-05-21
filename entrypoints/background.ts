@@ -27,7 +27,7 @@ import { fetchOverridesFrom } from '../src/utils/selector-overrides';
 import { splitText } from '../src/utils/split';
 import { letterboxToSquare } from '../src/utils/image-letterbox';
 import { getApiCredentials } from '../src/utils/api-credentials';
-import { postViaApi as postBlueskyApi } from '../src/api/bluesky';
+import { postViaApi as postBlueskyApi, postViaSession as postBlueskyViaSession, type BlueskyReplyTarget } from '../src/api/bluesky';
 import { postViaApi as postMastodonApi } from '../src/api/mastodon';
 import { postViaApi as postMisskeyApi } from '../src/api/misskey';
 import type { ApiPostResult } from '../src/api/types';
@@ -573,10 +573,24 @@ async function postToPlatform(
 
   const chunks = splitText(text, adapter.charLimit);
 
+  // Bluesky reply chain (v0.4.68): chunks > 1 のとき ATProto API で thread 連結
+  // reply として post する。 user が API credentials を設定してなくても、
+  // bsky.app に既にログインしてれば content script 経由で session JWT を借りる。
+  if (adapter.id === 'bluesky' && chunks.length > 1) {
+    try {
+      const r = await postBlueskyThread(adapter, chunks, images);
+      return r;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      log.warn(`Bluesky reply chain 失敗、 generic loop に fallback: ${msg}`);
+      // fallthrough して下の generic loop で個別 post する
+    }
+  }
+
   // chunks > 1 は reply chain (thread 連結) で post する (v0.4.67〜)。
   // 各 SNS で chunk i+1 を chunk i への reply として post する path を用意:
   //   X: chunk 0 を /home の inline compose で post → URL capture →
-  //      tweet_id 抽出 → chunk 1 を /intent/post?in_reply_to_status_id=<id>
+  //      tweet_id 抽出 → chunk 1 を /intent/post?in_reply_to=<id>
   //      で post → 繰り返し
   //   他 SNS: 当面 generic loop (別 post として連投)。 後続 PR で reply chain 化。
   let prevPostUrl: string | undefined;
@@ -717,6 +731,87 @@ async function letterboxImagesForInstagram(
       }
     }),
   );
+}
+
+/**
+ * Bluesky thread (reply chain) を ATProto API で post する (v0.4.68〜)。
+ *
+ * 認証戦略:
+ *   1. Settings に Bluesky API credentials が設定済 → createSession 経由 (DOM
+ *      非依存、 bsky.app タブを開かなくて済む)
+ *   2. credentials 無し → bsky.app タブを開いて GET_BLUESKY_SESSION で
+ *      localStorage の session JWT を借りる
+ *
+ * Reply chain:
+ *   - chunk 0: 通常の post + uri/cid 取得
+ *   - chunk 1+: reply.root + reply.parent を chunk 0 (root) と直前 chunk
+ *     (parent) で連結
+ */
+async function postBlueskyThread(
+  adapter: PlatformAdapter,
+  chunks: string[],
+  images?: ImageAttachment[],
+): Promise<PostResultMessage> {
+  const { autoPost } = await getSettings();
+  if (!autoPost) {
+    // preview モードで thread を「動作確認」 する path は当面サポートしない
+    // (API 経由なので preview 概念に意味が無い)。 generic loop に流す。
+    throw new Error('Bluesky thread は autoPost ON 限定 (preview 不可)');
+  }
+
+  // session を取得
+  const creds = await getApiCredentials();
+  let session: { accessJwt: string; did: string; handle: string; pdsHost?: string } | null = null;
+
+  if (creds.bluesky) {
+    // credentials 経由: createSession して取得 (postBlueskyApi が内部でやってるのを直接)
+    const c = creds.bluesky;
+    const pds = c.pdsHost || 'https://bsky.social';
+    const res = await fetch(`${pds}/xrpc/com.atproto.server.createSession`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier: c.identifier, password: c.appPassword }),
+    });
+    if (!res.ok) throw new Error(`Bluesky createSession ${res.status}`);
+    const data = (await res.json()) as { accessJwt: string; did: string; handle: string };
+    session = { ...data, pdsHost: pds };
+  } else {
+    // localStorage 経由: bsky.app タブを開いて content script に session を取らせる
+    const tab = await openOrFocusTab('https://bsky.app/', adapter.matchUrl, false);
+    if (typeof tab.id !== 'number') throw new Error('bsky.app タブを開けません');
+    // content script の準備を待つ
+    await sleep(2000);
+    const resp = await browser.tabs.sendMessage(tab.id, { type: 'GET_BLUESKY_SESSION' }) as
+      | { type: 'BLUESKY_SESSION_RESULT'; accessJwt: string; did: string; handle: string; pdsHost?: string }
+      | null;
+    if (!resp || resp.type !== 'BLUESKY_SESSION_RESULT') {
+      throw new Error('Bluesky: bsky.app の localStorage から session を取得できませんでした (ログイン済みか確認)');
+    }
+    session = { accessJwt: resp.accessJwt, did: resp.did, handle: resp.handle, pdsHost: resp.pdsHost };
+  }
+
+  // chunks を順次 post (reply chain)
+  let rootRef: { uri: string; cid: string } | undefined;
+  let parentRef: { uri: string; cid: string } | undefined;
+  let lastUrl: string | undefined;
+  for (let i = 0; i < chunks.length; i++) {
+    const chunkImages = i === 0 ? images : undefined;
+    const replyTarget: BlueskyReplyTarget | undefined = rootRef && parentRef ? {
+      rootUri: rootRef.uri, rootCid: rootRef.cid,
+      parentUri: parentRef.uri, parentCid: parentRef.cid,
+    } : undefined;
+    const result = await postBlueskyViaSession(session, { text: chunks[i]!, images: chunkImages }, replyTarget);
+    if (!result.success) {
+      throw new Error(`Bluesky ${i + 1}/${chunks.length}: ${result.error ?? '不明'}`);
+    }
+    if (result.uri && result.cid) {
+      if (!rootRef) rootRef = { uri: result.uri, cid: result.cid };
+      parentRef = { uri: result.uri, cid: result.cid };
+    }
+    lastUrl = result.postUrl ?? lastUrl;
+    log.info(`Bluesky thread ${i + 1}/${chunks.length} ✓ ${result.postUrl ?? ''}`);
+  }
+
+  return { type: 'POST_RESULT', platform: 'bluesky', success: true, url: lastUrl };
 }
 
 /**

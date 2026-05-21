@@ -74,6 +74,40 @@ function findHandleInObject(obj: unknown, depth = 0): string | null {
   return null;
 }
 
+/**
+ * bsky.app localStorage から ATProto session (accessJwt + did + handle) を抽出。
+ * reply chain で API path を使うために必要 (user が Settings に API credentials を
+ * 設定してなくても、 bsky.app にログイン済みなら token を借りられる)。
+ */
+function readBlueskySession(): { accessJwt: string; did: string; handle: string; pdsHost?: string } | null {
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (!k || !/bsky|agent|session/i.test(k)) continue;
+    const v = localStorage.getItem(k);
+    if (!v) continue;
+    try {
+      const parsed = JSON.parse(v);
+      let accessJwt: string | undefined, did: string | undefined, handle: string | undefined, pdsHost: string | undefined;
+      const walk = (o: unknown, depth = 0): void => {
+        if (depth > 6 || !o || typeof o !== 'object') return;
+        const obj = o as Record<string, unknown>;
+        if (typeof obj.accessJwt === 'string' && !accessJwt) accessJwt = obj.accessJwt;
+        if (typeof obj.did === 'string' && /^did:/.test(obj.did) && !did) did = obj.did;
+        if (typeof obj.handle === 'string' && !handle) handle = obj.handle;
+        if (typeof obj.service === 'string' && /^https?:/.test(obj.service) && !pdsHost) pdsHost = (obj.service as string).replace(/\/$/, '');
+        if (typeof obj.pdsHost === 'string' && !pdsHost) pdsHost = obj.pdsHost;
+        if (Array.isArray(obj)) for (const x of obj) walk(x, depth + 1);
+        else for (const x of Object.values(obj)) walk(x, depth + 1);
+      };
+      walk(parsed);
+      if (accessJwt && did && handle) {
+        return { accessJwt, did, handle, ...(pdsHost ? { pdsHost } : {}) };
+      }
+    } catch { /* not JSON */ }
+  }
+  return null;
+}
+
 export default defineContentScript({
   matches: ['https://bsky.app/*'],
   main() {
@@ -81,6 +115,15 @@ export default defineContentScript({
       const msg = rawMsg as Message;
       if (msg.type === 'DIAGNOSE_PLATFORM' && msg.platform === 'bluesky') {
         sendResponse(buildDiagnosis('bluesky', BLUESKY_SELECTORS, detectBlueskyUser));
+        return true;
+      }
+      if (msg.type === 'GET_BLUESKY_SESSION') {
+        const sess = readBlueskySession();
+        if (sess) {
+          sendResponse({ type: 'BLUESKY_SESSION_RESULT', ...sess });
+        } else {
+          sendResponse(null);
+        }
         return true;
       }
       if (msg.type !== 'POST_TO_PLATFORM' || msg.platform !== 'bluesky') return;

@@ -28,10 +28,22 @@ import type { ApiPostInput, ApiPostResult, ApiTestResult } from './types';
 const DEFAULT_PDS = 'https://bsky.social';
 const MAX_IMAGES = 4;
 
-interface Session {
+export interface Session {
   accessJwt: string;
   did: string;
   handle: string;
+  pdsHost?: string;
+}
+
+/**
+ * Bluesky の reply target (thread 連結用)。 root = thread の先頭 post URI、
+ * parent = 直接の返信元 post URI。 通常は 2 chunk thread だと root === parent。
+ */
+export interface BlueskyReplyTarget {
+  rootUri: string;
+  rootCid: string;
+  parentUri: string;
+  parentCid: string;
 }
 
 async function createSession(creds: BlueskyCredentials): Promise<Session> {
@@ -82,10 +94,30 @@ async function uploadBlob(
 export async function postViaApi(
   creds: BlueskyCredentials,
   input: ApiPostInput,
-): Promise<ApiPostResult> {
+  replyTarget?: BlueskyReplyTarget,
+): Promise<ApiPostResult & { uri?: string; cid?: string }> {
   try {
     const pds = creds.pdsHost || DEFAULT_PDS;
     const session = await createSession(creds);
+    return await postViaSession(session, input, replyTarget);
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/**
+ * 既存 Session (createSession 結果 or bsky.app localStorage から読んだ JWT) で
+ * post する path。 reply target を渡すと thread 連結 reply として post する。
+ *
+ * 返却に uri / cid を含める: reply chain で次 chunk の root/parent target に使う。
+ */
+export async function postViaSession(
+  session: Session,
+  input: ApiPostInput,
+  replyTarget?: BlueskyReplyTarget,
+): Promise<ApiPostResult & { uri?: string; cid?: string }> {
+  try {
+    const pds = session.pdsHost || DEFAULT_PDS;
 
     const imageRecords: { alt: string; image: { $type: 'blob'; ref: { $link: string }; mimeType: string; size: number } }[] = [];
     const images = (input.images ?? []).filter((m) => m.type.startsWith('image/')).slice(0, MAX_IMAGES);
@@ -110,6 +142,12 @@ export async function postViaApi(
         images: imageRecords,
       };
     }
+    if (replyTarget) {
+      record['reply'] = {
+        root: { uri: replyTarget.rootUri, cid: replyTarget.rootCid },
+        parent: { uri: replyTarget.parentUri, cid: replyTarget.parentCid },
+      };
+    }
 
     const createRes = await fetch(`${pds}/xrpc/com.atproto.repo.createRecord`, {
       method: 'POST',
@@ -127,12 +165,12 @@ export async function postViaApi(
       const detail = await createRes.text().catch(() => '');
       throw new Error(`createRecord ${createRes.status}: ${detail.slice(0, 200)}`);
     }
-    const createData = (await createRes.json()) as { uri?: string };
+    const createData = (await createRes.json()) as { uri?: string; cid?: string };
     // uri 例: at://did:plc:xxx/app.bsky.feed.post/3kxyz
     // 公開 URL: https://bsky.app/profile/<handle>/post/<rkey>
     const rkey = createData.uri?.split('/').pop();
     const postUrl = rkey ? `https://bsky.app/profile/${session.handle}/post/${rkey}` : undefined;
-    return { success: true, postUrl };
+    return { success: true, postUrl, uri: createData.uri, cid: createData.cid };
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : String(e) };
   }

@@ -213,6 +213,25 @@ export interface GetBinaryChunkMessage {
   length: number;
 }
 
+/**
+ * background → bluesky content script: bsky.app の localStorage から
+ * accessJwt / did / handle を抽出して返す。 reply chain で ATProto API path を
+ * 使う際の認証 token を取得する用 (user が API credentials を設定してなくても、
+ * 既に bsky.app にログインしてれば session を借りる)。
+ */
+export interface GetBlueskySessionMessage {
+  type: 'GET_BLUESKY_SESSION';
+}
+
+/** bsky.app localStorage から取り出した session 情報 (background 側で使う) */
+export interface BlueskySessionResult {
+  type: 'BLUESKY_SESSION_RESULT';
+  accessJwt: string;
+  did: string;
+  handle: string;
+  pdsHost?: string;
+}
+
 export type Message =
   | PostRequestMessage
   | PostToPlatformMessage
@@ -230,4 +249,6 @@ export type Message =
   | LogExportRequestMessage
   | GetBgStateMessage
   | GetBinaryChunkMessage
+  | GetBlueskySessionMessage
+  | BlueskySessionResult
   | LogClearMessage;
