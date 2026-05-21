@@ -97,6 +97,14 @@ declare global {
   interface Window {
     __tuttiUploadHookInstalled?: boolean;
     __tuttiUpload?: UploadTracker;
+    /**
+     * IG の `/api/v1/media/configure/` への submit 時に caption=& (空文字)
+     * になる問題の workaround (v0.4.69〜)。 ISOLATED 側 IG content script が
+     * 投稿前にこの window 変数に caption を格納すると、 MAIN world の fetch
+     * hook が send 時に body の `caption=` を `caption=<encoded>` に置換する。
+     * 投稿後 (or 失敗時) に IG 側が clear する責任。
+     */
+    __tuttiIgPendingCaption?: string;
   }
 }
 
@@ -118,6 +126,68 @@ export default defineContentScript({
      * 拾うため(false positive のリスクは小、悪化しても 4s で給付諦め)。
      */
     const UPLOAD_URL_RE = /(upload|uploadBlob|drive\/files|api\/v\d+\/media)/i;
+
+    function installIgCaptionFetchHook() {
+      if (!/instagram\.com/.test(location.host)) return;
+      // 多重 install 防止
+      if ((window as unknown as { __tuttiIgFetchHook?: boolean }).__tuttiIgFetchHook) return;
+      (window as unknown as { __tuttiIgFetchHook?: boolean }).__tuttiIgFetchHook = true;
+
+      const injectCaptionIntoBody = (body: string): string => {
+        const cap = window.__tuttiIgPendingCaption;
+        if (!cap || typeof body !== 'string') return body;
+        if (!/(^|&)caption=(&|$)/.test(body)) return body;
+        const encoded = encodeURIComponent(cap);
+        const newBody = body.replace(/(^|&)caption=(?=&|$)/, (match) => match + encoded);
+        console.log('[Tutti inject-helper] IG configure: caption= に inject (len=' + cap.length + ')');
+        window.__tuttiIgPendingCaption = undefined; // 一度きり
+        return newBody;
+      };
+
+      // fetch hook
+      const origFetch = window.fetch.bind(window);
+      window.fetch = function(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+        try {
+          const url = typeof input === 'string' ? input : (input instanceof URL ? input.toString() : input.url);
+          if (url && /\/api\/v1\/media\/configure\//.test(url) && typeof init?.body === 'string') {
+            const newBody = injectCaptionIntoBody(init.body);
+            if (newBody !== init.body) {
+              return origFetch(input as RequestInfo, { ...init, body: newBody });
+            }
+          }
+        } catch (e) {
+          console.warn('[Tutti inject-helper] IG fetch hook err:', e);
+        }
+        return origFetch(input as RequestInfo, init);
+      };
+
+      // XHR hook (IG は configure/ を XHR 経由で呼んでる可能性、 fetch hook が
+      // intercept しない事故を防ぐ)
+      const OrigXHR = window.XMLHttpRequest;
+      const origOpen = OrigXHR.prototype.open;
+      const origSend = OrigXHR.prototype.send;
+      // url を per-instance に持たせるための WeakMap
+      const urls = new WeakMap<XMLHttpRequest, string>();
+      OrigXHR.prototype.open = function(this: XMLHttpRequest, method: string, url: string | URL, ...rest: unknown[]) {
+        const u = typeof url === 'string' ? url : url.toString();
+        urls.set(this, u);
+        // @ts-expect-error rest spread
+        return origOpen.call(this, method, u, ...rest);
+      };
+      OrigXHR.prototype.send = function(this: XMLHttpRequest, body?: Document | XMLHttpRequestBodyInit | null) {
+        try {
+          const url = urls.get(this) ?? '';
+          if (/\/api\/v1\/media\/configure\//.test(url) && typeof body === 'string') {
+            const newBody = injectCaptionIntoBody(body);
+            if (newBody !== body) body = newBody;
+          }
+        } catch (e) {
+          console.warn('[Tutti inject-helper] IG XHR hook err:', e);
+        }
+        return origSend.call(this, body as Document | XMLHttpRequestBodyInit | null);
+      };
+      console.log('[Tutti inject-helper] IG fetch + XHR hooks installed');
+    }
 
     function installUploadHook() {
       if (window.__tuttiUploadHookInstalled) return;
@@ -284,38 +354,128 @@ export default defineContentScript({
           el.matches('[data-lexical-editor]');
 
         if (isLexical) {
-          // Lexical: execCommand で beforeinput を発火させて state 同期。
-          // 既存テキストは selectAll + delete で先に消す (execCommand が
-          // cursor 位置に挿入するので空の状態から始める必要)。
-          el.focus();
-          // Selection を editor 配下に置く (focus だけだと selection が他に
-          // 残ったままのことがある)
-          const sel0 = window.getSelection();
-          if (sel0) {
-            try {
-              sel0.removeAllRanges();
-              const range = document.createRange();
-              range.selectNodeContents(el);
-              sel0.addRange(range);
-            } catch { /* ignore */ }
+          // IG 特有の workaround: Share click 時の `/api/v1/media/configure/`
+          // への fetch で body の `caption=` が空のまま送られる問題 (Lexical state
+          // を更新しても IG の submit state には伝わらない silent failure)。
+          // pending caption を window 変数にセットし、 fetch hook が send 時に
+          // body に inject する。
+          if (/instagram\.com/.test(location.host)) {
+            window.__tuttiIgPendingCaption = text;
+            console.log('[Tutti inject-helper] IG pending caption set (len=' + text.length + ')');
           }
-          try {
-            document.execCommand('selectAll', false);
-            document.execCommand('delete', false);
-          } catch { /* ignore */ }
-          try {
-            document.execCommand('insertText', false, text);
-          } catch { /* ignore */ }
-          // Lexical の setState が microtask 経由 + React 1 tick で走るので
-          // 余裕を持って 1500ms 待つ。 IG の Share submit 時に Lexical state が
-          // まだ commit 中だと caption が空で送られる事故 (v0.4.66 既知)。
-          await new Promise((r) => setTimeout(r, 1500));
-          // Lexical state が「自身が編集中」 で hold する場合があるので、
-          // input event を追加 dispatch して state commit を促す。
-          el.dispatchEvent(new InputEvent('input', {
-            bubbles: true, data: text, inputType: 'insertText',
-          }));
-          await new Promise((r) => setTimeout(r, 200));
+          // Lexical: 直接 editor instance に access して parseEditorState +
+          // setEditorState で state を直接書き換える (v0.4.69〜)。
+          //
+          // 経緯:
+          //   v0.4.66 (execCommand 経由) と v0.4.68 (beforeinput event 経由) の両方で
+          //   Lexical の text node (`<span data-lexical-text="true">`) は created
+          //   される (DOM 上は OK) が、 IG の Share submit 時の network request
+          //   `caption=` 値が空文字のまま (probe-ig-network.mjs で確定)。
+          //   → Lexical の React-side onChange listener (IG state に書き戻す) が
+          //   合成 event では発火してない疑い (event.isTrusted = false で gate
+          //   される可能性)。
+          //
+          //   Lexical の editor instance は contenteditable 配下の DOM element に
+          //   `__lexicalEditor` property で attach されており、 MAIN world から
+          //   access 可能 (probe-ig-lexical-internals.mjs で確認)。
+          //   editor.parseEditorState(json) + editor.setEditorState(state) で
+          //   state を直接書き換えれば、 React の update listener が trustless
+          //   chain なしに onChange を発火させる。
+          let editor: any = null; // eslint-disable-line @typescript-eslint/no-explicit-any
+          let cur: HTMLElement | null = el;
+          while (cur) {
+            if ((cur as any).__lexicalEditor) { // eslint-disable-line @typescript-eslint/no-explicit-any
+              editor = (cur as any).__lexicalEditor; // eslint-disable-line @typescript-eslint/no-explicit-any
+              break;
+            }
+            cur = cur.parentElement;
+          }
+
+          if (editor && typeof editor.parseEditorState === 'function' && typeof editor.setEditorState === 'function') {
+            try {
+              console.log('[Tutti inject-helper] Lexical: using editor.setEditorState path');
+              // Lexical の標準 state JSON 構造で新 state を組み立て
+              const stateJson = {
+                root: {
+                  type: 'root',
+                  format: '',
+                  indent: 0,
+                  version: 1,
+                  direction: 'ltr',
+                  children: [{
+                    type: 'paragraph',
+                    format: '',
+                    indent: 0,
+                    version: 1,
+                    direction: 'ltr',
+                    children: [{
+                      type: 'text',
+                      text,
+                      format: 0,
+                      detail: 0,
+                      mode: 'normal',
+                      style: '',
+                      version: 1,
+                    }],
+                  }],
+                },
+              };
+              const newState = editor.parseEditorState(JSON.stringify(stateJson));
+              editor.setEditorState(newState);
+              console.log('[Tutti inject-helper] setEditorState completed; text =', text.slice(0, 50));
+              // React の update tick を待つ
+              await new Promise((r) => setTimeout(r, 500));
+              // verify state has text via editor.getEditorState
+              try {
+                const stateNow = editor.getEditorState();
+                const txt = stateNow.read(() => {
+                  const root = stateNow.toJSON();
+                  return JSON.stringify(root).slice(0, 200);
+                });
+                console.log('[Tutti inject-helper] Lexical state after setEditorState:', txt);
+              } catch (e) {
+                console.log('[Tutti inject-helper] state read err:', e);
+              }
+              // setEditorState が onChange を起こすが、 補助的に input event も
+              // dispatch して IG の controlled input listener にも届くようにする
+              el.dispatchEvent(new InputEvent('input', {
+                bubbles: true, data: text, inputType: 'insertText',
+              }));
+              await new Promise((r) => setTimeout(r, 300));
+            } catch (e) {
+              console.warn('[Tutti inject-helper] Lexical setEditorState failed, falling back to events:', e);
+              editor = null; // event-based fallback に流す
+            }
+          }
+
+          if (!editor) {
+            // editor instance が取れない or setEditorState 失敗 → event-based fallback
+            el.focus();
+            const sel0 = window.getSelection();
+            if (sel0) {
+              try {
+                sel0.removeAllRanges();
+                const range = document.createRange();
+                range.selectNodeContents(el);
+                sel0.addRange(range);
+              } catch { /* ignore */ }
+            }
+            try {
+              document.execCommand('selectAll', false);
+              document.execCommand('delete', false);
+            } catch { /* ignore */ }
+            const beforeEv = new InputEvent('beforeinput', {
+              bubbles: true, cancelable: true, inputType: 'insertText', data: text,
+            });
+            el.dispatchEvent(beforeEv);
+            if (!beforeEv.defaultPrevented) {
+              try { document.execCommand('insertText', false, text); } catch { /* ignore */ }
+            }
+            el.dispatchEvent(new InputEvent('input', {
+              bubbles: true, data: text, inputType: 'insertText',
+            }));
+            await new Promise((r) => setTimeout(r, 800));
+          }
         } else {
           // 非 Lexical (Draft.js / TipTap / ProseMirror): paste event 経由
           const existing = (el.textContent ?? '').trim();
@@ -517,6 +677,7 @@ export default defineContentScript({
 
     // 起動直後に hook をインストール(早ければ早いほど取りこぼしが少ない)
     installUploadHook();
+    installIgCaptionFetchHook();
 
     window.addEventListener('message', (ev) => {
       if (ev.source !== window) return;
