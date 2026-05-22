@@ -585,30 +585,33 @@ export default defineContentScript({
           error: `tag input not found: ${req.selector}`,
         };
       }
-      const input = found.el as HTMLInputElement;
-      if (!(input instanceof HTMLInputElement)) {
+      const input = found.el as HTMLInputElement | HTMLTextAreaElement;
+      // v0.4.73: textarea も許容 (Tumblr の "Tags editor" は textarea)。
+      const isTextarea = input instanceof HTMLTextAreaElement;
+      if (!(input instanceof HTMLInputElement) && !isTextarea) {
         return {
           source: RES_TAG,
           id: req.id,
           ok: false,
-          error: 'tag-list mode は <input> 要素にしか対応していません',
+          error: 'tag-list mode は <input> / <textarea> 要素にしか対応していません',
         };
       }
       const tags = req.tags ?? [];
-      console.log(`[Tutti inject-helper] tag-list: ${tags.length} tags into "${found.matchedPart}"`);
-      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+      console.log(`[Tutti inject-helper] tag-list: ${tags.length} tags into "${found.matchedPart}" (${isTextarea ? 'textarea' : 'input'})`);
+      const setter = isTextarea
+        ? Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set
+        : Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
 
-      // React は controlled input に対して内部で _valueTracker を持っていて、
-      // 「DOM value が変わったか」を tracker.getValue() vs 現在値で判断する。
-      // tracker が空文字を覚えてると、setter で value=tag にしても "変わってない"
-      // 扱いになり onChange が発火しない。tracker を空にしておくと確実に発火。
-      function setReactInputValue(el: HTMLInputElement, value: string): void {
+      // React は controlled input/textarea に対して内部で _valueTracker を持つ。
+      function setReactValue(el: HTMLInputElement | HTMLTextAreaElement, value: string): void {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const tracker = (el as any)._valueTracker as { setValue: (v: string) => void } | undefined;
         if (tracker) tracker.setValue('');
         if (setter) setter.call(el, value);
         else el.value = value;
       }
+      // 旧名 alias (function 内で使ってる古い名前のため)
+      const setReactInputValue = setReactValue;
 
       let committed = 0;
       for (const tag of tags) {

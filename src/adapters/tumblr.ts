@@ -39,15 +39,16 @@ export const TUMBLR_SELECTORS = {
    */
   dropTarget: '[role="dialog"] .components-drop-zone, .components-drop-zone',
   /**
-   * Tags chip 入力 (v0.4.72〜): Tumblr の compose modal 下部にある "Add tags"
-   * 系の input。 Tumblr は tags driven な culture で発見性に直結するため、
-   * 本文の `#word` を抽出して chip として commit する。
-   * 多段 fallback: aria-label / placeholder / data-testid いずれかで matching。
+   * Tags chip 入力 (v0.4.72〜): Tumblr の compose modal 下部にある "Tags editor"。
+   * **textarea 要素** (input ではない、 probe 2026-05-22 で確定)。 aria-label
+   * "Tags editor" が定番、 多段 fallback で input variant にも対応。
+   * Tumblr は tags driven な culture で発見性に直結するため、 本文の `#word`
+   * を抽出して chip として commit する。
    */
   tagInput:
+    '[role="dialog"] textarea[aria-label="Tags editor"],' +
+    '[role="dialog"] textarea[aria-label*="tag" i],' +
     '[role="dialog"] input[aria-label*="tag" i]:not([type="checkbox"]),' +
     '[role="dialog"] input[placeholder*="tag" i]:not([type="checkbox"]),' +
-    '[role="dialog"] input[data-testid*="tag" i]:not([type="checkbox"]),' +
-    'input[aria-label*="#tags" i],' +
-    'input[placeholder*="#tags" i]',
+    'textarea[aria-label*="tag" i]',
 } as const;
