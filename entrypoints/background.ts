@@ -28,6 +28,10 @@ import { splitText } from '../src/utils/split';
 import { letterboxToSquare } from '../src/utils/image-letterbox';
 import { getApiCredentials } from '../src/utils/api-credentials';
 import { postViaApi as postBlueskyApi, postViaSession as postBlueskyViaSession, type BlueskyReplyTarget } from '../src/api/bluesky';
+import { verifyBlueskyPost } from '../src/api/bluesky-verify';
+import { verifyMastodonPost } from '../src/api/mastodon-verify';
+import { verifyMisskeyPost } from '../src/api/misskey-verify';
+import { isVerifySupported, type VerifyExpectation, type VerifyResult } from '../src/utils/post-verify';
 import { postViaApi as postMastodonApi } from '../src/api/mastodon';
 import { postViaApi as postMisskeyApi } from '../src/api/misskey';
 import type { ApiPostResult } from '../src/api/types';
@@ -632,7 +636,33 @@ async function postToPlatform(
   }
 
   // 最後 chunk の URL を返す (popup で thread の先頭/末尾どちらに飛ぶかは UI で決める)
-  return { type: 'POST_RESULT', platform, success: true, url: prevPostUrl };
+  const finalResult: PostResultMessage = { type: 'POST_RESULT', platform, success: true, url: prevPostUrl };
+
+  // post 後 verify (v0.4.75〜): 本文 / 画像 / tag が SNS 側で実際に書き込まれたか確認。
+  // verify は best-effort、 失敗しても投稿自体の成否には影響しない。
+  if (prevPostUrl && isVerifySupported(platform)) {
+    const expectation = {
+      text,
+      hasImages: !!(images && images.length > 0),
+      // expectedTags は per-SNS で extractHashtags すべきだが、 ここでは未指定で OK
+      // (current verify は本文 + image 主体、 専用 tag field の verify は将来 phase)
+    };
+    try {
+      const v = await runVerify(platform, prevPostUrl, expectation);
+      finalResult.verify = {
+        verified: v.verified,
+        issues: v.issues,
+      };
+      const hardErrors = v.issues.filter((i) => i.severity === 'error');
+      if (hardErrors.length > 0) {
+        log.warn(`${platform} verify: ${hardErrors.length} error - ${hardErrors[0]!.message}`);
+      }
+    } catch (e) {
+      log.warn(`${platform} verify failed (post 自体は成功): ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  return finalResult;
 }
 
 /**
@@ -812,6 +842,22 @@ async function postBlueskyThread(
   }
 
   return { type: 'POST_RESULT', platform: 'bluesky', success: true, url: lastUrl };
+}
+
+/**
+ * post URL に飛んで実 verify を走らせる (v0.4.75〜)。 platform 別 dispatcher。
+ * 現在対応: Bluesky / Mastodon / Misskey (public API)、 X / IG は将来 phase。
+ */
+async function runVerify(
+  platform: PlatformId,
+  postUrl: string,
+  expected: VerifyExpectation,
+): Promise<VerifyResult> {
+  if (platform === 'bluesky') return verifyBlueskyPost(postUrl, expected);
+  if (platform === 'mastodon') return verifyMastodonPost(postUrl, expected);
+  if (platform === 'misskey') return verifyMisskeyPost(postUrl, expected);
+  // 他 SNS は未対応 (verifyError 相当)
+  return { verified: false, issues: [{ kind: 'verify-error', message: 'verify 未対応 SNS', severity: 'warn' }] };
 }
 
 /**

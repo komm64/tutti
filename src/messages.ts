@@ -69,6 +69,15 @@ export interface PostResultMessage {
    * 場合は省略 (success=true でも url なし状態あり、 popup は link なしで表示)。
    */
   url?: string;
+  /**
+   * post 後 verify 結果 (v0.4.75〜)。 post URL を取得した後、 SNS の public API
+   * もしくは DOM scrape で本文 / 画像 / tag が期待通りに書き込まれたかを確認した
+   * 結果。 verify が未対応 SNS では undefined、 verify error 時は verified=false。
+   */
+  verify?: {
+    verified: boolean;
+    issues: { kind: string; message: string; severity: 'warn' | 'error' }[];
+  };
 }
 
 /** background → popup: 1 プラットフォーム完了時の進捗通知(ストリーミング) */

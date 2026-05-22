@@ -1048,14 +1048,19 @@
       {:else if isQueued}
         <span class="text-gray-300 shrink-0">⌛</span>
       {:else if result?.success && result.url}
+        {@const verifyIssues = result.verify?.issues ?? []}
+        {@const hasVerifyError = verifyIssues.some((i) => i.severity === 'error')}
+        {@const hasVerifyWarn = verifyIssues.some((i) => i.severity === 'warn')}
         <a
           href={result.url}
           target="_blank"
           rel="noopener noreferrer"
-          title={result.url}
-          class="text-green-600 hover:text-green-700 shrink-0 leading-none"
+          title={hasVerifyError || hasVerifyWarn
+            ? verifyIssues.map((i) => `${i.severity === 'error' ? '⚠️' : 'ℹ'} ${i.message}`).join('\n') + '\n\n' + result.url
+            : result.url}
+          class="shrink-0 leading-none {hasVerifyError ? 'text-orange-600 hover:text-orange-700' : 'text-green-600 hover:text-green-700'}"
           onclick={(e) => e.stopPropagation()}
-        >✓↗</a>
+        >{hasVerifyError ? '⚠↗' : hasVerifyWarn ? '✓⚠' : '✓↗'}</a>
       {:else if result?.success}
         <span class="text-green-600 shrink-0">✓</span>
       {:else if result && !result.success}
