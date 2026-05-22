@@ -96,23 +96,28 @@ async function compressVideo(msg: ConvertVideoMessage): Promise<{ outputRef: str
 
   const videoKbps = computeVideoKbps(msg.targetBytes, msg.durationS);
 
+  // aspect mode 別の `-vf` filter (v0.4.81〜):
+  // - passthrough: 横長 / 縦長 そのまま、 短辺 854px cap (= 480p)
+  // - vertical9x16: 1080×1920 に letterbox + ぼかし背景 (TikTok/YT Shorts/IG Reels 向け)
+  //   - split で 2 stream、 片方は scale+crop+blur で背景、 もう片方は scale 縮小して
+  //     foreground、 overlay で中央配置。 IG image letterbox の動画版
+  const aspect = msg.aspectMode ?? 'passthrough';
+  const vfFilter = aspect === 'vertical9x16'
+    ? "split[a][b];[a]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=30:1[bg];[b]scale=1080:1920:force_original_aspect_ratio=decrease[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2,fps=30"
+    : "scale='min(854,iw)':-2,fps=30";
+
   // ffmpeg コマンド (single-thread でも実用速度を目指す):
-  // -preset ultrafast: H.264 最速 preset (x264 の中で最速)
-  // -tune zerolatency: lookahead 無効 (ffmpeg.wasm の x264 build はカンマ区切り
-  //   tune `zerolatency,fastdecode` を silent fail で 0-byte 出力にしてた、v0.4.52)
-  // -vf scale='min(854,iw)': 元の解像度の min(854px,元) に幅 cap = 480p
-  // -fps=30: 60fps 入力なら半減
-  // -g 240: GOP 長く (I-frame 削減)。SNS で seek 性能下がっても影響少
-  // -profile:v は指定しない: ultrafast は内部で baseline 相当 + B-frame なしを既に強制
-  //   してるので、追加で `-profile:v baseline` を付けると ffmpeg.wasm 環境で
-  //   引数チェックに引っかかって silent fail してた (v0.4.50 で発覚)
+  // -preset ultrafast: H.264 最速 preset
+  // -tune zerolatency: lookahead 無効 (`zerolatency,fastdecode` のカンマ区切りは
+  //   ffmpeg.wasm の x264 build で 0-byte silent fail、 v0.4.52)
+  // -profile:v は指定しない (ultrafast 内部で baseline 相当を強制)
   await ff.exec([
     '-i', inputName,
     '-c:v', 'libx264',
     '-preset', 'ultrafast',
     '-tune', 'zerolatency',
     '-pix_fmt', 'yuv420p',
-    '-vf', "scale='min(854,iw)':-2,fps=30",
+    '-vf', vfFilter,
     '-g', '240',
     '-b:v', `${videoKbps}k`,
     '-maxrate', `${Math.floor(videoKbps * 1.1)}k`,

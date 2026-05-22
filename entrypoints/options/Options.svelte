@@ -29,6 +29,7 @@
   let autoOpenPostUrl = $state<'always' | 'on-issue' | 'never'>('on-issue');
   let pixivVisibility = $state<'general' | 'r18' | 'r18g'>('general');
   let pixivAiType = $state<'notAiGenerated' | 'aiGenerated'>('notAiGenerated');
+  let autoLetterboxVerticalVideo = $state(false);
   let saved = $state(false);
   let loading = $state(true);
 
@@ -61,6 +62,7 @@
       autoOpenPostUrl = s.autoOpenPostUrl;
       pixivVisibility = s.pixivVisibility;
       pixivAiType = s.pixivAiType;
+      autoLetterboxVerticalVideo = s.autoLetterboxVerticalVideo;
       overrideFetchedAt = at;
       overrideCount = Object.values(ov).reduce((sum, v) => sum + Object.keys(v ?? {}).length, 0);
       // API credentials のロード (パスワード / トークンは UI に出すと見えるので
@@ -237,7 +239,7 @@
       alert(t('alertPermissionDenied'));
       return;
     }
-    await saveSettings({ mastodonInstance: m, misskeyInstance: k, selectorOverrideUrl, logLevel, disableReportDedup, autoOpenPostUrl, pixivVisibility, pixivAiType });
+    await saveSettings({ mastodonInstance: m, misskeyInstance: k, selectorOverrideUrl, logLevel, disableReportDedup, autoOpenPostUrl, pixivVisibility, pixivAiType, autoLetterboxVerticalVideo });
     // disableReportDedup=true にしたら既存の dedup 履歴も clear
     // (再 enable まで storage に dead key が残らないように)
     if (disableReportDedup) {
@@ -457,6 +459,17 @@
           <option value="aiGenerated">AI generated — {t('pixivAiTypeYesDesc')}</option>
         </select>
         <p class="text-xs text-gray-400">{t('pixivHint')}</p>
+      </div>
+    </section>
+
+    <section class="mb-6">
+      <h2 class="text-sm font-semibold text-gray-700 mb-3">{t('videoTitle')}</h2>
+      <div class="space-y-2">
+        <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+          <input type="checkbox" bind:checked={autoLetterboxVerticalVideo} class="rounded" />
+          <span>{t('autoLetterboxLabel')}</span>
+        </label>
+        <p class="text-xs text-gray-400">{t('autoLetterboxHint')}</p>
       </div>
     </section>
 

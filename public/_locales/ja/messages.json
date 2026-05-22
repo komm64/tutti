@@ -121,6 +121,10 @@
   "pixivAiTypeYesDesc": { "message": "AI 使用 (AI artist 向け)" },
   "pixivHint": { "message": "default は 'general' + 'notAiGenerated' (クロスポスト標準)。 R-18 投稿者 / AI artist は切替えてください。 個別投稿で手動上書きしたい場合は Pixiv の compose 画面で投稿前に切替えればその投稿だけに反映されます。" },
 
+  "videoTitle": { "message": "動画の自動整形" },
+  "autoLetterboxLabel": { "message": "横長動画を 9:16 縦に自動 letterbox する (TikTok / YouTube Shorts / IG Reels 向け)" },
+  "autoLetterboxHint": { "message": "ON: 横長動画 + 縦動画 SNS 選択時に 1080×1920 にぼかし背景で letterbox する (SNS 側の黒帯より見栄えが良い)。 OFF: そのまま送信 (SNS 側で自動 crop or letterbox される)。 注: ON にすると同じ 9:16 動画が選択中の全 SNS に行くので、 横長 SNS (X / Bluesky 等) にも縦動画が表示される tradeoff。" },
+
   "autoOpenTitle": { "message": "投稿後の自動オープン" },
   "autoOpenLabel": { "message": "投稿成功後の挙動" },
   "autoOpenNeverDesc": { "message": "自動オープンしない (従来挙動)" },

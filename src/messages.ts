@@ -110,6 +110,13 @@ export interface ConvertVideoMessage {
   durationS: number;
   /** 目標 byte 数。video bitrate = (targetBytes * 8 / duration) - audioKbps を解いて算出 */
   targetBytes: number;
+  /**
+   * Aspect mode (v0.4.81〜):
+   * - `'passthrough'` (default): 元動画 aspect そのまま、 短辺 cap だけ適用 (854px)
+   * - `'vertical9x16'`: 1080×1920 (9:16) に letterbox + ぼかし背景。 TikTok / YT Shorts /
+   *   IG Reels 等の縦動画 SNS 向けの自動整形。 横長/正方形/縦長 すべてに対応
+   */
+  aspectMode?: 'passthrough' | 'vertical9x16';
 }
 
 /** offscreen → background: 変換進捗 */

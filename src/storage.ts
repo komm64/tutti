@@ -55,6 +55,14 @@ export interface Settings {
    * AI artist 向け切替。 `'notAiGenerated'` (default) / `'aiGenerated'`。
    */
   pixivAiType: 'notAiGenerated' | 'aiGenerated';
+  /**
+   * 横長動画を 9:16 縦に letterbox する (v0.4.81〜)。
+   * `true` で、 横長 (W > H) 動画 + 選択中に TikTok / YouTube Shorts / IG Reels が
+   * 含まれる場合に、 ffmpeg で 1080×1920 に letterbox + ぼかし背景に変換する。
+   * SNS 側の自動 letterbox (黒帯) より見栄えが良いが、 横長 SNS にも同じ 9:16 動画
+   * が行く tradeoff。 default false。
+   */
+  autoLetterboxVerticalVideo: boolean;
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -72,6 +80,7 @@ const DEFAULT_SETTINGS: Settings = {
   autoOpenPostUrl: 'on-issue',
   pixivVisibility: 'general',
   pixivAiType: 'notAiGenerated',
+  autoLetterboxVerticalVideo: false,
 };
 
 export async function getSettings(): Promise<Settings> {

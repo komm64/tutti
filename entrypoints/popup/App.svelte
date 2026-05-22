@@ -743,18 +743,22 @@
     if (video) {
       media = [{ name: video.name, type: video.type, data: video.data, durationS: video.durationS }];
     } else if (images.length > 0) {
-      // 選択中プラットフォームの最小画像サイズ制約に合わせてリサイズ
-      const minLimit = Math.min(
+      // v0.4.81: per-SNS resize は background 側で行う。 popup では
+      // **選択中プラットフォームの最大制約** をヘッダ cap として使い、
+      // それ以下なら触らない (= 高品質を可能な限り保つ)。 background が
+      // 各 SNS に送る前に `resizeImageInSW` で適切なサイズに縮小する。
+      const maxLimit = Math.max(
         ...platforms
           .map((id) => getAdapter(id)?.imageConstraints.maxBytesPerImage)
           .filter((x): x is number => typeof x === 'number'),
+        0,
       );
       media = await Promise.all(
         images.map(async (img) => {
-          const data = isFinite(minLimit)
-            ? await resizeImage(img.data, img.type, minLimit)
+          const data = maxLimit > 0
+            ? await resizeImage(img.data, img.type, maxLimit)
             : img.data;
-          // リサイズで JPEG になる場合があるので type も再設定
+          // resize が走ったら JPEG なので type / 拡張子を合わせる
           const resized = data !== img.data;
           return {
             name: resized ? img.name.replace(/\.[^.]+$/, '.jpg') : img.name,

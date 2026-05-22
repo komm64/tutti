@@ -121,6 +121,10 @@
   "pixivAiTypeYesDesc": { "message": "AI generated (for AI artists)" },
   "pixivHint": { "message": "Default is 'general' + 'notAiGenerated' (cross-post standard). R-18 publishers / AI artists should adjust. For per-post override, switch the radios on Pixiv's compose screen before clicking Tutti's Post button — that overrides for that post only." },
 
+  "videoTitle": { "message": "Video auto-formatting" },
+  "autoLetterboxLabel": { "message": "Auto-letterbox landscape videos to 9:16 vertical (for TikTok / YouTube Shorts / IG Reels)" },
+  "autoLetterboxHint": { "message": "ON: when a vertical SNS is selected, landscape videos are letterboxed to 1080×1920 with a blurred background (looks better than the platform's default black bars). OFF: pass through as-is (platforms auto-crop or letterbox). Note: when ON, the same 9:16 video is sent to all selected platforms — landscape SNS (X / Bluesky etc.) will also receive the vertical variant." },
+
   "autoOpenTitle": { "message": "Auto-open after posting" },
   "autoOpenLabel": { "message": "When to open the post URL" },
   "autoOpenNeverDesc": { "message": "Don't open automatically (legacy behavior)" },

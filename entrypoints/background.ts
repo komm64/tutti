@@ -373,6 +373,60 @@ async function handlePostRequest(
  *
  * 画像のみ / 動画なしの場合は何もせず images をそのまま返す。
  */
+/**
+ * 画像を per-platform で resize する (v0.4.81〜)。
+ * popup で max-of-selected を ceiling として既に縮小済の画像群を、 各 SNS の
+ * maxBytesPerImage に合わせて改めて縮小する。 既に範囲内ならそのまま (no-op)。
+ *
+ * 旧 logic は popup で全 SNS の min(maxBytesPerImage) に強制縮小していたので、
+ * Bluesky 1MB に他 SNS (X 5MB / Threads 8MB / IG 30MB) も引きずられて低解像度
+ * になっていた。 各 SNS 別の resize にすることで Bluesky 以外は高解像度 を維持。
+ *
+ * 画像のみ (動画は size 制約は handlePostRequest 側で一括圧縮、 ここは触らない)。
+ */
+async function maybeResizeImagesForPlatform(
+  adapter: PlatformAdapter,
+  images: ImageAttachment[],
+): Promise<ImageAttachment[]> {
+  const maxBytes = adapter.imageConstraints.maxBytesPerImage;
+  if (!maxBytes) return images;
+
+  const { resizeImageInSW } = await import('../src/utils/image-resize');
+  const out: ImageAttachment[] = [];
+  for (const img of images) {
+    if (!img.type.startsWith('image/')) {
+      out.push(img);
+      continue;
+    }
+    // dataRef ベースの大きい画像は IDB から取り出して base64 化
+    let data = img.data;
+    if (!data && img.dataRef) {
+      const resolved = await resolveAttachmentToBase64(img);
+      data = resolved.data;
+    }
+    if (!data) {
+      out.push(img); // resolve できなければ original そのまま
+      continue;
+    }
+    try {
+      const resized = await resizeImageInSW(data, img.type, maxBytes);
+      if (resized === data) {
+        out.push(img);
+      } else {
+        out.push({
+          name: img.name.replace(/\.[^.]+$/, '.jpg'),
+          type: 'image/jpeg',
+          data: resized,
+        });
+      }
+    } catch (e) {
+      log.warn(`${adapter.id}: per-platform resize 失敗、 original で送信: ${e instanceof Error ? e.message : String(e)}`);
+      out.push(img);
+    }
+  }
+  return out;
+}
+
 async function maybeCompressVideoForBudget(
   platforms: PlatformId[],
   images?: ImageAttachment[],
@@ -393,10 +447,23 @@ async function maybeCompressVideoForBudget(
     if (!eff.maxBytes) continue;
     if (eff.maxBytes < minBytes) minBytes = eff.maxBytes;
   }
-  if (minBytes === Infinity) return images;
-  if (currentBytes <= minBytes) return images;
 
-  log.info(`P16: video ${(currentBytes / 1024 / 1024).toFixed(1)}MB → 目標 ${(minBytes / 1024 / 1024).toFixed(1)}MB に圧縮`);
+  // v0.4.81: Settings.autoLetterboxVerticalVideo が ON で、 選択中に縦動画 SNS
+  // (TikTok / YouTube Shorts / IG Reels) が含まれる場合は **size が範囲内でも
+  // 9:16 letterbox のため再エンコードする**。 横長 / 正方形動画は 1080×1920 に
+  // ぼかし背景 letterbox、 縦長は scale だけで影響なし。
+  const { autoLetterboxVerticalVideo } = await getSettings();
+  const VERTICAL_SNS: PlatformId[] = ['tiktok', 'youtube', 'instagram'];
+  const needsVerticalLetterbox =
+    autoLetterboxVerticalVideo && platforms.some((p) => VERTICAL_SNS.includes(p));
+
+  if (minBytes === Infinity && !needsVerticalLetterbox) return images;
+  if (currentBytes <= minBytes && !needsVerticalLetterbox) return images;
+
+  // target を決定: size 圧縮が要らない場合は元 size 維持 (letterbox のみ)
+  const targetBytes = minBytes === Infinity ? currentBytes : Math.min(currentBytes, minBytes);
+  const aspectMode: 'passthrough' | 'vertical9x16' = needsVerticalLetterbox ? 'vertical9x16' : 'passthrough';
+  log.info(`P16/P81: video ${(currentBytes / 1024 / 1024).toFixed(1)}MB → 目標 ${(targetBytes / 1024 / 1024).toFixed(1)}MB${needsVerticalLetterbox ? ' + 9:16 letterbox' : ''}`);
 
   // offscreen には dataRef だけ渡す (sendMessage 64MB cap 回避)。
   // dataRef が無ければ data を IndexedDB に書いて id を作る
@@ -416,7 +483,8 @@ async function maybeCompressVideoForBudget(
       inputRef,
       mimeType: video.type,
       durationS: video.durationS ?? 0,
-      targetBytes: minBytes,
+      targetBytes,
+      aspectMode,
     });
     log.info(`P16: 圧縮完了 ${(compressed.outputBytes / 1024 / 1024).toFixed(1)}MB`);
     const newImages = images.slice();
@@ -476,6 +544,7 @@ async function runOffscreenCompress(req: {
   mimeType: string;
   durationS: number;
   targetBytes: number;
+  aspectMode?: 'passthrough' | 'vertical9x16';
 }): Promise<{ outputRef: string; outputBytes: number }> {
   await ensureOffscreen();
   try {
@@ -485,6 +554,7 @@ async function runOffscreenCompress(req: {
       mimeType: req.mimeType,
       durationS: req.durationS,
       targetBytes: req.targetBytes,
+      aspectMode: req.aspectMode,
     })) as { type: string; outputRef?: string; outputBytes?: number; error?: string } | undefined;
     if (!res || res.type === 'CONVERSION_ERROR' || !res.outputRef) {
       throw new Error(res?.error ?? '変換が応答しません');
@@ -907,7 +977,9 @@ async function postSingleChunk(
   // で 30MB 単位で取得して assemble する。
   // API path (autoPost=true && creds) は dataRef でも data でも resolve できる
   // のでそちらは特別扱い不要。
-  const images = rawImages;
+  // v0.4.81: 画像は per-platform で resize する (Bluesky 1MB が他 SNS に伝染しない)。
+  // 動画は letterbox/圧縮は handlePostRequest 上流で一括処理済 (per-platform 動画は cost 上 NG)。
+  const images = rawImages ? await maybeResizeImagesForPlatform(adapter, rawImages) : undefined;
   const { autoPost } = await getSettings();
 
   // ── API path (P15) ─────────────────────────────────────────────
