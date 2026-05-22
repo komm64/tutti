@@ -2,6 +2,9 @@ import { initLogLevelFromSettings, log } from '../src/utils/logger';
 import type { ImageAttachment, Message, PostResultMessage } from '../src/messages';
 import { TUMBLR_SELECTORS, tumblrAdapter } from '../src/adapters/tumblr';
 import { executePostFlow } from '../src/utils/post-flow';
+import { waitForElement } from '../src/utils/dom';
+import { injectTagList } from '../src/utils/image';
+import { extractHashtags } from '../src/utils/hashtags';
 import { buildDiagnosis } from '../src/utils/diagnose';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { detectAndReportUser } from '../src/utils/user-detect';
@@ -318,6 +321,12 @@ export default defineContentScript({
 
 async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolean): Promise<PostResultMessage> {
   const sel = await resolveSelectors('tumblr', TUMBLR_SELECTORS);
+
+  // v0.4.72: 本文から #hashtag を抽出して Tumblr の tags chip 入力に commit。
+  // Tumblr は tags driven な culture (発見性の主役) なので、 user 入力の
+  // hashtag をきちんと tag field に反映する。 0 個なら ['tutti'] を default。
+  const tags = extractHashtags(text, { maxCount: 30, maxLen: 140, defaultIfEmpty: ['tutti'] });
+
   await executePostFlow({
     prefillsViaUrl: tumblrAdapter.prefillsViaUrl,
     textareaSelector: sel.textarea,
@@ -329,6 +338,20 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     text,
     images,
     postButtonTimeoutMs: 10000,
+    beforeSubmit: async () => {
+      // tags input は dialog 下部、 lazy-mount される変種もあるので軽く待機
+      const tagEl = await waitForElement<HTMLInputElement>(sel.tagInput, 3000);
+      if (!tagEl) {
+        log.warn('Tumblr: tags input が見つからず skip (本文 inline #word は Tumblr が auto-link するので最低限維持)');
+        return;
+      }
+      try {
+        await injectTagList(tags, sel.tagInput);
+        log.info(`Tumblr: ${tags.length} 個の tag を chip 化`);
+      } catch (e) {
+        log.warn(`Tumblr: tag commit 失敗 (本文 inline で続行): ${e instanceof Error ? e.message : String(e)}`);
+      }
+    },
     dryRun,
   });
 

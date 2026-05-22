@@ -38,4 +38,16 @@ export const TUMBLR_SELECTORS = {
    * を狙うこと(2026-04-30 検証で 201 + ブロック生成を確認)。
    */
   dropTarget: '[role="dialog"] .components-drop-zone, .components-drop-zone',
+  /**
+   * Tags chip 入力 (v0.4.72〜): Tumblr の compose modal 下部にある "Add tags"
+   * 系の input。 Tumblr は tags driven な culture で発見性に直結するため、
+   * 本文の `#word` を抽出して chip として commit する。
+   * 多段 fallback: aria-label / placeholder / data-testid いずれかで matching。
+   */
+  tagInput:
+    '[role="dialog"] input[aria-label*="tag" i]:not([type="checkbox"]),' +
+    '[role="dialog"] input[placeholder*="tag" i]:not([type="checkbox"]),' +
+    '[role="dialog"] input[data-testid*="tag" i]:not([type="checkbox"]),' +
+    'input[aria-label*="#tags" i],' +
+    'input[placeholder*="#tags" i]',
 } as const;

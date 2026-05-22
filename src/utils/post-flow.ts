@@ -38,6 +38,11 @@ export interface PostFlowOptions {
    * 探索するので、本体の "Post" 等とは衝突しない。
    */
   confirmDialogButtonTexts?: string[];
+  /**
+   * text 注入 + image attach 後、 post button click 直前に呼ばれる hook (v0.4.72〜)。
+   * tags chip 入力など、 各 SNS 固有の追加 step に使う。 throw すると executePostFlow 全体が失敗。
+   */
+  beforeSubmit?: () => Promise<void>;
   /** dry-run: post button まで見つけるが click はしない */
   dryRun?: boolean;
 }
@@ -61,6 +66,7 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
     postButtonTimeoutMs = 8000,
     afterClickDelayMs = 1500,
     confirmDialogButtonTexts,
+    beforeSubmit,
     dryRun = false,
   } = options;
   if (!postButtonSelector && !postButtonTexts?.length && !postButtonFinder) {
@@ -92,6 +98,11 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
     } else {
       throw new Error('このプラットフォームは画像添付に未対応です');
     }
+  }
+
+  // tag chip 注入など、 各 SNS 固有の追加 step (v0.4.72〜)
+  if (beforeSubmit) {
+    await beforeSubmit();
   }
 
   // post button 探索: finder > selector > texts の順で優先。

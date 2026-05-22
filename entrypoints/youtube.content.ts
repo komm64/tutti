@@ -2,8 +2,9 @@ import { initLogLevelFromSettings, log } from '../src/utils/logger';
 import type { ImageAttachment, Message, PostResultMessage } from '../src/messages';
 import { YOUTUBE_SELECTORS, buildYouTubeTitle } from '../src/adapters/youtube';
 import { executeMultiStepFlow, type Step } from '../src/utils/step-runner';
-import { injectImages, injectTextIntoElement } from '../src/utils/image';
+import { injectImages, injectTagList, injectTextIntoElement } from '../src/utils/image';
 import { sleep, waitForElement } from '../src/utils/dom';
+import { extractHashtags } from '../src/utils/hashtags';
 import { waitForPostUrl } from '../src/utils/url-capture';
 import { buildDiagnosis } from '../src/utils/diagnose';
 import { resolveSelectors } from '../src/utils/selector-overrides';
@@ -147,6 +148,46 @@ async function runPost(
         const marker = `tutti-yt-desc-${Date.now()}`;
         descEl.setAttribute('data-tutti-marker', marker);
         await injectTextIntoElement(text, `[data-tutti-marker="${marker}"]`);
+      },
+      settleMs: 300,
+    },
+    // v0.4.72: tags chip 入力。 YouTube Studio Details ページの "Show more" 下に
+    // 隠れている tags field を展開して、 本文の #hashtag を抽出して commit。
+    // tags は SEO の主役 (短尺発見性に直結)。 best-effort で、 失敗時は skip。
+    {
+      name: 'fill-tags',
+      action: async () => {
+        const tags = extractHashtags(text, { maxCount: 30, maxLen: 100 });
+        if (tags.length === 0) {
+          log.info('YouTube: 抽出 hashtag なし、 tags step skip');
+          return;
+        }
+        // "Show more" を click して隠し field を展開 (既に展開済なら no-op に近い)
+        try {
+          const showMore = document.querySelector<HTMLElement>(sel.showMoreButton);
+          if (showMore) {
+            const txt = (showMore.textContent ?? '').trim().toLowerCase();
+            // "Show more" や "Show less" 両方マッチするので、 textContent で
+            // "more" 系のときだけ click (展開済の "less" 状態だと click しない)
+            if (/more|もっと/i.test(txt)) {
+              showMore.click();
+              await sleep(700);
+            }
+          }
+        } catch (e) {
+          log.warn(`YouTube: Show more click 失敗 (続行): ${e instanceof Error ? e.message : String(e)}`);
+        }
+        const tagEl = await waitForElement<HTMLInputElement>(sel.tagInput, 5000);
+        if (!tagEl) {
+          log.warn('YouTube: tags input が見つからず skip');
+          return;
+        }
+        try {
+          await injectTagList(tags, sel.tagInput);
+          log.info(`YouTube: ${tags.length} 個の tag を chip 化`);
+        } catch (e) {
+          log.warn(`YouTube: tag commit 失敗: ${e instanceof Error ? e.message : String(e)}`);
+        }
       },
       settleMs: 300,
     },

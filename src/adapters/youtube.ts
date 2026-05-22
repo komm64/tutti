@@ -76,6 +76,16 @@ export const YOUTUBE_SELECTORS = {
   publicVisibilityRadio: 'tp-yt-paper-radio-button[name="PUBLIC"]',
   /** Next / Publish ボタン (text マッチで finder) */
   publishButton: '#done-button, ytcp-button[role="button"]',
+  /**
+   * tags input (v0.4.72〜): Details ページの "Show more" を展開した後に出る
+   * tags chip 入力。 YouTube Studio は `#tags-input #text-input` の path だが、
+   * UI 変更が頻繁なので多段 fallback。 各 tag を Enter で確定 → chip 化。
+   */
+  showMoreButton: '#toggle-button, ytcp-button[aria-label*="more" i]',
+  tagInput:
+    '#tags-input #text-input,' +
+    'ytcp-form-input-container[label="Tags"] input,' +
+    'input[aria-label*="tags" i]:not([type="checkbox"]):not([type="search"])',
 } as const;
 
 /**

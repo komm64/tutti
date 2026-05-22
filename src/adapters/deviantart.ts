@@ -71,6 +71,17 @@ export const DEVIANTART_SELECTORS = {
     // (title input は input element なので除外される)
     'form [contenteditable="true"]:not([role="combobox"]):not([role="searchbox"]),' +
     'main [contenteditable="true"]:not([role="combobox"]):not([role="searchbox"])',
+  /**
+   * tags chip input (v0.4.72〜): DA submission form の tags 欄。
+   * tag 入力で Enter 確定 → chip 化される input 形式 (Pixiv と同じパターン)。
+   * placeholder / aria-label の多段 fallback。 docs/selectors.json で更に追加可能。
+   */
+  tagInput:
+    'input[name="tags"]:not([type="checkbox"]),' +
+    'input[aria-label*="tag" i]:not([type="checkbox"]):not([type="search"]),' +
+    'input[placeholder*="tag" i]:not([type="checkbox"]):not([type="search"]),' +
+    'input[placeholder*="Add tags" i],' +
+    'input[placeholder*="tag this" i]',
   /** Next button: 次ページ (categorization 画面) へ進む */
   nextButton: 'button[aria-label="Next"]',
   /**
