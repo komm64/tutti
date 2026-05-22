@@ -26,6 +26,7 @@
   let logCount = $state(0);
   let logStatus = $state<string | null>(null);
   let disableReportDedup = $state(false);
+  let autoOpenPostUrl = $state<'always' | 'on-issue' | 'never'>('on-issue');
   let saved = $state(false);
   let loading = $state(true);
 
@@ -55,6 +56,7 @@
       selectorOverrideUrl = s.selectorOverrideUrl;
       logLevel = s.logLevel;
       disableReportDedup = s.disableReportDedup;
+      autoOpenPostUrl = s.autoOpenPostUrl;
       overrideFetchedAt = at;
       overrideCount = Object.values(ov).reduce((sum, v) => sum + Object.keys(v ?? {}).length, 0);
       // API credentials のロード (パスワード / トークンは UI に出すと見えるので
@@ -231,7 +233,7 @@
       alert(t('alertPermissionDenied'));
       return;
     }
-    await saveSettings({ mastodonInstance: m, misskeyInstance: k, selectorOverrideUrl, logLevel, disableReportDedup });
+    await saveSettings({ mastodonInstance: m, misskeyInstance: k, selectorOverrideUrl, logLevel, disableReportDedup, autoOpenPostUrl });
     // disableReportDedup=true にしたら既存の dedup 履歴も clear
     // (再 enable まで storage に dead key が残らないように)
     if (disableReportDedup) {
@@ -433,6 +435,22 @@
           <input type="checkbox" bind:checked={disableReportDedup} class="rounded" />
           <span>Report の 24h cooldown を無効化 (個人 dev で連投したいとき)</span>
         </label>
+      </div>
+    </section>
+
+    <section class="mb-6">
+      <h2 class="text-sm font-semibold text-gray-700 mb-3">{t('autoOpenTitle')}</h2>
+      <div class="space-y-2">
+        <label class="block text-sm text-gray-600">{t('autoOpenLabel')}</label>
+        <select
+          bind:value={autoOpenPostUrl}
+          class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+        >
+          <option value="never">never — {t('autoOpenNeverDesc')}</option>
+          <option value="on-issue">on-issue — {t('autoOpenOnIssueDesc')}</option>
+          <option value="always">always — {t('autoOpenAlwaysDesc')}</option>
+        </select>
+        <p class="text-xs text-gray-400">{t('autoOpenHint')}</p>
       </div>
     </section>
 

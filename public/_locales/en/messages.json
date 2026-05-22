@@ -111,6 +111,13 @@
   "logsClear": { "message": "Clear logs" },
   "logsCount": { "message": "entries stored" },
 
+  "autoOpenTitle": { "message": "Auto-open after posting" },
+  "autoOpenLabel": { "message": "When to open the post URL" },
+  "autoOpenNeverDesc": { "message": "Don't open automatically (legacy behavior)" },
+  "autoOpenOnIssueDesc": { "message": "Open only when verify detects an issue (recommended)" },
+  "autoOpenAlwaysDesc": { "message": "Open the post page for every successful post" },
+  "autoOpenHint": { "message": "Choose 'on-issue' or 'always' to immediately spot silent failures (e.g. caption stripped, image missing). Note: 'always' opens one tab per platform — busy with multi-SNS posts." },
+
   "errorReportButton": { "message": "Report this issue" },
   "errorReportHint": { "message": "Opens GitHub Issues with recent logs prefilled." },
 

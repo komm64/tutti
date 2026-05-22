@@ -111,6 +111,13 @@
   "logsClear": { "message": "ログをクリア" },
   "logsCount": { "message": "件保存中" },
 
+  "autoOpenTitle": { "message": "投稿後の自動オープン" },
+  "autoOpenLabel": { "message": "投稿成功後の挙動" },
+  "autoOpenNeverDesc": { "message": "自動オープンしない (従来挙動)" },
+  "autoOpenOnIssueDesc": { "message": "verify エラー検知時のみ自動オープン (推奨)" },
+  "autoOpenAlwaysDesc": { "message": "全 投稿成功で post ページを自動オープン" },
+  "autoOpenHint": { "message": "投稿後に caption / 画像が SNS 側で消える silent failure を即時確認したい場合は 'on-issue' か 'always' を選択。 複数 SNS に投稿すると 'always' は多数のタブが開く点に注意。" },
+
   "errorReportButton": { "message": "この問題を報告" },
   "errorReportHint": { "message": "GitHub Issues に最近のログを添えて報告ページを開きます。" },
 

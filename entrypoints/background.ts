@@ -671,7 +671,31 @@ async function postToPlatform(
     }
   }
 
+  // 投稿成功後、 設定に応じて post URL を新タブで自動 open (v0.4.77〜)。
+  // default 'on-issue' = verify error 時のみ open (user に事故確認を促す)。
+  if (prevPostUrl) {
+    void maybeAutoOpenPostUrl(prevPostUrl, finalResult.verify);
+  }
+
   return finalResult;
+}
+
+async function maybeAutoOpenPostUrl(
+  url: string,
+  verify: PostResultMessage['verify'],
+): Promise<void> {
+  try {
+    const { autoOpenPostUrl } = await getSettings();
+    if (autoOpenPostUrl === 'never') return;
+    const hasError =
+      verify && verify.issues.some((i) => i.severity === 'error' || i.kind === 'verify-error');
+    if (autoOpenPostUrl === 'on-issue' && !hasError) return;
+    // 'always' or ('on-issue' AND hasError)
+    await browser.tabs.create({ url, active: false });
+    log.info(`auto-open post URL: ${url} (autoOpenPostUrl=${autoOpenPostUrl}, hasError=${!!hasError})`);
+  } catch (e) {
+    log.warn(`auto-open failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
 }
 
 /**
@@ -860,6 +884,8 @@ async function postBlueskyThread(
  *   - Bluesky / Mastodon / Misskey: 公式 public API で post detail を fetch
  *   - X / IG / Threads / Tumblr / Pixiv / DA / TikTok / YouTube: HTML を fetch
  *     して og:description + og:image meta tag から本文 / 画像有無を抽出 (v0.4.76〜)
+ *   - og fetch が login wall で失敗した場合は logged-in tab を開いて
+ *     content script (verify-helper) 経由で og:* を再取得 (v0.4.77〜)
  *
  * verify 失敗時は VerifyResult.verified=false で warn を立てる (best-effort)。
  */
@@ -871,20 +897,69 @@ async function runVerify(
   if (platform === 'bluesky') return verifyBlueskyPost(postUrl, expected);
   if (platform === 'mastodon') return verifyMastodonPost(postUrl, expected);
   if (platform === 'misskey') return verifyMisskeyPost(postUrl, expected);
-  // og:meta tag verify (8 SNS 共通)
-  if (platform === 'instagram') {
-    return verifyViaOg(postUrl, expected, {
-      cleanDescription: cleanInstagramDescription,
-      judgeImage: judgeInstagramImage,
-    });
+
+  // og:meta tag verify (8 SNS 共通) — まず server-side fetch で試す
+  const cleaner =
+    platform === 'instagram' ? cleanInstagramDescription :
+    platform === 'threads' ? cleanThreadsDescription :
+    platform === 'x' ? cleanXDescription :
+    platform === 'youtube' ? cleanYouTubeDescription :
+    cleanGenericDescription;
+  const judgeImg = platform === 'instagram' ? judgeInstagramImage : undefined;
+  const r1 = await verifyViaOg(postUrl, expected, { cleanDescription: cleaner, judgeImage: judgeImg });
+  if (r1.verified) return r1;
+
+  // server-side fetch が失敗 (login wall / HTTP err) → DOM fallback
+  log.info(`${platform}: og fetch 失敗、 DOM verify に fallback`);
+  return await verifyViaDomTab(platform, postUrl, expected, cleaner, judgeImg);
+}
+
+/**
+ * post URL を新タブで開いて、 verify-helper content script から og:* を read back。
+ * tab は active=false で開いて user の作業を邪魔しない。 verify 完了後に close。
+ */
+async function verifyViaDomTab(
+  platform: PlatformId,
+  postUrl: string,
+  expected: VerifyExpectation,
+  cleaner: (s: string) => string,
+  judgeImg: ((og: string) => boolean) | undefined,
+): Promise<VerifyResult> {
+  let verifyTab: Browser.tabs.Tab | undefined;
+  try {
+    verifyTab = await browser.tabs.create({ url: postUrl, active: false });
+    if (typeof verifyTab.id !== 'number') {
+      return { verified: false, issues: [{ kind: 'verify-error', message: 'verify tab open 失敗', severity: 'warn' }] };
+    }
+    // tab load + content script ready を待つ (最大 15s polling)
+    const tabId = verifyTab.id;
+    const deadline = Date.now() + 15000;
+    let resp: { type?: string; ogDescription?: string; ogImage?: string; bodyExcerpt?: string } | undefined;
+    while (Date.now() < deadline) {
+      await sleep(700);
+      try {
+        resp = await browser.tabs.sendMessage(tabId, { type: 'VERIFY_POST_DOM' }) as typeof resp;
+        if (resp?.type === 'VERIFY_POST_DOM_RESULT') break;
+      } catch { /* content script not ready yet */ }
+    }
+    if (!resp || resp.type !== 'VERIFY_POST_DOM_RESULT') {
+      return { verified: false, issues: [{ kind: 'verify-error', message: 'verify tab content script 未応答', severity: 'warn' }] };
+    }
+    const desc = resp.ogDescription ?? '';
+    const img = resp.ogImage ?? '';
+    const text = cleaner(desc) || (resp.bodyExcerpt ?? '');
+    const hasImages = judgeImg ? judgeImg(img) : !!img;
+    // buildVerifyResult を import 経由で呼びたいので local 実装は使わない
+    const { buildVerifyResult } = await import('../src/utils/post-verify');
+    return buildVerifyResult(expected, { text, hasImages });
+  } catch (e) {
+    return { verified: false, issues: [{ kind: 'verify-error', message: `verify tab 例外: ${e instanceof Error ? e.message : String(e)}`, severity: 'warn' }] };
+  } finally {
+    // verify tab を close (auto-open は別途 maybeAutoOpenPostUrl が新たに開く)
+    if (verifyTab && typeof verifyTab.id === 'number') {
+      try { await browser.tabs.remove(verifyTab.id); } catch { /* ignore */ }
+    }
   }
-  if (platform === 'threads') return verifyViaOg(postUrl, expected, { cleanDescription: cleanThreadsDescription });
-  if (platform === 'x') return verifyViaOg(postUrl, expected, { cleanDescription: cleanXDescription });
-  if (platform === 'youtube') return verifyViaOg(postUrl, expected, { cleanDescription: cleanYouTubeDescription });
-  if (platform === 'tumblr' || platform === 'pixiv' || platform === 'deviantart' || platform === 'tiktok') {
-    return verifyViaOg(postUrl, expected, { cleanDescription: cleanGenericDescription });
-  }
-  return { verified: false, issues: [{ kind: 'verify-error', message: 'verify 未対応 SNS', severity: 'warn' }] };
 }
 
 /**

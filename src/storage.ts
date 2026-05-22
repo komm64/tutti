@@ -35,6 +35,15 @@ export interface Settings {
    * options 画面の checkbox から切替、ON にすると既存の dedup 履歴も clear する。
    */
   disableReportDedup: boolean;
+  /**
+   * 投稿成功後、 post URL を新タブで自動 open する (v0.4.77〜)。
+   * - `'always'`: 全 投稿 (各 SNS の URL すべて) を open
+   * - `'on-issue'` (default): verify hard error / verify-error のときだけ open
+   *   (caption 抜け / 画像抜け 等の事故検知時に user 確認を促す)
+   * - `'never'`: 自動 open しない (従来 v0.4.76 以前の挙動。 user は popup の
+   *   ✓↗ link を click して確認)
+   */
+  autoOpenPostUrl: 'always' | 'on-issue' | 'never';
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -49,6 +58,7 @@ const DEFAULT_SETTINGS: Settings = {
   selectorOverrideUrl: 'https://komm64.github.io/tutti/selectors.json',
   logLevel: 'INFO',
   disableReportDedup: false,
+  autoOpenPostUrl: 'on-issue',
 };
 
 export async function getSettings(): Promise<Settings> {

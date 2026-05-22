@@ -232,6 +232,24 @@ export interface GetBlueskySessionMessage {
   type: 'GET_BLUESKY_SESSION';
 }
 
+/**
+ * background → SNS content script: post detail page の og:* meta tag を
+ * read back する (v0.4.77〜)。 og fetch (post-verify-og.ts) が login wall で
+ * 失敗する SNS (X / IG / Threads etc) の DOM fallback。 logged-in tab で
+ * meta tag を取れば SNS が auth 後 server-render する og:* を確実に拾える。
+ */
+export interface VerifyPostDomMessage {
+  type: 'VERIFY_POST_DOM';
+}
+
+export interface VerifyPostDomResult {
+  type: 'VERIFY_POST_DOM_RESULT';
+  ogDescription: string;
+  ogImage: string;
+  /** og:* が無い場合の fallback として、 ページ本文の text 抜粋 */
+  bodyExcerpt: string;
+}
+
 /** bsky.app localStorage から取り出した session 情報 (background 側で使う) */
 export interface BlueskySessionResult {
   type: 'BLUESKY_SESSION_RESULT';
@@ -260,4 +278,6 @@ export type Message =
   | GetBinaryChunkMessage
   | GetBlueskySessionMessage
   | BlueskySessionResult
+  | VerifyPostDomMessage
+  | VerifyPostDomResult
   | LogClearMessage;
