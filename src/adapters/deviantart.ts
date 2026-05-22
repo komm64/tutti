@@ -72,16 +72,20 @@ export const DEVIANTART_SELECTORS = {
     'form [contenteditable="true"]:not([role="combobox"]):not([role="searchbox"]),' +
     'main [contenteditable="true"]:not([role="combobox"]):not([role="searchbox"])',
   /**
-   * tags chip input (v0.4.72〜): DA submission form の tags 欄。
-   * tag 入力で Enter 確定 → chip 化される input 形式 (Pixiv と同じパターン)。
-   * placeholder / aria-label の多段 fallback。 docs/selectors.json で更に追加可能。
+   * tags chip input (v0.4.72〜、 v0.4.74 で probe 後 selector を確定):
+   *
+   * DA は input に `name`/`aria-label`/`data-testid` どれも付けていない (2026-05-22 probe 確認)。
+   * 唯一の安定 hint は placeholder "E.g.: rose, watercolor, painting, fanart, tutorial"。
+   * 加えて autocomplete="off" + aria-errormessage の組み合わせ。
+   *
+   * content script 側で "Tags" label の `for` target を経由する label-find fallback
+   * も併用 (deviantart.content.ts の findTagsInputViaLabel)。
    */
   tagInput:
-    'input[name="tags"]:not([type="checkbox"]),' +
-    'input[aria-label*="tag" i]:not([type="checkbox"]):not([type="search"]),' +
-    'input[placeholder*="tag" i]:not([type="checkbox"]):not([type="search"]),' +
-    'input[placeholder*="Add tags" i],' +
-    'input[placeholder*="tag this" i]',
+    'input[placeholder*="watercolor" i],' +
+    'input[placeholder*="fanart" i],' +
+    'input[placeholder*="E.g.:" i]:not([type="checkbox"]):not([type="hidden"]):not([type="search"]),' +
+    'input[aria-errormessage$="-error"][autocomplete="off"]:not([type="checkbox"]):not([type="hidden"])',
   /** Next button: 次ページ (categorization 画面) へ進む */
   nextButton: 'button[aria-label="Next"]',
   /**

@@ -122,53 +122,48 @@ async function runPost(
       settleMs: 300,
     },
     // Step 3: description 入力 (TipTap / ProseMirror)。**best-effort**。
-    // DA は description 必須でないので、 editor が見つからない / 注入に失敗した
-    // 場合は warn して続行 (= title だけで投稿)。 v0.4.71 で lazy-mount 対策を強化:
+    // v0.4.74 で DA の description は **完全 lazy-mount** だと確定 (probe 2026-05-22):
+    //   - Description label の sibling に `<div data-editor-viewer="1">` がある
+    //   - その中に `<p class="empty-p"><br></p>` (placeholder)
+    //   - 実 contenteditable は **click 等のユーザ操作後に mount** される
     //
-    // 1. Description label の `for` target / "Description" を含む button を click
-    //    (lazy-mount を trigger する可能性)
-    // 2. editor が DOM に出現するまで 5s 待つ
-    // 3. 出現したら inject。 出なければ warn して続行
+    // lazy-mount trigger: data-editor-viewer / empty-p を click + focus → 5s 待機。
+    // それでも mount しない場合は warn + title だけで続行 (best-effort)。
     {
       name: 'fill-description',
       action: async () => {
-        // (1) lazy-mount trigger: Description label を見つけて click。
-        // DA は最近 description editor を click/focus されたタイミングで mount
-        // するレイアウト変種があり、 先回りで click することで editor が DOM に
-        // 出てくる可能性がある。 click 失敗 / 無効でも特に害は無い。
         try {
+          // Description label を見つける
           const labels = Array.from(document.querySelectorAll<HTMLLabelElement>('label'));
           const descLabel = labels.find((l) => /^Description\b/i.test((l.textContent ?? '').trim()));
           if (descLabel) {
-            // click on the label itself + on the for-target (if exists) + on its
-            // siblings (lazy-mount placeholder div)
-            descLabel.click();
+            // lazy-mount trigger: data-editor-viewer / empty-p / parent の click
+            const parent = descLabel.parentElement;
+            const editorViewer = parent?.querySelector<HTMLElement>('[data-editor-viewer]');
+            const emptyP = parent?.querySelector<HTMLElement>('p.empty-p, p[class*="empty"]');
+            const triggerEls: HTMLElement[] = [];
+            if (editorViewer) triggerEls.push(editorViewer);
+            if (emptyP) triggerEls.push(emptyP);
+            // label の for-target も念のため
             const forAttr = descLabel.getAttribute('for');
             const forTarget = forAttr ? document.getElementById(forAttr) : null;
-            if (forTarget) {
-              forTarget.click();
-              if (typeof (forTarget as HTMLElement).focus === 'function') {
-                (forTarget as HTMLElement).focus();
-              }
-            }
-            // label の siblings に placeholder div があるかも
-            const placeholder = descLabel.parentElement?.querySelector<HTMLElement>(
-              'div[role="textbox"], div.placeholder, div[contenteditable="false"]',
-            );
-            if (placeholder) {
-              placeholder.click();
+            if (forTarget) triggerEls.push(forTarget);
+            for (const el of triggerEls) {
+              try {
+                el.click();
+                if (typeof el.focus === 'function') el.focus();
+              } catch { /* ignore */ }
             }
           }
         } catch (e) {
-          log.warn(`DA: description label click 試行で例外 (続行): ${e instanceof Error ? e.message : String(e)}`);
+          log.warn(`DA: description trigger 試行で例外 (続行): ${e instanceof Error ? e.message : String(e)}`);
         }
-        // (2) editor 出現待ち (最大 5s polling)
+        // editor 出現待ち
         const editor = await waitForElement<HTMLElement>(sel.descriptionEditor, 5000);
         if (!editor) {
           log.warn('DA: description editor が見つかりませんでした (title だけで続行)');
           return;
         }
-        // (3) inject
         try {
           await injectTextIntoElement(text, sel.descriptionEditor);
           log.info('DA: description 注入成功');
