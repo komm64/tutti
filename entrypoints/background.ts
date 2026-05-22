@@ -32,6 +32,15 @@ import { verifyBlueskyPost } from '../src/api/bluesky-verify';
 import { verifyMastodonPost } from '../src/api/mastodon-verify';
 import { verifyMisskeyPost } from '../src/api/misskey-verify';
 import { isVerifySupported, type VerifyExpectation, type VerifyResult } from '../src/utils/post-verify';
+import {
+  verifyViaOg,
+  cleanInstagramDescription,
+  cleanThreadsDescription,
+  cleanXDescription,
+  cleanYouTubeDescription,
+  cleanGenericDescription,
+  judgeInstagramImage,
+} from '../src/utils/post-verify-og';
 import { postViaApi as postMastodonApi } from '../src/api/mastodon';
 import { postViaApi as postMisskeyApi } from '../src/api/misskey';
 import type { ApiPostResult } from '../src/api/types';
@@ -846,7 +855,13 @@ async function postBlueskyThread(
 
 /**
  * post URL に飛んで実 verify を走らせる (v0.4.75〜)。 platform 別 dispatcher。
- * 現在対応: Bluesky / Mastodon / Misskey (public API)、 X / IG は将来 phase。
+ *
+ * 経路:
+ *   - Bluesky / Mastodon / Misskey: 公式 public API で post detail を fetch
+ *   - X / IG / Threads / Tumblr / Pixiv / DA / TikTok / YouTube: HTML を fetch
+ *     して og:description + og:image meta tag から本文 / 画像有無を抽出 (v0.4.76〜)
+ *
+ * verify 失敗時は VerifyResult.verified=false で warn を立てる (best-effort)。
  */
 async function runVerify(
   platform: PlatformId,
@@ -856,7 +871,19 @@ async function runVerify(
   if (platform === 'bluesky') return verifyBlueskyPost(postUrl, expected);
   if (platform === 'mastodon') return verifyMastodonPost(postUrl, expected);
   if (platform === 'misskey') return verifyMisskeyPost(postUrl, expected);
-  // 他 SNS は未対応 (verifyError 相当)
+  // og:meta tag verify (8 SNS 共通)
+  if (platform === 'instagram') {
+    return verifyViaOg(postUrl, expected, {
+      cleanDescription: cleanInstagramDescription,
+      judgeImage: judgeInstagramImage,
+    });
+  }
+  if (platform === 'threads') return verifyViaOg(postUrl, expected, { cleanDescription: cleanThreadsDescription });
+  if (platform === 'x') return verifyViaOg(postUrl, expected, { cleanDescription: cleanXDescription });
+  if (platform === 'youtube') return verifyViaOg(postUrl, expected, { cleanDescription: cleanYouTubeDescription });
+  if (platform === 'tumblr' || platform === 'pixiv' || platform === 'deviantart' || platform === 'tiktok') {
+    return verifyViaOg(postUrl, expected, { cleanDescription: cleanGenericDescription });
+  }
   return { verified: false, issues: [{ kind: 'verify-error', message: 'verify 未対応 SNS', severity: 'warn' }] };
 }
 
