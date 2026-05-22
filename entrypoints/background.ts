@@ -28,25 +28,13 @@ import { splitText } from '../src/utils/split';
 import { letterboxToSquare } from '../src/utils/image-letterbox';
 import { getApiCredentials } from '../src/utils/api-credentials';
 import { postViaApi as postBlueskyApi, postViaSession as postBlueskyViaSession, type BlueskyReplyTarget } from '../src/api/bluesky';
-import { verifyBlueskyPost } from '../src/api/bluesky-verify';
-import { verifyMastodonPost } from '../src/api/mastodon-verify';
-import { verifyMisskeyPost } from '../src/api/misskey-verify';
-import { isVerifySupported, type VerifyExpectation, type VerifyResult } from '../src/utils/post-verify';
-import {
-  verifyViaOg,
-  cleanInstagramDescription,
-  cleanThreadsDescription,
-  cleanXDescription,
-  cleanYouTubeDescription,
-  cleanGenericDescription,
-  judgeInstagramImage,
-} from '../src/utils/post-verify-og';
+import { isVerifySupported } from '../src/utils/post-verify';
+import { runVerify } from '../src/background/verify-dispatcher';
+import { openOrFocusTab, notifyResults } from '../src/background/tab-management';
 import { postViaApi as postMastodonApi } from '../src/api/mastodon';
 import { postViaApi as postMisskeyApi } from '../src/api/misskey';
 import type { ApiPostResult } from '../src/api/types';
 
-const READY_DELAY_MS = 800;
-const TAB_LOAD_TIMEOUT_MS = 15000;
 const CHUNK_INTERVAL_MS = 2000;
 
 // ── ログ ring buffer (任意 context からの LOG_APPEND を集約) ──────────────
@@ -877,90 +865,7 @@ async function postBlueskyThread(
   return { type: 'POST_RESULT', platform: 'bluesky', success: true, url: lastUrl };
 }
 
-/**
- * post URL に飛んで実 verify を走らせる (v0.4.75〜)。 platform 別 dispatcher。
- *
- * 経路:
- *   - Bluesky / Mastodon / Misskey: 公式 public API で post detail を fetch
- *   - X / IG / Threads / Tumblr / Pixiv / DA / TikTok / YouTube: HTML を fetch
- *     して og:description + og:image meta tag から本文 / 画像有無を抽出 (v0.4.76〜)
- *   - og fetch が login wall で失敗した場合は logged-in tab を開いて
- *     content script (verify-helper) 経由で og:* を再取得 (v0.4.77〜)
- *
- * verify 失敗時は VerifyResult.verified=false で warn を立てる (best-effort)。
- */
-async function runVerify(
-  platform: PlatformId,
-  postUrl: string,
-  expected: VerifyExpectation,
-): Promise<VerifyResult> {
-  if (platform === 'bluesky') return verifyBlueskyPost(postUrl, expected);
-  if (platform === 'mastodon') return verifyMastodonPost(postUrl, expected);
-  if (platform === 'misskey') return verifyMisskeyPost(postUrl, expected);
-
-  // og:meta tag verify (8 SNS 共通) — まず server-side fetch で試す
-  const cleaner =
-    platform === 'instagram' ? cleanInstagramDescription :
-    platform === 'threads' ? cleanThreadsDescription :
-    platform === 'x' ? cleanXDescription :
-    platform === 'youtube' ? cleanYouTubeDescription :
-    cleanGenericDescription;
-  const judgeImg = platform === 'instagram' ? judgeInstagramImage : undefined;
-  const r1 = await verifyViaOg(postUrl, expected, { cleanDescription: cleaner, judgeImage: judgeImg });
-  if (r1.verified) return r1;
-
-  // server-side fetch が失敗 (login wall / HTTP err) → DOM fallback
-  log.info(`${platform}: og fetch 失敗、 DOM verify に fallback`);
-  return await verifyViaDomTab(platform, postUrl, expected, cleaner, judgeImg);
-}
-
-/**
- * post URL を新タブで開いて、 verify-helper content script から og:* を read back。
- * tab は active=false で開いて user の作業を邪魔しない。 verify 完了後に close。
- */
-async function verifyViaDomTab(
-  platform: PlatformId,
-  postUrl: string,
-  expected: VerifyExpectation,
-  cleaner: (s: string) => string,
-  judgeImg: ((og: string) => boolean) | undefined,
-): Promise<VerifyResult> {
-  let verifyTab: Browser.tabs.Tab | undefined;
-  try {
-    verifyTab = await browser.tabs.create({ url: postUrl, active: false });
-    if (typeof verifyTab.id !== 'number') {
-      return { verified: false, issues: [{ kind: 'verify-error', message: 'verify tab open 失敗', severity: 'warn' }] };
-    }
-    // tab load + content script ready を待つ (最大 15s polling)
-    const tabId = verifyTab.id;
-    const deadline = Date.now() + 15000;
-    let resp: { type?: string; ogDescription?: string; ogImage?: string; bodyExcerpt?: string } | undefined;
-    while (Date.now() < deadline) {
-      await sleep(700);
-      try {
-        resp = await browser.tabs.sendMessage(tabId, { type: 'VERIFY_POST_DOM' }) as typeof resp;
-        if (resp?.type === 'VERIFY_POST_DOM_RESULT') break;
-      } catch { /* content script not ready yet */ }
-    }
-    if (!resp || resp.type !== 'VERIFY_POST_DOM_RESULT') {
-      return { verified: false, issues: [{ kind: 'verify-error', message: 'verify tab content script 未応答', severity: 'warn' }] };
-    }
-    const desc = resp.ogDescription ?? '';
-    const img = resp.ogImage ?? '';
-    const text = cleaner(desc) || (resp.bodyExcerpt ?? '');
-    const hasImages = judgeImg ? judgeImg(img) : !!img;
-    // buildVerifyResult を import 経由で呼びたいので local 実装は使わない
-    const { buildVerifyResult } = await import('../src/utils/post-verify');
-    return buildVerifyResult(expected, { text, hasImages });
-  } catch (e) {
-    return { verified: false, issues: [{ kind: 'verify-error', message: `verify tab 例外: ${e instanceof Error ? e.message : String(e)}`, severity: 'warn' }] };
-  } finally {
-    // verify tab を close (auto-open は別途 maybeAutoOpenPostUrl が新たに開く)
-    if (verifyTab && typeof verifyTab.id === 'number') {
-      try { await browser.tabs.remove(verifyTab.id); } catch { /* ignore */ }
-    }
-  }
-}
+// runVerify + verifyViaDomTab は src/background/verify-dispatcher.ts に移設 (v0.4.80)。
 
 /**
  * 設定された API credentials があれば API path で投稿。無ければ 'no-credentials'。
@@ -1078,117 +983,8 @@ async function postSingleChunk(
   return response;
 }
 
-async function openOrFocusTab(
-  composeUrl: string,
-  matchUrl: (url: string) => boolean,
-  active: boolean,
-): Promise<Browser.tabs.Tab> {
-  const existing = (await browser.tabs.query({})).find(
-    (t) => typeof t.url === 'string' && matchUrl(t.url),
-  );
-
-  if (existing && typeof existing.id === 'number') {
-    // v0.4.70: 既存タブが既に target URL と同じ場合 (SPA 内部 navigation 等) は
-    // tabs.update が 'loading'→'complete' を再発火させないことがあり、
-    // waitForTabComplete が listener 起動前に complete event を取り逃して 15s
-    // タイムアウトする race を引き起こしていた (tutti-issues#16)。
-    // listener を先に install してから tabs.update する + 既に complete なら
-    // 即時 resolve する dual-strategy で解消。
-    const waitPromise = waitForTabComplete(existing.id);
-    const updated = await browser.tabs.update(existing.id, {
-      url: composeUrl,
-      active,
-    });
-    if (!updated) {
-      throw new Error('既存の SNS タブを操作できませんでした');
-    }
-    if (active && typeof existing.windowId === 'number') {
-      await browser.windows.update(existing.windowId, { focused: true });
-    }
-    await waitPromise;
-    await sleep(READY_DELAY_MS);
-    return updated;
-  }
-
-  // 新規タブ作成は create + waitForTabComplete の順で OK
-  // (create 時点では tab は loading state 確定で event が必ず来る)
-  const created = await browser.tabs.create({ url: composeUrl, active });
-  if (typeof created.id !== 'number') {
-    throw new Error('SNS タブを開けませんでした');
-  }
-  await waitForTabComplete(created.id);
-  await sleep(READY_DELAY_MS);
-  return created;
-}
-
-/**
- * tab が `status: 'complete'` になるまで待つ。 listener 取り付け前に既に
- * complete だった場合のために、 まず tabs.get で現状を polling してから
- * onUpdated listener も install する 2 重 strategy (tutti-issues#16)。
- */
-function waitForTabComplete(tabId: number): Promise<void> {
-  return new Promise((resolve, reject) => {
-    let done = false;
-    const finish = (err?: Error): void => {
-      if (done) return;
-      done = true;
-      browser.tabs.onUpdated.removeListener(listener);
-      clearTimeout(timer);
-      clearInterval(pollTimer);
-      if (err) reject(err); else resolve();
-    };
-
-    const timer = setTimeout(() => {
-      finish(new Error('SNS ページの読み込みがタイムアウトしました(回線か SNS の状態を確認)'));
-    }, TAB_LOAD_TIMEOUT_MS);
-
-    const listener = (
-      updatedId: number,
-      info: Browser.tabs.OnUpdatedInfo,
-    ): void => {
-      if (updatedId === tabId && info.status === 'complete') {
-        finish();
-      }
-    };
-    browser.tabs.onUpdated.addListener(listener);
-
-    // event を取り逃した場合のため tabs.get を 250ms 間隔で polling して
-    // status==='complete' を直接確認。 listener と並走、 どちらか早い方で finish。
-    const pollTimer = setInterval(() => {
-      browser.tabs.get(tabId).then((t) => {
-        if (t.status === 'complete') finish();
-      }).catch(() => { /* ignore (tab gone, listener / timer 側で handle) */ });
-    }, 250);
-  });
-}
+// openOrFocusTab / waitForTabComplete / notifyResults は src/background/tab-management.ts に移設 (v0.4.80)。
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function notifyResults(results: PostResultMessage[]): void {
-  const succeeded = results.filter((r) => r.success);
-  const failed = results.filter((r) => !r.success);
-
-  if (failed.length === 0 && succeeded.length > 0) {
-    void browser.action.setBadgeText({ text: 'OK' });
-    void browser.action.setBadgeBackgroundColor({ color: '#10b981' });
-  } else if (succeeded.length === 0) {
-    void browser.action.setBadgeText({ text: 'NG' });
-    void browser.action.setBadgeBackgroundColor({ color: '#ef4444' });
-  } else {
-    void browser.action.setBadgeText({
-      text: `${succeeded.length}/${results.length}`,
-    });
-    void browser.action.setBadgeBackgroundColor({ color: '#f59e0b' });
-  }
-  setTimeout(() => void browser.action.setBadgeText({ text: '' }), 5000);
-
-  for (const r of results) {
-    if (r.success) {
-      log.info(`✓ ${r.platform}`);
-    } else {
-      log.error(`✗ ${r.platform}: ${r.error ?? '(no detail)'}`);
-    }
-  }
 }

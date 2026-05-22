@@ -36,6 +36,7 @@
   } from '../../src/storage';
   import { splitText } from '../../src/utils/split';
   import { redactPII } from '../../src/utils/redact';
+  import { formatRelTime, formatDuration, formatBytes } from '../../src/utils/formatters';
 
   type PlatformOption = {
     id: PlatformId;
@@ -536,13 +537,7 @@
     if (showHistory && history.length === 0) void loadHistory();
   }
 
-  function formatRelTime(ts: number): string {
-    const diffS = Math.floor((Date.now() - ts) / 1000);
-    if (diffS < 60) return 'たった今';
-    if (diffS < 3600) return `${Math.floor(diffS / 60)}分前`;
-    if (diffS < 86400) return `${Math.floor(diffS / 3600)}時間前`;
-    return `${Math.floor(diffS / 86400)}日前`;
-  }
+  // formatRelTime は src/utils/formatters.ts から import (v0.4.80〜、 unit test 可能)
 
   const selectedIds = $derived(
     platforms
@@ -600,17 +595,7 @@
       : ({} as Record<string, string | null>),
   );
 
-  function formatDuration(s: number): string {
-    const m = Math.floor(s / 60);
-    const sec = Math.floor(s % 60);
-    return `${m}:${String(sec).padStart(2, '0')}`;
-  }
-
-  function formatBytes(b: number): string {
-    return b >= 1024 * 1024
-      ? `${(b / 1024 / 1024).toFixed(1)}MB`
-      : `${Math.round(b / 1024)}KB`;
-  }
+  // formatDuration / formatBytes は src/utils/formatters.ts から import
 
   function getVideoDuration(file: File): Promise<number> {
     return new Promise((resolve) => {

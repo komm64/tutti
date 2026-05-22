@@ -1,0 +1,33 @@
+/**
+ * popup で使う表示用 formatter (v0.4.80〜、 App.svelte から切り出し)。
+ * 純粋関数のみ、 unit test 可能。
+ */
+
+/**
+ * Unix ms timestamp を 「たった今」 / 「N 分前」 / 「N 時間前」 / 「N 日前」 に整形。
+ * popup の history list で使う。 ja-only (popup の locale が limited なので)。
+ */
+export function formatRelTime(ts: number, now: number = Date.now()): string {
+  const diffS = Math.floor((now - ts) / 1000);
+  if (diffS < 60) return 'たった今';
+  if (diffS < 3600) return `${Math.floor(diffS / 60)}分前`;
+  if (diffS < 86400) return `${Math.floor(diffS / 3600)}時間前`;
+  return `${Math.floor(diffS / 86400)}日前`;
+}
+
+/** 動画長 (秒) を `M:SS` に整形。 */
+export function formatDuration(s: number): string {
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return `${m}:${String(sec).padStart(2, '0')}`;
+}
+
+/**
+ * バイト数を `MB` / `KB` に整形。
+ * 1MB 以上は `1.2MB`、 それ未満は `KB` 表示。
+ */
+export function formatBytes(b: number): string {
+  return b >= 1024 * 1024
+    ? `${(b / 1024 / 1024).toFixed(1)}MB`
+    : `${Math.round(b / 1024)}KB`;
+}
