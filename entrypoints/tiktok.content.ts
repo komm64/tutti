@@ -1,13 +1,12 @@
-import { initLogLevelFromSettings, log } from '../src/utils/logger';
-import type { ImageAttachment, Message, PostResultMessage } from '../src/messages';
+import { log } from '../src/utils/logger';
+import type { ImageAttachment, PostResultMessage } from '../src/messages';
 import { TIKTOK_SELECTORS, buildTikTokCaption } from '../src/adapters/tiktok';
 import { executeMultiStepFlow, type Step } from '../src/utils/step-runner';
 import { injectImages, injectTextIntoElement } from '../src/utils/image';
 import { sleep, waitForElement } from '../src/utils/dom';
 import { waitForPostUrl } from '../src/utils/url-capture';
-import { buildDiagnosis } from '../src/utils/diagnose';
 import { resolveSelectors } from '../src/utils/selector-overrides';
-import { detectAndReportUser } from '../src/utils/user-detect';
+import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
 
 /**
  * TikTok のログイン中ユーザー検出。
@@ -40,35 +39,12 @@ function detectTikTokUser(): string | null {
 
 export default defineContentScript({
   matches: ['https://www.tiktok.com/*', 'https://tiktok.com/*'],
-  main() {
-    browser.runtime.onMessage.addListener((rawMsg, _sender, sendResponse) => {
-      const msg = rawMsg as Message;
-      if (msg.type === 'DIAGNOSE_PLATFORM' && msg.platform === 'tiktok') {
-        sendResponse(buildDiagnosis('tiktok', TIKTOK_SELECTORS, detectTikTokUser));
-        return true;
-      }
-      if (msg.type !== 'POST_TO_PLATFORM' || msg.platform !== 'tiktok') return;
-
-      void runPost(msg.text, msg.images, msg.dryRun)
-        .then((result) => sendResponse(result))
-        .catch((err: unknown) => {
-          const message = err instanceof Error ? err.message : String(err);
-          const result: PostResultMessage = {
-            type: 'POST_RESULT',
-            platform: 'tiktok',
-            success: false,
-            error: message,
-          };
-          sendResponse(result);
-        });
-
-      return true;
-    });
-
-    void detectAndReportUser('tiktok', detectTikTokUser);
-    void initLogLevelFromSettings();
-    log.info('TikTok content script ready');
-  },
+  main: () => bootstrapContentScript({
+    platform: 'tiktok',
+    selectors: TIKTOK_SELECTORS,
+    detectUser: detectTikTokUser,
+    runPost,
+  }),
 });
 
 async function runPost(

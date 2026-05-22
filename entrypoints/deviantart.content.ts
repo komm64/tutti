@@ -1,14 +1,13 @@
-import { initLogLevelFromSettings, log } from '../src/utils/logger';
-import type { ImageAttachment, Message, PostResultMessage } from '../src/messages';
+import { log } from '../src/utils/logger';
+import type { ImageAttachment, PostResultMessage } from '../src/messages';
 import { DEVIANTART_SELECTORS, buildDeviantArtTitle } from '../src/adapters/deviantart';
 import { executeMultiStepFlow, type Step } from '../src/utils/step-runner';
 import { injectImages, injectTagList, injectTextIntoElement } from '../src/utils/image';
 import { sleep, waitForElement } from '../src/utils/dom';
 import { extractHashtags } from '../src/utils/hashtags';
 import { waitForPostUrl } from '../src/utils/url-capture';
-import { buildDiagnosis } from '../src/utils/diagnose';
 import { resolveSelectors } from '../src/utils/selector-overrides';
-import { detectAndReportUser } from '../src/utils/user-detect';
+import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
 
 /**
  * DeviantArt のログイン中ユーザー検出。
@@ -46,35 +45,12 @@ function detectDeviantArtUser(): string | null {
 
 export default defineContentScript({
   matches: ['https://www.deviantart.com/*', 'https://deviantart.com/*'],
-  main() {
-    browser.runtime.onMessage.addListener((rawMsg, _sender, sendResponse) => {
-      const msg = rawMsg as Message;
-      if (msg.type === 'DIAGNOSE_PLATFORM' && msg.platform === 'deviantart') {
-        sendResponse(buildDiagnosis('deviantart', DEVIANTART_SELECTORS, detectDeviantArtUser));
-        return true;
-      }
-      if (msg.type !== 'POST_TO_PLATFORM' || msg.platform !== 'deviantart') return;
-
-      void runPost(msg.text, msg.images, msg.dryRun)
-        .then((result) => sendResponse(result))
-        .catch((err: unknown) => {
-          const message = err instanceof Error ? err.message : String(err);
-          const result: PostResultMessage = {
-            type: 'POST_RESULT',
-            platform: 'deviantart',
-            success: false,
-            error: message,
-          };
-          sendResponse(result);
-        });
-
-      return true;
-    });
-
-    void detectAndReportUser('deviantart', detectDeviantArtUser);
-    void initLogLevelFromSettings();
-    log.info('DeviantArt content script ready');
-  },
+  main: () => bootstrapContentScript({
+    platform: 'deviantart',
+    selectors: DEVIANTART_SELECTORS,
+    detectUser: detectDeviantArtUser,
+    runPost,
+  }),
 });
 
 async function runPost(

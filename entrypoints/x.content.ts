@@ -1,10 +1,9 @@
-import { initLogLevelFromSettings, log } from '../src/utils/logger';
-import type { ImageAttachment, Message, PostResultMessage } from '../src/messages';
+import { log } from '../src/utils/logger';
+import type { ImageAttachment, PostResultMessage } from '../src/messages';
 import { X_SELECTORS, xAdapter } from '../src/adapters/x';
 import { executePostFlow } from '../src/utils/post-flow';
-import { buildDiagnosis } from '../src/utils/diagnose';
 import { resolveSelectors } from '../src/utils/selector-overrides';
-import { detectAndReportUser } from '../src/utils/user-detect';
+import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
 import { sleep } from '../src/utils/dom';
 
 const X_RESERVED_PATHS = new Set([
@@ -44,35 +43,12 @@ function detectXUser(): string | null {
 
 export default defineContentScript({
   matches: ['https://x.com/*', 'https://twitter.com/*'],
-  main() {
-    browser.runtime.onMessage.addListener((rawMsg, _sender, sendResponse) => {
-      const msg = rawMsg as Message;
-      if (msg.type === 'DIAGNOSE_PLATFORM' && msg.platform === 'x') {
-        sendResponse(buildDiagnosis('x', X_SELECTORS, detectXUser));
-        return true;
-      }
-      if (msg.type !== 'POST_TO_PLATFORM' || msg.platform !== 'x') return;
-
-      void runPost(msg.text, msg.images, msg.dryRun, msg.textChunks)
-        .then((result) => sendResponse(result))
-        .catch((err: unknown) => {
-          const message = err instanceof Error ? err.message : String(err);
-          const result: PostResultMessage = {
-            type: 'POST_RESULT',
-            platform: 'x',
-            success: false,
-            error: message,
-          };
-          sendResponse(result);
-        });
-
-      return true;
-    });
-
-    void detectAndReportUser('x', detectXUser);
-    void initLogLevelFromSettings();
-    log.info('X content script ready');
-  },
+  main: () => bootstrapContentScript({
+    platform: 'x',
+    selectors: X_SELECTORS,
+    detectUser: detectXUser,
+    runPost,
+  }),
 });
 
 async function runPost(

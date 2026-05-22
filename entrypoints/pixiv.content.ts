@@ -1,5 +1,5 @@
-import { initLogLevelFromSettings, log } from '../src/utils/logger';
-import type { ImageAttachment, Message, PostResultMessage } from '../src/messages';
+import { log } from '../src/utils/logger';
+import type { ImageAttachment, PostResultMessage } from '../src/messages';
 import { getSettings } from '../src/storage';
 import {
   PIXIV_SELECTORS,
@@ -11,9 +11,8 @@ import { executeMultiStepFlow, type Step } from '../src/utils/step-runner';
 import { injectImages, injectTagList, injectTextIntoElement } from '../src/utils/image';
 import { sleep } from '../src/utils/dom';
 import { waitForPostUrl } from '../src/utils/url-capture';
-import { buildDiagnosis } from '../src/utils/diagnose';
 import { resolveSelectors } from '../src/utils/selector-overrides';
-import { detectAndReportUser } from '../src/utils/user-detect';
+import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
 
 /**
  * Pixiv の logged-in user を header の自分の作品リンクから検出する。
@@ -60,36 +59,12 @@ function detectPixivUser(): string | null {
 
 export default defineContentScript({
   matches: ['https://www.pixiv.net/*', 'https://pixiv.net/*'],
-  main() {
-    browser.runtime.onMessage.addListener((rawMsg, _sender, sendResponse) => {
-      const msg = rawMsg as Message;
-      log.info(`Pixiv listener got msg: type=${msg.type ?? '?'} platform=${(msg as { platform?: string }).platform ?? '?'}`);
-      if (msg.type === 'DIAGNOSE_PLATFORM' && msg.platform === 'pixiv') {
-        sendResponse(buildDiagnosis('pixiv', PIXIV_SELECTORS, detectPixivUser));
-        return true;
-      }
-      if (msg.type !== 'POST_TO_PLATFORM' || msg.platform !== 'pixiv') return;
-
-      void runPost(msg.text, msg.images, msg.dryRun)
-        .then((result) => sendResponse(result))
-        .catch((err: unknown) => {
-          const message = err instanceof Error ? err.message : String(err);
-          const result: PostResultMessage = {
-            type: 'POST_RESULT',
-            platform: 'pixiv',
-            success: false,
-            error: message,
-          };
-          sendResponse(result);
-        });
-
-      return true;
-    });
-
-    void detectAndReportUser('pixiv', detectPixivUser);
-    void initLogLevelFromSettings();
-    log.info('Pixiv content script ready');
-  },
+  main: () => bootstrapContentScript({
+    platform: 'pixiv',
+    selectors: PIXIV_SELECTORS,
+    detectUser: detectPixivUser,
+    runPost,
+  }),
 });
 
 async function runPost(

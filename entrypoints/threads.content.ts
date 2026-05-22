@@ -1,12 +1,11 @@
-import { initLogLevelFromSettings, log } from '../src/utils/logger';
-import type { ImageAttachment, Message, PostResultMessage } from '../src/messages';
+import { log } from '../src/utils/logger';
+import type { ImageAttachment, PostResultMessage } from '../src/messages';
 import { THREADS_SELECTORS, threadsAdapter } from '../src/adapters/threads';
 import { findClickableByText } from '../src/utils/dom';
 import { executePostFlow } from '../src/utils/post-flow';
 import { waitForPostUrl } from '../src/utils/url-capture';
-import { buildDiagnosis } from '../src/utils/diagnose';
 import { resolveSelectors } from '../src/utils/selector-overrides';
-import { detectAndReportUser } from '../src/utils/user-detect';
+import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
 
 function detectThreadsUser(): string | null {
   type Strategy = { name: string; fn: () => string | null };
@@ -153,35 +152,12 @@ function detectThreadsUser(): string | null {
 
 export default defineContentScript({
   matches: ['https://www.threads.net/*', 'https://www.threads.com/*'],
-  main() {
-    browser.runtime.onMessage.addListener((rawMsg, _sender, sendResponse) => {
-      const msg = rawMsg as Message;
-      if (msg.type === 'DIAGNOSE_PLATFORM' && msg.platform === 'threads') {
-        sendResponse(buildDiagnosis('threads', THREADS_SELECTORS, detectThreadsUser));
-        return true;
-      }
-      if (msg.type !== 'POST_TO_PLATFORM' || msg.platform !== 'threads') return;
-
-      void runPost(msg.text, msg.images, msg.dryRun)
-        .then((result) => sendResponse(result))
-        .catch((err: unknown) => {
-          const message = err instanceof Error ? err.message : String(err);
-          const result: PostResultMessage = {
-            type: 'POST_RESULT',
-            platform: 'threads',
-            success: false,
-            error: message,
-          };
-          sendResponse(result);
-        });
-
-      return true;
-    });
-
-    void detectAndReportUser('threads', detectThreadsUser);
-    void initLogLevelFromSettings();
-    log.info('Threads content script ready');
-  },
+  main: () => bootstrapContentScript({
+    platform: 'threads',
+    selectors: THREADS_SELECTORS,
+    detectUser: detectThreadsUser,
+    runPost,
+  }),
 });
 
 async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolean): Promise<PostResultMessage> {

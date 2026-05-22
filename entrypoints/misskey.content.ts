@@ -1,10 +1,9 @@
-import { initLogLevelFromSettings, log } from '../src/utils/logger';
-import type { ImageAttachment, Message, PostResultMessage } from '../src/messages';
+import { log } from '../src/utils/logger';
+import type { ImageAttachment, PostResultMessage } from '../src/messages';
 import { MISSKEY_SELECTORS, misskeyAdapter } from '../src/adapters/misskey';
 import { executePostFlow } from '../src/utils/post-flow';
-import { buildDiagnosis } from '../src/utils/diagnose';
 import { resolveSelectors } from '../src/utils/selector-overrides';
-import { detectAndReportUser } from '../src/utils/user-detect';
+import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
 
 function detectMisskeyUser(): string | null {
   type Strategy = { name: string; fn: () => string | null };
@@ -59,35 +58,12 @@ function detectMisskeyUser(): string | null {
 
 export default defineContentScript({
   matches: ['https://misskey.io/*'],
-  main() {
-    browser.runtime.onMessage.addListener((rawMsg, _sender, sendResponse) => {
-      const msg = rawMsg as Message;
-      if (msg.type === 'DIAGNOSE_PLATFORM' && msg.platform === 'misskey') {
-        sendResponse(buildDiagnosis('misskey', MISSKEY_SELECTORS, detectMisskeyUser));
-        return true;
-      }
-      if (msg.type !== 'POST_TO_PLATFORM' || msg.platform !== 'misskey') return;
-
-      void runPost(msg.text, msg.images, msg.dryRun)
-        .then((result) => sendResponse(result))
-        .catch((err: unknown) => {
-          const message = err instanceof Error ? err.message : String(err);
-          const result: PostResultMessage = {
-            type: 'POST_RESULT',
-            platform: 'misskey',
-            success: false,
-            error: message,
-          };
-          sendResponse(result);
-        });
-
-      return true;
-    });
-
-    void detectAndReportUser('misskey', detectMisskeyUser);
-    void initLogLevelFromSettings();
-    log.info('Misskey content script ready');
-  },
+  main: () => bootstrapContentScript({
+    platform: 'misskey',
+    selectors: MISSKEY_SELECTORS,
+    detectUser: detectMisskeyUser,
+    runPost,
+  }),
 });
 
 async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolean): Promise<PostResultMessage> {

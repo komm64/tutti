@@ -1,11 +1,10 @@
-import { initLogLevelFromSettings, log } from '../src/utils/logger';
-import type { ImageAttachment, Message, PostResultMessage } from '../src/messages';
+import { log } from '../src/utils/logger';
+import type { ImageAttachment, PostResultMessage } from '../src/messages';
 import { BLUESKY_SELECTORS, blueskyAdapter } from '../src/adapters/bluesky';
 import { executePostFlow } from '../src/utils/post-flow';
 import { sleep } from '../src/utils/dom';
-import { buildDiagnosis } from '../src/utils/diagnose';
 import { resolveSelectors } from '../src/utils/selector-overrides';
-import { detectAndReportUser } from '../src/utils/user-detect';
+import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
 
 function detectBlueskyUser(): string | null {
   // 戦略 1: localStorage を総当たりで探索(キー名はバージョン依存)
@@ -110,44 +109,20 @@ function readBlueskySession(): { accessJwt: string; did: string; handle: string;
 
 export default defineContentScript({
   matches: ['https://bsky.app/*'],
-  main() {
-    browser.runtime.onMessage.addListener((rawMsg, _sender, sendResponse) => {
-      const msg = rawMsg as Message;
-      if (msg.type === 'DIAGNOSE_PLATFORM' && msg.platform === 'bluesky') {
-        sendResponse(buildDiagnosis('bluesky', BLUESKY_SELECTORS, detectBlueskyUser));
-        return true;
-      }
-      if (msg.type === 'GET_BLUESKY_SESSION') {
-        const sess = readBlueskySession();
-        if (sess) {
-          sendResponse({ type: 'BLUESKY_SESSION_RESULT', ...sess });
-        } else {
-          sendResponse(null);
-        }
-        return true;
-      }
-      if (msg.type !== 'POST_TO_PLATFORM' || msg.platform !== 'bluesky') return;
-
-      void runPost(msg.text, msg.images, msg.dryRun)
-        .then((result) => sendResponse(result))
-        .catch((err: unknown) => {
-          const message = err instanceof Error ? err.message : String(err);
-          const result: PostResultMessage = {
-            type: 'POST_RESULT',
-            platform: 'bluesky',
-            success: false,
-            error: message,
-          };
-          sendResponse(result);
-        });
-
+  main: () => bootstrapContentScript({
+    platform: 'bluesky',
+    selectors: BLUESKY_SELECTORS,
+    detectUser: detectBlueskyUser,
+    runPost,
+    // GET_BLUESKY_SESSION: localStorage から ATProto session JWT を抜き出して
+    // background に返す (reply chain で borrowed session を使うため)
+    extraHandler: (msg, sendResponse) => {
+      if (msg.type !== 'GET_BLUESKY_SESSION') return undefined;
+      const sess = readBlueskySession();
+      sendResponse(sess ? { type: 'BLUESKY_SESSION_RESULT', ...sess } : null);
       return true;
-    });
-
-    void detectAndReportUser('bluesky', detectBlueskyUser);
-    void initLogLevelFromSettings();
-    log.info('Bluesky content script ready');
-  },
+    },
+  }),
 });
 
 async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolean): Promise<PostResultMessage> {

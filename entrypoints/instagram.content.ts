@@ -1,12 +1,11 @@
-import { initLogLevelFromSettings, log } from '../src/utils/logger';
-import type { ImageAttachment, Message, PostResultMessage } from '../src/messages';
+import { log } from '../src/utils/logger';
+import type { ImageAttachment, PostResultMessage } from '../src/messages';
 import { INSTAGRAM_SELECTORS } from '../src/adapters/instagram';
 import { executeMultiStepFlow, type Step } from '../src/utils/step-runner';
 import { injectImages, injectTextIntoElement } from '../src/utils/image';
 import { sleep, waitForElement } from '../src/utils/dom';
-import { buildDiagnosis } from '../src/utils/diagnose';
 import { resolveSelectors } from '../src/utils/selector-overrides';
-import { detectAndReportUser } from '../src/utils/user-detect';
+import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
 
 /**
  * Instagram のログイン中ユーザー名検出。
@@ -36,35 +35,12 @@ function detectInstagramUser(): string | null {
 
 export default defineContentScript({
   matches: ['https://www.instagram.com/*', 'https://instagram.com/*'],
-  main() {
-    browser.runtime.onMessage.addListener((rawMsg, _sender, sendResponse) => {
-      const msg = rawMsg as Message;
-      if (msg.type === 'DIAGNOSE_PLATFORM' && msg.platform === 'instagram') {
-        sendResponse(buildDiagnosis('instagram', INSTAGRAM_SELECTORS, detectInstagramUser));
-        return true;
-      }
-      if (msg.type !== 'POST_TO_PLATFORM' || msg.platform !== 'instagram') return;
-
-      void runPost(msg.text, msg.images, msg.dryRun)
-        .then((result) => sendResponse(result))
-        .catch((err: unknown) => {
-          const message = err instanceof Error ? err.message : String(err);
-          const result: PostResultMessage = {
-            type: 'POST_RESULT',
-            platform: 'instagram',
-            success: false,
-            error: message,
-          };
-          sendResponse(result);
-        });
-
-      return true;
-    });
-
-    void detectAndReportUser('instagram', detectInstagramUser);
-    void initLogLevelFromSettings();
-    log.info('Instagram content script ready');
-  },
+  main: () => bootstrapContentScript({
+    platform: 'instagram',
+    selectors: INSTAGRAM_SELECTORS,
+    detectUser: detectInstagramUser,
+    runPost,
+  }),
 });
 
 async function runPost(

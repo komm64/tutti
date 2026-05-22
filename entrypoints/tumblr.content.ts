@@ -1,13 +1,12 @@
-import { initLogLevelFromSettings, log } from '../src/utils/logger';
-import type { ImageAttachment, Message, PostResultMessage } from '../src/messages';
+import { log } from '../src/utils/logger';
+import type { ImageAttachment, PostResultMessage } from '../src/messages';
 import { TUMBLR_SELECTORS, tumblrAdapter } from '../src/adapters/tumblr';
 import { executePostFlow } from '../src/utils/post-flow';
 import { waitForElement } from '../src/utils/dom';
 import { injectTagList } from '../src/utils/image';
 import { extractHashtags } from '../src/utils/hashtags';
-import { buildDiagnosis } from '../src/utils/diagnose';
 import { resolveSelectors } from '../src/utils/selector-overrides';
-import { detectAndReportUser } from '../src/utils/user-detect';
+import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
 
 // page world から送られてくる probe snapshot を蓄積
 const PROBE_TAG = 'tutti-tumblr-probe-v1';
@@ -288,35 +287,12 @@ ${avatarImgs || '    (none)'}${probeInfo}`,
 
 export default defineContentScript({
   matches: ['https://www.tumblr.com/*', 'https://tumblr.com/*'],
-  main() {
-    browser.runtime.onMessage.addListener((rawMsg, _sender, sendResponse) => {
-      const msg = rawMsg as Message;
-      if (msg.type === 'DIAGNOSE_PLATFORM' && msg.platform === 'tumblr') {
-        sendResponse(buildDiagnosis('tumblr', TUMBLR_SELECTORS, detectTumblrUser));
-        return true;
-      }
-      if (msg.type !== 'POST_TO_PLATFORM' || msg.platform !== 'tumblr') return;
-
-      void runPost(msg.text, msg.images, msg.dryRun)
-        .then((result) => sendResponse(result))
-        .catch((err: unknown) => {
-          const message = err instanceof Error ? err.message : String(err);
-          const result: PostResultMessage = {
-            type: 'POST_RESULT',
-            platform: 'tumblr',
-            success: false,
-            error: message,
-          };
-          sendResponse(result);
-        });
-
-      return true;
-    });
-
-    void detectAndReportUser('tumblr', detectTumblrUser);
-    void initLogLevelFromSettings();
-    log.info('Tumblr content script ready');
-  },
+  main: () => bootstrapContentScript({
+    platform: 'tumblr',
+    selectors: TUMBLR_SELECTORS,
+    detectUser: detectTumblrUser,
+    runPost,
+  }),
 });
 
 async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolean): Promise<PostResultMessage> {
