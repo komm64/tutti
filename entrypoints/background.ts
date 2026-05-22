@@ -940,6 +940,13 @@ async function openOrFocusTab(
   );
 
   if (existing && typeof existing.id === 'number') {
+    // v0.4.70: 既存タブが既に target URL と同じ場合 (SPA 内部 navigation 等) は
+    // tabs.update が 'loading'→'complete' を再発火させないことがあり、
+    // waitForTabComplete が listener 起動前に complete event を取り逃して 15s
+    // タイムアウトする race を引き起こしていた (tutti-issues#16)。
+    // listener を先に install してから tabs.update する + 既に complete なら
+    // 即時 resolve する dual-strategy で解消。
+    const waitPromise = waitForTabComplete(existing.id);
     const updated = await browser.tabs.update(existing.id, {
       url: composeUrl,
       active,
@@ -947,15 +954,16 @@ async function openOrFocusTab(
     if (!updated) {
       throw new Error('既存の SNS タブを操作できませんでした');
     }
-    // active=true 指定の時のみ window もフォーカス。 false の時はユーザーの作業を邪魔しない
     if (active && typeof existing.windowId === 'number') {
       await browser.windows.update(existing.windowId, { focused: true });
     }
-    await waitForTabComplete(existing.id);
+    await waitPromise;
     await sleep(READY_DELAY_MS);
     return updated;
   }
 
+  // 新規タブ作成は create + waitForTabComplete の順で OK
+  // (create 時点では tab は loading state 確定で event が必ず来る)
   const created = await browser.tabs.create({ url: composeUrl, active });
   if (typeof created.id !== 'number') {
     throw new Error('SNS タブを開けませんでした');
@@ -965,11 +973,25 @@ async function openOrFocusTab(
   return created;
 }
 
+/**
+ * tab が `status: 'complete'` になるまで待つ。 listener 取り付け前に既に
+ * complete だった場合のために、 まず tabs.get で現状を polling してから
+ * onUpdated listener も install する 2 重 strategy (tutti-issues#16)。
+ */
 function waitForTabComplete(tabId: number): Promise<void> {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
+    let done = false;
+    const finish = (err?: Error): void => {
+      if (done) return;
+      done = true;
       browser.tabs.onUpdated.removeListener(listener);
-      reject(new Error('SNS ページの読み込みがタイムアウトしました(回線か SNS の状態を確認)'));
+      clearTimeout(timer);
+      clearInterval(pollTimer);
+      if (err) reject(err); else resolve();
+    };
+
+    const timer = setTimeout(() => {
+      finish(new Error('SNS ページの読み込みがタイムアウトしました(回線か SNS の状態を確認)'));
     }, TAB_LOAD_TIMEOUT_MS);
 
     const listener = (
@@ -977,12 +999,18 @@ function waitForTabComplete(tabId: number): Promise<void> {
       info: Browser.tabs.OnUpdatedInfo,
     ): void => {
       if (updatedId === tabId && info.status === 'complete') {
-        browser.tabs.onUpdated.removeListener(listener);
-        clearTimeout(timer);
-        resolve();
+        finish();
       }
     };
     browser.tabs.onUpdated.addListener(listener);
+
+    // event を取り逃した場合のため tabs.get を 250ms 間隔で polling して
+    // status==='complete' を直接確認。 listener と並走、 どちらか早い方で finish。
+    const pollTimer = setInterval(() => {
+      browser.tabs.get(tabId).then((t) => {
+        if (t.status === 'complete') finish();
+      }).catch(() => { /* ignore (tab gone, listener / timer 側で handle) */ });
+    }, 250);
   });
 }
 
