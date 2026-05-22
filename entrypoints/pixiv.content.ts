@@ -1,5 +1,6 @@
 import { initLogLevelFromSettings, log } from '../src/utils/logger';
 import type { ImageAttachment, Message, PostResultMessage } from '../src/messages';
+import { getSettings } from '../src/storage';
 import {
   PIXIV_SELECTORS,
   buildPixivTitle,
@@ -146,24 +147,31 @@ async function runPost(
       settleMs: 400,
     },
     {
-      // Visible to (x_restrict) も必須。クロスポスト content は基本一般向けなので
-      // "All ages" (general) を選択。AI artist や R-18 投稿は手動切替前提。
+      // Visible to (x_restrict) も必須。 default は Settings.pixivVisibility
+      // ('general' クロスポスト標準、 R-18 投稿者は 'r18' / 'r18g' に切替可)。
       // React radio は input.click() で onChange が走る (delegated event)。
       name: 'set-visibility',
       action: async () => {
-        const r = document.querySelector<HTMLInputElement>(sel.visibilityAllAges);
-        if (!r) throw new Error('Pixiv: Visible to (x_restrict) radio が見つかりません');
+        const { pixivVisibility } = await getSettings();
+        const sel2 =
+          pixivVisibility === 'r18' ? sel.visibilityR18 :
+          pixivVisibility === 'r18g' ? sel.visibilityR18g :
+          sel.visibilityAllAges;
+        const r = document.querySelector<HTMLInputElement>(sel2);
+        if (!r) throw new Error(`Pixiv: Visible to (x_restrict=${pixivVisibility}) radio が見つかりません`);
         r.click();
       },
       settleMs: 200,
     },
     {
-      // AI-generated work (ai_type) も必須。default は "No" (notAiGenerated)。
-      // AI artist 用の "Yes" 切替は将来 settings で expose 予定。
+      // AI-generated work (ai_type) も必須。 Settings.pixivAiType 経由で切替。
+      // 'notAiGenerated' (default) / 'aiGenerated' (AI artist 用)。
       name: 'set-ai-flag',
       action: async () => {
-        const r = document.querySelector<HTMLInputElement>(sel.aiTypeNo);
-        if (!r) throw new Error('Pixiv: AI-generated work (ai_type) radio が見つかりません');
+        const { pixivAiType } = await getSettings();
+        const sel2 = pixivAiType === 'aiGenerated' ? sel.aiTypeYes : sel.aiTypeNo;
+        const r = document.querySelector<HTMLInputElement>(sel2);
+        if (!r) throw new Error(`Pixiv: AI-generated work (ai_type=${pixivAiType}) radio が見つかりません`);
         r.click();
       },
       settleMs: 200,

@@ -52,16 +52,19 @@ export const PIXIV_SELECTORS = {
   /** tag input (required)。Enter で 1 tag 確定 → input がクリアされて次が打てる */
   tagInput: 'input[placeholder="Tags"][maxlength="30"]',
   /**
-   * Visible to (x_restrict) radio group の "All ages" ボタン。
-   * 必須項目だが Pixiv はデフォルト未選択。Tutti は General (All ages) を強制。
+   * Visible to (x_restrict) radio group。 必須項目だが Pixiv default 未選択。
+   * Tutti は Settings.pixivVisibility ('general' default) で切替。
    * 値: general / r18 / r18g
    */
   visibilityAllAges: 'input[type="radio"][name="x_restrict"][value="general"]',
+  visibilityR18: 'input[type="radio"][name="x_restrict"][value="r18"]',
+  visibilityR18g: 'input[type="radio"][name="x_restrict"][value="r18g"]',
   /**
-   * AI-generated work (ai_type) の "No" radio。必須項目、デフォルト未選択。
-   * Tutti は notAiGenerated を強制 (AI artist の場合は将来 settings で切替予定)。
+   * AI-generated work (ai_type) radio。 必須項目、 default 未選択。
+   * Tutti は Settings.pixivAiType ('notAiGenerated' default) で切替。
    */
   aiTypeNo: 'input[type="radio"][name="ai_type"][value="notAiGenerated"]',
+  aiTypeYes: 'input[type="radio"][name="ai_type"][value="aiGenerated"]',
   /**
    * Adult content (sexual) の "No" radio。必須項目、デフォルト未選択。
    * クロスポスト content は基本 non-sexual なので false (No) を default。

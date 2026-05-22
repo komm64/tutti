@@ -44,6 +44,17 @@ export interface Settings {
    *   ✓↗ link を click して確認)
    */
   autoOpenPostUrl: 'always' | 'on-issue' | 'never';
+  /**
+   * Pixiv の "Visible to" (x_restrict) フィールド (v0.4.78〜)。
+   * R-18 / R-18G 投稿者向けの default 切替。 `'general'` (default) はクロスポスト
+   * 標準。 R-18 / r18g は user が成人向け作品中心の場合のみ。
+   */
+  pixivVisibility: 'general' | 'r18' | 'r18g';
+  /**
+   * Pixiv の "AI-generated work" (ai_type) (v0.4.78〜)。
+   * AI artist 向け切替。 `'notAiGenerated'` (default) / `'aiGenerated'`。
+   */
+  pixivAiType: 'notAiGenerated' | 'aiGenerated';
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -59,6 +70,8 @@ const DEFAULT_SETTINGS: Settings = {
   logLevel: 'INFO',
   disableReportDedup: false,
   autoOpenPostUrl: 'on-issue',
+  pixivVisibility: 'general',
+  pixivAiType: 'notAiGenerated',
 };
 
 export async function getSettings(): Promise<Settings> {

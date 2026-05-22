@@ -22,7 +22,7 @@
 
 import type { BlueskyCredentials } from '../utils/api-credentials';
 import { resolveAttachmentToBytes } from '../utils/attachment';
-import { buildBlueskyFacets } from './bluesky-facets';
+import { buildBlueskyFacetsAsync } from './bluesky-facets';
 import type { ApiPostInput, ApiPostResult, ApiTestResult } from './types';
 
 const DEFAULT_PDS = 'https://bsky.social';
@@ -127,8 +127,9 @@ export async function postViaSession(
       imageRecords.push({ alt: '', image: blob });
     }
 
-    // facets: #hashtag / bare URL を clickable にする。無いと plain text 扱い。
-    const facets = buildBlueskyFacets(input.text);
+    // facets: #hashtag / bare URL / @mention を clickable にする。 無いと plain text 扱い。
+    // mention は did resolve 込み (v0.4.78〜)、 resolve 失敗は plain text としてそのまま。
+    const facets = await buildBlueskyFacetsAsync(input.text);
     const record: Record<string, unknown> = {
       $type: 'app.bsky.feed.post',
       text: input.text,

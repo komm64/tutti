@@ -27,6 +27,8 @@
   let logStatus = $state<string | null>(null);
   let disableReportDedup = $state(false);
   let autoOpenPostUrl = $state<'always' | 'on-issue' | 'never'>('on-issue');
+  let pixivVisibility = $state<'general' | 'r18' | 'r18g'>('general');
+  let pixivAiType = $state<'notAiGenerated' | 'aiGenerated'>('notAiGenerated');
   let saved = $state(false);
   let loading = $state(true);
 
@@ -57,6 +59,8 @@
       logLevel = s.logLevel;
       disableReportDedup = s.disableReportDedup;
       autoOpenPostUrl = s.autoOpenPostUrl;
+      pixivVisibility = s.pixivVisibility;
+      pixivAiType = s.pixivAiType;
       overrideFetchedAt = at;
       overrideCount = Object.values(ov).reduce((sum, v) => sum + Object.keys(v ?? {}).length, 0);
       // API credentials のロード (パスワード / トークンは UI に出すと見えるので
@@ -233,7 +237,7 @@
       alert(t('alertPermissionDenied'));
       return;
     }
-    await saveSettings({ mastodonInstance: m, misskeyInstance: k, selectorOverrideUrl, logLevel, disableReportDedup, autoOpenPostUrl });
+    await saveSettings({ mastodonInstance: m, misskeyInstance: k, selectorOverrideUrl, logLevel, disableReportDedup, autoOpenPostUrl, pixivVisibility, pixivAiType });
     // disableReportDedup=true にしたら既存の dedup 履歴も clear
     // (再 enable まで storage に dead key が残らないように)
     if (disableReportDedup) {
@@ -435,6 +439,24 @@
           <input type="checkbox" bind:checked={disableReportDedup} class="rounded" />
           <span>Report の 24h cooldown を無効化 (個人 dev で連投したいとき)</span>
         </label>
+      </div>
+    </section>
+
+    <section class="mb-6">
+      <h2 class="text-sm font-semibold text-gray-700 mb-3">{t('pixivTitle')}</h2>
+      <div class="space-y-2">
+        <label class="block text-sm text-gray-600">{t('pixivVisibilityLabel')}</label>
+        <select bind:value={pixivVisibility} class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+          <option value="general">general — {t('pixivVisibilityGeneralDesc')}</option>
+          <option value="r18">R-18 — {t('pixivVisibilityR18Desc')}</option>
+          <option value="r18g">R-18G — {t('pixivVisibilityR18gDesc')}</option>
+        </select>
+        <label class="block text-sm text-gray-600 pt-2">{t('pixivAiTypeLabel')}</label>
+        <select bind:value={pixivAiType} class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+          <option value="notAiGenerated">Not AI — {t('pixivAiTypeNoDesc')}</option>
+          <option value="aiGenerated">AI generated — {t('pixivAiTypeYesDesc')}</option>
+        </select>
+        <p class="text-xs text-gray-400">{t('pixivHint')}</p>
       </div>
     </section>
 

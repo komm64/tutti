@@ -94,9 +94,54 @@ export function buildBlueskyFacets(text: string): Facet[] {
     });
   }
 
-  // mention の facet 化は handle→did の resolve が必要 (com.atproto.identity.resolveHandle)。
-  // Tutti のクロスポスト用途では mention はまれなので Phase 2 として保留。
-  // 必要になったら別関数で API call して did を取得 → features に追加。
+  return facets;
+}
 
+/** `@handle.domain` を検出する regex (Bluesky handle 形式)。 capture group は handle 本体 (先頭 `@` 抜き)。 */
+const MENTION_RE = /(?:^|[\s\p{P}])@([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+)/gu;
+
+/** handle → did を resolve (com.atproto.identity.resolveHandle)。 失敗時 null。 */
+async function resolveHandle(handle: string): Promise<string | null> {
+  try {
+    const res = await fetch(
+      `https://public.api.bsky.app/xrpc/com.atproto.identity.resolveHandle?handle=${encodeURIComponent(handle)}`,
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as { did?: string };
+    return data.did ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * `buildBlueskyFacets` に `@mention` facet を加えた async 版 (v0.4.78〜)。
+ * 各 mention の handle を resolveHandle で did に変換し、 失敗した mention は
+ * facet を立てない (post 自体は plain text として通る、 link 化しないだけ)。
+ * 同じ handle は cache して resolve 1 回。
+ */
+export async function buildBlueskyFacetsAsync(text: string): Promise<Facet[]> {
+  const facets = buildBlueskyFacets(text);
+  const charToByte = makeCharToByteMap(text);
+
+  const matches = Array.from(text.matchAll(MENTION_RE));
+  if (matches.length === 0) return facets;
+  const uniqueHandles = Array.from(new Set(matches.map((m) => m[1]!)));
+  const dids = await Promise.all(uniqueHandles.map(resolveHandle));
+  const cache = new Map<string, string | null>();
+  uniqueHandles.forEach((h, i) => cache.set(h, dids[i] ?? null));
+
+  for (const m of matches) {
+    const handle = m[1]!;
+    const did = cache.get(handle);
+    if (!did) continue;
+    const prefixOffset = m[0]!.startsWith('@') ? 0 : 1;
+    const atStartChar = (m.index ?? 0) + prefixOffset;
+    const handleEndChar = atStartChar + 1 + handle.length;
+    facets.push({
+      index: { byteStart: charToByte[atStartChar]!, byteEnd: charToByte[handleEndChar]! },
+      features: [{ $type: 'app.bsky.richtext.facet#mention', did }],
+    });
+  }
   return facets;
 }

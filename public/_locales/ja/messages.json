@@ -111,6 +111,16 @@
   "logsClear": { "message": "ログをクリア" },
   "logsCount": { "message": "件保存中" },
 
+  "pixivTitle": { "message": "Pixiv 投稿 default" },
+  "pixivVisibilityLabel": { "message": "Visible to (x_restrict)" },
+  "pixivVisibilityGeneralDesc": { "message": "全年齢 (クロスポスト標準)" },
+  "pixivVisibilityR18Desc": { "message": "成人向け (R-18 投稿者向け)" },
+  "pixivVisibilityR18gDesc": { "message": "成人向け / グロ (R-18G 投稿者向け)" },
+  "pixivAiTypeLabel": { "message": "AI 生成かどうか (ai_type)" },
+  "pixivAiTypeNoDesc": { "message": "AI 不使用 (default)" },
+  "pixivAiTypeYesDesc": { "message": "AI 使用 (AI artist 向け)" },
+  "pixivHint": { "message": "default は 'general' + 'notAiGenerated' (クロスポスト標準)。 R-18 投稿者 / AI artist は切替えてください。 個別投稿で手動上書きしたい場合は Pixiv の compose 画面で投稿前に切替えればその投稿だけに反映されます。" },
+
   "autoOpenTitle": { "message": "投稿後の自動オープン" },
   "autoOpenLabel": { "message": "投稿成功後の挙動" },
   "autoOpenNeverDesc": { "message": "自動オープンしない (従来挙動)" },

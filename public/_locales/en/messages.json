@@ -111,6 +111,16 @@
   "logsClear": { "message": "Clear logs" },
   "logsCount": { "message": "entries stored" },
 
+  "pixivTitle": { "message": "Pixiv post defaults" },
+  "pixivVisibilityLabel": { "message": "Visible to (x_restrict)" },
+  "pixivVisibilityGeneralDesc": { "message": "All ages (cross-post default)" },
+  "pixivVisibilityR18Desc": { "message": "R-18 (mature content)" },
+  "pixivVisibilityR18gDesc": { "message": "R-18G (mature + gore)" },
+  "pixivAiTypeLabel": { "message": "AI-generated work (ai_type)" },
+  "pixivAiTypeNoDesc": { "message": "Not AI (default)" },
+  "pixivAiTypeYesDesc": { "message": "AI generated (for AI artists)" },
+  "pixivHint": { "message": "Default is 'general' + 'notAiGenerated' (cross-post standard). R-18 publishers / AI artists should adjust. For per-post override, switch the radios on Pixiv's compose screen before clicking Tutti's Post button — that overrides for that post only." },
+
   "autoOpenTitle": { "message": "Auto-open after posting" },
   "autoOpenLabel": { "message": "When to open the post URL" },
   "autoOpenNeverDesc": { "message": "Don't open automatically (legacy behavior)" },
