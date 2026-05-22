@@ -45,16 +45,32 @@ export const DEVIANTART_SELECTORS = {
   titleInput: 'input[name="title"]',
   /**
    * description editor。DA は TipTap (ProseMirror) ベースだが class が頻繁に
-   * 変わるので多段 selector。aria-label / placeholder 経由の fallback も。
-   * docs/selectors.json override で更に追加可能。
+   * 変わるので多段 selector。 v0.4.71〜: editor が lazy-mount される (form を
+   * scroll してから初めて DOM に出現) variant 対応のため、 多段 fallback を
+   * 拡張。 docs/selectors.json override で更に追加可能。
    */
   descriptionEditor:
+    // 王道: TipTap / ProseMirror class
     'div.tiptap.ProseMirror[contenteditable="true"],' +
     'div.ProseMirror[contenteditable="true"],' +
+    '.tiptap[contenteditable="true"],' +
+    '[data-tiptap-editor][contenteditable="true"],' +
+    // aria 経由
     '[contenteditable="true"][aria-label*="description" i],' +
+    '[contenteditable="true"][aria-label*="story" i],' +
     '[contenteditable="true"][aria-placeholder*="description" i],' +
     '[contenteditable="true"][aria-placeholder*="story" i],' +
-    'main [contenteditable="true"]:not([role="combobox"])',
+    '[contenteditable="true"][aria-placeholder*="tell us" i],' +
+    '[contenteditable="true"][placeholder*="description" i],' +
+    // textarea fallback (DA が一部 form で textarea に戻してる場合)
+    'textarea[name*="description" i],' +
+    'textarea[aria-label*="description" i],' +
+    'textarea[placeholder*="description" i],' +
+    // 最後の砦: main form 内の contenteditable で title input 後ろのもの。
+    // title が input[name="title"] なので、 form 内の 1 個目の contenteditable
+    // (title input は input element なので除外される)
+    'form [contenteditable="true"]:not([role="combobox"]):not([role="searchbox"]),' +
+    'main [contenteditable="true"]:not([role="combobox"]):not([role="searchbox"])',
   /** Next button: 次ページ (categorization 画面) へ進む */
   nextButton: 'button[aria-label="Next"]',
   /**

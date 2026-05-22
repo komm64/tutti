@@ -121,18 +121,59 @@ async function runPost(
       settleMs: 300,
     },
     // Step 3: description 入力 (TipTap / ProseMirror)。**best-effort**。
-    // DA は description 必須でないので、editor が見つからない / 注入に失敗した
-    // 場合は warn して続行 (= title だけで投稿)。Surface 実機 2026-05-13:
-    // DA Studio UI 更新で description 編集領域が lazy-mount or iframe 化された
-    // 疑い。これを必須にすると投稿が完全停止するので緩める。
+    // DA は description 必須でないので、 editor が見つからない / 注入に失敗した
+    // 場合は warn して続行 (= title だけで投稿)。 v0.4.71 で lazy-mount 対策を強化:
+    //
+    // 1. Description label の `for` target / "Description" を含む button を click
+    //    (lazy-mount を trigger する可能性)
+    // 2. editor が DOM に出現するまで 5s 待つ
+    // 3. 出現したら inject。 出なければ warn して続行
     {
       name: 'fill-description',
       action: async () => {
+        // (1) lazy-mount trigger: Description label を見つけて click。
+        // DA は最近 description editor を click/focus されたタイミングで mount
+        // するレイアウト変種があり、 先回りで click することで editor が DOM に
+        // 出てくる可能性がある。 click 失敗 / 無効でも特に害は無い。
+        try {
+          const labels = Array.from(document.querySelectorAll<HTMLLabelElement>('label'));
+          const descLabel = labels.find((l) => /^Description\b/i.test((l.textContent ?? '').trim()));
+          if (descLabel) {
+            // click on the label itself + on the for-target (if exists) + on its
+            // siblings (lazy-mount placeholder div)
+            descLabel.click();
+            const forAttr = descLabel.getAttribute('for');
+            const forTarget = forAttr ? document.getElementById(forAttr) : null;
+            if (forTarget) {
+              forTarget.click();
+              if (typeof (forTarget as HTMLElement).focus === 'function') {
+                (forTarget as HTMLElement).focus();
+              }
+            }
+            // label の siblings に placeholder div があるかも
+            const placeholder = descLabel.parentElement?.querySelector<HTMLElement>(
+              'div[role="textbox"], div.placeholder, div[contenteditable="false"]',
+            );
+            if (placeholder) {
+              placeholder.click();
+            }
+          }
+        } catch (e) {
+          log.warn(`DA: description label click 試行で例外 (続行): ${e instanceof Error ? e.message : String(e)}`);
+        }
+        // (2) editor 出現待ち (最大 5s polling)
+        const editor = await waitForElement<HTMLElement>(sel.descriptionEditor, 5000);
+        if (!editor) {
+          log.warn('DA: description editor が見つかりませんでした (title だけで続行)');
+          return;
+        }
+        // (3) inject
         try {
           await injectTextIntoElement(text, sel.descriptionEditor);
+          log.info('DA: description 注入成功');
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
-          log.warn(`DA: description 入力をスキップ (title だけで続行) — ${msg}`);
+          log.warn(`DA: description 注入失敗 (title だけで続行) — ${msg}`);
         }
       },
       settleMs: 500,
