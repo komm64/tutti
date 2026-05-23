@@ -897,16 +897,12 @@ async function postSingleChunkWithRetry(
   cw?: string,
   visibility?: 'public' | 'unlisted' | 'private' | 'direct',
 ): Promise<PostResultMessage> {
-  const { autoPost } = await getSettings();
-  try {
-    return await postSingleChunk(adapter, text, rawImages, textChunks, overrideUrl, cw, visibility);
-  } catch (err) {
-    if (!autoPost) throw err;
-    const msg = err instanceof Error ? err.message : String(err);
-    log.warn(`${adapter.id}: 1 回目失敗 → 1.5s 後 retry — ${msg}`);
-    await sleep(1500);
-    return await postSingleChunk(adapter, text, rawImages, textChunks, overrideUrl, cw, visibility);
-  }
+  // v0.4.100: auto-retry を撤去 (user 報告 2026-05-23、 Threads で同じ投稿が
+  // 2 回されてた)。 旧 path は waitForPostUrl の verify 失敗 (post 自体は成功
+  // していても URL capture が timeout 等) で throw → 1.5s 後に retry → 実 post
+  // が 2 回走る事故。 post は非 idempotent なので auto-retry は構造的に不安全。
+  // 失敗時は popup の 「失敗だけ再送」 button で user が明示的に retry する。
+  return await postSingleChunk(adapter, text, rawImages, textChunks, overrideUrl, cw, visibility);
 }
 
 /**
