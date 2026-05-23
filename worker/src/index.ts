@@ -46,14 +46,26 @@ interface Env {
   DISABLE_RATE_LIMIT?: string;
   /**
    * 受け入れる Origin のホワイトリスト(カンマ区切り)。未設定だと
-   * `chrome-extension://dophemlpjldcejjdjefpjbgngodopkfe` だけ許可。
+   * 下記 DEFAULT_ALLOWED_ORIGINS が許可される。
    * 拡張 ID が変わったとき(Edge / Firefox 用に publish した場合等)、wrangler
    * secret 経由で増やせるよう env で持つ。
    */
   ALLOWED_ORIGINS?: string;
 }
 
-const DEFAULT_ALLOWED_ORIGIN = 'chrome-extension://dophemlpjldcejjdjefpjbgngodopkfe';
+/**
+ * Default 許可 origin (v0.4.93 fix):
+ * - `dophemlpjldcejjdjefpjbgngodopkfe`: dev (unpacked install) の固定 ID
+ * - `mcjfgdcffjfhkcepfpnifcpknlddmbpe`: CWS publish 後の 拡張 ID (store user は全員これ)
+ *
+ * 旧 logic は dev ID だけ allow していたため、 store-installed user の Report
+ * button が全 fail していた regression (memory: cws_unlisted_auto_review_clear で
+ * 通った v0.4.81+ で発覚)。
+ */
+const DEFAULT_ALLOWED_ORIGINS = [
+  'chrome-extension://dophemlpjldcejjdjefpjbgngodopkfe',
+  'chrome-extension://mcjfgdcffjfhkcepfpnifcpknlddmbpe',
+];
 
 interface ReportPayload {
   title: string;
@@ -71,7 +83,7 @@ function getAllowedOrigins(env: Env): string[] {
   if (env.ALLOWED_ORIGINS) {
     return env.ALLOWED_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean);
   }
-  return [DEFAULT_ALLOWED_ORIGIN];
+  return DEFAULT_ALLOWED_ORIGINS;
 }
 
 function buildCorsHeaders(origin: string | null, allowed: string[]): Record<string, string> {

@@ -27,9 +27,9 @@ describe('buildPixivTitle', () => {
 });
 
 describe('extractPixivTags', () => {
-  it('hashtag が無ければ default ["Tutti"] を返す', () => {
-    expect(extractPixivTags('hello world')).toEqual(['Tutti']);
-    expect(extractPixivTags('')).toEqual(['Tutti']);
+  it('hashtag が無ければ空配列を返す (v0.4.93〜、 default Tutti tag は廃止)', () => {
+    expect(extractPixivTags('hello world')).toEqual([]);
+    expect(extractPixivTags('')).toEqual([]);
   });
 
   it('単純な #tag を抽出', () => {
@@ -65,13 +65,11 @@ describe('extractPixivTags', () => {
   });
 
   it('# が付いてない word は無視', () => {
-    expect(extractPixivTags('foo bar baz')).toEqual(['Tutti']);
+    expect(extractPixivTags('foo bar baz')).toEqual([]);
   });
 
   it('email の @ や url の # ではない位置の # は反応しない', () => {
-    // "user@host#anchor" の # は本文の #tag じゃなく fragment
-    // 現実装では \B# だが、url 内の # も拾う可能性 → 許容範囲とする
-    expect(extractPixivTags('contact@example.com nothing else')).toEqual(['Tutti']);
+    expect(extractPixivTags('contact@example.com nothing else')).toEqual([]);
   });
 });
 

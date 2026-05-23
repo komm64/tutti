@@ -95,7 +95,9 @@ export function buildPixivTitle(text: string): string {
  * - max 10 個 (Pixiv 上限)
  * - 各 30 char 以内に切る (input maxlength)
  * - 先頭 # は剥がす
- * - 0 個なら ['Tutti'] を default として返す (Pixiv は tag 必須なので何か入れる)
+ * - 0 個なら空配列を返す (v0.4.93〜: 旧 default `['Tutti']` は user 意図と無関係に
+ *   勝手に注入する anti-feature だったので廃止。 user が空 caption で投稿しようと
+ *   する場合は Pixiv 側で tag を要求されるので user が compose 画面で入れる)
  */
 export function extractPixivTags(text: string): string[] {
   const matches = text.match(/(?:^|\s|\b)#([\p{L}\p{N}_]{1,30})/gu) ?? [];
@@ -108,7 +110,7 @@ export function extractPixivTags(text: string): string[] {
     tags.push(clean);
     if (tags.length >= 10) break;
   }
-  return tags.length > 0 ? tags : ['Tutti'];
+  return tags;
 }
 
 /**

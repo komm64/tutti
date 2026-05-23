@@ -696,11 +696,24 @@ async function postToPlatform(
     }
   }
 
-  const chunks = splitText(text, adapter.charLimit);
+  const fullChunks = splitText(text, adapter.charLimit);
+
+  // v0.4.93: preview モード (autoPost OFF) で multi-chunk は **chunk 0 だけ preview**。
+  // 旧 logic: chunks 全件 を順次 preview しようとして compose を上書きしまくり、
+  // user は最後の chunk しか見えず 「全然動いてない」 と映る regression があった。
+  // preview は「chunk 0 の compose 見た目を確認する」 ことが目的なので 1 件で十分。
+  // 残 chunk は Auto-post ON で background が thread chain or reply chain として走らせる。
+  const { autoPost: autoPostForChunks } = await getSettings();
+  const chunks = autoPostForChunks ? fullChunks : fullChunks.slice(0, 1);
+  if (!autoPostForChunks && fullChunks.length > 1) {
+    log.info(`${platform}: preview mode、 ${fullChunks.length} chunks のうち最初の 1 件のみ表示 (実投稿時は全 chunk が thread として post される)`);
+  }
 
   // Bluesky reply chain (v0.4.68): chunks > 1 のとき ATProto API で thread 連結
   // reply として post する。 user が API credentials を設定してなくても、
   // bsky.app に既にログインしてれば content script 経由で session JWT を借りる。
+  // 注: postBlueskyThread は autoPost ON 限定。 上記 chunks slice で preview 時は
+  // 既に length=1 になってるので、 ここの条件 (length > 1) は実投稿時しか発火しない。
   if (adapter.id === 'bluesky' && chunks.length > 1) {
     try {
       const r = await postBlueskyThread(adapter, chunks, images);

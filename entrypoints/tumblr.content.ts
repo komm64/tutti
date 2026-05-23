@@ -300,8 +300,9 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
 
   // v0.4.72: 本文から #hashtag を抽出して Tumblr の tags chip 入力に commit。
   // Tumblr は tags driven な culture (発見性の主役) なので、 user 入力の
-  // hashtag をきちんと tag field に反映する。 0 個なら ['tutti'] を default。
-  const tags = extractHashtags(text, { maxCount: 30, maxLen: 140, defaultIfEmpty: ['tutti'] });
+  // hashtag をきちんと tag field に反映する。 0 個なら空配列 (= user 意図無視で
+  // 勝手に tutti tag を付けるのは anti-user、 v0.4.93〜)。
+  const tags = extractHashtags(text, { maxCount: 30, maxLen: 140 });
 
   await executePostFlow({
     prefillsViaUrl: tumblrAdapter.prefillsViaUrl,

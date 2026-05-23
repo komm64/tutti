@@ -322,19 +322,19 @@
 
   /**
    * fallback: 報告 proxy が落ちてる時に user が手動送信する経路。
-   * tutti の Issues は OFF (PII 防御で意図的、 auto_triage_pipeline 経路で
-   * private repo に流すのが正規) なので、 email 経由に倒す。 body は
-   * clipboard にも入れて、 mailto: の URL length 制限を回避。
+   * v0.4.93〜: mailto: (default mail client 無いと開かない、 URL length 制限あり) を
+   * やめて GitHub Issues の new URL に直接遷移する。 tutti-issues は public repo
+   * なので user が自分で file 可能。 body は URL に乗せられない長さなので clipboard
+   * にも入れる、 GitHub new issue form の body field に user が paste する形。
    */
   async function openGitHubIssueDirect(errorText: string): Promise<void> {
     const { title, body } = await buildReportPayload(errorText);
     try { await navigator.clipboard.writeText(body); } catch { /* ignore */ }
-    const subject = `[Tutti Beta] ${title}`;
-    // mailto: の body は length 制限あり (~2000 chars on Windows)、 短い注記だけ入れて
-    // 残りは clipboard から paste してもらう
-    // 短い注記、 user locale に合わせる
-    const note = t('reportEmailNote');
-    const url = `mailto:contact@komm64.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(note)}`;
+    // GitHub Issues form は URL params で title + body を受け取る。 body は
+    // 短縮版 (note + 元 body の先頭 3KB) で URL に乗せる。 残りは clipboard から
+    // user が補完する形 (新規 issue form は paste 可能、 long body も貼れる)。
+    const shortBody = `${t('reportEmailNote')}\n\n${body.slice(0, 3000)}${body.length > 3000 ? '\n\n(... clipboard に full body あり、 paste してください)' : ''}`;
+    const url = `https://github.com/komm64/tutti-issues/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(shortBody)}`;
     window.open(url, '_blank');
   }
   // 永続選択を読み込んだあとに autoPost トグルが変わったら保存
