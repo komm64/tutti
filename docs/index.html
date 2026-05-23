@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ja">
+<html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -12,7 +12,7 @@
     --bg: #ffffff;
     --line: #e5e7eb;
   }
-  html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif; color: var(--fg); }
+  html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", sans-serif; color: var(--fg); }
   body { max-width: 720px; margin: 0 auto; padding: 2rem 1.5rem 4rem; line-height: 1.7; }
   header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
   h1 { font-size: 1.75rem; margin: 0; }
@@ -25,143 +25,48 @@
   ul { padding-left: 1.5rem; }
   code { background: #f3f4f6; padding: 0.1em 0.4em; border-radius: 4px; font-size: 0.9em; }
   table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.9rem; }
-  th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--line); }
+  th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--line); vertical-align: top; }
   th { font-weight: 600; }
   footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.85rem; }
-  footer a { color: var(--brand); }
 </style>
 </head>
 <body>
+
 <header>
   <div class="icon">T</div>
   <div>
     <h1>Tutti</h1>
-    <p class="tagline">クロスポストの面倒を全部肩代わりする Chrome 拡張</p>
+    <p class="tagline">One Chrome extension. Eleven social networks. Zero hassle.</p>
   </div>
 </header>
 
 <nav>
   <a href="https://github.com/komm64/tutti">GitHub</a>
   <a href="./support.html">Support</a>
-  <a href="#privacy">プライバシーポリシー</a>
-  <a href="#privacy-en">Privacy Policy (EN)</a>
+  <a href="./privacy.html">Privacy Policy</a>
+  <a href="./index.ja.html">日本語</a>
 </nav>
 
 <section id="overview">
 <h2>Overview</h2>
 <p>
-Tutti は 11 のソーシャルネットワーク (X, Bluesky, Threads, Tumblr, Mastodon,
-Misskey, Pixiv, TikTok, YouTube Shorts, Instagram, DeviantArt) に同じ投稿を
-一気に流す Chrome 拡張です。バックエンドを持たず、投稿内容は第三者サーバーを
-一切経由しません。
+Tutti broadcasts the same post to 11 social networks (X, Bluesky, Threads,
+Tumblr, Mastodon, Misskey, Pixiv, TikTok, YouTube Shorts, Instagram, DeviantArt)
+in one click. It has no backend; post content never passes through any
+third-party server.
 </p>
 </section>
 
-<section id="privacy">
-<h2>プライバシーポリシー</h2>
-<p>最終更新: 2026-05-15 (v0.4.57)</p>
-
-<h3>1. 取得・送信するデータ</h3>
-<p><strong>投稿コンテンツ(テキスト・画像・動画)はいかなる第三者サーバーにも送信しません。</strong></p>
-<ul>
-<li>投稿テキスト・画像・動画は、ユーザーが選択した各 SNS のページに対し、ブラウザ内でのみ渡されます。</li>
-<li>Bluesky / Mastodon / Misskey で公式 API 経路を使う場合、ユーザーが Settings に登録した認証情報を使って <strong>当該 SNS の公式 API サーバーにのみ</strong> 直接接続します(開発者サーバーを経由しません)。</li>
-<li>解析・トラッキング・広告のためのデータ収集は行いません。</li>
-</ul>
-<p><strong>例外(障害報告):</strong> popup のエラー表示または診断ボタンから <strong>ユーザーが「報告する」ボタンを押した時だけ</strong>、以下が開発者の Cloudflare Workers 経由で <a href="https://github.com/komm64/tutti/issues">GitHub Issues</a> に <strong>公開 Issue として</strong> 送信されます:</p>
-<ul>
-<li>エラーメッセージ、拡張バージョン、ブラウザ User-Agent、拡張内部ログの末尾 30 件</li>
-<li>セレクタ修復用に、操作対象 SNS タブの DOM スナップショット <strong>(テキスト・属性値・URL・画像 src・SNS ハンドルを redact 済、最大 8KB)</strong>。詳細は <a href="https://github.com/komm64/tutti/blob/main/src/utils/dom-snapshot.ts">dom-snapshot.ts</a> を参照</li>
-</ul>
-<p>投稿の本文・画像・動画・SNS のログイン情報・API credentials は <strong>送信されません</strong>。報告ボタンを押すまで送信は発生しません。</p>
-
-<h3>2. ローカルに保存するデータ</h3>
-<p>Chrome の <code>storage</code> API でユーザーのブラウザ内にのみ保存します。</p>
-<ul>
-<li><strong>設定</strong>(<code>chrome.storage.sync</code>): Mastodon / Misskey インスタンス URL、autoPost トグルの ON/OFF、Selector override URL 等。Chrome 同期で他デバイスに複製される場合あり</li>
-<li><strong>下書き</strong>(<code>chrome.storage.session</code>): 入力中のテキストおよび添付メディア(画像/動画)。ブラウザ終了で自動消去</li>
-<li><strong>SNS 選択</strong>(<code>chrome.storage.local</code>): 投稿先としてチェックした SNS の記憶。投稿後もリセットしない、デバイスローカルのみ</li>
-<li><strong>ログイン中アカウント情報</strong>(<code>chrome.storage.local</code>): 各 SNS の現在ログイン中ユーザー名(誤投稿防止のため popup に表示)。デバイスローカルのみ</li>
-<li><strong>投稿履歴</strong>(<code>chrome.storage.local</code>): 直近 20 件の先頭 80 文字、対象プラットフォーム、成否、タイムスタンプ。デバイスローカルのみ</li>
-<li><strong>API credentials</strong>(<code>chrome.storage.local</code>): ユーザーが Bluesky / Mastodon / Misskey の公式 API 経路を有効にした場合のみ保存される、Bluesky app password または Mastodon / Misskey の access token。<strong>デバイスローカル限定で、Chrome Sync には載らず、開発者サーバーにも送信されません</strong>。Settings 画面の wizard から登録/解除可能</li>
-<li><strong>Selector override</strong>(<code>chrome.storage.local</code>): SNS の UI が変わった時に応急処置で使う selector 上書きデータ。ユーザーが Settings で URL を指定した時のみ動作(デフォルトは公式 GitHub Pages の <code>selectors.json</code>)</li>
-<li><strong>動画上限のキャッシュ</strong>(<code>chrome.storage.local</code>): Bluesky 等の動画アップロード上限を API probe した結果のキャッシュ。実値のみ、認証情報を含まない</li>
-</ul>
-<p>これらは拡張のアンインストールでいつでも完全削除できます。API credentials は Settings の wizard から個別に削除することもできます。</p>
-
-<h3>3. 必要な権限</h3>
-<table>
-<tr><th>権限</th><th>用途</th></tr>
-<tr><td><code>storage</code></td><td>上記データのローカル保存</td></tr>
-<tr><td><code>offscreen</code></td><td>動画ファイルが対象 SNS の上限を超える場合、ffmpeg.wasm によりブラウザ内で再エンコード(圧縮)するための offscreen document を生成。動画データはローカル処理のみで外部送信なし</td></tr>
-<tr><td><code>host_permissions</code></td><td>各 SNS の投稿ページにアクセス: x.com / twitter.com / bsky.app / bsky.social (Bluesky PDS) / threads.net / threads.com / mastodon.social / misskey.io / tumblr.com / pixiv.net / tiktok.com / youtube.com / instagram.com / deviantart.com</td></tr>
-<tr><td><code>optional_host_permissions: https://*/*</code></td><td>ユーザーが Mastodon / Misskey の代替インスタンスを設定した際にのみ動的に要求</td></tr>
-</table>
-
-<h3>4. 外部サービスとの関係</h3>
+<section id="privacy-summary">
+<h2>Privacy in one sentence</h2>
 <p>
-Tutti は対応 11 ネットワークの Web 画面を自動操作(または公式 API 経由で投稿)
-しますが、これらは公式機能ではなく、各社・運営とは無関係です。
-各サービスの利用規約は各サービスのものに従ってください。
+Tutti has no backend server. Post content (text, images, video) goes
+directly from your browser to each social network you select — never via
+any developer-controlled server.
 </p>
-
-<h3>5. 連絡先</h3>
 <p>
-GitHub Issues: <a href="https://github.com/komm64/tutti/issues">https://github.com/komm64/tutti/issues</a><br />
-メール: <a href="mailto:contact@komm64.com">contact@komm64.com</a>
-</p>
-</section>
-
-<hr style="margin: 3rem 0; border: 0; border-top: 1px solid var(--line);" />
-
-<section id="privacy-en">
-<h2>Privacy Policy (English)</h2>
-<p>Last updated: 2026-05-15 (v0.4.57)</p>
-
-<h3>1. Data collected and transmitted</h3>
-<p><strong>Post content (text, images, video) is never transmitted to any third-party server.</strong></p>
-<ul>
-<li>Post text, images, and videos are passed only to the user-selected SNS pages within the browser.</li>
-<li>When the optional official-API path is enabled for Bluesky / Mastodon / Misskey, posts are sent directly from your browser to <strong>that SNS's own API server</strong> using credentials you supplied in Settings; no developer server is involved.</li>
-<li>No analytics, tracking, or advertising data is collected.</li>
-</ul>
-<p><strong>Exception (error reporting):</strong> only when you press the "Report" button in the popup error display or diagnose panel, the following are sent through the developer's Cloudflare Workers relay to <a href="https://github.com/komm64/tutti/issues">GitHub Issues</a> as a <strong>public</strong> issue:</p>
-<ul>
-<li>The error message, extension version, browser User-Agent, and the last 30 internal log entries.</li>
-<li>A DOM snapshot of the SNS tab in question, used to repair broken selectors. <strong>Text content, attribute values, URLs, image sources, and SNS handles are redacted; the payload is capped at 8 KB.</strong> See <a href="https://github.com/komm64/tutti/blob/main/src/utils/dom-snapshot.ts">dom-snapshot.ts</a> for the implementation.</li>
-</ul>
-<p>Your post content, images, video, SNS login data, and API credentials are <strong>never</strong> included. Nothing is sent until you press the report button.</p>
-
-<h3>2. Locally stored data</h3>
-<p>Stored only inside the user's browser via Chrome's <code>storage</code> API.</p>
-<ul>
-<li><strong>Settings</strong> (<code>chrome.storage.sync</code>): Mastodon / Misskey instance URLs, autoPost toggle, selector override URL, etc. May be replicated to other devices via Chrome Sync.</li>
-<li><strong>Drafts</strong> (<code>chrome.storage.session</code>): In-progress text and attached media (images / video). Auto-cleared on browser exit.</li>
-<li><strong>Selected networks</strong> (<code>chrome.storage.local</code>): The set of networks you've ticked. Persists after posting, local only.</li>
-<li><strong>Logged-in account names</strong> (<code>chrome.storage.local</code>): Current account on each SNS (for safety display in popup). Local only.</li>
-<li><strong>Post history</strong> (<code>chrome.storage.local</code>): Last 20 entries (first 80 chars of text, target platforms, success flags, timestamps). Local only.</li>
-<li><strong>API credentials</strong> (<code>chrome.storage.local</code>): If you enable the official API path for Bluesky / Mastodon / Misskey, the corresponding Bluesky app password or Mastodon / Misskey access token is stored. <strong>Device-local only — never synced via Chrome Sync, never sent to the developer.</strong> You can register or remove credentials per-network from the Settings wizard.</li>
-<li><strong>Selector overrides</strong> (<code>chrome.storage.local</code>): Remote-fetched selector overrides used to recover when an SNS UI changes. Defaults to the project's official <code>selectors.json</code> on GitHub Pages; users may change the URL or disable it in Settings.</li>
-<li><strong>Video upload limit cache</strong> (<code>chrome.storage.local</code>): Result of probing Bluesky's video upload limit API. Numeric values only; no credentials.</li>
-</ul>
-<p>All of the above can be erased at any time by uninstalling the extension. API credentials can also be removed individually from the Settings wizard.</p>
-
-<h3>3. Required permissions</h3>
-<table>
-<tr><th>Permission</th><th>Purpose</th></tr>
-<tr><td><code>storage</code></td><td>Local persistence above</td></tr>
-<tr><td><code>offscreen</code></td><td>When an attached video exceeds the target SNS's size limit, Tutti re-encodes (compresses) it in-browser via ffmpeg.wasm in an offscreen document. Video data stays local and is never sent off-device.</td></tr>
-<tr><td><code>host_permissions</code></td><td>Access to the compose pages of each supported network: x.com / twitter.com / bsky.app / bsky.social (Bluesky PDS) / threads.net / threads.com / mastodon.social / misskey.io / tumblr.com / pixiv.net / tiktok.com / youtube.com / instagram.com / deviantart.com</td></tr>
-<tr><td><code>optional_host_permissions: https://*/*</code></td><td>Requested at runtime only when user configures a custom Mastodon / Misskey instance</td></tr>
-</table>
-
-<h3>4. Relationship with external services</h3>
-<p>Tutti automates the web UIs of the 11 supported networks (or, optionally, posts via their official APIs), but is not affiliated with any of them. Use of each service is subject to that service's own terms.</p>
-
-<h3>5. Contact</h3>
-<p>
-GitHub Issues: <a href="https://github.com/komm64/tutti/issues">https://github.com/komm64/tutti/issues</a><br />
-Email: <a href="mailto:contact@komm64.com">contact@komm64.com</a>
+Full policy: <a href="./privacy.html">privacy.html</a> (English) /
+<a href="./privacy.ja.html">privacy.ja.html</a> (Japanese).
 </p>
 </section>
 

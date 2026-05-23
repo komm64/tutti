@@ -1,95 +1,118 @@
-# Tutti プライバシーポリシー
+# Tutti — Privacy Policy
 
-最終更新日: 2026-05-08 (v0.4.35 — 報告経路を private repo に移行)
+Japanese version: [PRIVACY.ja.md](./PRIVACY.ja.md)
+Web version: <https://komm64.github.io/tutti/privacy.html>
 
-Tutti(以下「本拡張」)は、ユーザーが入力したコンテンツを複数の SNS に
-同時投稿することを目的とした Chrome 拡張機能です。本拡張の開発者(以下
-「開発者」)は、ユーザーのプライバシーを尊重し、以下の方針でデータを
-扱います。
+Last updated: 2026-05-23 (v0.5.0)
 
-## 1. 取得・送信するデータ
+Tutti is a Chrome extension whose purpose is to let users cross-post the same
+content (text, images, video) to multiple social networks (X, Bluesky, Threads,
+Mastodon, Misskey, Tumblr, Pixiv, DeviantArt, Instagram, TikTok, YouTube) in
+one click. The Tutti developer respects user privacy and follows the policy
+below.
 
-**投稿コンテンツ(テキスト・画像・動画)は、いかなる第三者サーバーにも
-送信しません。**
+## 1. Data collected and transmitted
 
-- 投稿テキスト・画像・動画は、ユーザーが選択した各 SNS(X / Bluesky /
-  Threads / Tumblr / Mastodon / Misskey)のページに対して、ユーザーの
-  ブラウザ内でのみ渡されます。
-- ユーザーの SNS アカウント情報、認証トークン、Cookie 等を本拡張が
-  取得・保存・送信することはありません。
-- 解析(アナリティクス)・トラッキング・広告のためのデータ収集は
-  一切行いません。
+**Tutti has no backend server.** Post content (text, images, video) is never
+transmitted to any third-party server. It travels directly from your browser
+to each social network you select, exactly as if you had typed and submitted
+it there yourself.
 
-### 例外: ユーザーが明示的に押した「報告する」ボタン経由のみ
+- Post text, images, and video are passed only to the SNS pages you choose,
+  within your browser.
+- When the optional official-API path is enabled for Bluesky / Mastodon /
+  Misskey, posts are sent directly from your browser to **that SNS's own API
+  server** using credentials you supplied in Settings. No Tutti / developer
+  server is involved.
+- No analytics, tracking, or advertising data is collected.
+- Tutti does **not** read or store your authentication tokens, cookies, or
+  session data from the SNS sites.
 
-エラー発生時に表示されるダイアログで **「報告する」ボタンを押した時だけ**、
-以下の情報が開発者の Cloudflare Workers 経由で **開発者の private な GitHub
-リポジトリ** (`komm64/tutti-issues`、開発者本人のみ閲覧可能) に送信されます:
+### Exception — manual error reports (opt-in per click)
 
-- エラーメッセージ
-- 拡張のバージョン
-- ブラウザの User-Agent 文字列
-- 拡張内部のログ最終 30 件(ログレベル設定に従う、デフォルト INFO)
-  - 投稿の "本文・画像・動画"・SNS のログイン情報・Cookie 等は **含まれません**
-- 障害発生時の selector audit と redacted DOM snapshot
-  - 多重防御で text node・value 属性・URL の path/query/fragment・href/src・
-    `<meta>`/`<link>` タグを除去して送信されます
+When (and only when) you press the **"Report" button** shown in an error
+dialog or the diagnose panel, the following is sent through a Cloudflare
+Workers relay to a **private GitHub issue tracker**
+(`komm64/tutti-issues`, viewable only by the Tutti developer):
 
-**v0.4.32〜v0.4.34 では報告先が公開 GitHub Issues でしたが、redaction layer
-の bug で意図しない情報 (閲覧中の YouTube 動画 URL 等) が公開状態に出る事故
-(komm64/tutti#10) が発生しました。v0.4.35 以降は報告先を private repo に
-切り替え、redaction が破れても外部からは見えない構造に変更しています。**
+- The error message, extension version, browser User-Agent string.
+- The last 30 entries of the extension's internal log (the log level you
+  configured; INFO by default). Post content, images, video, SNS login data,
+  and API credentials are **never** included.
+- A redacted DOM snapshot of the SNS tab where the error occurred, used to
+  repair broken selectors. Text content, attribute values, URL paths/queries/
+  fragments, `href`/`src` attributes, and `<meta>`/`<link>` tags are stripped.
+  The payload is capped at 8 KB. See
+  [`src/utils/dom-snapshot.ts`](./src/utils/dom-snapshot.ts) for the
+  implementation.
 
-ボタンを押すまでは送信されません。送信内容は private repo に届き、
-Tutti 開発者本人のみが閲覧可能です(GitHub の Issues インデックスや
-検索結果には現れません)。報告自体を完全に避けたい場合は、ダイアログの
-「閉じる」ボタンでキャンセルしてください。
+Nothing is sent until you press the report button. The destination is
+private, viewable only by the Tutti developer.
 
-## 2. ローカルに保存するデータ
+**Note (v0.4.32–v0.4.34 history):** error reports were briefly sent to a
+public GitHub Issues tracker. A redaction-layer bug caused unintended
+information (e.g., the URL of an open YouTube video) to appear in public
+issues. From v0.4.35 onward, the destination is a **private** repository,
+so even if redaction ever breaks, external observers cannot see the content.
 
-本拡張は、Chrome の `storage` API を用いて以下のデータをユーザーの
-ブラウザ内にのみ保存します:
+## 2. Locally stored data
 
-- **設定(`chrome.storage.sync`)**: Mastodon / Misskey インスタンス URL、
-  自動投稿モードの ON/OFF 等。Google アカウントで Chrome にサインイン
-  している場合、Chrome 同期によって他のデバイスにも複製されます。
-- **下書き(`chrome.storage.session`)**: 入力中のテキストおよび添付
-  メディア(画像/動画)。ブラウザ終了で自動消去されます。
-- **SNS 選択(`chrome.storage.local`)**: 投稿先としてチェックした SNS の
-  記憶(投稿後もリセットしない)。デバイスローカルのみ。
-- **ログイン中アカウント名(`chrome.storage.local`)**: 各 SNS で現在
-  ログインしているユーザー名(誤投稿防止のため popup に表示)。デバイス
-  ローカルのみ、外部送信なし。
-- **投稿履歴(`chrome.storage.local`)**: 直近 20 件の投稿の先頭 80 文字、
-  対象プラットフォーム、成否、タイムスタンプ。デバイスローカルのみ。
-- **Selector override(`chrome.storage.local`)**: ユーザーが Settings で
-  指定した URL から取得した SNS 用 selector 上書きデータ(SNS の UI が
-  変わった際の応急処置用、デフォルトでは空)。
+The following is stored only inside your browser via Chrome's `storage` API.
+Nothing is transmitted off-device by Tutti.
 
-これらのデータは、ユーザーが本拡張をアンインストールするか、Chrome の
-拡張機能データを削除することでいつでも完全に消去できます。
+- **Settings** (`chrome.storage.sync`): Mastodon / Misskey instance URLs,
+  autoPost toggle, display mode, selector override URL, etc. May be
+  replicated to your other devices via Chrome Sync if you are signed into
+  Chrome.
+- **Drafts** (`chrome.storage.session`): In-progress post text and attached
+  media (images / video). Auto-cleared when the browser exits.
+- **Selected SNS** (`chrome.storage.local`): The SNS you ticked as post
+  targets. Persists across sessions for convenience; device-local only.
+- **Last seen usernames** (`chrome.storage.local`): The currently-logged-in
+  username on each SNS, displayed in the popup so you can confirm which
+  account will receive the post. Device-local only.
+- **Post history** (`chrome.storage.local`): The last 20 posts: first 80
+  characters of text, target platforms, success/failure per platform, and
+  timestamp. Device-local only.
+- **API credentials** (`chrome.storage.local`): Only if you explicitly
+  enabled the official-API path for Bluesky / Mastodon / Misskey: your
+  Bluesky app password or Mastodon / Misskey access token.
+  **Device-local only; never replicated via Chrome Sync; never transmitted
+  to any developer server.** Removable from the Settings wizard.
+- **Selector override cache** (`chrome.storage.local`): Selector hot-fix
+  data fetched from the URL you configured in Settings (default: the public
+  `selectors.json` on Tutti's GitHub Pages).
+- **Video upload limit cache** (`chrome.storage.local`): Result of API
+  probes for per-account video upload caps (e.g., Bluesky). Numeric values
+  only; no credentials.
 
-## 3. 必要な権限
+All of this can be wiped at any time by uninstalling the extension or
+clearing Chrome's extension storage.
 
-| 権限 | 用途 |
+## 3. Permissions used
+
+| Permission | Purpose |
 |---|---|
-| `storage` | 上記の設定・履歴・下書き等をローカル保存するため |
-| `offscreen` | 将来機能(動画整形)で offscreen document に ffmpeg.wasm をロードするため |
-| `host_permissions` | x.com / twitter.com / bsky.app / threads.com / threads.net / mastodon.social / misskey.io / tumblr.com / www.tumblr.com の投稿ページ DOM 操作および compose URL 遷移のため |
-| `optional_host_permissions: https://*/*` | ユーザーが mastodon.social / misskey.io 以外のインスタンスを設定した場合に、そのドメインへのアクセスを動的に求めるため。設定保存時に明示的にユーザー許可を求め、それ以外には使いません |
+| `storage` | Store the local data above (settings, drafts, history, selected platforms, etc.) inside your browser. |
+| `offscreen` | Run `ffmpeg.wasm` in an offscreen document to compress / re-encode video files when the source exceeds the destination SNS's size cap. Video data is processed locally only; not transmitted anywhere by Tutti. |
+| `sidePanel` | Optional UI display mode: show Tutti's compose form in Chrome's side panel instead of the action popup, so it stays open while you switch between SNS tabs. You opt in via the Options page; default is the standard popup. |
+| `host_permissions` | Inject content scripts into each SNS site (x.com / twitter.com / bsky.app / bsky.social / threads.net / threads.com / mastodon.social / misskey.io / tumblr.com / pixiv.net / tiktok.com / youtube.com / instagram.com / deviantart.com) to fill the compose form with your post content and submit it, on your behalf. No data is read from these sites and sent elsewhere; the content script only writes your own input. |
+| `optional_host_permissions: https://*/*` | Requested at runtime only if you configure a custom Mastodon or Misskey instance URL (other than the defaults). Chrome shows the standard permission prompt at that moment. |
 
-## 4. 外部サービスとの関係
+## 4. Relationship with the SNS providers
 
-本拡張は X・Bluesky・Threads・Tumblr・Mastodon・Misskey の各 Web 画面を
-自動操作しますが、これらサービスの公式機能ではなく、各社・運営とは無関係
-です。各サービスの利用規約は各サービスのものに従ってください。
+Tutti automates the web UI of (or, optionally, posts via the official API
+of) the 11 supported networks. This is unofficial functionality; Tutti is
+not affiliated with X, Bluesky, Meta (Threads / Instagram), Mastodon gGmbH,
+Misskey, Tumblr, Pixiv, DeviantArt, TikTok, or YouTube. You remain bound by
+each service's own terms of use.
 
-## 5. 連絡先
+## 5. Contact
 
-ご質問・ご要望は GitHub Issues までお願いします:
-https://github.com/komm64/tutti/issues
+- GitHub Issues: <https://github.com/komm64/tutti/issues>
+- Email: <contact@komm64.com>
 
-## 6. ポリシーの変更
+## 6. Changes to this policy
 
-本ポリシーに変更がある場合、本ファイル(`PRIVACY.md`)の更新をもって
-通知に代えるものとします。
+Updates to this policy are communicated by updating this file and the web
+version at <https://komm64.github.io/tutti/privacy.html>.

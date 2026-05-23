@@ -1,27 +1,28 @@
 # Platform support matrix
 
-Tutti が対応する 11 ネットワークの **single source of truth**。
-README / CWS listing / 各 adapter コード間で表記がずれないよう、ここを
-唯一の正確な現状とみなす。
+The **single source of truth** for the 11 networks Tutti supports.
+Treat this as the authoritative current state so that README / CWS listing /
+adapter code stay consistent.
 
-各 adapter の `src/adapters/<id>.ts` を読まなくても、ここを見れば
-「何が動いて、何がまだ実投稿確認できていないか」が分かるようにする。
+Look here (not at each `src/adapters/<id>.ts`) to know "what works, and
+what hasn't been verified with a real post yet".
 
-> 更新ルール: adapter 追加 / 制約変更 / 検証状態が動いたら **必ずこの
-> ファイルを先に更新**。README / CWS listing 等はここから参照する。
+> Update rule: when adding an adapter / changing a constraint / moving
+> verification state, **update this file first**. README / CWS listing
+> etc. reference this.
 
-## 凡例
+## Legend
 
-- ✅: 対応・確認済
-- ⚠️: 実装はあるが、autoPost ON での実投稿検証は浅い (preview dry-run まで)
-- —: 非対応 (adapter に kind が含まれない / 制約により送れない)
-- **DOM**: SNS の Web 投稿ページを Playwright 風に DOM 操作する経路
-- **API**: SNS の公式 API を直接叩く経路 (credentials 登録時のみ有効)
-- **multi-step**: 複数モーダルの wizard 型 UI 用 (P12 framework `executeMultiStepFlow`)
-- **foreground tab**: heavy SPA を動かすために active=true でタブを開く必要がある
+- ✅: supported and verified
+- ⚠️: implementation exists, but autoPost-ON real-post verification is shallow (preview/dry-run only)
+- —: unsupported (kind not in adapter / blocked by constraints)
+- **DOM**: drive the SNS web compose page via DOM manipulation (Playwright-style)
+- **API**: call the SNS's official API directly (only active when credentials are registered)
+- **multi-step**: for multi-modal wizard UIs (P12 framework `executeMultiStepFlow`)
+- **foreground tab**: needs `active: true` tab to drive a heavy SPA
   (`requiresForegroundTab: true`)
 
-## 全体マトリクス
+## Overall matrix
 
 | network | text | image | shortVideo | longVideo | path | multi-step | fg tab | API |
 |---|:---:|:---:|:---:|:---:|---|:---:|:---:|:---:|
@@ -37,7 +38,7 @@ README / CWS listing / 各 adapter コード間で表記がずれないよう、
 | Instagram | — | ⚠️ | ⚠️ | — | DOM | ✅ | ✅ | — |
 | DeviantArt | — | ⚠️ | — | — | DOM | ✅ | ✅ | — |
 
-## 投稿系制約 (adapter コードから抜粋、2026-05-13 時点)
+## Posting constraints (extracted from adapter code, as of 2026-05-13)
 
 | network | charLimit | maxImages | maxBytesPerImage | maxBytes (video) | maxDurationS |
 |---|---:|---:|---:|---:|---:|
@@ -53,79 +54,82 @@ README / CWS listing / 各 adapter コード間で表記がずれないよう、
 | Instagram | 2200 (caption) | 10 | 30 MB | 100 MB | 60 |
 | DeviantArt | 5000 | 1 | 30 MB | — | — |
 
-- "unlimited" は **クライアント側で尺チェックしない** という意味。SNS 側で
-  reject される可能性はある (= 任意 SNS 側 UI の error が popup に返される)
-- Mastodon / Misskey は federated なのでインスタンスごとに上記制約が変わる。
-  Settings からインスタンス URL を切り替えると値も切り替わる前提
-- Bluesky の `maxBytes` は **80 MiB** に SI margin を加えた conservative 値。
-  API probe (P17) で取れた実値があれば override される
-- 動画 maxBytes は超過時に offscreen ffmpeg.wasm で **自動圧縮** される (P16)
+- "unlimited" means **the client does not check duration**. The SNS may
+  still reject server-side (the SNS UI error is surfaced to the popup).
+- Mastodon / Misskey are federated, so per-instance constraints vary.
+  Switching the instance URL in Settings is expected to switch the values
+  alongside.
+- Bluesky's `maxBytes` is a **conservative 80 MiB** value with SI margin.
+  Overridden by the actual value from the API probe (P17) when available.
+- Video `maxBytes` overflow triggers **automatic compression** via the
+  offscreen ffmpeg.wasm path (P16).
 
-## 検証状態 (autoPost 実投稿)
+## Verification state (autoPost real posting)
 
-| network | preview (dry-run) | autoPost 実投稿 | 最終確認 | 備考 |
+| network | preview (dry-run) | autoPost real | last verified | notes |
 |---|:---:|:---:|---|---|
-| X | ✅ | ✅ | v0.3.8 | inline compose 経路 (P11) |
-| Bluesky | ✅ | ✅ | v0.4.x (P11) | DOM + API 両方 |
+| X | ✅ | ✅ | v0.3.8 | inline compose path (P11) |
+| Bluesky | ✅ | ✅ | v0.4.x (P11) | DOM + API both |
 | Threads | ✅ | ✅ | v0.4.x (P11) | aria-label fallback |
-| Mastodon | ✅ | ✅ | v0.4.x (P11) | confirmDialog alt-text 自動承認込 |
-| Misskey | ✅ | ✅ | v0.4.x (P11) | drop モード |
+| Mastodon | ✅ | ✅ | v0.4.x (P11) | with confirmDialog alt-text auto-approval |
+| Misskey | ✅ | ✅ | v0.4.x (P11) | drop mode |
 | Tumblr | ✅ | ✅ | v0.4.x (P11) | components-drop-zone |
-| Pixiv | ✅ | ✅ | v0.4.17 | tags 必須・hidden radio (P12-A.1〜.4) |
+| Pixiv | ✅ | ✅ | v0.4.17 | required tags + hidden radio (P12-A.1–.4) |
 | TikTok | ✅ | ✅ | v0.4.18 / v0.4.26 | Draft.js clearing fix |
-| YouTube (Shorts) | ✅ | ✅ | v0.4.25 | div#textbox×2 識別、Made for Kids 必須 |
-| Instagram | ✅ | ⚠️ 未 | — | 4 段 modal wizard 完成、実投稿未検証 |
-| DeviantArt | ✅ | ⚠️ 未 | — | upload modal 完成、実投稿未検証 |
+| YouTube (Shorts) | ✅ | ✅ | v0.4.25 | div#textbox×2 disambig, Made for Kids required |
+| Instagram | ✅ | ⚠️ pending | — | 4-step modal wizard complete, real post not yet verified |
+| DeviantArt | ✅ | ⚠️ pending | — | upload modal complete, real post not yet verified |
 
 ## E2E coverage (`scripts/e2e/platforms/`)
 
-実投稿 E2E スモークは self-hosted runner 前提 (anti-bot 対策で
-GitHub-hosted では弾かれる)。現状の covered/uncovered:
+Real-posting E2E smoke tests assume a self-hosted runner (anti-bot
+detection blocks GitHub-hosted). Current covered/uncovered:
 
-| network | E2E module 存在 | runner | コメント |
+| network | E2E module exists | runner | comment |
 |---|:---:|---|---|
-| X | ✅ | self-hosted | `x.mjs` 完成、削除は未実装 |
-| Bluesky | — | API 化候補 | API path があるので GitHub-hosted で回せる |
-| Mastodon | — | API 化候補 | 同上 |
-| Misskey | — | API 化候補 | 同上 |
-| 残り 7 SNS | — | self-hosted | DOM のみなので self-hosted 必要 |
+| X | ✅ | self-hosted | `x.mjs` done; delete step not implemented |
+| Bluesky | — | API candidate | API path available; can run on GitHub-hosted |
+| Mastodon | — | API candidate | same |
+| Misskey | — | API candidate | same |
+| remaining 7 | — | self-hosted | DOM-only, requires self-hosted |
 
-予定:
-- API path (Bluesky / Mastodon / Misskey) は GitHub-hosted で nightly に
-  credentials 経由で投稿→削除を走らせる workflow を別立て
-- DOM-only network は `scripts/e2e/E2E-SETUP.md` の手順で self-hosted
-  runner を立てて、selector PR 後 / nightly に走らせる
+Plans:
+- API path (Bluesky / Mastodon / Misskey): a separate workflow that posts
+  then deletes via credentials on GitHub-hosted nightly.
+- DOM-only networks: set up a self-hosted runner per
+  `scripts/e2e/E2E-SETUP.md` and run on selector-PR / nightly.
 
-## Selector hot-fix 配信
+## Selector hot-fix delivery
 
-すべての DOM-driven network は **`docs/selectors.json` の override** を受け取る:
+Every DOM-driven network honors **`docs/selectors.json` overrides**:
 
-1. SNS UI が変わって selector が刺さらなくなる
-2. ユーザが popup の Report ボタンで diagnostics 付き issue を送る
-3. `auto-triage.yml` が GitHub Action で Claude にバトンを渡し、新 selector
-   候補の PR を `src/adapters/<network>.ts` と `docs/selectors.json` の
-   両方に同時 patch
-4. 人間レビュー → merge → GitHub Pages に publish
-5. `Settings.selectorOverrideUrl` を有効にしている全ユーザに数分以内に届く
+1. SNS UI changes and selectors stop matching.
+2. User sends a diagnostics-attached issue via the popup's Report button.
+3. `auto-triage.yml` (GitHub Action) hands off to Claude, which proposes a
+   PR patching both `src/adapters/<network>.ts` and `docs/selectors.json`.
+4. Human review → merge → GitHub Pages publish.
+5. Reaches every user whose `Settings.selectorOverrideUrl` is enabled,
+   within minutes.
 
-詳細: `CLAUDE.md` の P13 セクション、memory `auto_triage_pipeline.md`。
+Details: `CLAUDE.md` P13 section, memory `auto_triage_pipeline.md`.
 
-## 既知の不安定点 / 注意
+## Known instabilities / caveats
 
-- **Pixiv**: `R-18 / AI=Yes` の切替は hardcode (general / notAiGenerated)。
-  Adult artist や AI artist 向けには options で expose する課題が残る
-- **YouTube**: visibility=Public の自動設定は v0.4.25 で対応済。チャンネル
-  未作成の Google アカウントは upload page に遷移できないので user に案内が必要
-- **Instagram**: 4 段 modal を順次進む構造で、Crop/Edit step は no-op で
-  通過。filter を当てたいユーザ向けには将来別 flow を作る
-- **Tumblr**: `.components-drop-zone` を狙わないと block-type 選択メニューが
-  出てしまう (textarea drop は NG)
-- **TikTok**: Draft.js は既存 text の clearing が execCommand 経由
-  (memory `contenteditable_clearing_strategies.md`)
-- **Threads**: Meta 系で React Native Web ベース。aria-label の DOM 変更が
-  比較的多い → selectors.json の hot-fix が効きやすい
+- **Pixiv**: `R-18 / AI=Yes` toggles are hardcoded (general / notAiGenerated).
+  Exposing them via Options is still on the list for adult / AI artists.
+- **YouTube**: `visibility=Public` is set automatically since v0.4.25.
+  Google accounts without a created channel can't reach the upload page,
+  so user guidance is needed.
+- **Instagram**: The 4-stage modal flow walks through Crop/Edit as no-ops.
+  Users wanting filters need a separate flow added later.
+- **Tumblr**: Must aim for `.components-drop-zone`; dropping on a
+  textarea triggers the block-type selector menu instead.
+- **TikTok**: Draft.js requires execCommand-based clearing for existing
+  text (memory `contenteditable_clearing_strategies.md`).
+- **Threads**: Meta / React Native Web base. `aria-label` DOM changes
+  relatively often → selectors.json hot-fix is well-suited here.
 
-## 関連ファイル
+## Related files
 
 - 各 adapter: `src/adapters/<id>.ts`
 - registry: `src/adapters/registry.ts`
