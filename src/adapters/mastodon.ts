@@ -15,6 +15,7 @@ export const mastodonAdapter: PlatformAdapter = {
   // /share?text= で compose modal が開く(多くの Mastodon インスタンスで共通)
   getComposeUrl: (text) =>
     `${MASTODON_DEFAULT_INSTANCE}/share?text=${encodeURIComponent(text)}`,
+  getLoginUrl: () => MASTODON_DEFAULT_INSTANCE,
   prefillsViaUrl: true,
   videoConstraints: {
     maxDurationS: 0, // インスタンス依存、チェックしない

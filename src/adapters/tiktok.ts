@@ -21,6 +21,7 @@ export const tiktokAdapter: PlatformAdapter = {
   charLimit: 2200,
   matchUrl: (url) => /^https:\/\/(www\.)?tiktok\.com\//.test(url),
   getComposeUrl: () => 'https://www.tiktok.com/tiktokstudio/upload',
+  getLoginUrl: () => 'https://www.tiktok.com/',
   prefillsViaUrl: false,
   videoConstraints: {
     // TikTok web は最大 60 分まで上げられるが実用 3 分。Tutti は短尺メイン

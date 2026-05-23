@@ -12,6 +12,7 @@ export const tumblrAdapter: PlatformAdapter = {
   matchUrl: (url) => /^https:\/\/(www\.)?tumblr\.com\//.test(url),
   // /new/text で compose を開く。本文は DOM injection で入れる
   getComposeUrl: () => 'https://www.tumblr.com/new/text',
+  getLoginUrl: () => 'https://www.tumblr.com/',
   prefillsViaUrl: false,
   videoConstraints: {
     maxDurationS: 0,

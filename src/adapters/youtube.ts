@@ -29,6 +29,7 @@ export const youtubeAdapter: PlatformAdapter = {
   // studio.youtube.com / m.youtube.com / www.youtube.com
   matchUrl: (url) => /^https:\/\/((www|m|studio)\.)?youtube\.com\//.test(url),
   getComposeUrl: () => 'https://studio.youtube.com/',
+  getLoginUrl: () => 'https://www.youtube.com/',
   prefillsViaUrl: false,
   videoConstraints: {
     // Shorts: 60s 以下推奨、Tutti は 60s で打ち切り (本格 vlog は別 SNS)

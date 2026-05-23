@@ -16,6 +16,7 @@ export const misskeyAdapter: PlatformAdapter = {
   // Misskey の Web Intent: /share?text=...
   getComposeUrl: (text) =>
     `${MISSKEY_DEFAULT_INSTANCE}/share?text=${encodeURIComponent(text)}`,
+  getLoginUrl: () => MISSKEY_DEFAULT_INSTANCE,
   prefillsViaUrl: true,
   videoConstraints: {
     maxDurationS: 0, // インスタンス依存

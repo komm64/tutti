@@ -21,6 +21,7 @@ export const deviantartAdapter: PlatformAdapter = {
   charLimit: 5000,
   matchUrl: (url) => /^https:\/\/(www\.)?deviantart\.com\//.test(url),
   getComposeUrl: () => 'https://www.deviantart.com/studio?new=1',
+  getLoginUrl: () => 'https://www.deviantart.com/',
   prefillsViaUrl: false,
   imageConstraints: {
     maxBytesPerImage: 30 * 1024 * 1024,

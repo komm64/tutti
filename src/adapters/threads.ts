@@ -13,6 +13,7 @@ export const threadsAdapter: PlatformAdapter = {
   // 新ドメイン threads.com の intent を使う(threads.net は redirect 想定)
   getComposeUrl: (text) =>
     `https://www.threads.com/intent/post?text=${encodeURIComponent(text)}`,
+  getLoginUrl: () => 'https://www.threads.com/',
   prefillsViaUrl: true,
   videoConstraints: {
     // Threads はアカウント種別で変動するのでクライアント側で尺チェックしない

@@ -158,6 +158,7 @@
     "placeholders": { "N": { "content": "$1" } }
   },
   "reportEmailNote": { "message": "Full report copied to clipboard. Paste into the email body and send." },
+  "openLoginTooltip": { "message": "Open this network in a new tab (Tutti will detect your account once you sign in)" },
 
   "pixivTitle": { "message": "Pixiv post defaults" },
   "pixivVisibilityLabel": { "message": "Visible to (x_restrict)" },

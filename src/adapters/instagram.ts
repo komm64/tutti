@@ -27,6 +27,7 @@ export const instagramAdapter: PlatformAdapter = {
   matchUrl: (url) => /^https:\/\/(www\.)?instagram\.com\//.test(url),
   // home から Create ボタンを click する flow なので、compose URL は home に
   getComposeUrl: () => 'https://www.instagram.com/',
+  getLoginUrl: () => 'https://www.instagram.com/',
   prefillsViaUrl: false,
   videoConstraints: {
     // Reels の制約は別 (この adapter は Post/Feed 専用)。Feed video は 60s 程度

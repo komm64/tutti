@@ -8,6 +8,7 @@ export const blueskyAdapter: PlatformAdapter = {
   // /intent/compose?text= で compose dialog が開いて text が入る
   getComposeUrl: (text) =>
     `https://bsky.app/intent/compose?text=${encodeURIComponent(text)}`,
+  getLoginUrl: () => 'https://bsky.app/',
   prefillsViaUrl: true,
   videoConstraints: {
     maxDurationS: 60,

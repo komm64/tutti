@@ -17,6 +17,7 @@ export const xAdapter: PlatformAdapter = {
    * 出るので使わない (prefillsViaUrl=false で DOM inject)。
    */
   getComposeUrl: () => 'https://x.com/home',
+  getLoginUrl: () => 'https://x.com/',
   prefillsViaUrl: false,
   videoConstraints: {
     // X は無料層 2m20s だったが 2024 以降緩和、Premium で更に長い、と

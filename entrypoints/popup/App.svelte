@@ -548,6 +548,21 @@
     if (showHistory && history.length === 0) void loadHistory();
   }
 
+  /**
+   * v0.4.84: unsigned 行の ↗ link click で SNS の login/home page を新 tab で開く。
+   * tab を開けば content script が起動 → detectUser() が走って Tutti に
+   * CURRENT_USER が来る (= 「unknown」 が解消)。 user が tab で login してから
+   * Tutti popup を開き直せば 検出値が見える。
+   */
+  function openLoginUrl(id: PlatformId): void {
+    const adapter = getAdapter(id);
+    const url = adapter?.getLoginUrl?.();
+    if (!url) return;
+    void browser.tabs.create({ url, active: true });
+    // popup は click とともに close されるが、 明示的に閉じてもよい。
+    // chrome.tabs.create を triggered した瞬間に popup が消えるのが自然な挙動。
+  }
+
   // formatRelTime は src/utils/formatters.ts から import (v0.4.80〜、 unit test 可能)
 
   const selectedIds = $derived(
@@ -1019,7 +1034,14 @@
         {#if !posting && !result && account}
           <span class="text-[10px] text-gray-500 truncate leading-tight" title={account}>{account}</span>
         {:else if !posting && !result && p.available}
-          <span class="text-[10px] text-gray-300 leading-tight">{t('userUnconfirmed')}</span>
+          <!-- v0.4.84: unsigned 行は ↗ link 化。 click で SNS の login/home を新 tab で開く。
+               <label> の checkbox toggle と競合しないよう preventDefault + stopPropagation。 -->
+          <a
+            href="#"
+            onclick={(e) => { e.preventDefault(); e.stopPropagation(); openLoginUrl(p.id); }}
+            class="text-[10px] text-blue-500 hover:text-blue-700 hover:underline leading-tight"
+            title={t('openLoginTooltip')}
+          >{t('userUnconfirmed')} ↗</a>
         {:else if isPending}
           <span class="text-[10px] text-blue-600 leading-tight">{autoPost ? t('progressPosting') : t('progressPreviewing')}</span>
         {:else if isQueued}

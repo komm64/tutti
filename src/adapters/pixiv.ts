@@ -28,6 +28,7 @@ export const pixivAdapter: PlatformAdapter = {
   charLimit: 1000,
   matchUrl: (url) => /^https:\/\/(www\.)?pixiv\.net\//.test(url),
   getComposeUrl: () => 'https://www.pixiv.net/illustration/create',
+  getLoginUrl: () => 'https://www.pixiv.net/',
   prefillsViaUrl: false,
   imageConstraints: {
     // Pixiv は 1 枚 30MB / 200 枚まで。ただし実用上は 10 枚程度に絞ったほうが

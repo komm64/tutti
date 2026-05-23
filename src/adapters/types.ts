@@ -44,6 +44,13 @@ export interface PlatformAdapter {
   matchUrl: (url: string) => boolean;
   /** 投稿用に開くべき URL を返す。URL pre-fill する SNS では text を URL に乗せる */
   getComposeUrl: (text: string) => string;
+  /**
+   * popup の unsigned 行から「ログイン / SNS 開く」 ボタン押下時に開く URL (v0.4.84〜)。
+   * 通常は SNS の login page or home page。 Mastodon / Misskey は instance 依存
+   * なので `getComposeUrl` と同様 settings 後解決する。
+   * 省略時 popup は matchUrl から推測した host root を fallback。
+   */
+  getLoginUrl?: () => string;
   /** true なら URL 遷移だけで textarea に text が入る、false なら content script で注入する */
   prefillsViaUrl: boolean;
   /** 動画の制約。undefined = 動画不可 */
