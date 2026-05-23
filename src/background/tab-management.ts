@@ -134,9 +134,9 @@ export function notifyResults(results: { platform: string; success: boolean; err
     void browser.action.setBadgeBackgroundColor({ color: '#f59e0b' });
   }
 
-  // 完了 OS 通知。 全成功なら緑系、 失敗ありなら赤系。
-  // 失敗 SNS 名を body に列挙して user が 「どこで失敗したか」 を一目で分かる。
-  void showCompletionNotification(succeeded.length, failed);
+  // OS 完了通知は v0.4.99 で一旦 revert (CWS Privacy Practice 更新要件で
+  // 別 release で対応)。 badge + popup の lastResults / GET_BG_STATE で
+  // 「黙って終わらない」 要件は満たせている (popup を開けば結果が見える)。
 
   for (const r of results) {
     if (r.success) {
@@ -153,36 +153,8 @@ const PLATFORM_LABELS: Record<string, string> = {
   instagram: 'Instagram', tiktok: 'TikTok', youtube: 'YouTube',
 };
 
-async function showCompletionNotification(
-  succeeded: number,
-  failed: { platform: string; error?: string }[],
-): Promise<void> {
-  try {
-    // notifications permission が無い環境 (古い build / 拒否済) では silently skip
-    if (!browser.notifications?.create) return;
-    const total = succeeded + failed.length;
-    const iconUrl = browser.runtime.getURL('/icon/128.png');
-    const isAllSuccess = failed.length === 0;
-    const title = isAllSuccess
-      ? `Tutti: ${total} SNS に投稿しました`
-      : `Tutti: ${succeeded}/${total} 成功、 ${failed.length} 失敗`;
-    const failedNames = failed
-      .map((f) => PLATFORM_LABELS[f.platform] ?? f.platform)
-      .join(', ');
-    const message = isAllSuccess
-      ? '全 SNS に正常投稿されました'
-      : `失敗: ${failedNames}\nTutti を開いて再送できます`;
-    await browser.notifications.create('tutti-post-complete-' + Date.now(), {
-      type: 'basic',
-      iconUrl,
-      title,
-      message,
-      priority: isAllSuccess ? 0 : 2,
-    });
-  } catch (e) {
-    log.warn(`完了通知失敗: ${e instanceof Error ? e.message : String(e)}`);
-  }
-}
+// showCompletionNotification は v0.4.99 で revert (CWS Privacy Practice 要件
+// で notifications permission を一旦削除)。 後続 release で復活予定。
 
 export function clearBadge(): void {
   void browser.action.setBadgeText({ text: '' });
