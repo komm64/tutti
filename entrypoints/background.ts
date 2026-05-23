@@ -118,6 +118,27 @@ export default defineBackground(() => {
       return; // fire-and-forget
     }
 
+    if (msg.type === 'BROADCAST_REFRESH_USERS') {
+      // v0.4.83: popup mount 時に全 SNS tab に REFRESH_USER を送って
+      // active user を再検出させる。 multi-account 切替後の stale を防ぐ。
+      void (async () => {
+        const tabs = await browser.tabs.query({});
+        const adapterList = Object.values(adapters).filter(
+          (a): a is PlatformAdapter => a !== undefined,
+        );
+        for (const t of tabs) {
+          if (typeof t.id !== 'number' || !t.url) continue;
+          // 各 adapter の matchUrl にマッチする tab に絞る
+          const matched = adapterList.find((a) => a.matchUrl(t.url!));
+          if (!matched) continue;
+          // sendMessage は async + fire-and-forget。 content script が居なければ
+          // throw するので catch して握り潰す。
+          browser.tabs.sendMessage(t.id, { type: 'REFRESH_USER' }).catch(() => { /* ignore */ });
+        }
+      })();
+      return; // fire-and-forget、 結果は CURRENT_USER 経由で storage に
+    }
+
     // P19: 進捗 UI を popup 閉じ→再開でも復活させるため、background で進捗状態を覚える
     if (msg.type === 'CONVERSION_PROGRESS') {
       compressionStateInMemory = { progress: msg.progress, stage: msg.stage ?? 'transcode' };
@@ -1017,6 +1038,12 @@ async function postSingleChunk(
     throw new Error('SNS タブを開けませんでした');
   }
 
+  // v0.4.83: 想定 user を message に乗せて content script に渡す。
+  // content script 側で post 直前に detectUser() を再走させて mismatch を検知、
+  // multi-account 誤爆を防ぐ。
+  const lastSeenUsers = await import('../src/storage').then((m) => m.getLastSeenUsers());
+  const expectedUser = lastSeenUsers[adapter.id];
+
   const message: PostToPlatformMessage = {
     type: 'POST_TO_PLATFORM',
     platform: adapter.id,
@@ -1024,6 +1051,7 @@ async function postSingleChunk(
     textChunks,
     images,
     dryRun,
+    expectedUser,
   };
   let response: PostResultMessage | undefined;
   try {

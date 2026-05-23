@@ -54,6 +54,14 @@ export interface PostToPlatformMessage {
   images?: ImageAttachment[];
   /** dry-run: compose に流し込むが post button は押さない */
   dryRun?: boolean;
+  /**
+   * popup / background が想定していた logged-in user (v0.4.83〜)。
+   * 例えば X で `@accountA` が前回検出されてれば `'@accountA'`。
+   * content script は post 直前に detectUser() で **現在 active な user** を
+   * 再検出し、 これと一致しなければ post を abort する (multi-account 誤爆防止)。
+   * undefined / null の場合は check skip (= detection 未実行 / 検出未対応 SNS)。
+   */
+  expectedUser?: string;
 }
 
 /** content script → background: 1 プラットフォームの投稿結果 */
@@ -249,6 +257,25 @@ export interface VerifyPostDomMessage {
   type: 'VERIFY_POST_DOM';
 }
 
+/**
+ * popup / background → SNS content script: 当 tab で現在 active な user を
+ * 即時 再検出して CURRENT_USER を送信させる (v0.4.83〜)。 popup が開かれたとき、
+ * 各 SNS tab の現在 user を refresh して lastSeenUsers の stale を防ぐ
+ * (multi-account 切替後 誤爆 guard と pair で使う)。
+ */
+export interface RefreshUserMessage {
+  type: 'REFRESH_USER';
+}
+
+/**
+ * popup → background: 全 SNS tab に REFRESH_USER を broadcast させる。
+ * popup mount 時に呼ぶ。 background は adapter.matchUrl にマッチする tab を
+ * 集めて REFRESH_USER を送る。
+ */
+export interface BroadcastRefreshUsersMessage {
+  type: 'BROADCAST_REFRESH_USERS';
+}
+
 export interface VerifyPostDomResult {
   type: 'VERIFY_POST_DOM_RESULT';
   ogDescription: string;
@@ -287,4 +314,6 @@ export type Message =
   | BlueskySessionResult
   | VerifyPostDomMessage
   | VerifyPostDomResult
+  | RefreshUserMessage
+  | BroadcastRefreshUsersMessage
   | LogClearMessage;

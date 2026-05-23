@@ -307,9 +307,17 @@
   });
   const t = (key: string, ...subs: string[]) => browser.i18n.getMessage(key, subs) || key;
 
-  // ログイン中アカウントを popup 起動時に読み込む
+  // ログイン中アカウントを popup 起動時に読み込む。
+  // v0.4.83: stale 値 (multi-account 切替後など) を防ぐため、 background に
+  // BROADCAST_REFRESH_USERS を投げて各 SNS tab で active user を再検出させる。
+  // 結果は CURRENT_USER → storage 経由で来るので、 短い delay 後に再読込。
   $effect(() => {
     void getLastSeenUsers().then((u) => (lastSeenUsers = u));
+    void browser.runtime.sendMessage({ type: 'BROADCAST_REFRESH_USERS' }).catch(() => { /* ignore */ });
+    // 800ms 後に再読込 (content script 側の detection と CURRENT_USER 伝播の余裕)
+    setTimeout(() => {
+      void getLastSeenUsers().then((u) => (lastSeenUsers = u));
+    }, 800);
   });
 
   // SNS 選択は **永続**(投稿で消えない)、draft は ephemeral(text + media)。

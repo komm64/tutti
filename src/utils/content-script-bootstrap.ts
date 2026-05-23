@@ -77,21 +77,55 @@ export function bootstrapContentScript<S extends Record<string, string>>(
       return true;
     }
 
+    // REFRESH_USER (v0.4.83): popup が開かれたときに各 SNS tab の active user を
+    // 即時 再検出して CURRENT_USER を送信。 multi-account 切替後の stale display
+    // を防ぐ。 broadcast 形式なので platform フィルタ無し (どの SNS tab も応答する)。
+    if (msg.type === 'REFRESH_USER') {
+      void (async () => {
+        try {
+          const username = await Promise.resolve(detectUser());
+          if (username) {
+            void browser.runtime.sendMessage({ type: 'CURRENT_USER', platform, username });
+          }
+        } catch { /* ignore */ }
+      })();
+      return; // sendResponse 不要 (CURRENT_USER で経由)
+    }
+
     // POST_TO_PLATFORM: 当 SNS 宛のものを runPost で処理
     if (msg.type !== 'POST_TO_PLATFORM' || msg.platform !== platform) return;
 
-    void runPost(msg.text, msg.images, msg.dryRun)
-      .then((result) => sendResponse(result))
-      .catch((err: unknown) => {
+    void (async () => {
+      try {
+        // v0.4.83: multi-account 誤爆 guard。 popup が想定していた user
+        // (msg.expectedUser) と post 直前の active user を比較し、 別 account に
+        // 切替わってたら abort。 detection が null (= 未検出 / 検出失敗) の場合は
+        // false-positive 防止のため check skip し post を続行。
+        if (msg.expectedUser) {
+          const current = await Promise.resolve(detectUser());
+          if (current && current !== msg.expectedUser) {
+            log.warn(`${platform}: account mismatch ${msg.expectedUser} → ${current}、 post abort`);
+            sendResponse({
+              type: 'POST_RESULT',
+              platform,
+              success: false,
+              error: `${platform}: 想定していたアカウント (${msg.expectedUser}) と現在のアカウント (${current}) が違います。 タブで元のアカウントに戻すか、 popup を開き直して新しいアカウントを確認してください。`,
+            } satisfies PostResultMessage);
+            return;
+          }
+        }
+        const result = await runPost(msg.text, msg.images, msg.dryRun);
+        sendResponse(result);
+      } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        const result: PostResultMessage = {
+        sendResponse({
           type: 'POST_RESULT',
           platform,
           success: false,
           error: message,
-        };
-        sendResponse(result);
-      });
+        } satisfies PostResultMessage);
+      }
+    })();
     return true;
   });
 
