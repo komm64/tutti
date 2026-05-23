@@ -37,13 +37,37 @@ function detectPixivUser(): string | null {
   const isLikely = (s: string | null | undefined): s is string =>
     !!s && s.length >= 1 && s.length <= 40 && !RESERVED.has(s.toLowerCase());
 
-  // header 配下の self user link (`/users/<numeric-id>`) のみ採用
-  const headerEl = document.querySelector('header') ?? document.querySelector('[class*="header" i]');
-  if (!headerEl) return null;
-  const userLinks = headerEl.querySelectorAll<HTMLAnchorElement>('a[href*="/users/"]');
-  for (const link of userLinks) {
+  // v0.4.97: 現代 Pixiv は <header> タグを使ってない (probe 2026-05-23)。
+  // 代わりに 「self profile link は /following + /followers の兄弟 link を持つ」
+  // 性質で他ユーザーの widget (recommend, feed) と区別する。
+  //
+  // self ページ DOM (probe で確認):
+  //   <a href="/users/12345">ren.fujimoto</a>     ← 表示名
+  //   <a href="/users/12345/following">1 Following</a>
+  //   <a href="/users/12345/followers">0 Followers</a>
+  // 他ユーザー widget:
+  //   <a href="/en/users/9544086"><img alt="ルルー"></a>
+  //   <a href="/en/users/9544086">ルルー</a>       ← following/followers なし
+
+  // Step 1: 全ページから `/users/<id>/following` の anchor を探して self id を確定
+  const followingLink = document.querySelector<HTMLAnchorElement>(
+    'a[href*="/users/"][href$="/following"]',
+  );
+  const followingHref = followingLink?.getAttribute('href') ?? '';
+  const idMatch = followingHref.match(/\/users\/(\d+)\/following/);
+  if (!idMatch || !idMatch[1]) return null;
+  const selfId = idMatch[1];
+
+  // Step 2: 同じ user id の display-name link (= /users/<id> 直)を探す
+  const displayLinks = document.querySelectorAll<HTMLAnchorElement>(
+    `a[href*="/users/${selfId}"]`,
+  );
+  for (const link of displayLinks) {
     const href = link.getAttribute('href') ?? '';
-    if (!/\/users\/\d+(?:[/?#]|$)/.test(href)) continue;
+    // 末尾が /following / /followers / ? や # で終わるものは除外。/users/<id> 直のみ
+    if (!new RegExp(`/users/${selfId}(?:[/?#]|$)`).test(href)) continue;
+    if (/\/following|\/followers/.test(href)) continue;
+    // img alt > aria-label > textContent の順で display name を取る
     const img = link.querySelector('img');
     if (img) {
       const fromImg = (img.getAttribute('alt') ?? '').trim() || (img.getAttribute('title') ?? '').trim();

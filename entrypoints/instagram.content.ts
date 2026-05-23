@@ -23,13 +23,35 @@ function detectInstagramUser(): string | null {
   const isLikely = (s: string | undefined | null): s is string =>
     !!s && /^[\w._]{2,30}$/.test(s) && !RESERVED.has(s.toLowerCase());
 
-  // side nav の Profile link を aria-label で同定 (ja/en/zh 対応)。
-  // logged-in user 専用の link で href が `/<username>/`。
+  // v0.4.97: IG は sidebar の Profile link から aria-label を削除し、
+  // text content だけになった (probe 2026-05-23 確認)。
+  //   旧: <a aria-label="Profile" href="/ren.fujimoto.89/">
+  //   新: <a href="/ren.fujimoto.89/"><svg.../><span>Profile</span></a>
+
+  // Strategy 1: aria-label が残ってる variant (旧 UI / 一部 A/B)
   const navProfile = document.querySelector<HTMLAnchorElement>(
     'a[aria-label*="Profile" i][href^="/"], a[aria-label*="プロフィール"][href^="/"], a[aria-label*="个人主页" i][href^="/"]',
   );
-  const m = navProfile?.getAttribute('href')?.match(/^\/([^/?#]+)\/$/);
+  let m = navProfile?.getAttribute('href')?.match(/^\/([^/?#]+)\/$/);
   if (isLikely(m?.[1])) return m![1]!;
+
+  // Strategy 2: sidebar の text 「Profile」 「プロフィール」 「个人主页」 等を持つ link
+  const PROFILE_TEXTS = ['profile', 'プロフィール', '个人主页', '내 프로필', 'profil', 'perfil'];
+  const links = document.querySelectorAll<HTMLAnchorElement>('a[href^="/"]');
+  for (const link of links) {
+    const href = link.getAttribute('href') ?? '';
+    const text = (link.textContent ?? '').trim().toLowerCase();
+    if (!text || text.length > 50) continue;
+    if (!PROFILE_TEXTS.some((p) => text.startsWith(p.toLowerCase()))) continue;
+    const hm = href.match(/^\/([^/?#]+)\/$/);
+    if (isLikely(hm?.[1])) return hm![1]!;
+  }
+
+  // Strategy 3: og:url meta (login wall / fallback)
+  const og = document.querySelector<HTMLMetaElement>('meta[property="og:url"]')
+    ?.content?.match(/instagram\.com\/([^/?#]+)\/?/);
+  if (isLikely(og?.[1])) return og![1]!;
+
   return null;
 }
 
