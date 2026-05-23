@@ -238,7 +238,7 @@ export default defineBackground(() => {
 
     if (msg.type !== 'POST_REQUEST') return;
 
-    void handlePostRequest(msg.text, msg.platforms, msg.images, msg.cw, msg.visibility)
+    void handlePostRequest(msg.text, msg.platforms, msg.images, msg.cw, msg.visibility, msg.trimVideoToSeconds)
       .then((results) => sendResponse({ results }))
       .catch((err: unknown) => {
         const message = err instanceof Error ? err.message : String(err);
@@ -357,6 +357,7 @@ async function handlePostRequest(
   images?: ImageAttachment[],
   cw?: string,
   visibility?: 'public' | 'unlisted' | 'private' | 'direct',
+  trimVideoToSeconds?: number,
 ): Promise<PostResultMessage[]> {
   postingInMemory = true;
   postingStateInMemory = {
@@ -367,7 +368,7 @@ async function handlePostRequest(
   };
   try {
   // P16: 動画があり、いずれかの選択中 SNS の maxBytes を超える場合は事前に圧縮
-  const adjustedImages = await maybeCompressVideoForBudget(platforms, images);
+  const adjustedImages = await maybeCompressVideoForBudget(platforms, images, trimVideoToSeconds);
 
   // 並列度制限 (POST_CONCURRENCY 同時) の worker pool。
   // 各 worker は queue から platform を取り出して処理 → 結果を state と
@@ -474,6 +475,7 @@ async function maybeResizeImagesForPlatform(
 async function maybeCompressVideoForBudget(
   platforms: PlatformId[],
   images?: ImageAttachment[],
+  trimToSeconds?: number,
 ): Promise<ImageAttachment[] | undefined> {
   if (!images || images.length === 0) return images;
   const videoIdx = images.findIndex((m) => m.type.startsWith('video/'));
@@ -501,13 +503,16 @@ async function maybeCompressVideoForBudget(
   const needsVerticalLetterbox =
     autoLetterboxVerticalVideo && platforms.some((p) => VERTICAL_SNS.includes(p));
 
-  if (minBytes === Infinity && !needsVerticalLetterbox) return images;
-  if (currentBytes <= minBytes && !needsVerticalLetterbox) return images;
+  // v0.4.90: trim opt-in
+  const needsTrim = !!(trimToSeconds && trimToSeconds > 0 && (video.durationS ?? 0) > trimToSeconds);
 
-  // target を決定: size 圧縮が要らない場合は元 size 維持 (letterbox のみ)
+  if (minBytes === Infinity && !needsVerticalLetterbox && !needsTrim) return images;
+  if (currentBytes <= minBytes && !needsVerticalLetterbox && !needsTrim) return images;
+
+  // target を決定: size 圧縮が要らない場合は元 size 維持 (letterbox / trim のみ)
   const targetBytes = minBytes === Infinity ? currentBytes : Math.min(currentBytes, minBytes);
   const aspectMode: 'passthrough' | 'vertical9x16' = needsVerticalLetterbox ? 'vertical9x16' : 'passthrough';
-  log.info(`P16/P81: video ${(currentBytes / 1024 / 1024).toFixed(1)}MB → 目標 ${(targetBytes / 1024 / 1024).toFixed(1)}MB${needsVerticalLetterbox ? ' + 9:16 letterbox' : ''}`);
+  log.info(`P16/P81: video ${(currentBytes / 1024 / 1024).toFixed(1)}MB → 目標 ${(targetBytes / 1024 / 1024).toFixed(1)}MB${needsVerticalLetterbox ? ' + 9:16 letterbox' : ''}${needsTrim ? ` + trim to ${trimToSeconds}s` : ''}`);
 
   // offscreen には dataRef だけ渡す (sendMessage 64MB cap 回避)。
   // dataRef が無ければ data を IndexedDB に書いて id を作る
@@ -529,6 +534,7 @@ async function maybeCompressVideoForBudget(
       durationS: video.durationS ?? 0,
       targetBytes,
       aspectMode,
+      trimToSeconds: needsTrim ? trimToSeconds : undefined,
     });
     log.info(`P16: 圧縮完了 ${(compressed.outputBytes / 1024 / 1024).toFixed(1)}MB`);
     const newImages = images.slice();
@@ -589,6 +595,7 @@ async function runOffscreenCompress(req: {
   durationS: number;
   targetBytes: number;
   aspectMode?: 'passthrough' | 'vertical9x16';
+  trimToSeconds?: number;
 }): Promise<{ outputRef: string; outputBytes: number }> {
   await ensureOffscreen();
   try {
@@ -599,6 +606,7 @@ async function runOffscreenCompress(req: {
       durationS: req.durationS,
       targetBytes: req.targetBytes,
       aspectMode: req.aspectMode,
+      trimToSeconds: req.trimToSeconds,
     })) as { type: string; outputRef?: string; outputBytes?: number; error?: string } | undefined;
     if (!res || res.type === 'CONVERSION_ERROR' || !res.outputRef) {
       throw new Error(res?.error ?? '変換が応答しません');

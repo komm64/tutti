@@ -51,6 +51,11 @@ export interface PostRequestMessage {
    */
   cw?: string;
   visibility?: 'public' | 'unlisted' | 'private' | 'direct';
+  /**
+   * 動画を先頭 N 秒で切り詰める (v0.4.90〜)。 user opt-in。
+   * popup の 「N 秒に切り詰めて投稿」 ボタンを user が明示クリックしたときに送信される。
+   */
+  trimVideoToSeconds?: number;
 }
 
 /** background → content script: 1 プラットフォームへの投稿指示 */
@@ -142,6 +147,12 @@ export interface ConvertVideoMessage {
    *   IG Reels 等の縦動画 SNS 向けの自動整形。 横長/正方形/縦長 すべてに対応
    */
   aspectMode?: 'passthrough' | 'vertical9x16';
+  /**
+   * 動画を先頭 N 秒で切り詰める (v0.4.90〜)。 user opt-in。
+   * CONCEPT 「尺超過は自動切り詰めせず拒否」 を破らないよう、 popup の「N 秒に切り詰めて投稿」
+   * ボタンを user が明示クリックしたときだけ送られる。 undefined / 0 なら切り詰めしない。
+   */
+  trimToSeconds?: number;
 }
 
 /** offscreen → background: 変換進捗 */

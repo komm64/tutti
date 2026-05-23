@@ -107,6 +107,11 @@
   let visibility = $state<'public' | 'unlisted' | 'private' | 'direct'>('public');
   /** v0.4.87: 詳細セクションの展開状態 */
   let showAdvanced = $state(false);
+  /**
+   * v0.4.90: 動画 trim opt-in (秒数)。 null = trim 無し (default、 CONCEPT 通り「拒否」)。
+   * 数値が入れば user が明示的に「切り詰めて投稿」 した状態。 ffmpeg で `-t N` で切る。
+   */
+  let trimToS = $state<number | null>(null);
   // 自動投稿(autoPost): false=dry run(ボタンを押すだけで Compose 確認、実投稿はしない)
   // true=実投稿。デフォルトは false にして、初回ユーザーの誤投稿を防ぐ。
   let autoPost = $state(false);
@@ -881,6 +886,8 @@
       // v0.4.87: 詳細オプション (Mastodon / Misskey API path で使われる)
       cw: cw.trim() || undefined,
       visibility: visibility !== 'public' ? visibility : undefined,
+      // v0.4.90: 動画 trim opt-in (user が「切り詰めて投稿」 click したときだけ)
+      trimVideoToSeconds: trimToS ?? undefined,
     };
 
     try {
@@ -1088,6 +1095,12 @@
 
   <!-- 動画プレビュー -->
   {#if video}
+    {@const selectedMaxDurs = platforms
+      .filter((p) => selected[p.id])
+      .map((p) => getAdapter(p.id)?.videoConstraints?.maxDurationS ?? 0)
+      .filter((s) => s > 0)}
+    {@const minMaxDur = selectedMaxDurs.length > 0 ? Math.min(...selectedMaxDurs) : 0}
+    {@const overDur = minMaxDur > 0 && video.durationS > minMaxDur}
     <div class="mt-1.5 flex items-center gap-2 p-2 bg-gray-50 border border-gray-200 rounded text-xs">
       <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-gray-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/>
@@ -1095,6 +1108,21 @@
       <div class="flex-1 min-w-0">
         <p class="truncate font-medium text-gray-700">{video.name}</p>
         <p class="text-gray-400">{formatDuration(video.durationS)} · {formatBytes(base64ByteLength(video.data))}</p>
+        {#if overDur && !trimToS}
+          <!-- v0.4.90: trim opt-in。 default は CONCEPT 通り「拒否」、 user が click したらだけ trim -->
+          <button
+            type="button"
+            onclick={() => (trimToS = minMaxDur)}
+            disabled={posting}
+            title={t('trimVideoTooltip', String(minMaxDur))}
+            class="mt-0.5 text-[10px] text-orange-600 hover:text-orange-700 hover:underline disabled:opacity-40"
+          >{t('trimVideoButton', String(minMaxDur))} ✂</button>
+        {:else if trimToS}
+          <p class="text-[10px] text-orange-600 mt-0.5">
+            {t('trimVideoSet', String(trimToS))}
+            <button type="button" onclick={() => (trimToS = null)} class="ml-1 text-gray-400 hover:text-gray-700">{t('trimVideoCancel')}</button>
+          </p>
+        {/if}
       </div>
       <button onclick={removeVideo} disabled={posting}
         class="shrink-0 text-gray-400 hover:text-gray-700 disabled:opacity-40">✕</button>

@@ -177,6 +177,19 @@
   "openPopupShortcut": { "message": "Tutti popup を開く" },
   "moveUpTooltip": { "message": "1 つ上へ移動" },
   "moveDownTooltip": { "message": "1 つ下へ移動" },
+  "trimVideoButton": {
+    "message": "$N$ 秒に切り詰めて投稿",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "trimVideoTooltip": {
+    "message": "選択中の SNS の最短尺 ($N$ 秒) に動画を切り詰めて投稿します (元動画は変更しません)",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "trimVideoSet": {
+    "message": "✂ $N$ 秒に切り詰めて投稿します",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "trimVideoCancel": { "message": "(取消)" },
   "historyRetryFailed": { "message": "失敗 SNS だけ復元" },
   "historyRetryFailedTooltip": { "message": "本文を textarea に戻して失敗した SNS にチェック (media は再添付が必要)" },
 

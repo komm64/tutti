@@ -177,6 +177,19 @@
   "openPopupShortcut": { "message": "Open Tutti popup" },
   "moveUpTooltip": { "message": "Move up" },
   "moveDownTooltip": { "message": "Move down" },
+  "trimVideoButton": {
+    "message": "Trim to $N$s and post",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "trimVideoTooltip": {
+    "message": "Trim the video to $N$ seconds (shortest cap among selected networks) before posting. The original file is not modified.",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "trimVideoSet": {
+    "message": "✂ Will trim to $N$s before posting",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "trimVideoCancel": { "message": "(cancel)" },
   "historyRetryFailed": { "message": "Restore failed networks" },
   "historyRetryFailedTooltip": { "message": "Restore the text to the editor and check the failed networks (media must be re-attached)" },
 

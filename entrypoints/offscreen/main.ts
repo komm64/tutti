@@ -111,6 +111,12 @@ async function compressVideo(msg: ConvertVideoMessage): Promise<{ outputRef: str
   // -tune zerolatency: lookahead 無効 (`zerolatency,fastdecode` のカンマ区切りは
   //   ffmpeg.wasm の x264 build で 0-byte silent fail、 v0.4.52)
   // -profile:v は指定しない (ultrafast 内部で baseline 相当を強制)
+  // v0.4.90: trim opt-in。 trimToSeconds が指定されてれば先頭 N 秒で切る (-t)。
+  // `-t` は output 側 (output filename の前) に置く必要がある。
+  const trimArgs = msg.trimToSeconds && msg.trimToSeconds > 0
+    ? ['-t', String(msg.trimToSeconds)]
+    : [];
+
   await ff.exec([
     '-i', inputName,
     '-c:v', 'libx264',
@@ -125,6 +131,7 @@ async function compressVideo(msg: ConvertVideoMessage): Promise<{ outputRef: str
     '-c:a', 'aac',
     '-b:a', `${AUDIO_KBPS}k`,
     '-movflags', '+faststart',
+    ...trimArgs,
     outputName,
   ]);
 
