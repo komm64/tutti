@@ -151,7 +151,7 @@
   "errorReportButton": { "message": "Dieses Problem melden" },
   "errorReportHint": { "message": "Öffnet GitHub Issues mit vorausgefüllten neuesten Logs." },
   "errorDialogTitle": { "message": "Etwas ist schiefgegangen" },
-  "errorDialogBody": { "message": "Klicke auf „Melden", und Tutti öffnet ein GitHub-Issue mit den neuesten Logs. Dein Beitragsinhalt und persönliche Daten werden nie gesendet." },
+  "errorDialogBody": { "message": "Klicke auf „Melden”, und Tutti öffnet ein GitHub-Issue mit den neuesten Logs. Dein Beitragsinhalt und persönliche Daten werden nie gesendet." },
   "errorDialogReport": { "message": "Melden" },
   "errorDialogDismiss": { "message": "Verwerfen" },
   "errorDialogSubmitting": { "message": "Wird gesendet..." },

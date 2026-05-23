@@ -151,7 +151,7 @@
   "errorReportButton": { "message": "Raportoi tämä ongelma" },
   "errorReportHint": { "message": "Avaa GitHub Issues uusimmilla lokeilla esitäytettynä." },
   "errorDialogTitle": { "message": "Jokin meni vikaan" },
-  "errorDialogBody": { "message": "Klikkaa „Raportoi", niin Tutti avaa GitHub-issuen uusimmilla lokeilla. Julkaisusi sisältöä ja henkilötietoja ei koskaan lähetetä." },
+  "errorDialogBody": { "message": "Klikkaa „Raportoi”, niin Tutti avaa GitHub-issuen uusimmilla lokeilla. Julkaisusi sisältöä ja henkilötietoja ei koskaan lähetetä." },
   "errorDialogReport": { "message": "Raportoi" },
   "errorDialogDismiss": { "message": "Hylkää" },
   "errorDialogSubmitting": { "message": "Lähetetään..." },

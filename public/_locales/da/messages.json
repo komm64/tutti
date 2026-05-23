@@ -151,7 +151,7 @@
   "errorReportButton": { "message": "Rapporter dette problem" },
   "errorReportHint": { "message": "Åbner GitHub Issues med nyere logfiler udfyldt på forhånd." },
   "errorDialogTitle": { "message": "Noget gik galt" },
-  "errorDialogBody": { "message": "Klik på „Rapporter", og Tutti åbner en GitHub-issue med nyere logfiler. Dit opslagsindhold og personlige oplysninger sendes aldrig." },
+  "errorDialogBody": { "message": "Klik på „Rapporter”, og Tutti åbner en GitHub-issue med nyere logfiler. Dit opslagsindhold og personlige oplysninger sendes aldrig." },
   "errorDialogReport": { "message": "Rapporter" },
   "errorDialogDismiss": { "message": "Afvis" },
   "errorDialogSubmitting": { "message": "Sender..." },

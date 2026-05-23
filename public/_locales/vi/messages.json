@@ -151,7 +151,7 @@
   "errorReportButton": { "message": "Báo cáo sự cố này" },
   "errorReportHint": { "message": "Mở GitHub Issues với nhật ký gần đây được điền sẵn." },
   "errorDialogTitle": { "message": "Có lỗi xảy ra" },
-  "errorDialogBody": { "message": "Nhấp „Báo cáo" và Tutti sẽ mở GitHub issue với nhật ký gần đây. Nội dung bài đăng và thông tin cá nhân của bạn không bao giờ được gửi." },
+  "errorDialogBody": { "message": "Nhấp „Báo cáo” và Tutti sẽ mở GitHub issue với nhật ký gần đây. Nội dung bài đăng và thông tin cá nhân của bạn không bao giờ được gửi." },
   "errorDialogReport": { "message": "Báo cáo" },
   "errorDialogDismiss": { "message": "Bỏ qua" },
   "errorDialogSubmitting": { "message": "Đang gửi..." },
