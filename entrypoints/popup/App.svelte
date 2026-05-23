@@ -787,6 +787,21 @@
     imageAlts = imageAlts.filter((_, idx) => idx !== i);
   }
 
+  /**
+   * v0.4.89: 画像の並び替え。 delta = -1 で 1 つ上、 +1 で 1 つ下と swap。
+   * boundary check は呼出 側の disabled で防ぐが念のため。
+   */
+  function moveImage(i: number, delta: -1 | 1): void {
+    const target = i + delta;
+    if (target < 0 || target >= images.length) return;
+    const nextImages = images.slice();
+    [nextImages[i], nextImages[target]] = [nextImages[target]!, nextImages[i]!];
+    images = nextImages;
+    const nextAlts = imageAlts.slice();
+    [nextAlts[i], nextAlts[target]] = [nextAlts[target] ?? '', nextAlts[i] ?? ''];
+    imageAlts = nextAlts;
+  }
+
   function removeVideo() {
     if (video) URL.revokeObjectURL(video.previewUrl);
     video = null;
@@ -1028,7 +1043,7 @@
     {/if}
   </div>
 
-  <!-- 画像サムネイル + alt text 入力 (v0.4.87) -->
+  <!-- 画像サムネイル + alt text 入力 + 並び替え (v0.4.87 / 並べ替えは v0.4.89) -->
   {#if images.length > 0}
     <div class="mt-1.5 space-y-1.5">
       {#each images as img, i}
@@ -1047,6 +1062,25 @@
             disabled={posting}
             class="flex-1 min-w-0 border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 disabled:opacity-40"
           />
+          {#if images.length > 1}
+            <!-- v0.4.89: 並び替え矢印。 ↑ ↓ で 1 つずつ swap。 boundary はそれぞれ無効化 -->
+            <div class="flex flex-col gap-0 shrink-0">
+              <button
+                type="button"
+                onclick={() => moveImage(i, -1)}
+                disabled={posting || i === 0}
+                title={t('moveUpTooltip')}
+                class="text-gray-400 hover:text-gray-700 disabled:opacity-30 leading-none text-[10px] px-1"
+              >▲</button>
+              <button
+                type="button"
+                onclick={() => moveImage(i, +1)}
+                disabled={posting || i === images.length - 1}
+                title={t('moveDownTooltip')}
+                class="text-gray-400 hover:text-gray-700 disabled:opacity-30 leading-none text-[10px] px-1"
+              >▼</button>
+            </div>
+          {/if}
         </div>
       {/each}
     </div>

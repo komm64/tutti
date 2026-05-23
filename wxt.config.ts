@@ -59,6 +59,18 @@ export default defineConfig({
     action: {
       default_title: '__MSG_appName__',
     },
+    // v0.4.89: キーボードショートカット。 `Ctrl+Shift+T` (Mac は Cmd+Shift+T) で popup を開く。
+    // Chrome は global shortcut 衝突を避けるため user が chrome://extensions/shortcuts で
+    // 変更可能。 default を設定するだけで強制はしない。
+    commands: {
+      _execute_action: {
+        suggested_key: {
+          default: 'Ctrl+Shift+Y',
+          mac: 'Command+Shift+Y',
+        },
+        description: '__MSG_openPopupShortcut__',
+      },
+    },
   },
   vite: () => ({
     plugins: [tailwindcss()],
