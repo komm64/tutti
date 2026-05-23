@@ -190,6 +190,18 @@
     "placeholders": { "N": { "content": "$1" } }
   },
   "trimVideoCancel": { "message": "(cancel)" },
+
+  "presetSave": { "message": "Save preset" },
+  "presetSaveTooltip": { "message": "Save the current network selection with a name" },
+  "presetSavePrompt": { "message": "Preset name (e.g. Music posts)" },
+  "presetRemoveTooltip": { "message": "Delete this preset" },
+  "presetRemoveConfirm": { "message": "Delete this preset?" },
+
+  "historySearchPlaceholder": { "message": "Search posts…" },
+  "historyFilterAll": { "message": "All" },
+  "historyFilterFailed": { "message": "Has failures" },
+  "historyFilterSuccess": { "message": "All succeeded" },
+  "historyNoMatch": { "message": "(no matches)" },
   "historyRetryFailed": { "message": "Restore failed networks" },
   "historyRetryFailedTooltip": { "message": "Restore the text to the editor and check the failed networks (media must be re-attached)" },
 

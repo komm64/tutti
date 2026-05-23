@@ -190,6 +190,18 @@
     "placeholders": { "N": { "content": "$1" } }
   },
   "trimVideoCancel": { "message": "(取消)" },
+
+  "presetSave": { "message": "プリセット保存" },
+  "presetSaveTooltip": { "message": "現在の SNS 選択を名前付きで保存" },
+  "presetSavePrompt": { "message": "プリセット名 (例: 音楽用)" },
+  "presetRemoveTooltip": { "message": "このプリセットを削除" },
+  "presetRemoveConfirm": { "message": "このプリセットを削除しますか?" },
+
+  "historySearchPlaceholder": { "message": "本文を検索…" },
+  "historyFilterAll": { "message": "全て" },
+  "historyFilterFailed": { "message": "失敗あり" },
+  "historyFilterSuccess": { "message": "全成功" },
+  "historyNoMatch": { "message": "(該当なし)" },
   "historyRetryFailed": { "message": "失敗 SNS だけ復元" },
   "historyRetryFailedTooltip": { "message": "本文を textarea に戻して失敗した SNS にチェック (media は再添付が必要)" },
 

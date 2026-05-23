@@ -63,6 +63,12 @@ export interface Settings {
    * が行く tradeoff。 default false。
    */
   autoLetterboxVerticalVideo: boolean;
+  /**
+   * SNS 組み合わせプリセット (v0.4.91〜)。 user が頻用する SNS の組合せを
+   * 名前付きで保存。 popup の preset chip で 1-click 適用。
+   * 例: 「音楽用 = X + Bluesky + Misskey」、 「英語向け = X + Threads + Mastodon」
+   */
+  snsPresets: Array<{ id: string; name: string; platforms: PlatformId[] }>;
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -81,6 +87,7 @@ const DEFAULT_SETTINGS: Settings = {
   pixivVisibility: 'general',
   pixivAiType: 'notAiGenerated',
   autoLetterboxVerticalVideo: false,
+  snsPresets: [],
 };
 
 export async function getSettings(): Promise<Settings> {

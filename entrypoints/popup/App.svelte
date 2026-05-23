@@ -95,6 +95,21 @@
   let errorMessage = $state<string | null>(null);
   let showHistory = $state(false);
   let history = $state<HistoryEntry[]>([]);
+  /** v0.4.91: filter された history (search + status filter) */
+  const filteredHistory = $derived(
+    history.filter((e) => {
+      // 状態 filter
+      if (historyFilter === 'failed') {
+        if (!Object.values(e.results).some((r) => r && !r.success)) return false;
+      } else if (historyFilter === 'success') {
+        if (!Object.values(e.results).every((r) => r?.success)) return false;
+      }
+      // 検索 filter
+      const q = historySearch.trim().toLowerCase();
+      if (q && !e.textPreview.toLowerCase().includes(q)) return false;
+      return true;
+    }),
+  );
   let draftLoaded = $state(false);
   let lastSeenUsers = $state<LastSeenUsers>({});
   /** v0.4.86: 失敗 hint card を expand してる platform (null = 全て collapse) */
@@ -112,6 +127,12 @@
    * 数値が入れば user が明示的に「切り詰めて投稿」 した状態。 ffmpeg で `-t N` で切る。
    */
   let trimToS = $state<number | null>(null);
+  /** v0.4.91: SNS 組み合わせプリセット (Settings から読み込み) */
+  let snsPresets = $state<Array<{ id: string; name: string; platforms: PlatformId[] }>>([]);
+  /** v0.4.91: 履歴検索 query */
+  let historySearch = $state('');
+  /** v0.4.91: 履歴の filter mode */
+  let historyFilter = $state<'all' | 'failed' | 'success'>('all');
   // 自動投稿(autoPost): false=dry run(ボタンを押すだけで Compose 確認、実投稿はしない)
   // true=実投稿。デフォルトは false にして、初回ユーザーの誤投稿を防ぐ。
   let autoPost = $state(false);
@@ -121,6 +142,7 @@
     void getSettings().then((s) => {
       autoPost = s.autoPost;
       autoPostLoaded = true;
+      snsPresets = s.snsPresets ?? [];
     });
     void initLogLevelFromSettings();
   });
@@ -796,6 +818,41 @@
    * v0.4.89: 画像の並び替え。 delta = -1 で 1 つ上、 +1 で 1 つ下と swap。
    * boundary check は呼出 側の disabled で防ぐが念のため。
    */
+  /**
+   * v0.4.91: preset を適用。 selected を preset の platforms 通りに上書き、
+   * 永続化も走らせる (saveSelectedPlatforms 経由)。
+   */
+  function applyPreset(preset: { id: string; name: string; platforms: PlatformId[] }): void {
+    const next: typeof selected = { ...selected };
+    for (const id of Object.keys(next) as PlatformId[]) {
+      next[id] = preset.platforms.includes(id);
+    }
+    selected = next;
+    void saveSelectedPlatforms(selected);
+  }
+
+  /**
+   * v0.4.91: 現在 selected を新 preset として保存。 名前は prompt で user 入力。
+   */
+  async function savePreset(): Promise<void> {
+    const name = prompt(t('presetSavePrompt'));
+    if (!name?.trim()) return;
+    const platforms = (Object.entries(selected) as [PlatformId, boolean][])
+      .filter(([, v]) => v)
+      .map(([id]) => id);
+    if (platforms.length === 0) return;
+    const preset = { id: Date.now().toString(36), name: name.trim().slice(0, 30), platforms };
+    snsPresets = [...snsPresets, preset];
+    await saveSettings({ snsPresets });
+  }
+
+  /** v0.4.91: preset を削除 */
+  async function removePreset(id: string): Promise<void> {
+    if (!confirm(t('presetRemoveConfirm'))) return;
+    snsPresets = snsPresets.filter((p) => p.id !== id);
+    await saveSettings({ snsPresets });
+  }
+
   function moveImage(i: number, delta: -1 | 1): void {
     const target = i + delta;
     if (target < 0 || target >= images.length) return;
@@ -1303,6 +1360,37 @@
     {/if}
   </div>
 
+  <!-- v0.4.91: SNS preset chips -->
+  {#if snsPresets.length > 0 || (Object.values(selected).filter(Boolean).length > 0 && !posting)}
+    <div class="mt-2 flex flex-wrap gap-1 items-center text-[10px]">
+      {#each snsPresets as preset (preset.id)}
+        <div class="inline-flex items-center bg-blue-50 border border-blue-200 rounded">
+          <button
+            type="button"
+            onclick={() => applyPreset(preset)}
+            disabled={posting}
+            title={preset.platforms.join(', ')}
+            class="px-1.5 py-0.5 text-blue-700 hover:text-blue-900 disabled:opacity-40"
+          >{preset.name}</button>
+          <button
+            type="button"
+            onclick={() => removePreset(preset.id)}
+            disabled={posting}
+            title={t('presetRemoveTooltip')}
+            class="px-1 text-blue-400 hover:text-red-600 disabled:opacity-40"
+          >×</button>
+        </div>
+      {/each}
+      <button
+        type="button"
+        onclick={savePreset}
+        disabled={posting || Object.values(selected).filter(Boolean).length === 0}
+        title={t('presetSaveTooltip')}
+        class="px-1.5 py-0.5 text-gray-500 hover:text-gray-800 border border-dashed border-gray-300 rounded disabled:opacity-40"
+      >+ {t('presetSave')}</button>
+    </div>
+  {/if}
+
   {#if signedInPlatforms.length > 0}
     <div class="mt-2 grid grid-cols-2 gap-1.5 text-xs">
       {#each signedInPlatforms as p}
@@ -1442,8 +1530,28 @@
       {#if history.length === 0}
         <p class="text-xs text-gray-400">{t('historyEmpty')}</p>
       {:else}
+        <!-- v0.4.91: 検索 + 状態 filter -->
+        <div class="mb-2 flex gap-1.5 items-center">
+          <input
+            type="text"
+            bind:value={historySearch}
+            placeholder={t('historySearchPlaceholder')}
+            class="flex-1 min-w-0 border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
+          />
+          <select
+            bind:value={historyFilter}
+            class="border border-gray-200 rounded px-1.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
+          >
+            <option value="all">{t('historyFilterAll')}</option>
+            <option value="failed">{t('historyFilterFailed')}</option>
+            <option value="success">{t('historyFilterSuccess')}</option>
+          </select>
+        </div>
+        {#if filteredHistory.length === 0}
+          <p class="text-xs text-gray-400">{t('historyNoMatch')}</p>
+        {/if}
         <ul class="space-y-1.5">
-          {#each history as entry}
+          {#each filteredHistory as entry}
             {@const hasFailures = Object.values(entry.results).some((r) => r && !r.success)}
             <li class="text-xs border border-gray-100 rounded p-2">
               <div class="flex items-center gap-1 mb-0.5 flex-wrap">
