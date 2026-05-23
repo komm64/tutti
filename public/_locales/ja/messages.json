@@ -159,6 +159,8 @@
   },
   "reportEmailNote": { "message": "本文は clipboard にコピー済です。 メールに貼り付けて送信してください。 (Full report copied to clipboard, please paste into the email body.)" },
   "openLoginTooltip": { "message": "この SNS のページを新 tab で開く (ログインすると Tutti がアカウントを検出します)" },
+  "failureHintTooltip": { "message": "失敗の原因と対処を表示" },
+  "failureHintClose": { "message": "閉じる" },
 
   "pixivTitle": { "message": "Pixiv 投稿 default" },
   "pixivVisibilityLabel": { "message": "Visible to (x_restrict)" },

@@ -37,6 +37,7 @@
   import { splitText } from '../../src/utils/split';
   import { redactPII } from '../../src/utils/redact';
   import { formatRelTime, formatDuration, formatBytes } from '../../src/utils/formatters';
+  import { classifyFailure, type FailureHintCta } from '../../src/utils/failure-hint';
 
   type PlatformOption = {
     id: PlatformId;
@@ -96,6 +97,8 @@
   let history = $state<HistoryEntry[]>([]);
   let draftLoaded = $state(false);
   let lastSeenUsers = $state<LastSeenUsers>({});
+  /** v0.4.86: 失敗 hint card を expand してる platform (null = 全て collapse) */
+  let expandedFailure = $state<PlatformId | null>(null);
   // 自動投稿(autoPost): false=dry run(ボタンを押すだけで Compose 確認、実投稿はしない)
   // true=実投稿。デフォルトは false にして、初回ユーザーの誤投稿を防ぐ。
   let autoPost = $state(false);
@@ -561,6 +564,28 @@
     void browser.tabs.create({ url, active: true });
     // popup は click とともに close されるが、 明示的に閉じてもよい。
     // chrome.tabs.create を triggered した瞬間に popup が消えるのが自然な挙動。
+  }
+
+  /**
+   * v0.4.86: failure hint card の CTA を実行する。
+   * 「retry」 = この SNS だけ再送 / 「open-sns」 = SNS の login/home を新 tab で /
+   * 「report」 = 障害報告 / 「wait」 = card を閉じる (user に時間取ってもらう)。
+   */
+  async function handleFailureCta(p: PlatformId, cta: FailureHintCta): Promise<void> {
+    if (cta.kind === 'open-sns') {
+      void browser.tabs.create({ url: cta.url, active: true });
+    } else if (cta.kind === 'retry') {
+      expandedFailure = null;
+      await submitPostFor([p], /* isRetry */ true);
+    } else if (cta.kind === 'report') {
+      const result = lastResults?.find((r) => r.platform === p);
+      const errorText = result?.error ?? `${p}: 失敗 (詳細無し)`;
+      expandedFailure = null;
+      await handleReportError(errorText);
+    } else if (cta.kind === 'wait') {
+      // 何もしないが card を閉じて 「user に待ってもらってる」 状態を視覚化
+      expandedFailure = null;
+    }
   }
 
   // formatRelTime は src/utils/formatters.ts から import (v0.4.80〜、 unit test 可能)
@@ -1073,7 +1098,13 @@
       {:else if result?.success}
         <span class="text-green-600 shrink-0">✓</span>
       {:else if result && !result.success}
-        <span class="text-red-600 shrink-0">✗</span>
+        <!-- v0.4.86: ✗ click で failure hint card を toggle -->
+        <button
+          type="button"
+          onclick={(e) => { e.preventDefault(); e.stopPropagation(); expandedFailure = expandedFailure === p.id ? null : p.id; }}
+          class="text-red-600 shrink-0 hover:text-red-700 cursor-pointer"
+          title={t('failureHintTooltip')}
+        >✗ ⓘ</button>
       {:else if mediaErr && p.available}
         <span class="text-red-500 text-[10px] leading-tight text-right shrink-0">{mediaErr.split('(')[0]?.trim()}</span>
       {:else if over && p.available}
@@ -1084,10 +1115,48 @@
     </label>
   {/snippet}
 
+  {#snippet failureHintCard(p: PlatformOption)}
+    {#if expandedFailure === p.id}
+      {@const result = lastResults?.find((r) => r.platform === p.id)}
+      {@const error = result?.error ?? ''}
+      {@const adapter = getAdapter(p.id)}
+      {@const loginUrl = adapter?.getLoginUrl?.()}
+      {@const hint = classifyFailure(error, p.id, loginUrl)}
+      <!-- v0.4.86: 失敗の hint card。 grid 2 col の両方を埋めるため col-span-2 -->
+      <div class="col-span-2 border border-red-200 bg-red-50/70 rounded p-2 text-[11px]">
+        <p class="font-medium text-red-800 mb-1">{p.name}: {hint.reason}</p>
+        <p class="text-red-700 mb-2 leading-snug">{hint.guidance}</p>
+        <div class="flex flex-wrap gap-1.5">
+          {#each hint.ctas as cta}
+            <button
+              type="button"
+              onclick={() => handleFailureCta(p.id, cta)}
+              class="px-2 py-1 rounded font-medium text-[11px]"
+              class:bg-red-600={cta.kind === 'retry'}
+              class:text-white={cta.kind === 'retry'}
+              class:hover:bg-red-700={cta.kind === 'retry'}
+              class:bg-white={cta.kind !== 'retry'}
+              class:border={cta.kind !== 'retry'}
+              class:border-red-300={cta.kind !== 'retry'}
+              class:text-red-700={cta.kind !== 'retry'}
+              class:hover:bg-red-100={cta.kind !== 'retry'}
+            >{cta.label}</button>
+          {/each}
+          <button
+            type="button"
+            onclick={() => (expandedFailure = null)}
+            class="px-2 py-1 text-gray-500 hover:text-gray-700 text-[11px]"
+          >{t('failureHintClose')}</button>
+        </div>
+      </div>
+    {/if}
+  {/snippet}
+
   {#if signedInPlatforms.length > 0}
     <div class="mt-2 grid grid-cols-2 gap-1.5 text-xs">
       {#each signedInPlatforms as p}
         {@render snsRow(p)}
+        {@render failureHintCard(p)}
       {/each}
     </div>
   {/if}
@@ -1098,6 +1167,7 @@
     <div class="mt-1 grid grid-cols-2 gap-1.5 text-xs">
       {#each unsignedPlatforms as p}
         {@render snsRow(p)}
+        {@render failureHintCard(p)}
       {/each}
     </div>
   {/if}
