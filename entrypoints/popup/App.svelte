@@ -430,10 +430,15 @@
   });
 
   // SNS 選択の永続保存(変わったら即保存)
+  // v0.4.100: 新 SNS (pixiv / deviantart / instagram / tiktok / youtube) が
+  // $effect の dependency に入っておらず、 これらを toggle しても save が走らず
+  // 「checkbox が毎回外れる」 bug の原因だった。 全 11 platform を tracker に追加。
   let selectedSaveTimer: ReturnType<typeof setTimeout> | undefined;
   $effect(() => {
     selected.x; selected.bluesky; selected.threads;
     selected.mastodon; selected.misskey; selected.tumblr;
+    selected.pixiv; selected.deviantart; selected.instagram;
+    selected.tiktok; selected.youtube;
     if (!selectedLoaded) return;
     if (selectedSaveTimer) clearTimeout(selectedSaveTimer);
     selectedSaveTimer = setTimeout(() => {

@@ -187,7 +187,12 @@ export default defineBackground(() => {
     if (msg.type === 'GET_BG_STATE') {
       // v0.4.96: popup が開かれた = user が結果を見た → badge を clear する。
       // postingState 自体は保持 (popup を閉じて再 open でも結果が見えるように)。
-      clearBadge();
+      // v0.4.100: 投稿中 (postingInMemory=true) は clear しない (進捗が見えなくなる
+      // bug の原因)。 完了済 state を user が popup で確認したタイミング =
+      // postingInMemory=false かつ postingStateInMemory.done=true の場合のみ clear。
+      if (!postingInMemory && postingStateInMemory?.done) {
+        clearBadge();
+      }
       sendResponse({
         compression: compressionStateInMemory,
         posting: postingInMemory,

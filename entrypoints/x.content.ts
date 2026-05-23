@@ -145,18 +145,18 @@ async function executeXInlineThread(
   if (!textarea0) throw new Error('X: 最初の textarea が見つかりません');
 
   // v0.4.97: 画像 → text の順序が重要。 旧 (text→image) は X の Lexical が
-  // image 追加時に compose を re-mount して chunk 0 text を失う事故があった
-  // (user 報告: 「画像だけが表示される」)。 画像 attach 後の DOM settle を
-  // 待ってから text を inject すれば、 最終状態の textarea に当たって残る。
-  // 画像 attach だけでも 「ポストを追加 (+)」 button は有効化される。
+  // image 追加時に compose を re-mount して chunk 0 text を失う事故があった。
+  // v0.4.100: image upload 完了後の thumbnail render に時間がかかる real X だと
+  // 800ms wait では足りず、 後発の Lexical re-mount で chunk 0 が flush されて
+  // 「画像だけ表示」 になっていた (user 報告 2026-05-23)。 wait を 2500ms に
+  // 拡張 + injectTextWithRetry で多段 verify+re-inject。
   if (images && images.length > 0) {
     await injectImages(images, sel.fileInput);
-    await sleep(800);
+    await sleep(2500);
   }
 
-  // chunk 0 を inject
-  await injectTextIntoElement(chunks[0]!, sel.textarea);
-  await sleep(500);
+  // chunk 0 を retry 付きで inject
+  await injectTextWithRetry(chunks[0]!, sel.textarea, chunks[0]!);
 
   // 各 chunk を「+」 click → wait → inject の繰り返し。
   for (let i = 1; i < chunks.length; i++) {
@@ -183,24 +183,26 @@ async function executeXInlineThread(
     }
     const marker = `tutti-x-chunk-${i}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     target.setAttribute('data-tutti-marker', marker);
-    await injectTextIntoElement(chunks[i]!, `[data-tutti-marker="${marker}"]`);
-    await sleep(300);
+    await injectTextWithRetry(chunks[i]!, `[data-tutti-marker="${marker}"]`, chunks[i]!);
   }
 
-  // 全 inject 完了後、 chunk 0 が空になってないか verify。 X は 「+」 click で
-  // 既存 chunk の Lexical state を re-mount して text を flush する場合がある (実機
-  // 観察 2026-05-23)。 空なら re-inject。
+  // 全 inject 完了後の最終 verify (上記 retry でも残った orphan を救う)。
+  // 各 chunk が textarea[i].textContent と prefix 一致するか確認、 ダメなら 1 回 retry。
   const finalTextareas = Array.from(document.querySelectorAll<HTMLElement>('[data-testid^="tweetTextarea_"][contenteditable="true"]'));
   for (let i = 0; i < chunks.length; i++) {
     const target = finalTextareas[i];
     if (!target) continue;
     const currentText = (target.textContent ?? '').trim();
-    if (currentText.length < Math.min(5, chunks[i]!.length)) {
-      // 空 or 著しく短い → re-inject
+    const expected = chunks[i]!.trim();
+    // text 内容比較: prefix 一致 + 全長 60% 以上 を OK 判定
+    const prefixOk = currentText.length > 0 && expected.startsWith(currentText.slice(0, Math.min(20, currentText.length)));
+    const lenOk = currentText.length >= Math.min(20, expected.length * 0.6);
+    if (!prefixOk || !lenOk) {
       const marker = `tutti-x-rechunk-${i}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
       target.setAttribute('data-tutti-marker', marker);
+      log.warn(`X: chunk ${i + 1} final verify failed (got "${currentText.slice(0, 30)}"), re-injecting`);
       await injectTextIntoElement(chunks[i]!, `[data-tutti-marker="${marker}"]`);
-      await sleep(300);
+      await sleep(400);
     }
   }
 
@@ -214,6 +216,37 @@ async function executeXInlineThread(
     return;
   }
   postBtn.click();
+}
+
+/**
+ * X の Lexical editor に text を inject して、 反映されたか verify、 ダメなら retry。
+ *
+ * v0.4.100: real X は image upload 完了後にも Lexical state を re-mount することが
+ * あり、 inject 直後の text が flush される (= 「画像だけ表示」 bug)。
+ * 多段 retry (最大 3 回、 各 attempt 後に 500-800ms の verify wait) で堅牢化。
+ */
+async function injectTextWithRetry(
+  text: string,
+  selector: string,
+  expectedSnippet: string,
+  maxAttempts = 3,
+): Promise<void> {
+  const expectedPrefix = expectedSnippet.slice(0, 20).trim();
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    await injectTextIntoElement(text, selector);
+    await sleep(500 + attempt * 200); // 700 / 900 / 1100ms verify wait
+    const el = document.querySelector(selector);
+    const got = (el?.textContent ?? '').trim();
+    // prefix 一致 + 一定長 で OK 判定
+    if (got.length > 0 && got.startsWith(expectedPrefix.slice(0, Math.min(10, expectedPrefix.length)))) {
+      if (attempt > 1) log.info(`X: text inject attempt ${attempt}/${maxAttempts} 成功 ("${got.slice(0, 20)}")`);
+      return;
+    }
+    if (attempt < maxAttempts) {
+      log.warn(`X: text inject attempt ${attempt}/${maxAttempts} 失敗 (got "${got.slice(0, 30)}", expected prefix "${expectedPrefix.slice(0, 20)}"), retry`);
+    }
+  }
+  log.warn(`X: text inject 全 ${maxAttempts} attempts 失敗、 最終 fallback で続行 (post-flow の verify が catch する想定)`);
 }
 
 /** X の 「ポストを追加 (+)」 button 候補を多段 fallback で探す。 */
