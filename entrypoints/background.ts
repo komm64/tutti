@@ -86,6 +86,98 @@ interface PostingState {
 }
 let postingStateInMemory: PostingState | null = null;
 
+/**
+ * v0.5.0: displayMode に応じて action click 動作を切替える。
+ * - 'popup': default_popup が処理 (manifest 側で popup.html 指定)。
+ *   setPanelBehavior false で onClicked 経路はバイパス、 default_popup が
+ *   そのまま発火する。
+ * - 'sidepanel': setPanelBehavior true で Chrome が click を直接 side panel
+ *   open に振る。 default_popup より優先。
+ * - 'floating': setPanelBehavior false。 default_popup が無効化されるよう
+ *   action.setPopup({popup: ''}) で popup HTML を空にする → onClicked が発火
+ *   → openFloatingTutti を呼ぶ。
+ */
+async function applyDisplayModeBehavior(): Promise<void> {
+  try {
+    const { displayMode } = await getSettings();
+    if (displayMode === 'sidepanel') {
+      // sidepanel mode: 「アイコン click で side panel open」 を Chrome ネイティブで
+      if (browser.sidePanel?.setPanelBehavior) {
+        await browser.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
+      }
+      // popup は無効化 (= sidepanel に流す)
+      await browser.action.setPopup({ popup: '' });
+    } else if (displayMode === 'floating') {
+      if (browser.sidePanel?.setPanelBehavior) {
+        await browser.sidePanel.setPanelBehavior({ openPanelOnActionClick: false });
+      }
+      // popup を空にして onClicked が発火するように
+      await browser.action.setPopup({ popup: '' });
+    } else {
+      // popup (default)
+      if (browser.sidePanel?.setPanelBehavior) {
+        await browser.sidePanel.setPanelBehavior({ openPanelOnActionClick: false });
+      }
+      await browser.action.setPopup({ popup: 'popup.html' });
+    }
+    log.info(`displayMode applied: ${displayMode}`);
+  } catch (e) {
+    log.warn(`applyDisplayModeBehavior failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
+/**
+ * floating window として Tutti を開く。 1 個既に開いてれば focus するだけ、
+ * 無ければ新規 create。 位置 / サイズは前回値を chrome.storage に persist。
+ */
+const FLOATING_WIN_KEY = 'tuttiFloatingWindow';
+async function openFloatingTutti(): Promise<void> {
+  const url = browser.runtime.getURL('/popup.html?floating=1');
+  const stored = await browser.storage.local.get(FLOATING_WIN_KEY);
+  const saved = stored[FLOATING_WIN_KEY] as { id?: number; left?: number; top?: number; width?: number; height?: number } | undefined;
+  // 既存 floating window を再 focus
+  if (saved?.id) {
+    try {
+      const w = await browser.windows.get(saved.id);
+      if (w) {
+        await browser.windows.update(saved.id, { focused: true });
+        return;
+      }
+    } catch { /* window 消えてる、 再 create に進む */ }
+  }
+  const width = saved?.width ?? 440;
+  const height = saved?.height ?? 720;
+  const created = await browser.windows.create({
+    url,
+    type: 'popup',
+    width,
+    height,
+    left: saved?.left ?? undefined,
+    top: saved?.top ?? undefined,
+    focused: true,
+  });
+  if (created?.id !== undefined) {
+    await browser.storage.local.set({
+      [FLOATING_WIN_KEY]: {
+        id: created.id,
+        left: created.left,
+        top: created.top,
+        width: created.width,
+        height: created.height,
+      },
+    });
+  }
+}
+
+// floating window が closed されたら id を消す + position 保存
+browser.windows?.onRemoved?.addListener(async (windowId) => {
+  const stored = await browser.storage.local.get(FLOATING_WIN_KEY);
+  const saved = stored[FLOATING_WIN_KEY] as { id?: number } | undefined;
+  if (saved?.id === windowId) {
+    await browser.storage.local.set({ [FLOATING_WIN_KEY]: { ...saved, id: undefined } });
+  }
+});
+
 async function loadLogBuffer(): Promise<void> {
   try {
     const stored = await browser.storage.local.get(LOG_BUFFER_KEY);
@@ -126,6 +218,36 @@ export default defineBackground(() => {
       log.warn('override bootstrap failed', e);
     }
   })();
+
+  // v0.5.0: displayMode に応じて action click 動作を切替。
+  // - popup: manifest の default_popup が処理 (= 何もしない)
+  // - sidepanel: setPanelBehavior でアイコン click → side panel open
+  // - floating: action.onClicked で popup window を spawn
+  void applyDisplayModeBehavior();
+  // settings 変更時に再適用
+  browser.storage.onChanged.addListener((changes, area) => {
+    if (area === 'sync' && changes.settings) {
+      void applyDisplayModeBehavior();
+    }
+  });
+
+  // floating mode のアイコン click handler。
+  // sidepanel/popup mode のときは setPanelBehavior + default_popup が処理するので
+  // この listener は call されない (= floating mode 限定)。
+  browser.action.onClicked.addListener(async () => {
+    try {
+      const { displayMode } = await getSettings();
+      if (displayMode === 'floating') {
+        await openFloatingTutti();
+      } else if (displayMode === 'popup') {
+        // setPanelBehavior=false + default_popup=空 のはずだが、 念のため fallback
+        try { await browser.action.openPopup(); } catch { /* user gesture が足りなければ skip */ }
+      }
+      // sidepanel mode の場合は setPanelBehavior が click を吸って onClicked は発火しない
+    } catch (e) {
+      log.warn(`action click handler failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  });
 
   browser.runtime.onMessage.addListener((rawMsg, _sender, sendResponse) => {
     const msg = rawMsg as Message;

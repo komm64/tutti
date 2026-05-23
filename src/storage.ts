@@ -69,6 +69,19 @@ export interface Settings {
    * 例: 「音楽用 = X + Bluesky + Misskey」、 「英語向け = X + Threads + Mastodon」
    */
   snsPresets: Array<{ id: string; name: string; platforms: PlatformId[] }>;
+  /**
+   * Tutti UI の表示方式 (v0.5.0〜)。 user の好みに合わせて切替:
+   * - `'popup'` (default): browser_action popup。 click でアイコン下に出る。
+   *   tab focus を移すと閉じる Chrome 仕様の制約あり (v0.4.96 の state 復元で
+   *   緩和済だが完全には防げない)。
+   * - `'sidepanel'`: Chrome side panel API (Chrome 114+)。 右端に dock した
+   *   状態で開く。 tab を行き来しても閉じない。 user が × で閉じるまで開いた
+   *   まま。
+   * - `'floating'`: 独立した popup window (chrome.windows.create)。 user が
+   *   位置・サイズを自由に変えられる。 multi-monitor 友好的。 OS の window と
+   *   して扱われる (タスクバー / Alt+Tab に出る)。
+   */
+  displayMode: 'popup' | 'sidepanel' | 'floating';
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -88,6 +101,7 @@ const DEFAULT_SETTINGS: Settings = {
   pixivAiType: 'notAiGenerated',
   autoLetterboxVerticalVideo: false,
   snsPresets: [],
+  displayMode: 'popup',
 };
 
 export async function getSettings(): Promise<Settings> {

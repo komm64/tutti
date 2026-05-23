@@ -30,6 +30,7 @@
   let pixivVisibility = $state<'general' | 'r18' | 'r18g'>('general');
   let pixivAiType = $state<'notAiGenerated' | 'aiGenerated'>('notAiGenerated');
   let autoLetterboxVerticalVideo = $state(false);
+  let displayMode = $state<'popup' | 'sidepanel' | 'floating'>('popup');
   let saved = $state(false);
   let loading = $state(true);
 
@@ -64,6 +65,7 @@
       pixivVisibility = s.pixivVisibility;
       pixivAiType = s.pixivAiType;
       autoLetterboxVerticalVideo = s.autoLetterboxVerticalVideo;
+      displayMode = s.displayMode ?? 'popup';
       overrideFetchedAt = at;
       overrideCount = Object.values(ov).reduce((sum, v) => sum + Object.keys(v ?? {}).length, 0);
       // API credentials のロード (パスワード / トークンは UI に出すと見えるので
@@ -240,7 +242,7 @@
       alert(t('alertPermissionDenied'));
       return;
     }
-    await saveSettings({ mastodonInstance: m, misskeyInstance: k, selectorOverrideUrl, logLevel, disableReportDedup, autoOpenPostUrl, pixivVisibility, pixivAiType, autoLetterboxVerticalVideo });
+    await saveSettings({ mastodonInstance: m, misskeyInstance: k, selectorOverrideUrl, logLevel, disableReportDedup, autoOpenPostUrl, pixivVisibility, pixivAiType, autoLetterboxVerticalVideo, displayMode });
     // disableReportDedup=true にしたら既存の dedup 履歴も clear
     // (再 enable まで storage に dead key が残らないように)
     if (disableReportDedup) {
@@ -470,6 +472,24 @@
           <span>{t('autoLetterboxLabel')}</span>
         </label>
         <p class="text-xs text-gray-400">{t('autoLetterboxHint')}</p>
+      </div>
+    </section>
+
+    <section class="mb-6">
+      <h2 class="text-sm font-semibold text-gray-700 mb-3">Tutti の表示方式</h2>
+      <div class="space-y-2">
+        <select
+          bind:value={displayMode}
+          class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+        >
+          <option value="popup">popup — Chrome 標準 (アイコン下に出る、 tab focus で閉じる)</option>
+          <option value="sidepanel">sidepanel — 画面右に dock (Chrome 114+、 閉じるまで残る)</option>
+          <option value="floating">floating — 独立した小窓 (位置自由、 multi-monitor 対応)</option>
+        </select>
+        <p class="text-xs text-gray-400">
+          投稿中に Tutti が勝手に閉じる問題は sidepanel / floating で解消されます。
+          設定変更後、 拡張アイコンを次に click したときから新しい方式で開きます。
+        </p>
       </div>
     </section>
 

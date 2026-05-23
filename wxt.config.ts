@@ -7,7 +7,7 @@ export default defineConfig({
     name: '__MSG_appName__',
     description: '__MSG_appDescription__',
     default_locale: 'en',
-    permissions: ['storage', 'offscreen'],
+    permissions: ['storage', 'offscreen', 'sidePanel'],
     host_permissions: [
       'https://x.com/*',
       'https://twitter.com/*',
@@ -58,6 +58,11 @@ export default defineConfig({
     ],
     action: {
       default_title: '__MSG_appName__',
+    },
+    // v0.5.0: side panel 対応 (Chrome 114+)。 options で displayMode='sidepanel'
+    // を選ぶと、 bg が setPanelBehavior でアイコン click を sidepanel に振る。
+    side_panel: {
+      default_path: 'sidepanel.html',
     },
     // v0.4.89: キーボードショートカット。 `Ctrl+Shift+T` (Mac は Cmd+Shift+T) で popup を開く。
     // Chrome は global shortcut 衝突を避けるため user が chrome://extensions/shortcuts で

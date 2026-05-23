@@ -87,6 +87,14 @@
     tiktok: false,
     youtube: false,
   });
+  // v0.5.0: 同じ App.svelte を popup.html / sidepanel.html / popup.html?floating=1
+  // 3 種類の entry で共用する。 context を URL から検出して width 等 layout を切替。
+  const tuttiContext: 'popup' | 'sidepanel' | 'floating' = (() => {
+    if (location.pathname.includes('sidepanel.html')) return 'sidepanel';
+    if (new URLSearchParams(location.search).get('floating') === '1') return 'floating';
+    return 'popup';
+  })();
+
   let images = $state<ImagePreview[]>([]);
   let video = $state<VideoPreview | null>(null);
   let posting = $state(false);
@@ -1007,7 +1015,7 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <main
-  class="w-96 p-4 bg-white text-gray-900 relative"
+  class="{tuttiContext === 'popup' ? 'w-96' : 'w-full min-w-96 max-w-2xl mx-auto'} p-4 bg-white text-gray-900 relative"
   ondragenter={handleDragEnter}
   ondragover={handleDragOver}
   ondragleave={handleDragLeave}
