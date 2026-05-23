@@ -50,7 +50,8 @@
   let mskyBusy = $state(false);
 
   const version = browser.runtime.getManifest().version;
-  const t = (key: string) => browser.i18n.getMessage(key) || key;
+  const t = (key: string, ...substitutions: string[]) =>
+    browser.i18n.getMessage(key, substitutions.length > 0 ? substitutions : undefined) || key;
 
   $effect(() => {
     void Promise.all([getSettings(), getFetchedAt(), getOverrides(), getApiCredentials()]).then(([s, at, ov, creds]) => {
@@ -103,17 +104,17 @@
       a.click();
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      logStatus = `✓ ${entries.length} 件のログをダウンロードしました`;
+      logStatus = `✓ ${t('logsDownloaded', String(entries.length))}`;
     } catch (e) {
       logStatus = `✗ ${e instanceof Error ? e.message : String(e)}`;
     }
   }
 
   async function handleClearLogs() {
-    if (!confirm('保存されたログをすべて削除しますか?')) return;
+    if (!confirm(t('logsClearConfirm'))) return;
     await browser.runtime.sendMessage({ type: 'LOG_CLEAR' });
     logCount = 0;
-    logStatus = '✓ ログをクリアしました';
+    logStatus = `✓ ${t('logsCleared')}`;
   }
 
   async function handleFetchOverrides() {
@@ -122,7 +123,7 @@
     const result = await fetchOverridesFrom(selectorOverrideUrl);
     overrideFetching = false;
     if (result.ok) {
-      overrideStatus = `✓ ${result.count ?? 0} 件の selector override を取得しました`;
+      overrideStatus = `✓ ${t('overrideFetched', String(result.count ?? 0))}`;
       overrideFetchedAt = Date.now();
       overrideCount = result.count ?? 0;
     } else {
@@ -131,7 +132,7 @@
   }
 
   function formatFetchedAt(ts: number | null): string {
-    if (!ts) return '(未取得)';
+    if (!ts) return t('overrideNeverFetched');
     return new Date(ts).toLocaleString();
   }
 
@@ -150,78 +151,78 @@
   // creds は壊さない)。「解除」ボタンで個別 platform の credentials を削除。
   async function handleBskySave() {
     if (!bskyId.trim() || !bskyPw.trim()) {
-      bskyStatus = { ok: false, msg: 'Identifier と App Password 両方必要' };
+      bskyStatus = { ok: false, msg: t('apiBskyMissing') };
       return;
     }
     bskyBusy = true;
-    bskyStatus = { msg: 'テスト中...' };
+    bskyStatus = { msg: t('apiTesting') };
     const result = await testBluesky({ identifier: bskyId.trim(), appPassword: bskyPw.trim() });
     if (result.ok) {
       await setApiCredentials({ bluesky: { identifier: bskyId.trim(), appPassword: bskyPw.trim() } });
-      bskyStatus = { ok: true, msg: `✓ 接続成功 (${result.identifier})、保存しました` };
+      bskyStatus = { ok: true, msg: `✓ ${t('apiConnected', result.identifier ?? '')}` };
     } else {
-      bskyStatus = { ok: false, msg: `✗ ${result.error ?? '接続失敗'}` };
+      bskyStatus = { ok: false, msg: `✗ ${result.error ?? t('apiConnectError')}` };
     }
     bskyBusy = false;
   }
   async function handleBskyClear() {
     await clearApiCredentials('bluesky');
     bskyId = ''; bskyPw = '';
-    bskyStatus = { ok: true, msg: '✓ 解除しました (DOM path に戻ります)' };
+    bskyStatus = { ok: true, msg: `✓ ${t('apiCleared')}` };
   }
 
   async function handleMstdSave() {
     const inst = normalizeUrl(mstdInstance);
     if (!inst || !mstdToken.trim()) {
-      mstdStatus = { ok: false, msg: 'インスタンス URL と access token 両方必要' };
+      mstdStatus = { ok: false, msg: t('apiInstanceTokenMissing') };
       return;
     }
     if (!(await ensurePermission(inst, 'https://mastodon.social'))) {
-      mstdStatus = { ok: false, msg: '✗ host permission が拒否されました' };
+      mstdStatus = { ok: false, msg: `✗ ${t('apiHostPermissionDenied')}` };
       return;
     }
     mstdBusy = true;
-    mstdStatus = { msg: 'テスト中...' };
+    mstdStatus = { msg: t('apiTesting') };
     const result = await testMastodon({ instance: inst, accessToken: mstdToken.trim() });
     if (result.ok) {
       await setApiCredentials({ mastodon: { instance: inst, accessToken: mstdToken.trim() } });
-      mstdStatus = { ok: true, msg: `✓ 接続成功 (@${result.identifier})、保存しました` };
+      mstdStatus = { ok: true, msg: `✓ ${t('apiConnected', '@' + (result.identifier ?? ''))}` };
     } else {
-      mstdStatus = { ok: false, msg: `✗ ${result.error ?? '接続失敗'}` };
+      mstdStatus = { ok: false, msg: `✗ ${result.error ?? t('apiConnectError')}` };
     }
     mstdBusy = false;
   }
   async function handleMstdClear() {
     await clearApiCredentials('mastodon');
     mstdToken = '';
-    mstdStatus = { ok: true, msg: '✓ 解除しました (DOM path に戻ります)' };
+    mstdStatus = { ok: true, msg: `✓ ${t('apiCleared')}` };
   }
 
   async function handleMskySave() {
     const inst = normalizeUrl(mskyInstance);
     if (!inst || !mskyToken.trim()) {
-      mskyStatus = { ok: false, msg: 'インスタンス URL と access token 両方必要' };
+      mskyStatus = { ok: false, msg: t('apiInstanceTokenMissing') };
       return;
     }
     if (!(await ensurePermission(inst, 'https://misskey.io'))) {
-      mskyStatus = { ok: false, msg: '✗ host permission が拒否されました' };
+      mskyStatus = { ok: false, msg: `✗ ${t('apiHostPermissionDenied')}` };
       return;
     }
     mskyBusy = true;
-    mskyStatus = { msg: 'テスト中...' };
+    mskyStatus = { msg: t('apiTesting') };
     const result = await testMisskey({ instance: inst, accessToken: mskyToken.trim() });
     if (result.ok) {
       await setApiCredentials({ misskey: { instance: inst, accessToken: mskyToken.trim() } });
-      mskyStatus = { ok: true, msg: `✓ 接続成功 (${result.identifier})、保存しました` };
+      mskyStatus = { ok: true, msg: `✓ ${t('apiConnected', result.identifier ?? '')}` };
     } else {
-      mskyStatus = { ok: false, msg: `✗ ${result.error ?? '接続失敗'}` };
+      mskyStatus = { ok: false, msg: `✗ ${result.error ?? t('apiConnectError')}` };
     }
     mskyBusy = false;
   }
   async function handleMskyClear() {
     await clearApiCredentials('misskey');
     mskyToken = '';
-    mskyStatus = { ok: true, msg: '✓ 解除しました (DOM path に戻ります)' };
+    mskyStatus = { ok: true, msg: `✓ ${t('apiCleared')}` };
   }
 
   async function handleSave() {
@@ -298,19 +299,15 @@
 
     <!-- ── API 連携 (上級者向け、Phase 1: Bluesky / Mastodon / Misskey) ── -->
     <section class="mb-6 border border-amber-200 bg-amber-50/40 rounded p-4">
-      <h2 class="text-sm font-semibold text-gray-800 mb-1">API 連携 <span class="text-xs text-amber-700">(上級者向け)</span></h2>
-      <p class="text-xs text-gray-500 mb-4 leading-relaxed">
-        鍵を設定すると <b>SNS タブを開かず API 直送</b>になります (高速 / 安定 / selector breakage 無関係)。
-        鍵は拡張ローカルにのみ保存され、Tutti サーバには送信されません。
-        鍵未設定の SNS は従来通りタブを開いて投稿します。
-      </p>
+      <h2 class="text-sm font-semibold text-gray-800 mb-1">{t('apiSectionTitle')} <span class="text-xs text-amber-700">{t('apiSectionAdvancedBadge')}</span></h2>
+      <p class="text-xs text-gray-500 mb-4 leading-relaxed">{t('apiSectionHint')}</p>
 
       <!-- Bluesky -->
       <div class="space-y-2 mb-5 pb-4 border-b border-gray-200">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium">Bluesky</h3>
           <a href="https://bsky.app/settings/app-passwords" target="_blank" rel="noopener"
-             class="text-xs text-blue-600 hover:underline">App Password を作成 ↗</a>
+             class="text-xs text-blue-600 hover:underline">{t('apiBlueskyMakePassword')}</a>
         </div>
         <input type="text" bind:value={bskyId} placeholder="user.bsky.social"
           class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
@@ -318,9 +315,9 @@
           class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
         <div class="flex items-center gap-2">
           <button onclick={handleBskySave} disabled={bskyBusy}
-            class="px-3 py-1 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700 disabled:bg-gray-300">テスト & 保存</button>
+            class="px-3 py-1 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700 disabled:bg-gray-300">{t('apiTestSave')}</button>
           <button onclick={handleBskyClear}
-            class="px-3 py-1 bg-white border border-gray-300 text-gray-700 rounded text-xs hover:bg-gray-50">解除</button>
+            class="px-3 py-1 bg-white border border-gray-300 text-gray-700 rounded text-xs hover:bg-gray-50">{t('apiClear')}</button>
           {#if bskyStatus}
             <span class="text-xs" class:text-green-600={bskyStatus.ok === true} class:text-red-600={bskyStatus.ok === false}>{bskyStatus.msg}</span>
           {/if}
@@ -332,7 +329,7 @@
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium">Mastodon</h3>
           <a href="{mstdInstance}/settings/applications" target="_blank" rel="noopener"
-             class="text-xs text-blue-600 hover:underline">アプリを作成 ↗</a>
+             class="text-xs text-blue-600 hover:underline">{t('apiMastodonMakeApp')}</a>
         </div>
         <input type="url" bind:value={mstdInstance} placeholder="https://mastodon.social"
           class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
@@ -340,9 +337,9 @@
           class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
         <div class="flex items-center gap-2">
           <button onclick={handleMstdSave} disabled={mstdBusy}
-            class="px-3 py-1 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700 disabled:bg-gray-300">テスト & 保存</button>
+            class="px-3 py-1 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700 disabled:bg-gray-300">{t('apiTestSave')}</button>
           <button onclick={handleMstdClear}
-            class="px-3 py-1 bg-white border border-gray-300 text-gray-700 rounded text-xs hover:bg-gray-50">解除</button>
+            class="px-3 py-1 bg-white border border-gray-300 text-gray-700 rounded text-xs hover:bg-gray-50">{t('apiClear')}</button>
           {#if mstdStatus}
             <span class="text-xs" class:text-green-600={mstdStatus.ok === true} class:text-red-600={mstdStatus.ok === false}>{mstdStatus.msg}</span>
           {/if}
@@ -354,7 +351,7 @@
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-medium">Misskey</h3>
           <a href="{mskyInstance}/settings/api" target="_blank" rel="noopener"
-             class="text-xs text-blue-600 hover:underline">トークンを発行 ↗</a>
+             class="text-xs text-blue-600 hover:underline">{t('apiMisskeyMakeToken')}</a>
         </div>
         <input type="url" bind:value={mskyInstance} placeholder="https://misskey.io"
           class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
@@ -362,9 +359,9 @@
           class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
         <div class="flex items-center gap-2">
           <button onclick={handleMskySave} disabled={mskyBusy}
-            class="px-3 py-1 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700 disabled:bg-gray-300">テスト & 保存</button>
+            class="px-3 py-1 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700 disabled:bg-gray-300">{t('apiTestSave')}</button>
           <button onclick={handleMskyClear}
-            class="px-3 py-1 bg-white border border-gray-300 text-gray-700 rounded text-xs hover:bg-gray-50">解除</button>
+            class="px-3 py-1 bg-white border border-gray-300 text-gray-700 rounded text-xs hover:bg-gray-50">{t('apiClear')}</button>
           {#if mskyStatus}
             <span class="text-xs" class:text-green-600={mskyStatus.ok === true} class:text-red-600={mskyStatus.ok === false}>{mskyStatus.msg}</span>
           {/if}
@@ -437,10 +434,13 @@
         {#if logStatus}
           <p class="text-xs" class:text-green-600={logStatus.startsWith('✓')} class:text-red-600={logStatus.startsWith('✗')}>{logStatus}</p>
         {/if}
-        <label class="flex items-center gap-2 pt-2 text-sm text-gray-700 cursor-pointer">
-          <input type="checkbox" bind:checked={disableReportDedup} class="rounded" />
-          <span>Report の 24h cooldown を無効化 (個人 dev で連投したいとき)</span>
-        </label>
+        <!--
+          v0.4.82: disableReportDedup の UI 露出は廃止。
+          一般 user が ON にすると tutti-issues に同じ報告が連投される anti-feature
+          だった (label 文言 "個人 dev で連投したいとき" もそもそも一般 user 向け
+          ではない)。 dev console 経由 (chrome.storage.sync.set) で引き続き設定可能、
+          Setting field 自体は storage.ts に残してあるので backward compat。
+        -->
       </div>
     </section>
 

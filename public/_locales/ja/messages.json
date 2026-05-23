@@ -110,6 +110,54 @@
   "logsDownload": { "message": "ログをダウンロード" },
   "logsClear": { "message": "ログをクリア" },
   "logsCount": { "message": "件保存中" },
+  "logsDownloaded": {
+    "message": "$N$ 件のログをダウンロードしました",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "logsClearConfirm": { "message": "保存されたログをすべて削除しますか?" },
+  "logsCleared": { "message": "ログをクリアしました" },
+
+  "overrideFetched": {
+    "message": "$N$ 件の selector override を取得しました",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "overrideNeverFetched": { "message": "(未取得)" },
+
+  "apiSectionTitle": { "message": "API 連携" },
+  "apiSectionAdvancedBadge": { "message": "(上級者向け)" },
+  "apiSectionHint": { "message": "鍵を設定すると SNS タブを開かず API 直送になります (高速 / 安定 / selector breakage 無関係)。 鍵は拡張ローカルにのみ保存され、 Tutti サーバには送信されません。 鍵未設定の SNS は従来通りタブを開いて投稿します。" },
+  "apiBlueskyMakePassword": { "message": "App Password を作成 ↗" },
+  "apiMastodonMakeApp": { "message": "アプリを作成 ↗" },
+  "apiMisskeyMakeToken": { "message": "トークンを発行 ↗" },
+  "apiTestSave": { "message": "テスト & 保存" },
+  "apiClear": { "message": "解除" },
+  "apiTesting": { "message": "テスト中..." },
+  "apiBskyMissing": { "message": "Identifier と App Password 両方必要" },
+  "apiInstanceTokenMissing": { "message": "インスタンス URL と access token 両方必要" },
+  "apiHostPermissionDenied": { "message": "host permission が拒否されました" },
+  "apiConnected": {
+    "message": "接続成功 ($USER$)、 保存しました",
+    "placeholders": { "USER": { "content": "$1" } }
+  },
+  "apiConnectError": { "message": "接続失敗" },
+  "apiCleared": { "message": "解除しました (DOM path に戻ります)" },
+
+  "backgroundNoResponse": { "message": "background から応答がありませんでした" },
+  "failedShort": { "message": "失敗" },
+  "betaBadgeTooltip": { "message": "このバージョンは Beta です。 不具合は popup ヘッダの「診断」ボタンから出力をコピーして GitHub Issue へ。" },
+  "retryFailedButton": {
+    "message": "失敗だけ再送 ($N$)",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "retryFailedTooltip": {
+    "message": "失敗した $N$ 件をもう一度送信",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "reportDeduped": {
+    "message": "同じエラーは既に $N$h 前に報告済みです (24h cooldown)。",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "reportEmailNote": { "message": "本文は clipboard にコピー済です。 メールに貼り付けて送信してください。 (Full report copied to clipboard, please paste into the email body.)" },
 
   "pixivTitle": { "message": "Pixiv 投稿 default" },
   "pixivVisibilityLabel": { "message": "Visible to (x_restrict)" },

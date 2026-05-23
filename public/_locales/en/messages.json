@@ -110,6 +110,54 @@
   "logsDownload": { "message": "Download logs" },
   "logsClear": { "message": "Clear logs" },
   "logsCount": { "message": "entries stored" },
+  "logsDownloaded": {
+    "message": "Downloaded $N$ log entries",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "logsClearConfirm": { "message": "Delete all saved log entries?" },
+  "logsCleared": { "message": "Logs cleared" },
+
+  "overrideFetched": {
+    "message": "Fetched $N$ selector overrides",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "overrideNeverFetched": { "message": "(never fetched)" },
+
+  "apiSectionTitle": { "message": "API integration" },
+  "apiSectionAdvancedBadge": { "message": "(advanced)" },
+  "apiSectionHint": { "message": "When credentials are set, posts go through the official API instead of opening a tab (faster, more stable, immune to selector breakage). Credentials are stored locally in the extension and never sent to a Tutti server. Networks without credentials still use the tab-based flow." },
+  "apiBlueskyMakePassword": { "message": "Create App Password ↗" },
+  "apiMastodonMakeApp": { "message": "Create application ↗" },
+  "apiMisskeyMakeToken": { "message": "Issue token ↗" },
+  "apiTestSave": { "message": "Test & save" },
+  "apiClear": { "message": "Clear" },
+  "apiTesting": { "message": "Testing..." },
+  "apiBskyMissing": { "message": "Both identifier and App Password are required" },
+  "apiInstanceTokenMissing": { "message": "Both instance URL and access token are required" },
+  "apiHostPermissionDenied": { "message": "Host permission denied" },
+  "apiConnected": {
+    "message": "Connected ($USER$), saved",
+    "placeholders": { "USER": { "content": "$1" } }
+  },
+  "apiConnectError": { "message": "Connection failed" },
+  "apiCleared": { "message": "Cleared (returning to tab-based flow)" },
+
+  "backgroundNoResponse": { "message": "No response from background" },
+  "failedShort": { "message": "Failed" },
+  "betaBadgeTooltip": { "message": "This version is Beta. If something breaks, copy the output from the popup header's Diagnose button into a GitHub issue." },
+  "retryFailedButton": {
+    "message": "Retry failed ($N$)",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "retryFailedTooltip": {
+    "message": "Re-send the $N$ failed posts",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "reportDeduped": {
+    "message": "Same error already reported $N$h ago (24h cooldown).",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "reportEmailNote": { "message": "Full report copied to clipboard. Paste into the email body and send." },
 
   "pixivTitle": { "message": "Pixiv post defaults" },
   "pixivVisibilityLabel": { "message": "Visible to (x_restrict)" },

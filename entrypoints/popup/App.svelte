@@ -164,18 +164,20 @@
       }
     } catch { /* ignore */ }
     const ua = navigator.userAgent;
-    const title = redactPII(errorText.split('\n')[0]?.slice(0, 80) || 'Tutti エラー報告');
+    // Issue body は public tutti-issues に投稿される + auto-triage が読む。
+    // user の locale に依らず英語で書く (dev が読める統一形式、 v0.4.82)。
+    const title = redactPII(errorText.split('\n')[0]?.slice(0, 80) || 'Tutti error report');
     const sections = [
-      '## エラー',
+      '## Error',
       '```',
       redactPII(errorText.slice(0, 800)),
       '```',
       '',
-      '## 環境',
+      '## Environment',
       `- Tutti version: ${version}`,
       `- User agent: ${ua}`,
       '',
-      '## 直近のログ(最終 30 件)',
+      '## Recent logs (last 30 entries)',
       '```',
       redactPII(logsExcerpt.slice(0, 6000)) || '(no logs captured)',
       '```',
@@ -185,7 +187,7 @@
       const capped = diagnoseExcerpt.slice(0, 30_000);
       sections.push(
         '',
-        '## Diagnostics (auto-triage 用、selector audit + redacted DOM snapshot)',
+        '## Diagnostics (for auto-triage — selector audit + redacted DOM snapshot)',
         '<!-- tutti-diagnostics-begin -->',
         '```json',
         redactPII(capped),
@@ -251,7 +253,7 @@
         reportResult = {
           ok: false,
           deduped: true,
-          error: `同じエラーは既に ${hours}h 前に報告済みです (24h cooldown)。`,
+          error: t('reportDeduped', String(hours)),
         };
         reportSubmitting = false;
         return;
@@ -292,7 +294,8 @@
     const subject = `[Tutti Beta] ${title}`;
     // mailto: の body は length 制限あり (~2000 chars on Windows)、 短い注記だけ入れて
     // 残りは clipboard から paste してもらう
-    const note = '本文は clipboard にコピー済です。 メールに貼り付けて送信してください。 / Full report copied to clipboard, please paste into the email body.';
+    // 短い注記、 user locale に合わせる
+    const note = t('reportEmailNote');
     const url = `mailto:contact@komm64.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(note)}`;
     window.open(url, '_blank');
   }
@@ -787,7 +790,7 @@
         | { results?: PostResultMessage[]; error?: string }
         | undefined;
       if (!response) {
-        errorMessage = 'background から応答がありませんでした';
+        errorMessage = t('backgroundNoResponse');
       } else if (response.error) {
         errorMessage = response.error;
       } else if (response.results) {
@@ -857,7 +860,7 @@
         <!-- BETA バッジ: 正式版になったらこの span を削除する -->
         <span
           class="ml-1 inline-block text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 align-middle tracking-wider"
-          title="このバージョンは Beta です。不具合は popup ヘッダの「診断」ボタンから出力をコピーして GitHub Issue へ"
+          title={t('betaBadgeTooltip')}
         >BETA</span>
       </h1>
       <p class="text-xs text-gray-500">{t('appTagline')}</p>
@@ -1016,7 +1019,7 @@
         {:else if result?.success}
           <span class="text-[10px] text-green-700 leading-tight">{autoPost ? t('progressDone') : t('progressDryRunOk')}</span>
         {:else if result && !result.success}
-          <span class="text-[10px] text-red-700 leading-tight truncate" title={result.error}>{result.error?.slice(0, 40) ?? '失敗'}</span>
+          <span class="text-[10px] text-red-700 leading-tight truncate" title={result.error}>{result.error?.slice(0, 40) ?? t('failedShort')}</span>
         {/if}
       </div>
       {#if isPending}
@@ -1107,9 +1110,9 @@
       <button
         onclick={handleRetryFailed}
         disabled={text.trim().length === 0 && images.length === 0 && !video}
-        title="失敗した {failures.length} 件をもう一度送信"
+        title={t('retryFailedTooltip', String(failures.length))}
         class="px-2 py-1 rounded bg-red-600 text-white hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium"
-      >失敗だけ再送 ({failures.length}) ↻</button>
+      >{t('retryFailedButton', String(failures.length))} ↻</button>
       <button
         onclick={() => handleReportError(failures.map((r) => `${r.platform}: ${r.error ?? '(no detail)'}`).join('\n'))}
         title={t('errorReportHint')}
