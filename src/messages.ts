@@ -116,11 +116,15 @@ export interface PlatformProgressMessage {
   result: PostResultMessage;
 }
 
-/** content script → background: 現在ログイン中のアカウント名 */
+/**
+ * content script → background: 現在ログイン中のアカウント名。
+ * v0.4.98: username に null を許容。 null は 「以前検出した値を clear する」 意味で、
+ * 検出失敗 (detector が null 返却) の REFRESH_USER 応答で使う。
+ */
 export interface CurrentUserMessage {
   type: 'CURRENT_USER';
   platform: PlatformId;
-  username: string;
+  username: string | null;
 }
 
 // ── offscreen document 用メッセージ (P7: 動画整形) ──────────────────────────

@@ -10,19 +10,68 @@ import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
 
 /**
- * YouTube logged-in user 検出。
+ * YouTube logged-in user 検出 (v0.4.98 改善)。
  *
  * **Studio (`studio.youtube.com`) のみに限定**。 通常 youtube.com の home /
  * 視聴ページには `[class*="channel-name"]` にマッチする要素が feed の推奨動画
  * 由来でいくつも存在し、 「first match wins」 で他チャンネル名を拾ってしまう
- * (= 「全然違う人の名前が出る」 bug の典型)。 Studio は logged-in account
- * 専用の `ytcp-account-info` を提供しているのでそれだけ見る。
+ * (= 「全然違う人の名前が出る」 bug の典型)。
+ *
+ * 旧コードは `ytcp-account-info` の textContent を取っていたが、 これは
+ * 「Account」 という汎用 label text を返すケースが多かった (channel 名は
+ * shadow DOM や nested avatar img alt に入ってる)。 多段 strategy に変更:
+ *   1. `ytcp-account-chip-renderer` の text
+ *   2. avatar `<img>` の alt (channel name が入ってる)
+ *   3. button の aria-label (Studio の account button)
+ *   4. fallback: `ytcp-account-info` の text (旧 path、 last resort)
+ * いずれも 'Account' / 'アカウント' / 空 は reject。
  */
 function detectYouTubeUser(): string | null {
   if (!/(^|\.)studio\.youtube\.com$/.test(location.hostname)) return null;
-  const el = document.querySelector<HTMLElement>('ytcp-account-info');
-  const txt = el?.textContent?.trim();
-  if (txt && txt.length > 0 && txt.length <= 80) return txt;
+
+  const RESERVED_LABELS = new Set([
+    'account', 'アカウント', '账户', '계정',
+    'channel', 'チャンネル', '频道', '채널',
+    'profile', 'profil',
+  ]);
+  const isLikely = (s: string | null | undefined): s is string => {
+    if (!s) return false;
+    const t = s.trim();
+    if (t.length < 1 || t.length > 80) return false;
+    if (RESERVED_LABELS.has(t.toLowerCase())) return false;
+    return true;
+  };
+
+  // 1) ytcp-account-chip-renderer の text (Studio top-right の account chip)
+  const chipText = document.querySelector('ytcp-account-chip-renderer')?.textContent?.trim();
+  if (isLikely(chipText)) return chipText;
+
+  // 2) account widget 内の avatar img alt (channel 名が入ってる UI variant)
+  const accountInfo = document.querySelector('ytcp-account-info');
+  const avatarAlt = accountInfo?.querySelector<HTMLImageElement>('img[alt]')?.getAttribute('alt')?.trim();
+  if (isLikely(avatarAlt)) return avatarAlt;
+
+  // 3) account button の aria-label (Studio button)
+  const accountBtn = document.querySelector<HTMLElement>(
+    'ytcp-account-button[aria-label], button[id="avatar-btn"][aria-label]',
+  );
+  const btnAria = accountBtn?.getAttribute('aria-label')?.trim();
+  // aria-label は "Account menu" / "<Name>'s account" 等の形が来る。
+  // "Account" を含むだけでなく channel 名も含むケースを許容。
+  if (btnAria) {
+    // 「<name>」 形式 / 「<name>'s account」 / 「<name> - チャンネル」 等を抽出
+    const cleaned = btnAria
+      .replace(/['’]s\s+(account|channel|チャンネル)$/i, '')
+      .replace(/(account|channel|チャンネル)\s*[-—:]\s*/i, '')
+      .trim();
+    if (isLikely(cleaned)) return cleaned;
+  }
+
+  // 4) last resort: ytcp-account-info の textContent。 ただし 「Account」 単独は
+  // RESERVED_LABELS で reject される (旧 bug 原因)
+  const text = accountInfo?.textContent?.trim();
+  if (isLikely(text)) return text;
+
   return null;
 }
 

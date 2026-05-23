@@ -89,9 +89,12 @@ export function bootstrapContentScript<S extends Record<string, string>>(
       void (async () => {
         try {
           const username = await Promise.resolve(detectUser());
-          if (username) {
-            void browser.runtime.sendMessage({ type: 'CURRENT_USER', platform, username });
-          }
+          // v0.4.98: username が null でも CURRENT_USER を送る (= bg 側で
+          // stale 値 を clear する)。 初回ロード時の detectAndReportUser とは
+          // 違って、 REFRESH_USER は user が popup を開いたタイミングで「最新の状態」
+          // を要求してるので、 検出失敗 = 「もう logged in じゃない / 古い値消す」 と
+          // 解釈する方が正しい。
+          void browser.runtime.sendMessage({ type: 'CURRENT_USER', platform, username });
         } catch { /* ignore */ }
       })();
       return; // sendResponse 不要 (CURRENT_USER で経由)

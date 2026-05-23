@@ -203,16 +203,50 @@ export type LastSeenUsers = Partial<Record<PlatformId, string>>;
 
 const LAST_SEEN_USERS_KEY = 'lastSeenUsers';
 
+/**
+ * 旧 buggy detector が誤って保存した generic label (「Account」 / 「Profile」 等)
+ * を識別する RESERVED set。 read 時に filter out + storage からも削除する
+ * (lazy migration、 v0.4.98 で追加)。
+ */
+const RESERVED_BAD_USERNAMES = new Set([
+  'account', 'アカウント', '账户', '계정',
+  'channel', 'チャンネル', '频道', '채널',
+  'profile', 'プロフィール', 'profil',
+]);
+
 export async function getLastSeenUsers(): Promise<LastSeenUsers> {
   const stored = await browser.storage.local.get(LAST_SEEN_USERS_KEY);
-  return (stored[LAST_SEEN_USERS_KEY] as LastSeenUsers | undefined) ?? {};
+  const raw = (stored[LAST_SEEN_USERS_KEY] as LastSeenUsers | undefined) ?? {};
+  // stale 「Account」 等の generic label を削除して返す (v0.4.98)。
+  // 旧 YT detector などが誤検出した値が popup に出続けるのを防ぐ。
+  const filtered: LastSeenUsers = {};
+  let mutated = false;
+  for (const [k, v] of Object.entries(raw)) {
+    if (typeof v === 'string' && RESERVED_BAD_USERNAMES.has(v.trim().toLowerCase())) {
+      mutated = true;
+      continue;
+    }
+    (filtered as Record<string, string>)[k] = v as string;
+  }
+  if (mutated) {
+    void browser.storage.local.set({ [LAST_SEEN_USERS_KEY]: filtered }).catch(() => { /* ignore */ });
+  }
+  return filtered;
 }
 
 export async function setLastSeenUser(
   platform: PlatformId,
-  username: string,
+  username: string | null,
 ): Promise<void> {
   const current = await getLastSeenUsers();
+  // v0.4.98: null = clear (REFRESH_USER で detector が検出失敗時、 stale 値を消す)
+  if (username === null || username === undefined || username === '') {
+    if (!(platform in current)) return;
+    const next = { ...current };
+    delete next[platform];
+    await browser.storage.local.set({ [LAST_SEEN_USERS_KEY]: next });
+    return;
+  }
   if (current[platform] === username) return;
   await browser.storage.local.set({
     [LAST_SEEN_USERS_KEY]: { ...current, [platform]: username },
