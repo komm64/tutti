@@ -40,7 +40,7 @@ async function main() {
   if (data && Array.isArray(data.status)) {
     if (data.status.includes('OK')) {
       console.log('');
-      console.log('[submit] ✓ 審査リクエスト成功。1〜3 週間で結果が email + Dashboard に届きます。');
+      console.log('[submit] ✓ 審査リクエスト成功。 Unlisted の minor update は通常 数時間 〜 1 日 で結果が email + Dashboard に届きます (in-depth review に回されると最大 1〜3 週間)。');
     } else {
       console.warn('');
       console.warn('[submit] status:', data.status);
