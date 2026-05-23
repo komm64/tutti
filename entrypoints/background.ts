@@ -37,6 +37,14 @@ import type { ApiPostResult } from '../src/api/types';
 
 const CHUNK_INTERVAL_MS = 2000;
 
+/**
+ * BROADCAST_REFRESH_USERS の throttle interval (v0.4.85〜)。
+ * popup を高速で何度も開閉したときに 全 SNS tab で detection が
+ * 連発するのを防ぐ。 account は数秒単位では変わらないので 5s で十分。
+ */
+const BROADCAST_REFRESH_THROTTLE_MS = 5000;
+let lastBroadcastRefreshAt = 0;
+
 // ── ログ ring buffer (任意 context からの LOG_APPEND を集約) ──────────────
 //
 // Tutti の全 context (popup / content scripts / inject-helper) は
@@ -121,6 +129,15 @@ export default defineBackground(() => {
     if (msg.type === 'BROADCAST_REFRESH_USERS') {
       // v0.4.83: popup mount 時に全 SNS tab に REFRESH_USER を送って
       // active user を再検出させる。 multi-account 切替後の stale を防ぐ。
+      // v0.4.85: 5 秒 throttle。 popup を高速で何度も開閉した場合に
+      // 無駄な detection 連発を防ぐ。 5s 以内なら lastSeenUsers の cache を
+      // そのまま使う方が安全 (account は数秒単位で変わらない)。
+      const now = Date.now();
+      if (now - lastBroadcastRefreshAt < BROADCAST_REFRESH_THROTTLE_MS) {
+        log.debug(`BROADCAST_REFRESH_USERS throttled (last ${Math.round((now - lastBroadcastRefreshAt) / 1000)}s ago)`);
+        return;
+      }
+      lastBroadcastRefreshAt = now;
       void (async () => {
         const tabs = await browser.tabs.query({});
         const adapterList = Object.values(adapters).filter(
