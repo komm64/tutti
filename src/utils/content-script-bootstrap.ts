@@ -40,11 +40,16 @@ export interface BootstrapOptions<S extends Record<string, string>> {
   selectors: S;
   /** logged-in user 名検出 ('null' で未ログイン扱い)。 detectAndReportUser に渡す */
   detectUser: () => string | null | Promise<string | null>;
-  /** 投稿実行関数 (各 SNS で書く)。 sendResponse は bootstrap 側で叩く */
+  /**
+   * 投稿実行関数 (各 SNS で書く)。 sendResponse は bootstrap 側で叩く。
+   * textChunks: multi-chunk inline thread mode (v0.4.94〜)。 指定時は X / Bluesky 等が
+   * 1 つの compose modal に 全 chunks を 「+」 button で並べて 1 click で thread 投稿する。
+   */
   runPost: (
     text: string,
     images: ImageAttachment[] | undefined,
     dryRun: boolean | undefined,
+    textChunks: string[] | undefined,
   ) => Promise<PostResultMessage>;
   /**
    * 当 SNS 固有の追加 message handler (例: bluesky の GET_BLUESKY_SESSION)。
@@ -114,7 +119,7 @@ export function bootstrapContentScript<S extends Record<string, string>>(
             return;
           }
         }
-        const result = await runPost(msg.text, msg.images, msg.dryRun);
+        const result = await runPost(msg.text, msg.images, msg.dryRun, msg.textChunks);
         sendResponse(result);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);

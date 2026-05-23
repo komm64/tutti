@@ -2,9 +2,10 @@ import { log } from '../src/utils/logger';
 import type { ImageAttachment, PostResultMessage } from '../src/messages';
 import { BLUESKY_SELECTORS, blueskyAdapter } from '../src/adapters/bluesky';
 import { executePostFlow } from '../src/utils/post-flow';
-import { sleep } from '../src/utils/dom';
+import { sleep, waitForElement } from '../src/utils/dom';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
+import { dropImages, injectTextIntoElement } from '../src/utils/image';
 
 function detectBlueskyUser(): string | null {
   // 戦略 1: localStorage を総当たりで探索(キー名はバージョン依存)
@@ -78,6 +79,124 @@ function findHandleInObject(obj: unknown, depth = 0): string | null {
  * reply chain で API path を使うために必要 (user が Settings に API credentials を
  * 設定してなくても、 bsky.app にログイン済みなら token を借りられる)。
  */
+/**
+ * v0.4.94: Bluesky compose modal の inline thread を組み立てる。
+ *
+ * UI flow:
+ *   1. compose modal が開いてる前提 (prefillsViaUrl=true、 /intent/compose 経由で 既に open)
+ *   2. 最初の textarea に chunk 0 を inject + image drop
+ *   3. 「Add post」 button (Bluesky compose modal の "+" / "次のポストを追加" 等) を click
+ *   4. 新 textarea に chunk 1 を inject。 繰り返し
+ *   5. Publish button を click (preview なら highlight)
+ *
+ * Bluesky の inline thread 用 button selector は data-testid を最優先、 aria-label
+ * 系を fallback。 UI 変更時は selectors.json で override。
+ */
+async function executeBlueskyInlineThread(
+  sel: typeof BLUESKY_SELECTORS,
+  chunks: string[],
+  images: ImageAttachment[] | undefined,
+  dryRun: boolean | undefined,
+): Promise<void> {
+  // 最初の textarea の wait (compose modal のロード待ち)
+  const textarea0 = await waitForElement<HTMLElement>(sel.textarea, 8000);
+  if (!textarea0) throw new Error('Bluesky: 最初の textarea が見つかりません');
+
+  // chunk 0 を inject (= 「Add another post to thread」 button が現れる前提)
+  await injectTextIntoElement(chunks[0]!, sel.textarea);
+  await sleep(500);
+
+  // images は最初の chunk にだけ attach (drop target に drop)
+  if (images && images.length > 0) {
+    await dropImages(images, sel.dropTarget);
+    await sleep(1500);
+  }
+
+  // 各 chunk を 「+」 click → wait → inject の繰り返し
+  for (let i = 1; i < chunks.length; i++) {
+    const addBtn = findBlueskyAddPostButton();
+    if (!addBtn) {
+      throw new Error(`Bluesky: chunk ${i + 1}/${chunks.length} の「ポストを追加 (+)」 button が見つかりません (chunk ${i} の text が反映されてない可能性)`);
+    }
+    addBtn.click();
+
+    let target: HTMLElement | undefined;
+    const deadline = Date.now() + 5000;
+    while (Date.now() < deadline) {
+      const tas = Array.from(document.querySelectorAll<HTMLElement>('[contenteditable="true"][role="textbox"]'));
+      if (tas.length > i) {
+        target = tas[i];
+        break;
+      }
+      await sleep(150);
+    }
+    if (!target) {
+      const got = document.querySelectorAll('[contenteditable="true"][role="textbox"]').length;
+      throw new Error(`Bluesky: chunk ${i + 1}/${chunks.length} の textarea が 5s 以内に出現しませんでした (要 ${i + 1} 個、 実 ${got} 個)`);
+    }
+    const marker = `tutti-bsky-chunk-${i}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    target.setAttribute('data-tutti-marker', marker);
+    await injectTextIntoElement(chunks[i]!, `[data-tutti-marker="${marker}"]`);
+    await sleep(300);
+  }
+
+  // Post button (preview なら highlight、 autoPost なら click)
+  const findButton = (): HTMLElement | null => {
+    for (const p of sel.postButton.split(',').map((s) => s.trim()).filter(Boolean)) {
+      const el = document.querySelector<HTMLElement>(p);
+      if (el && !(el as HTMLButtonElement).disabled) return el;
+    }
+    for (const el of document.querySelectorAll<HTMLElement>('button, [role="button"]')) {
+      const text = (el.textContent ?? '').trim();
+      if (/^Publish( all| post)?$|^投稿$|^Post( all)?$/.test(text) && !(el as HTMLButtonElement).disabled) {
+        return el;
+      }
+    }
+    return null;
+  };
+  const deadline = Date.now() + 30000;
+  let postBtn: HTMLElement | null = null;
+  while (Date.now() < deadline) {
+    postBtn = findButton();
+    if (postBtn) break;
+    await sleep(300);
+  }
+  if (!postBtn) throw new Error('Bluesky: Publish ボタンが見つかりません');
+
+  if (dryRun) {
+    const orig = postBtn.style.outline;
+    postBtn.style.outline = '3px dashed #f59e0b';
+    setTimeout(() => { postBtn!.style.outline = orig; }, 5000);
+    return;
+  }
+  postBtn.click();
+
+  // modal close 待ち (Bluesky の post 完了 verify)
+  const stillOpen = () =>
+    document.querySelector('[data-testid="composer"]') ||
+    document.querySelector('[contenteditable="true"][role="textbox"]');
+  const closeDeadline = Date.now() + 30_000;
+  while (Date.now() < closeDeadline) {
+    if (!stillOpen()) break;
+    await sleep(300);
+  }
+  if (stillOpen()) {
+    throw new Error('Bluesky: thread 投稿後に compose modal が閉じませんでした');
+  }
+}
+
+/** Bluesky の 「次のポストを追加 (+)」 button 候補を多段 fallback で探す。 */
+function findBlueskyAddPostButton(): HTMLElement | null {
+  // Bluesky 2026-05 実機 probe: aria-label="Add another post to thread"
+  // testid は無し、 class は r-* で stable な hook 無し → aria-label match
+  const ariaPatterns = [/add another post to thread/i, /add (post|tweet)/i, /ポストを追加/, /次のポスト/];
+  for (const el of document.querySelectorAll<HTMLElement>('button, [role="button"]')) {
+    const aria = el.getAttribute('aria-label') ?? '';
+    if (ariaPatterns.some((p) => p.test(aria)) && !(el as HTMLButtonElement).disabled) return el;
+  }
+  return null;
+}
+
 function readBlueskySession(): { accessJwt: string; did: string; handle: string; pdsHost?: string } | null {
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i);
@@ -125,18 +244,26 @@ export default defineContentScript({
   }),
 });
 
-async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolean): Promise<PostResultMessage> {
+async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolean, textChunks?: string[]): Promise<PostResultMessage> {
   const sel = await resolveSelectors('bluesky', BLUESKY_SELECTORS);
-  await executePostFlow({
-    prefillsViaUrl: blueskyAdapter.prefillsViaUrl,
-    textareaSelector: sel.textarea,
-    postButtonSelector: sel.postButton,
-    postButtonTexts: ['Publish', 'Post', '投稿', 'Publish post'],
-    dropTargetSelector: sel.dropTarget,
-    text,
-    images,
-    dryRun,
-  });
+
+  // v0.4.94: textChunks > 1 のとき Bluesky の inline thread compose UI を使う。
+  // compose modal の 「+」 button で reply block を追加して、 全 chunks を 1 click
+  // で thread 投稿する。
+  if (textChunks && textChunks.length > 1) {
+    await executeBlueskyInlineThread(sel, textChunks, images, dryRun);
+  } else {
+    await executePostFlow({
+      prefillsViaUrl: blueskyAdapter.prefillsViaUrl,
+      textareaSelector: sel.textarea,
+      postButtonSelector: sel.postButton,
+      postButtonTexts: ['Publish', 'Post', '投稿', 'Publish post'],
+      dropTargetSelector: sel.dropTarget,
+      text,
+      images,
+      dryRun,
+    });
+  }
 
   // dryRun でなければ compose modal が閉じる (= post 完了) のを verify。
   // Bluesky は Publish click をトリガに image upload + record create が走るので、

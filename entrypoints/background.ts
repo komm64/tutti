@@ -696,36 +696,24 @@ async function postToPlatform(
     }
   }
 
-  const fullChunks = splitText(text, adapter.charLimit);
+  const chunks = splitText(text, adapter.charLimit);
 
-  // v0.4.93: preview モード (autoPost OFF) で multi-chunk は **chunk 0 だけ preview**。
-  // 旧 logic: chunks 全件 を順次 preview しようとして compose を上書きしまくり、
-  // user は最後の chunk しか見えず 「全然動いてない」 と映る regression があった。
-  // preview は「chunk 0 の compose 見た目を確認する」 ことが目的なので 1 件で十分。
-  // 残 chunk は Auto-post ON で background が thread chain or reply chain として走らせる。
-  const { autoPost: autoPostForChunks } = await getSettings();
-  const chunks = autoPostForChunks ? fullChunks : fullChunks.slice(0, 1);
-  if (!autoPostForChunks && fullChunks.length > 1) {
-    log.info(`${platform}: preview mode、 ${fullChunks.length} chunks のうち最初の 1 件のみ表示 (実投稿時は全 chunk が thread として post される)`);
+  // v0.4.94: X / Bluesky multi-chunk は **inline thread compose** で送る
+  // (preview / autoPost 両方)。 SNS UI 側の 「+」 button で chunk を追加する
+  // 流れで、 user は全 chunk を 1 つの compose 画面で視覚的に確認できる。
+  // (v0.4.93 は chunks[0] だけ preview する妥協で 「全然動いてない」 と user に
+  // 映る欠陥があった)
+  //
+  // autoPost ON で X / Bluesky は inline thread → 一括 Post (1 click で thread 連結
+  // 投稿される)。 失敗時は当該 SNS の compose modal が残るので user が直接修正可。
+  if ((adapter.id === 'x' || adapter.id === 'bluesky') && chunks.length > 1) {
+    return await postSingleChunkInlineThread(adapter, chunks, images);
   }
 
-  // Bluesky reply chain (v0.4.68): chunks > 1 のとき ATProto API で thread 連結
-  // reply として post する。 user が API credentials を設定してなくても、
-  // bsky.app に既にログインしてれば content script 経由で session JWT を借りる。
-  // 注: postBlueskyThread は autoPost ON 限定。 上記 chunks slice で preview 時は
-  // 既に length=1 になってるので、 ここの条件 (length > 1) は実投稿時しか発火しない。
-  if (adapter.id === 'bluesky' && chunks.length > 1) {
-    try {
-      const r = await postBlueskyThread(adapter, chunks, images);
-      return r;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      log.warn(`Bluesky reply chain 失敗、 generic loop に fallback: ${msg}`);
-      // fallthrough して下の generic loop で個別 post する
-    }
-  }
+  // 旧 Bluesky reply chain (autoPost ON で ATProto API 経由) は v0.4.94 で
+  // inline thread compose に統合済。 必要なら postBlueskyThread() は残ってる。
 
-  // chunks > 1 は reply chain (thread 連結) で post する (v0.4.67〜)。
+  // chunks > 1 (X / Bluesky 以外) は reply chain (thread 連結) で post する (v0.4.67〜)。
   // 各 SNS で chunk i+1 を chunk i への reply として post する path を用意:
   //   X: chunk 0 を /home の inline compose で post → URL capture →
   //      tweet_id 抽出 → chunk 1 を /intent/post?in_reply_to=<id>
@@ -821,6 +809,23 @@ async function maybeAutoOpenPostUrl(
   } catch (e) {
     log.warn(`auto-open failed: ${e instanceof Error ? e.message : String(e)}`);
   }
+}
+
+/**
+ * v0.4.94: X / Bluesky の multi-chunk を inline thread compose で送る。
+ * 1 つの compose modal に全 chunks を「+」 button で追加して 1 click 投稿する流れ。
+ * content script の runPost を `textChunks` 付きで呼んで、 X / Bluesky の
+ * content script 側で inline thread を組み立てる。
+ */
+async function postSingleChunkInlineThread(
+  adapter: PlatformAdapter,
+  chunks: string[],
+  images?: ImageAttachment[],
+): Promise<PostResultMessage> {
+  log.info(`${adapter.id}: inline thread compose で ${chunks.length} chunks を 1 つの compose に並べる`);
+  // text は join (split で消えた区切りを再構成、 content script 側で再分割しない)
+  // content script は textChunks を見て分割済みとして扱う。
+  return await postSingleChunk(adapter, chunks[0]!, images, chunks);
 }
 
 /**
