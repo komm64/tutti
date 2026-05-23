@@ -11,7 +11,8 @@ export const blueskyAdapter: PlatformAdapter = {
   getLoginUrl: () => 'https://bsky.app/',
   prefillsViaUrl: true,
   videoConstraints: {
-    maxDurationS: 60,
+    // Bluesky は 2024 年に 60s → 180s (3 min) に上限を緩和済。
+    maxDurationS: 180,
     // Bluesky UI 上の「100MB」は SI MB (= 100,000,000 bytes) で、 100 * 1024 * 1024
     // (= 104.86 MB SI) は超過する。さらに ffmpeg ultrafast preset は target bitrate
     // を 10-20% overshoot しがち。これらマージンを取って **80 MiB** に設定。
@@ -26,8 +27,10 @@ export const blueskyAdapter: PlatformAdapter = {
     maxBytesPerImage: 2_000_000,
     maxImages: 4,
   },
-  // 60s 上限のため shortVideo まで
-  kinds: ['text', 'image', 'shortVideo'],
+  // Bluesky は 180s まで対応 (2024 緩和)。 boundary 60s 超は longVideo 扱いに
+  // なるため shortVideo + longVideo の両方を入れる。 上限 180s は
+  // videoConstraints.maxDurationS で別途バウンド。
+  kinds: ['text', 'image', 'shortVideo', 'longVideo'],
 };
 
 export const BLUESKY_SELECTORS = {

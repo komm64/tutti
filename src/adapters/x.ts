@@ -20,9 +20,11 @@ export const xAdapter: PlatformAdapter = {
   getLoginUrl: () => 'https://x.com/',
   prefillsViaUrl: false,
   videoConstraints: {
-    // X は無料層 2m20s だったが 2024 以降緩和、Premium で更に長い、と
-    // 流動的なのでクライアント側で尺チェックしない。超過時は X 側で拒否される。
-    maxDurationS: 0,
+    // X 無料層は 2m20s (= 140s)、 Premium で 4h まで。 default は free tier 値で
+    // 早期 reject させる (= 140s 超を user に知らせる)。 Premium user は
+    // selectorOverrideUrl の _videoConstraints.x.maxDurationS で override 可能。
+    maxDurationS: 140,
+    // 無料層 512MB、 Premium 8-16GB。 default は free tier 値。
     maxBytes: 512 * 1024 * 1024,
   },
   imageConstraints: {

@@ -7,14 +7,14 @@ describe('checkVideoConstraint', () => {
     expect(checkVideoConstraint('bluesky', 30, 10 * 1024 * 1024)).toBeNull();
   });
 
-  it('Bluesky 60s 超は拒否', () => {
-    const err = checkVideoConstraint('bluesky', 90, 10 * 1024 * 1024);
+  it('Bluesky 180s 超は拒否 (2024 緩和: 60s→180s)', () => {
+    const err = checkVideoConstraint('bluesky', 200, 10 * 1024 * 1024);
     expect(err).toContain('尺');
-    expect(err).toContain('60');
+    expect(err).toContain('180');
   });
 
-  it('Bluesky 100MB 超は拒否 (P17 で 50→100MB に bump)', () => {
-    const err = checkVideoConstraint('bluesky', 30, 110 * 1024 * 1024);
+  it('Bluesky 80MiB 超は拒否', () => {
+    const err = checkVideoConstraint('bluesky', 30, 90 * 1024 * 1024);
     expect(err).toContain('ファイルサイズ');
   });
 
@@ -22,8 +22,16 @@ describe('checkVideoConstraint', () => {
     expect(checkVideoConstraint('mastodon', 9999, 10 * 1024 * 1024)).toBeNull();
   });
 
-  it('X は尺チェックしない(緩和済み)', () => {
-    expect(checkVideoConstraint('x', 600, 10 * 1024 * 1024)).toBeNull();
+  it('X は free tier 140s 超を拒否', () => {
+    const err = checkVideoConstraint('x', 200, 10 * 1024 * 1024);
+    expect(err).toContain('尺');
+    expect(err).toContain('140');
+  });
+
+  it('Threads は 300s 超を拒否 (5min cap)', () => {
+    const err = checkVideoConstraint('threads', 400, 10 * 1024 * 1024);
+    expect(err).toContain('尺');
+    expect(err).toContain('300');
   });
 });
 

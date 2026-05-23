@@ -16,8 +16,8 @@ export const threadsAdapter: PlatformAdapter = {
   getLoginUrl: () => 'https://www.threads.com/',
   prefillsViaUrl: true,
   videoConstraints: {
-    // Threads はアカウント種別で変動するのでクライアント側で尺チェックしない
-    maxDurationS: 0,
+    // Threads は 5min (300s) 上限 (2026 spec)。 1GB max file size。
+    maxDurationS: 300,
     maxBytes: 1024 * 1024 * 1024, // 1GB
   },
   imageConstraints: {

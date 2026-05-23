@@ -31,9 +31,10 @@ export const pixivAdapter: PlatformAdapter = {
   getLoginUrl: () => 'https://www.pixiv.net/',
   prefillsViaUrl: false,
   imageConstraints: {
-    // Pixiv は 1 枚 30MB / 200 枚まで。ただし実用上は 10 枚程度に絞ったほうが
-    // クロスポスト先の Pixiv オーディエンスに合う (multi-page illustrations は別文脈)
-    maxBytesPerImage: 30 * 1024 * 1024,
+    // Pixiv 公式上限は 1 枚 32MB (公式 help: "Are there any limits on image file size?")。
+    // post 全体で 200MB 上限あり (今は per-image しか check しない、 multi-image
+    // の累計はクロスポスト用途では超えにくいので skip)。
+    maxBytesPerImage: 32 * 1024 * 1024,
     maxImages: 200,
   },
   // Pixiv は画像必須なので text のみ投稿は不可。kinds から 'text' を除外
