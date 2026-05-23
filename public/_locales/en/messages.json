@@ -268,5 +268,33 @@
       "MAX": { "content": "$2" },
       "ACTUAL": { "content": "$3" }
     }
+  },
+  "displayModeTitle": { "message": "Display mode" },
+  "displayModePopupOption": { "message": "popup — Chrome default (drops down under the icon; closes on tab focus change)" },
+  "displayModeSidepanelOption": { "message": "sidepanel — docked on the right (Chrome 114+; stays open until you close it)" },
+  "displayModeFloatingOption": { "message": "floating — independent window (movable, multi-monitor friendly)" },
+  "displayModeHint": { "message": "sidepanel / floating solve the issue where Tutti closes mid-post. After saving, the new mode applies the next time you click the extension icon." },
+  "historyStatusPartial": { "message": "partial" },
+  "historyStatusSuccess": { "message": "success" },
+  "historyUrlNotCaptured": { "message": "(URL not captured)" },
+  "historyNotAttempted": { "message": "not attempted" },
+  "compressionLoading": { "message": "Loading compression tool..." },
+  "compressionRunning": {
+    "message": "Compressing video... $PCT$%",
+    "placeholders": { "PCT": { "content": "$1" } }
+  },
+  "compressionEtaMin": {
+    "message": "~$N$ min remaining",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "compressionEtaSec": {
+    "message": "$N$s remaining",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "reportAlreadySubmitted": { "message": "Already reported" },
+  "reportClipboardOverflow": { "message": "(... full body is on the clipboard, paste it here)" },
+  "platformFailedShort": {
+    "message": "$P$: failed (no details)",
+    "placeholders": { "P": { "content": "$1" } }
   }
 }

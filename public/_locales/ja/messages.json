@@ -268,5 +268,33 @@
       "MAX": { "content": "$2" },
       "ACTUAL": { "content": "$3" }
     }
+  },
+  "displayModeTitle": { "message": "Tutti の表示方式" },
+  "displayModePopupOption": { "message": "popup — Chrome 標準 (アイコン下に出る、 tab focus で閉じる)" },
+  "displayModeSidepanelOption": { "message": "sidepanel — 画面右に dock (Chrome 114+、 閉じるまで残る)" },
+  "displayModeFloatingOption": { "message": "floating — 独立した小窓 (位置自由、 multi-monitor 対応)" },
+  "displayModeHint": { "message": "投稿中に Tutti が勝手に閉じる問題は sidepanel / floating で解消されます。 設定変更後、 拡張アイコンを次に click したときから新しい方式で開きます。" },
+  "historyStatusPartial": { "message": "部分成功" },
+  "historyStatusSuccess": { "message": "成功" },
+  "historyUrlNotCaptured": { "message": "(URL 未取得)" },
+  "historyNotAttempted": { "message": "未試行" },
+  "compressionLoading": { "message": "圧縮ツール読み込み中…" },
+  "compressionRunning": {
+    "message": "動画を圧縮中… $PCT$%",
+    "placeholders": { "PCT": { "content": "$1" } }
+  },
+  "compressionEtaMin": {
+    "message": "残り約 $N$ 分",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "compressionEtaSec": {
+    "message": "残り $N$ 秒",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "reportAlreadySubmitted": { "message": "既に報告済みです" },
+  "reportClipboardOverflow": { "message": "(... clipboard に full body あり、 paste してください)" },
+  "platformFailedShort": {
+    "message": "$P$: 失敗 (詳細無し)",
+    "placeholders": { "P": { "content": "$1" } }
   }
 }

@@ -341,7 +341,7 @@
     // GitHub Issues form は URL params で title + body を受け取る。 body は
     // 短縮版 (note + 元 body の先頭 3KB) で URL に乗せる。 残りは clipboard から
     // user が補完する形 (新規 issue form は paste 可能、 long body も貼れる)。
-    const shortBody = `${t('reportEmailNote')}\n\n${body.slice(0, 3000)}${body.length > 3000 ? '\n\n(... clipboard に full body あり、 paste してください)' : ''}`;
+    const shortBody = `${t('reportEmailNote')}\n\n${body.slice(0, 3000)}${body.length > 3000 ? '\n\n' + t('reportClipboardOverflow') : ''}`;
     const url = `https://github.com/komm64/tutti-issues/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(shortBody)}`;
     window.open(url, '_blank');
   }
@@ -656,7 +656,7 @@
       await submitPostFor([p], /* isRetry */ true);
     } else if (cta.kind === 'report') {
       const result = lastResults?.find((r) => r.platform === p);
-      const errorText = result?.error ?? `${p}: 失敗 (詳細無し)`;
+      const errorText = result?.error ?? t('platformFailedShort', p);
       expandedFailure = null;
       await handleReportError(errorText);
     } else if (cta.kind === 'wait') {
@@ -1492,11 +1492,11 @@
       </div>
       <span class="text-amber-700 shrink-0">
         {#if compressionProgress.stage === 'load'}
-          圧縮ツール読み込み中…
+          {t('compressionLoading')}
         {:else}
-          動画を圧縮中… {Math.round(compressionProgress.progress * 100)}%
+          {t('compressionRunning', String(Math.round(compressionProgress.progress * 100)))}
           {#if compressionEtaS !== null && compressionEtaS > 0}
-            <span class="text-amber-600">(残り{compressionEtaS >= 60 ? `約${Math.ceil(compressionEtaS / 60)}分` : `${compressionEtaS}秒`})</span>
+            <span class="text-amber-600">({compressionEtaS >= 60 ? t('compressionEtaMin', String(Math.ceil(compressionEtaS / 60))) : t('compressionEtaSec', String(compressionEtaS))})</span>
           {/if}
         {/if}
       </span>
@@ -1580,7 +1580,7 @@
               <!-- summary line -->
               <div class="flex items-center gap-2 mb-1">
                 <span class="font-medium {hasFailures ? 'text-red-700' : 'text-green-700'}">
-                  {successCount}/{totalCount} {hasFailures ? '部分成功' : '成功'}
+                  {successCount}/{totalCount} {hasFailures ? t('historyStatusPartial') : t('historyStatusSuccess')}
                 </span>
                 {#if entry.hasMedia}
                   <span class="text-gray-400" title={t('historyHasMedia')}>📎</span>
@@ -1608,7 +1608,7 @@
                           title={r.url}
                         >{r.url.replace(/^https?:\/\//, '')} ↗</a>
                       {:else}
-                        <span class="text-gray-400 italic">(URL 未取得)</span>
+                        <span class="text-gray-400 italic">{t('historyUrlNotCaptured')}</span>
                       {/if}
                     {:else if r}
                       <span class="shrink-0 w-4 text-red-600 font-bold">✗</span>
@@ -1617,7 +1617,7 @@
                     {:else}
                       <span class="shrink-0 w-4 text-gray-400">?</span>
                       <span class="shrink-0 font-medium text-gray-500">{pid}</span>
-                      <span class="text-gray-400 italic">未試行</span>
+                      <span class="text-gray-400 italic">{t('historyNotAttempted')}</span>
                     {/if}
                   </li>
                 {/each}
@@ -1669,7 +1669,7 @@
         {:else if reportResult && reportResult.deduped}
           <!-- 24h cooldown: 同じエラーは既に送信済み。fallback も出さない (= 同じ issue が増えない) -->
           <div class="text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded p-2 mb-3">
-            <p class="font-medium">既に報告済みです</p>
+            <p class="font-medium">{t('reportAlreadySubmitted')}</p>
             <p class="text-[11px] mt-0.5 break-all">{reportResult.error}</p>
           </div>
           <div class="flex items-center justify-end gap-2">
