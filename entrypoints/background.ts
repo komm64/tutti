@@ -676,7 +676,13 @@ async function postToPlatform(
       }
     }
   } else if (images && images.length > 0) {
-    // 画像の制約チェック(動画がない場合のみ、画像と動画は排他)
+    // 画像の制約チェック(動画がない場合のみ、画像と動画は排他)。
+    // v0.4.95: validation 前に per-platform で resize する。 旧 path は
+    // 4.8MB の写真を 2MB 上限 (Bluesky) に当てて即 reject していたが、
+    // maybeResizeImagesForPlatform で先に縮小すれば validation を通過し
+    // 投稿できる (tutti-issues#32)。 失敗時のみ checkImageConstraint で
+    // 拒否される (resize できない / それでも超過する場合の最終 fallback)。
+    images = await maybeResizeImagesForPlatform(adapter, images);
     const err = checkImageConstraint(
       platform,
       images.map((img) => attachmentSize(img)),

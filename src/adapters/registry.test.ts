@@ -32,8 +32,8 @@ describe('checkImageConstraint', () => {
     expect(checkImageConstraint('x', [1024 * 1024])).toBeNull();
   });
 
-  it('Bluesky 1MB 超は拒否', () => {
-    const err = checkImageConstraint('bluesky', [2 * 1024 * 1024]);
+  it('Bluesky 2MB 超は拒否 (atproto spec maxSize=2,000,000)', () => {
+    const err = checkImageConstraint('bluesky', [3 * 1024 * 1024]);
     expect(err).toContain('1枚目');
     expect(err).toContain('大きすぎ');
   });

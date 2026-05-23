@@ -20,7 +20,10 @@ export const blueskyAdapter: PlatformAdapter = {
     maxBytes: 80 * 1024 * 1024,
   },
   imageConstraints: {
-    maxBytesPerImage: 1024 * 1024, // 1MB(Bluesky は厳しい)
+    // atproto lex `app.bsky.embed.images` の `maxSize: 2000000` に従う
+    // (旧 1MB は 2026 以前。 現行 spec で 2MB に緩和、 description に
+    // "formerly limited to 1 MB" と明記)。 decimal 値で揃える。
+    maxBytesPerImage: 2_000_000,
     maxImages: 4,
   },
   // 60s 上限のため shortVideo まで
