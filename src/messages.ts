@@ -254,6 +254,15 @@ export interface GetBgStateMessage {
 }
 
 /**
+ * popup → background: 完了済の posting state を消す (v0.4.96)。
+ * postingStateInMemory を完了後も保持するようにした (popup 再 open で結果を
+ * 復元する) ことに対するペアの explicit clear API。
+ */
+export interface ClearPostingStateMessage {
+  type: 'CLEAR_POSTING_STATE';
+}
+
+/**
  * content script → background: 大きな binary を chunked で取得する。
  * tabs.sendMessage の 64MB cap を回避するため、media を base64 で全送りせず
  * dataRef を渡しておいて content script 側でこの message を loop 呼び出し。
@@ -337,6 +346,7 @@ export type Message =
   | LogAppendMessage
   | LogExportRequestMessage
   | GetBgStateMessage
+  | ClearPostingStateMessage
   | GetBinaryChunkMessage
   | GetBlueskySessionMessage
   | BlueskySessionResult

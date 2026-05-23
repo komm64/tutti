@@ -30,7 +30,7 @@ import { getApiCredentials } from '../src/utils/api-credentials';
 import { postViaApi as postBlueskyApi, postViaSession as postBlueskyViaSession, type BlueskyReplyTarget } from '../src/api/bluesky';
 import { isVerifySupported } from '../src/utils/post-verify';
 import { runVerify } from '../src/background/verify-dispatcher';
-import { openOrFocusTab, notifyResults } from '../src/background/tab-management';
+import { openOrFocusTab, notifyResults, clearBadge } from '../src/background/tab-management';
 import { postViaApi as postMastodonApi } from '../src/api/mastodon';
 import { postViaApi as postMisskeyApi } from '../src/api/misskey';
 import type { ApiPostResult } from '../src/api/types';
@@ -68,12 +68,21 @@ let postingInMemory: boolean = false;
  * 再 open しても「2/7 完了」「残り 5 が pending」が正しく復元できるようにする。
  * 旧コードは postingInMemory: boolean だけで、popup が閉じた瞬間に進捗が消えて
  * 開き直すと「全部 Queue...」と表示されるバグの原因になっていた。
+ *
+ * v0.4.96: 投稿完了後も state を保持する (旧 path は finally で null 化していた
+ * が、 wizard SNS が foreground tab を開いて popup が閉じてしまうケースで、
+ * user が popup 再 open したときに「何も無い」 state で表示されていた事故が
+ * あった (user 報告 2026-05-23)。 done=true で「最終結果」 を持ち続け、
+ * 次の POST_REQUEST 起動時に overwrite される。
  */
 interface PostingState {
   platforms: PlatformId[];
   pending: Set<PlatformId>;
   results: PostResultMessage[];
   startedAt: number;
+  /** 全 worker が完了したか。 true なら results は最終状態、 popup は結果 panel に切替 */
+  done: boolean;
+  finishedAt?: number;
 }
 let postingStateInMemory: PostingState | null = null;
 
@@ -165,17 +174,33 @@ export default defineBackground(() => {
       compressionStateInMemory = null;
       return; // 同上
     }
+    if (msg.type === 'CLEAR_POSTING_STATE') {
+      // popup から明示的に「結果を消す / 新規投稿に備える」 ためのクリア。
+      // v0.4.96: postingStateInMemory を完了後も保持するようにした (popup の
+      // 再 open で 「結果が消える」 事故防止) ことに対するペアの API。
+      postingStateInMemory = null;
+      clearBadge();
+      sendResponse({ ok: true });
+      return false;
+    }
+
     if (msg.type === 'GET_BG_STATE') {
+      // v0.4.96: popup が開かれた = user が結果を見た → badge を clear する。
+      // postingState 自体は保持 (popup を閉じて再 open でも結果が見えるように)。
+      clearBadge();
       sendResponse({
         compression: compressionStateInMemory,
         posting: postingInMemory,
         // v0.4.63: 投稿中の platform 別の進捗を popup に返す。pending / results を
-        // popup 側で再現してリッチな UI を復元する。
+        // popup 側で再現してリッチな UI を復元する。 v0.4.96: done フラグも
+        // 含めて popup が 「投稿中」 / 「完了済結果」 を区別できるように。
         postingState: postingStateInMemory
           ? {
               platforms: postingStateInMemory.platforms,
               pending: Array.from(postingStateInMemory.pending),
               results: postingStateInMemory.results.slice(),
+              done: postingStateInMemory.done,
+              finishedAt: postingStateInMemory.finishedAt,
             }
           : null,
       });
@@ -365,6 +390,7 @@ async function handlePostRequest(
     pending: new Set(platforms),
     results: [],
     startedAt: Date.now(),
+    done: false,
   };
   try {
   // P16: 動画があり、いずれかの選択中 SNS の maxBytes を超える場合は事前に圧縮
@@ -406,7 +432,14 @@ async function handlePostRequest(
   return results;
   } finally {
     postingInMemory = false;
-    postingStateInMemory = null;
+    // v0.4.96: postingStateInMemory は null 化せず、 done=true + finishedAt で
+    // 「完了済結果」 として保持。 popup 再 open 時に GET_BG_STATE で結果が
+    // 戻る。 次の POST_REQUEST 起動時に上書き、 もしくは popup から
+    // CLEAR_POSTING_STATE で明示クリア。
+    if (postingStateInMemory) {
+      postingStateInMemory.done = true;
+      postingStateInMemory.finishedAt = Date.now();
+    }
     compressionStateInMemory = null;
   }
 }

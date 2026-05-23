@@ -499,19 +499,18 @@
           platforms: PlatformId[];
           pending: PlatformId[];
           results: PostResultMessage[];
+          done?: boolean;
+          finishedAt?: number;
         } | null;
       } | undefined;
-      if (r?.posting) {
-        posting = true;
-        if (r.postingState) {
-          // 進行中の platform 一覧 と既に終わった result を popup に流し込む。
-          //
-          // **race 対策**: GET_BG_STATE 応答が遅延している間に PLATFORM_PROGRESS
-          // listener が既に新しい result を popup state に積んでいる可能性がある
-          // (BG snapshot → popup の間で完了する platform)。 単純 overwrite だと
-          // 既に done の platform が pending に戻り、 spinner が止まらなく見える。
-          // → 既に lastResults にある platform は pending から除き、 results は
-          //   merge (重複は新しい方を採用)。
+      // v0.4.96: posting=true (進行中) でも postingState.done=true (完了済) でも
+      // bg が保持してる state を popup に流し込む。 wizard SNS が foreground tab を
+      // 開いて popup が閉じた後、 user が再 open したときに 「全部 Queue...」 でも
+      // 「結果空」 でもなく、 最終結果 / 進捗 を正しく表示する。
+      if (r?.postingState) {
+        if (r.posting) {
+          // 進行中: pending + results を merge (PLATFORM_PROGRESS との race 対策)
+          posting = true;
           const knownDone = new Set((lastResults ?? []).map((x) => x.platform));
           pendingPlatforms = r.postingState.pending.filter((p) => !knownDone.has(p));
           const mergedResults = [...r.postingState.results];
@@ -521,13 +520,22 @@
             else mergedResults[idx] = x;
           }
           lastResults = mergedResults;
+        } else if (r.postingState.done) {
+          // 完了済 (popup を閉じてる間に終わった): 最終結果を表示
+          posting = false;
+          pendingPlatforms = [];
+          // results は信頼できる (bg が直 push したもの)。 popup state は空想定で
+          // 直接代入
+          lastResults = r.postingState.results.slice();
         }
-        if (r.compression) {
-          compressionProgress = r.compression;
-          if (r.compression.stage === 'transcode' && r.compression.progress > 0.05) {
-            // ETA は復元時に再計算 (started_at は再 open 時刻に近似、進捗は減衰させる)
-            compressionStartedAt = Date.now();
-          }
+      } else if (r?.posting) {
+        // postingState なしで posting=true は古いコード経路想定 (theoretical)
+        posting = true;
+      }
+      if (r?.compression) {
+        compressionProgress = r.compression;
+        if (r.compression.stage === 'transcode' && r.compression.progress > 0.05) {
+          compressionStartedAt = Date.now();
         }
       }
     }).catch(() => { /* background sleep してたら null 戻り、無視 */ });

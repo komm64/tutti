@@ -101,7 +101,11 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-/** 投稿後の badge 表示 (v0.4.80〜 ここに切り出し)。 */
+/**
+ * 投稿後の badge 表示 (v0.4.80〜 ここに切り出し)。
+ * v0.4.96: badge は popup を開く / 次の投稿開始まで持続させる
+ * (旧 5s 自動消去だと user が popup を再 open するまでに結果通知が消えていた)。
+ */
 export function notifyResults(results: { platform: string; success: boolean; error?: string }[]): void {
   const succeeded = results.filter((r) => r.success);
   const failed = results.filter((r) => !r.success);
@@ -118,7 +122,9 @@ export function notifyResults(results: { platform: string; success: boolean; err
     });
     void browser.action.setBadgeBackgroundColor({ color: '#f59e0b' });
   }
-  setTimeout(() => void browser.action.setBadgeText({ text: '' }), 5000);
+  // 旧: setTimeout(5000) で auto clear → user 不在中に消える事故。
+  // 新: clearBadge() を popup の GET_BG_STATE 受信時 / handlePostRequest 起動時に
+  // 呼ぶことで明示クリアする。
 
   for (const r of results) {
     if (r.success) {
@@ -127,4 +133,8 @@ export function notifyResults(results: { platform: string; success: boolean; err
       log.error(`✗ ${r.platform}: ${r.error ?? '(no detail)'}`);
     }
   }
+}
+
+export function clearBadge(): void {
+  void browser.action.setBadgeText({ text: '' });
 }
