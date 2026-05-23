@@ -102,9 +102,20 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
+ * v0.4.97: 投稿中の progress badge。 完了数 / 全体 を icon に重ねる
+ * (色は in-progress = 青)。 PLATFORM_PROGRESS broadcast の度に呼ばれる。
+ */
+export function updateProgressBadge(done: number, total: number): void {
+  if (total <= 0) return;
+  void browser.action.setBadgeText({ text: `${done}/${total}` });
+  void browser.action.setBadgeBackgroundColor({ color: '#3b82f6' }); // blue
+}
+
+/**
  * 投稿後の badge 表示 (v0.4.80〜 ここに切り出し)。
  * v0.4.96: badge は popup を開く / 次の投稿開始まで持続させる
  * (旧 5s 自動消去だと user が popup を再 open するまでに結果通知が消えていた)。
+ * v0.4.97: 完了通知 (chrome.notifications) も同時に出す。 黙って終わらない。
  */
 export function notifyResults(results: { platform: string; success: boolean; error?: string }[]): void {
   const succeeded = results.filter((r) => r.success);
@@ -122,9 +133,10 @@ export function notifyResults(results: { platform: string; success: boolean; err
     });
     void browser.action.setBadgeBackgroundColor({ color: '#f59e0b' });
   }
-  // 旧: setTimeout(5000) で auto clear → user 不在中に消える事故。
-  // 新: clearBadge() を popup の GET_BG_STATE 受信時 / handlePostRequest 起動時に
-  // 呼ぶことで明示クリアする。
+
+  // 完了 OS 通知。 全成功なら緑系、 失敗ありなら赤系。
+  // 失敗 SNS 名を body に列挙して user が 「どこで失敗したか」 を一目で分かる。
+  void showCompletionNotification(succeeded.length, failed);
 
   for (const r of results) {
     if (r.success) {
@@ -132,6 +144,43 @@ export function notifyResults(results: { platform: string; success: boolean; err
     } else {
       log.error(`✗ ${r.platform}: ${r.error ?? '(no detail)'}`);
     }
+  }
+}
+
+const PLATFORM_LABELS: Record<string, string> = {
+  x: 'X', bluesky: 'Bluesky', threads: 'Threads', mastodon: 'Mastodon',
+  misskey: 'Misskey', tumblr: 'Tumblr', pixiv: 'Pixiv', deviantart: 'DeviantArt',
+  instagram: 'Instagram', tiktok: 'TikTok', youtube: 'YouTube',
+};
+
+async function showCompletionNotification(
+  succeeded: number,
+  failed: { platform: string; error?: string }[],
+): Promise<void> {
+  try {
+    // notifications permission が無い環境 (古い build / 拒否済) では silently skip
+    if (!browser.notifications?.create) return;
+    const total = succeeded + failed.length;
+    const iconUrl = browser.runtime.getURL('/icon/128.png');
+    const isAllSuccess = failed.length === 0;
+    const title = isAllSuccess
+      ? `Tutti: ${total} SNS に投稿しました`
+      : `Tutti: ${succeeded}/${total} 成功、 ${failed.length} 失敗`;
+    const failedNames = failed
+      .map((f) => PLATFORM_LABELS[f.platform] ?? f.platform)
+      .join(', ');
+    const message = isAllSuccess
+      ? '全 SNS に正常投稿されました'
+      : `失敗: ${failedNames}\nTutti を開いて再送できます`;
+    await browser.notifications.create('tutti-post-complete-' + Date.now(), {
+      type: 'basic',
+      iconUrl,
+      title,
+      message,
+      priority: isAllSuccess ? 0 : 2,
+    });
+  } catch (e) {
+    log.warn(`完了通知失敗: ${e instanceof Error ? e.message : String(e)}`);
   }
 }
 

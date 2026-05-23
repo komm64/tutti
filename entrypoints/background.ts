@@ -30,7 +30,7 @@ import { getApiCredentials } from '../src/utils/api-credentials';
 import { postViaApi as postBlueskyApi, postViaSession as postBlueskyViaSession, type BlueskyReplyTarget } from '../src/api/bluesky';
 import { isVerifySupported } from '../src/utils/post-verify';
 import { runVerify } from '../src/background/verify-dispatcher';
-import { openOrFocusTab, notifyResults, clearBadge } from '../src/background/tab-management';
+import { openOrFocusTab, notifyResults, clearBadge, updateProgressBadge } from '../src/background/tab-management';
 import { postViaApi as postMastodonApi } from '../src/api/mastodon';
 import { postViaApi as postMisskeyApi } from '../src/api/misskey';
 import type { ApiPostResult } from '../src/api/types';
@@ -385,6 +385,7 @@ async function handlePostRequest(
   trimVideoToSeconds?: number,
 ): Promise<PostResultMessage[]> {
   postingInMemory = true;
+  // v0.4.97: 新規 post 開始 = 前回 state を完全上書き
   postingStateInMemory = {
     platforms: [...platforms],
     pending: new Set(platforms),
@@ -392,6 +393,8 @@ async function handlePostRequest(
     startedAt: Date.now(),
     done: false,
   };
+  // 開始時に「0/N」 progress badge を表示 (青)
+  updateProgressBadge(0, platforms.length);
   try {
   // P16: 動画があり、いずれかの選択中 SNS の maxBytes を超える場合は事前に圧縮
   const adjustedImages = await maybeCompressVideoForBudget(platforms, images, trimVideoToSeconds);
@@ -414,6 +417,8 @@ async function handlePostRequest(
         if (postingStateInMemory) {
           postingStateInMemory.pending.delete(platform);
           postingStateInMemory.results.push(result);
+          // v0.4.97: 1 platform 完了の度に progress badge 更新 (N/M 表示)
+          updateProgressBadge(postingStateInMemory.results.length, postingStateInMemory.platforms.length);
         }
         // popup へストリーム配信(popup が開いていれば届く、閉じてれば↑の state で復元)
         void browser.runtime

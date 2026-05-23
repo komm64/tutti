@@ -144,15 +144,19 @@ async function executeXInlineThread(
   const textarea0 = await waitForElement<HTMLElement>(sel.textarea, 8000);
   if (!textarea0) throw new Error('X: 最初の textarea が見つかりません');
 
-  // chunk 0 を inject (= これで 「ポストを追加 (+)」 button が現れる)
-  await injectTextIntoElement(chunks[0]!, sel.textarea);
-  await sleep(500);
-
-  // images は最初の chunk にだけ attach
+  // v0.4.97: 画像 → text の順序が重要。 旧 (text→image) は X の Lexical が
+  // image 追加時に compose を re-mount して chunk 0 text を失う事故があった
+  // (user 報告: 「画像だけが表示される」)。 画像 attach 後の DOM settle を
+  // 待ってから text を inject すれば、 最終状態の textarea に当たって残る。
+  // 画像 attach だけでも 「ポストを追加 (+)」 button は有効化される。
   if (images && images.length > 0) {
     await injectImages(images, sel.fileInput);
     await sleep(800);
   }
+
+  // chunk 0 を inject
+  await injectTextIntoElement(chunks[0]!, sel.textarea);
+  await sleep(500);
 
   // 各 chunk を「+」 click → wait → inject の繰り返し。
   for (let i = 1; i < chunks.length; i++) {

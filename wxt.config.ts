@@ -7,7 +7,7 @@ export default defineConfig({
     name: '__MSG_appName__',
     description: '__MSG_appDescription__',
     default_locale: 'en',
-    permissions: ['storage', 'offscreen'],
+    permissions: ['storage', 'offscreen', 'notifications'],
     host_permissions: [
       'https://x.com/*',
       'https://twitter.com/*',
