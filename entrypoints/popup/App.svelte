@@ -1563,45 +1563,63 @@
         {#if filteredHistory.length === 0}
           <p class="text-xs text-gray-400">{t('historyNoMatch')}</p>
         {/if}
-        <ul class="space-y-1.5">
+        <ul class="space-y-2">
           {#each filteredHistory as entry}
             {@const hasFailures = Object.values(entry.results).some((r) => r && !r.success)}
-            <li class="text-xs border border-gray-100 rounded p-2">
-              <div class="flex items-center gap-1 mb-0.5 flex-wrap">
-                {#each entry.platforms as pid}
-                  {@const r = entry.results[pid]}
-                  {#if r?.success && r.url}
-                    <!-- v0.4.88: 成功 + URL あり → clickable link で post page へ -->
-                    <a
-                      href={r.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title={r.url}
-                      class="px-1 rounded text-[10px] bg-green-100 text-green-700 hover:bg-green-200"
-                    >{pid} ↗</a>
-                  {:else if r?.success}
-                    <span class="px-1 rounded text-[10px] bg-green-100 text-green-700">{pid}</span>
-                  {:else if r}
-                    <!-- v0.4.88: 失敗 → tooltip にエラーメッセージ -->
-                    <span
-                      class="px-1 rounded text-[10px] bg-red-100 text-red-700"
-                      title={r.error ?? t('failedShort')}
-                    >{pid} ✗</span>
-                  {:else}
-                    <span class="px-1 rounded text-[10px] bg-gray-100 text-gray-500">{pid}</span>
-                  {/if}
-                {/each}
+            {@const successCount = Object.values(entry.results).filter((r) => r?.success).length}
+            {@const totalCount = entry.platforms.length}
+            <li class="text-xs border border-gray-200 rounded p-2">
+              <!-- summary line -->
+              <div class="flex items-center gap-2 mb-1">
+                <span class="font-medium {hasFailures ? 'text-red-700' : 'text-green-700'}">
+                  {successCount}/{totalCount} {hasFailures ? '部分成功' : '成功'}
+                </span>
                 {#if entry.hasMedia}
-                  <span class="text-gray-400">📎</span>
+                  <span class="text-gray-400" title={t('historyHasMedia')}>📎</span>
                 {/if}
                 <span class="ml-auto text-gray-400">{formatRelTime(entry.timestamp)}</span>
               </div>
-              <p class="text-gray-600 truncate">{entry.textPreview}</p>
+
+              <!-- 本文 preview -->
+              <p class="text-gray-700 mb-2 break-words" style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">{entry.textPreview}</p>
+
+              <!-- per-SNS row 詳細 (v0.4.102: user 報告 「成否が分からない」 を解消) -->
+              <ul class="space-y-1 mb-1">
+                {#each entry.platforms as pid}
+                  {@const r = entry.results[pid]}
+                  <li class="flex items-start gap-1.5 text-[11px]">
+                    {#if r?.success}
+                      <span class="shrink-0 w-4 text-green-600 font-bold">✓</span>
+                      <span class="shrink-0 font-medium text-gray-700">{pid}</span>
+                      {#if r.url}
+                        <a
+                          href={r.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          class="text-blue-600 hover:text-blue-800 hover:underline truncate"
+                          title={r.url}
+                        >{r.url.replace(/^https?:\/\//, '')} ↗</a>
+                      {:else}
+                        <span class="text-gray-400 italic">(URL 未取得)</span>
+                      {/if}
+                    {:else if r}
+                      <span class="shrink-0 w-4 text-red-600 font-bold">✗</span>
+                      <span class="shrink-0 font-medium text-gray-700">{pid}</span>
+                      <span class="text-red-700 break-words flex-1 min-w-0">{r.error ?? t('failedShort')}</span>
+                    {:else}
+                      <span class="shrink-0 w-4 text-gray-400">?</span>
+                      <span class="shrink-0 font-medium text-gray-500">{pid}</span>
+                      <span class="text-gray-400 italic">未試行</span>
+                    {/if}
+                  </li>
+                {/each}
+              </ul>
+
               {#if hasFailures}
                 <button
                   type="button"
                   onclick={() => retryFromHistory(entry)}
-                  class="mt-1 text-[10px] text-red-600 hover:text-red-700 hover:underline"
+                  class="text-[11px] text-red-600 hover:text-red-700 hover:underline"
                   title={t('historyRetryFailedTooltip')}
                 >{t('historyRetryFailed')} ↻</button>
               {/if}
