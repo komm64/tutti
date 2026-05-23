@@ -162,6 +162,18 @@
   "failureHintTooltip": { "message": "失敗の原因と対処を表示" },
   "failureHintClose": { "message": "閉じる" },
 
+  "altPlaceholder": { "message": "alt テキスト (a11y、 任意)" },
+  "altTooltip": { "message": "画像の説明文 (Bluesky / Mastodon の API path で送信、 スクリーンリーダー向け)" },
+  "advancedTitle": { "message": "詳細オプション (Mastodon / Misskey)" },
+  "cwLabel": { "message": "Content Warning / spoiler" },
+  "cwPlaceholder": { "message": "例: ネタバレ、 食事、 R-18 など" },
+  "visibilityLabel": { "message": "公開範囲" },
+  "visibilityPublic": { "message": "公開 (public)" },
+  "visibilityUnlisted": { "message": "未収載 (Mastodon: unlisted / Misskey: home)" },
+  "visibilityPrivate": { "message": "フォロワー限定 (Mastodon: private / Misskey: followers)" },
+  "visibilityDirect": { "message": "ダイレクト (Mastodon: direct / Misskey: specified)" },
+  "advancedHint": { "message": "API path 経由で投稿する Mastodon / Misskey にだけ適用されます (API キー未設定 SNS には反映されません)。" },
+
   "pixivTitle": { "message": "Pixiv 投稿 default" },
   "pixivVisibilityLabel": { "message": "Visible to (x_restrict)" },
   "pixivVisibilityGeneralDesc": { "message": "全年齢 (クロスポスト標準)" },

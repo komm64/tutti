@@ -124,7 +124,7 @@ export async function postViaSession(
     for (const img of images) {
       const bytes = await resolveAttachmentToBytes(img);
       const blob = await uploadBlob(session, pds, bytes, img.type);
-      imageRecords.push({ alt: '', image: blob });
+      imageRecords.push({ alt: img.alt ?? '', image: blob });
     }
 
     // facets: #hashtag / bare URL / @mention を clickable にする。 無いと plain text 扱い。

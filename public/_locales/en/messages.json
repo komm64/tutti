@@ -162,6 +162,18 @@
   "failureHintTooltip": { "message": "Show why this failed and how to fix it" },
   "failureHintClose": { "message": "Close" },
 
+  "altPlaceholder": { "message": "alt text (a11y, optional)" },
+  "altTooltip": { "message": "Image description for screen readers (sent via Bluesky / Mastodon API path)" },
+  "advancedTitle": { "message": "Advanced options (Mastodon / Misskey)" },
+  "cwLabel": { "message": "Content Warning / spoiler" },
+  "cwPlaceholder": { "message": "e.g. spoilers, food, NSFW" },
+  "visibilityLabel": { "message": "Visibility" },
+  "visibilityPublic": { "message": "Public" },
+  "visibilityUnlisted": { "message": "Unlisted (Mastodon) / Home (Misskey)" },
+  "visibilityPrivate": { "message": "Followers only (Mastodon: private / Misskey: followers)" },
+  "visibilityDirect": { "message": "Direct (Mastodon: direct / Misskey: specified)" },
+  "advancedHint": { "message": "Applies only to Mastodon / Misskey posts made through the API path (networks without an API key configured ignore these fields)." },
+
   "pixivTitle": { "message": "Pixiv post defaults" },
   "pixivVisibilityLabel": { "message": "Visible to (x_restrict)" },
   "pixivVisibilityGeneralDesc": { "message": "All ages (cross-post default)" },

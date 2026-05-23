@@ -99,6 +99,14 @@
   let lastSeenUsers = $state<LastSeenUsers>({});
   /** v0.4.86: 失敗 hint card を expand してる platform (null = 全て collapse) */
   let expandedFailure = $state<PlatformId | null>(null);
+  /** v0.4.87: 画像 alt text (a11y / Bluesky・Mastodon API path で送信) */
+  let imageAlts = $state<string[]>([]);
+  /** v0.4.87: content warning / spoiler (Mastodon / Misskey API path 用) */
+  let cw = $state('');
+  /** v0.4.87: visibility (Mastodon / Misskey API path 用)。 default 'public' */
+  let visibility = $state<'public' | 'unlisted' | 'private' | 'direct'>('public');
+  /** v0.4.87: 詳細セクションの展開状態 */
+  let showAdvanced = $state(false);
   // 自動投稿(autoPost): false=dry run(ボタンを押すだけで Compose 確認、実投稿はしない)
   // true=実投稿。デフォルトは false にして、初回ユーザーの誤投稿を防ぐ。
   let autoPost = $state(false);
@@ -754,6 +762,8 @@
   function removeImage(i: number) {
     URL.revokeObjectURL(images[i]!.previewUrl);
     images = images.filter((_, idx) => idx !== i);
+    // alt 配列も同期 (v0.4.87)
+    imageAlts = imageAlts.filter((_, idx) => idx !== i);
   }
 
   function removeVideo() {
@@ -805,7 +815,7 @@
         0,
       );
       media = await Promise.all(
-        images.map(async (img) => {
+        images.map(async (img, idx) => {
           const data = maxLimit > 0
             ? await resizeImage(img.data, img.type, maxLimit)
             : img.data;
@@ -815,6 +825,7 @@
             name: resized ? img.name.replace(/\.[^.]+$/, '.jpg') : img.name,
             type: resized ? 'image/jpeg' : img.type,
             data,
+            alt: imageAlts[idx] || undefined,
           };
         }),
       );
@@ -831,6 +842,9 @@
       text,
       platforms,
       images: wireMedia.length > 0 ? wireMedia : undefined,
+      // v0.4.87: 詳細オプション (Mastodon / Misskey API path で使われる)
+      cw: cw.trim() || undefined,
+      visibility: visibility !== 'public' ? visibility : undefined,
     };
 
     try {
@@ -993,14 +1007,25 @@
     {/if}
   </div>
 
-  <!-- 画像サムネイル -->
+  <!-- 画像サムネイル + alt text 入力 (v0.4.87) -->
   {#if images.length > 0}
-    <div class="mt-1.5 flex gap-1.5 flex-wrap">
+    <div class="mt-1.5 space-y-1.5">
       {#each images as img, i}
-        <div class="relative w-16 h-16">
-          <img src={img.previewUrl} alt={img.name} class="w-16 h-16 object-cover rounded border border-gray-200" />
-          <button onclick={() => removeImage(i)} disabled={posting}
-            class="absolute -top-1 -right-1 w-4 h-4 bg-gray-600 text-white rounded-full text-xs leading-none flex items-center justify-center hover:bg-gray-800 disabled:opacity-40">×</button>
+        <div class="flex items-center gap-1.5">
+          <div class="relative w-12 h-12 shrink-0">
+            <img src={img.previewUrl} alt={img.name} class="w-12 h-12 object-cover rounded border border-gray-200" />
+            <button onclick={() => removeImage(i)} disabled={posting}
+              class="absolute -top-1 -right-1 w-4 h-4 bg-gray-600 text-white rounded-full text-xs leading-none flex items-center justify-center hover:bg-gray-800 disabled:opacity-40">×</button>
+          </div>
+          <input
+            type="text"
+            bind:value={imageAlts[i]}
+            placeholder={t('altPlaceholder')}
+            title={t('altTooltip')}
+            maxlength="1500"
+            disabled={posting}
+            class="flex-1 min-w-0 border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 disabled:opacity-40"
+          />
         </div>
       {/each}
     </div>
@@ -1151,6 +1176,49 @@
       </div>
     {/if}
   {/snippet}
+
+  <!-- v0.4.87: 詳細セクション (CW + visibility)。 collapsible で default 閉。 Mastodon / Misskey に届く -->
+  <div class="mt-2">
+    <button
+      type="button"
+      onclick={() => (showAdvanced = !showAdvanced)}
+      class="text-[10px] text-gray-500 hover:text-gray-700 flex items-center gap-1"
+    >
+      <span>{showAdvanced ? '▾' : '▸'}</span>
+      <span>{t('advancedTitle')}</span>
+    </button>
+    {#if showAdvanced}
+      <div class="mt-1 space-y-1.5 border border-gray-200 rounded p-2 text-xs">
+        <div>
+          <label class="block text-[10px] text-gray-500 mb-0.5" for="cw-input">{t('cwLabel')}</label>
+          <input
+            id="cw-input"
+            type="text"
+            bind:value={cw}
+            placeholder={t('cwPlaceholder')}
+            maxlength="100"
+            disabled={posting}
+            class="w-full border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 disabled:opacity-40"
+          />
+        </div>
+        <div>
+          <label class="block text-[10px] text-gray-500 mb-0.5" for="visibility-select">{t('visibilityLabel')}</label>
+          <select
+            id="visibility-select"
+            bind:value={visibility}
+            disabled={posting}
+            class="w-full border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 disabled:opacity-40"
+          >
+            <option value="public">{t('visibilityPublic')}</option>
+            <option value="unlisted">{t('visibilityUnlisted')}</option>
+            <option value="private">{t('visibilityPrivate')}</option>
+            <option value="direct">{t('visibilityDirect')}</option>
+          </select>
+        </div>
+        <p class="text-[10px] text-gray-400 leading-snug">{t('advancedHint')}</p>
+      </div>
+    {/if}
+  </div>
 
   {#if signedInPlatforms.length > 0}
     <div class="mt-2 grid grid-cols-2 gap-1.5 text-xs">

@@ -56,12 +56,22 @@ export async function postViaApi(
       fileIds.push(id);
     }
 
+    // Misskey の visibility: public / home / followers / specified
+    // Mastodon の 'private' → Misskey 'followers'、 'direct' → 'specified' に対応付け
+    const visMap: Record<string, string> = {
+      public: 'public',
+      unlisted: 'home',
+      private: 'followers',
+      direct: 'specified',
+    };
+    const visibility = input.visibility ? (visMap[input.visibility] ?? 'public') : 'public';
     const body: Record<string, unknown> = {
       i: creds.accessToken,
       text: input.text,
-      visibility: 'public',
+      visibility,
     };
     if (fileIds.length > 0) body['fileIds'] = fileIds;
+    if (input.cw) body['cw'] = input.cw;
 
     const res = await fetch(`${creds.instance}/api/notes/create`, {
       method: 'POST',

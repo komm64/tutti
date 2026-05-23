@@ -9,8 +9,14 @@ export interface ApiPostInput {
   /**
    * 画像 / 動画 (動画は images[0].type が video/* のときに混在し得る)。
    * 各 SNS の API 側 limit は client 内で reject。
+   * 各 image の `alt` プロパティは Bluesky (blob alt) / Mastodon (description) で
+   * 送信される (v0.4.87〜)。
    */
   images?: ImageAttachment[];
+  /** content warning / spoiler text (Mastodon / Misskey、 v0.4.87〜) */
+  cw?: string;
+  /** visibility (Mastodon / Misskey、 v0.4.87〜)。 default 'public'。 */
+  visibility?: 'public' | 'unlisted' | 'private' | 'direct';
 }
 
 export interface ApiPostResult {

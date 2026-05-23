@@ -30,6 +30,11 @@ export interface ImageAttachment {
   bytes?: number;
   /** 動画の場合の尺(秒)。background での制約チェックに使う */
   durationS?: number;
+  /**
+   * 画像 alt text (v0.4.87〜)。 Bluesky / Mastodon の API path で送信される。
+   * DOM 経路は対応してない (該当 SNS の compose UI に alt input が無い場合あり)。
+   */
+  alt?: string;
 }
 
 /** popup → background: 全 SNS への投稿リクエスト */
@@ -38,6 +43,14 @@ export interface PostRequestMessage {
   text: string;
   platforms: PlatformId[];
   images?: ImageAttachment[];
+  /**
+   * v0.4.87〜: 詳細オプション。 SNS によって対応 / 無対応が分かれる:
+   * - cw (content warning / spoiler text): Mastodon (spoiler_text) / Misskey (cw)
+   * - visibility: Mastodon (public/unlisted/private/direct) / Misskey (public/home/followers/specified)
+   * - 他 SNS は ignore
+   */
+  cw?: string;
+  visibility?: 'public' | 'unlisted' | 'private' | 'direct';
 }
 
 /** background → content script: 1 プラットフォームへの投稿指示 */
@@ -62,6 +75,10 @@ export interface PostToPlatformMessage {
    * undefined / null の場合は check skip (= detection 未実行 / 検出未対応 SNS)。
    */
   expectedUser?: string;
+  /** Mastodon / Misskey 用の CW / spoiler text (v0.4.87〜) */
+  cw?: string;
+  /** Mastodon / Misskey 用の visibility (v0.4.87〜) */
+  visibility?: 'public' | 'unlisted' | 'private' | 'direct';
 }
 
 /** content script → background: 1 プラットフォームの投稿結果 */

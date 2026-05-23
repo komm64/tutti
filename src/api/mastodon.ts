@@ -27,9 +27,11 @@ async function uploadMedia(
   bytes: Uint8Array,
   mimeType: string,
   filename: string,
+  description?: string,
 ): Promise<string> {
   const fd = new FormData();
   fd.append('file', new Blob([bytes as BlobPart], { type: mimeType }), filename);
+  if (description) fd.append('description', description);
   const res = await fetch(`${creds.instance}/api/v2/media`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${creds.accessToken}` },
@@ -53,7 +55,7 @@ export async function postViaApi(
     const mediaIds: string[] = [];
     for (const m of input.images ?? []) {
       const bytes = await resolveAttachmentToBytes(m);
-      const id = await uploadMedia(creds, bytes, m.type, m.name || `tutti-media-${Date.now()}`);
+      const id = await uploadMedia(creds, bytes, m.type, m.name || `tutti-media-${Date.now()}`, m.alt);
       mediaIds.push(id);
     }
 
@@ -62,6 +64,8 @@ export async function postViaApi(
 
     const body: Record<string, unknown> = { status: input.text };
     if (mediaIds.length > 0) body['media_ids'] = mediaIds;
+    if (input.cw) body['spoiler_text'] = input.cw;
+    if (input.visibility) body['visibility'] = input.visibility;
 
     const res = await fetch(`${creds.instance}/api/v1/statuses`, {
       method: 'POST',

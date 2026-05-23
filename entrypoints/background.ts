@@ -238,7 +238,7 @@ export default defineBackground(() => {
 
     if (msg.type !== 'POST_REQUEST') return;
 
-    void handlePostRequest(msg.text, msg.platforms, msg.images)
+    void handlePostRequest(msg.text, msg.platforms, msg.images, msg.cw, msg.visibility)
       .then((results) => sendResponse({ results }))
       .catch((err: unknown) => {
         const message = err instanceof Error ? err.message : String(err);
@@ -351,6 +351,8 @@ async function handlePostRequest(
   text: string,
   platforms: PlatformId[],
   images?: ImageAttachment[],
+  cw?: string,
+  visibility?: 'public' | 'unlisted' | 'private' | 'direct',
 ): Promise<PostResultMessage[]> {
   postingInMemory = true;
   postingStateInMemory = {
@@ -375,7 +377,7 @@ async function handlePostRequest(
       while (queue.length > 0) {
         const platform = queue.shift();
         if (!platform) break;
-        const result = await postToPlatform(platform, text, adjustedImages);
+        const result = await postToPlatform(platform, text, adjustedImages, cw, visibility);
         results.push(result);
         // background 側の state を更新 (popup 再 open 時に GET_BG_STATE で復元される)
         if (postingStateInMemory) {
@@ -612,6 +614,8 @@ async function postToPlatform(
   platform: PlatformId,
   text: string,
   images?: ImageAttachment[],
+  cw?: string,
+  visibility?: 'public' | 'unlisted' | 'private' | 'direct',
 ): Promise<PostResultMessage> {
   const adapter = await resolveAdapter(platform);
   if (!adapter) {
@@ -724,9 +728,9 @@ async function postToPlatform(
       // 部分的に成功しているケース) ので retry しない。
       let result: PostResultMessage;
       if (i === 0) {
-        result = await postSingleChunkWithRetry(adapter, chunks[i]!, chunkImages, undefined, overrideUrl);
+        result = await postSingleChunkWithRetry(adapter, chunks[i]!, chunkImages, undefined, overrideUrl, cw, visibility);
       } else {
-        result = await postSingleChunk(adapter, chunks[i]!, chunkImages, undefined, overrideUrl);
+        result = await postSingleChunk(adapter, chunks[i]!, chunkImages, undefined, overrideUrl, cw, visibility);
       }
       if (result.url) prevPostUrl = result.url;
     } catch (err) {
@@ -811,16 +815,18 @@ async function postSingleChunkWithRetry(
   rawImages?: ImageAttachment[],
   textChunks?: string[],
   overrideUrl?: string,
+  cw?: string,
+  visibility?: 'public' | 'unlisted' | 'private' | 'direct',
 ): Promise<PostResultMessage> {
   const { autoPost } = await getSettings();
   try {
-    return await postSingleChunk(adapter, text, rawImages, textChunks, overrideUrl);
+    return await postSingleChunk(adapter, text, rawImages, textChunks, overrideUrl, cw, visibility);
   } catch (err) {
     if (!autoPost) throw err;
     const msg = err instanceof Error ? err.message : String(err);
     log.warn(`${adapter.id}: 1 回目失敗 → 1.5s 後 retry — ${msg}`);
     await sleep(1500);
-    return await postSingleChunk(adapter, text, rawImages, textChunks, overrideUrl);
+    return await postSingleChunk(adapter, text, rawImages, textChunks, overrideUrl, cw, visibility);
   }
 }
 
@@ -983,16 +989,22 @@ async function tryApiPath(
   platform: PlatformId,
   text: string,
   images?: ImageAttachment[],
+  cw?: string,
+  visibility?: 'public' | 'unlisted' | 'private' | 'direct',
 ): Promise<ApiPostResult | 'no-credentials'> {
   const creds = await getApiCredentials();
+  // Bluesky: alt text は images[].alt から、 cw / visibility は無視 (Bluesky の
+  // content label は別 system なので別 phase)
   if (platform === 'bluesky' && creds.bluesky) {
     return await postBlueskyApi(creds.bluesky, { text, images });
   }
+  // Mastodon: spoiler_text + visibility + media.description (alt) を渡す
   if (platform === 'mastodon' && creds.mastodon) {
-    return await postMastodonApi(creds.mastodon, { text, images });
+    return await postMastodonApi(creds.mastodon, { text, images, cw, visibility });
   }
+  // Misskey: cw + visibility (mapping は api/misskey.ts 内)
   if (platform === 'misskey' && creds.misskey) {
-    return await postMisskeyApi(creds.misskey, { text, images });
+    return await postMisskeyApi(creds.misskey, { text, images, cw, visibility });
   }
   return 'no-credentials';
 }
@@ -1007,6 +1019,10 @@ async function postSingleChunk(
   /** adapter.getComposeUrl(text) を override (reply chain で reply target を
    *  含む URL に切り替える等)。 指定無しなら adapter の default を使う。 */
   overrideUrl?: string,
+  /** content warning / spoiler (Mastodon / Misskey API path、 v0.4.87〜) */
+  cw?: string,
+  /** visibility (Mastodon / Misskey API path、 v0.4.87〜) */
+  visibility?: 'public' | 'unlisted' | 'private' | 'direct',
 ): Promise<PostResultMessage> {
   // content script は extension IndexedDB を直接読めないので、binary は
   // background→content の tab.sendMessage で chunked 配信する形に変更
@@ -1026,7 +1042,7 @@ async function postSingleChunk(
   // 従来 DOM path で compose を開いてユーザーに見せる (preview の意味維持)。
   // override URL (reply chain) は DOM path 専用なので skip。
   if (autoPost && !overrideUrl) {
-    const apiResult = await tryApiPath(adapter.id, text, images);
+    const apiResult = await tryApiPath(adapter.id, text, images, cw, visibility);
     if (apiResult === 'no-credentials') {
       // 設定無し → DOM path に fallthrough
     } else if (apiResult.success) {
