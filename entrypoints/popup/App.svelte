@@ -579,6 +579,27 @@
    * 「retry」 = この SNS だけ再送 / 「open-sns」 = SNS の login/home を新 tab で /
    * 「report」 = 障害報告 / 「wait」 = card を閉じる (user に時間取ってもらう)。
    */
+  /**
+   * v0.4.88: 履歴 entry から失敗 SNS を再送する。
+   * 履歴 entry は本文 preview だけ持ってる (媒体 / tag は持たない) ので、
+   * textarea に本文を流し込んで失敗した SNS を選択 → user に確認して投稿。
+   * 媒体は user 側で再添付が必要。
+   */
+  async function retryFromHistory(entry: { textPreview: string; results: Partial<Record<PlatformId, { success: boolean; url?: string; error?: string }>>; }): Promise<void> {
+    const failedIds = (Object.entries(entry.results) as [PlatformId, { success: boolean }][])
+      .filter(([, r]) => !r.success)
+      .map(([id]) => id);
+    if (failedIds.length === 0) return;
+    text = entry.textPreview;
+    // 失敗 SNS をチェック状態に
+    for (const id of failedIds) {
+      selected[id] = true;
+    }
+    showHistory = false; // history panel を閉じて投稿フォームに戻る
+    // user が media を再添付 or 本文を編集してから手動で post boutton 押す前提。
+    // 自動 submit はしない (履歴から prefill するだけ)
+  }
+
   async function handleFailureCta(p: PlatformId, cta: FailureHintCta): Promise<void> {
     if (cta.kind === 'open-sns') {
       void browser.tabs.create({ url: cta.url, active: true });
@@ -1361,16 +1382,31 @@
       {:else}
         <ul class="space-y-1.5">
           {#each history as entry}
+            {@const hasFailures = Object.values(entry.results).some((r) => r && !r.success)}
             <li class="text-xs border border-gray-100 rounded p-2">
-              <div class="flex items-center gap-1.5 mb-0.5">
+              <div class="flex items-center gap-1 mb-0.5 flex-wrap">
                 {#each entry.platforms as pid}
-                  <span
-                    class="px-1 rounded text-[10px]"
-                    class:bg-green-100={entry.results[pid] === true}
-                    class:text-green-700={entry.results[pid] === true}
-                    class:bg-red-100={entry.results[pid] === false}
-                    class:text-red-700={entry.results[pid] === false}
-                  >{pid}</span>
+                  {@const r = entry.results[pid]}
+                  {#if r?.success && r.url}
+                    <!-- v0.4.88: 成功 + URL あり → clickable link で post page へ -->
+                    <a
+                      href={r.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={r.url}
+                      class="px-1 rounded text-[10px] bg-green-100 text-green-700 hover:bg-green-200"
+                    >{pid} ↗</a>
+                  {:else if r?.success}
+                    <span class="px-1 rounded text-[10px] bg-green-100 text-green-700">{pid}</span>
+                  {:else if r}
+                    <!-- v0.4.88: 失敗 → tooltip にエラーメッセージ -->
+                    <span
+                      class="px-1 rounded text-[10px] bg-red-100 text-red-700"
+                      title={r.error ?? t('failedShort')}
+                    >{pid} ✗</span>
+                  {:else}
+                    <span class="px-1 rounded text-[10px] bg-gray-100 text-gray-500">{pid}</span>
+                  {/if}
                 {/each}
                 {#if entry.hasMedia}
                   <span class="text-gray-400">📎</span>
@@ -1378,6 +1414,14 @@
                 <span class="ml-auto text-gray-400">{formatRelTime(entry.timestamp)}</span>
               </div>
               <p class="text-gray-600 truncate">{entry.textPreview}</p>
+              {#if hasFailures}
+                <button
+                  type="button"
+                  onclick={() => retryFromHistory(entry)}
+                  class="mt-1 text-[10px] text-red-600 hover:text-red-700 hover:underline"
+                  title={t('historyRetryFailedTooltip')}
+                >{t('historyRetryFailed')} ↻</button>
+              {/if}
             </li>
           {/each}
         </ul>

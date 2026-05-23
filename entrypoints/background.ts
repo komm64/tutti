@@ -298,7 +298,11 @@ async function handleDiagnoseRequest(): Promise<DiagnosticsReport> {
     id: h.id,
     textPreview: `<redacted ${h.textPreview.length} chars>`,
     platforms: h.platforms,
-    results: h.results,
+    // v0.4.88: results に url / error が入るようになったので diagnostics 経路では redact
+    // url / error は PII を含み得る (post id / handle) ので public Issue に流さない
+    results: Object.fromEntries(
+      Object.entries(h.results).map(([k, v]) => [k, { success: v?.success ?? false }]),
+    ) as Partial<Record<PlatformId, { success: boolean; url?: string; error?: string }>>,
     hasMedia: h.hasMedia,
     timestamp: h.timestamp,
   }));
@@ -329,7 +333,7 @@ interface DiagnosticsReport {
     id: string;
     textPreview: string;
     platforms: PlatformId[];
-    results: Partial<Record<PlatformId, boolean>>;
+    results: Partial<Record<PlatformId, { success: boolean; url?: string; error?: string }>>;
     hasMedia: boolean;
     timestamp: number;
   }>;

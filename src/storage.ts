@@ -219,8 +219,12 @@ export interface HistoryEntry {
   /** 投稿テキストの先頭 80 文字 */
   textPreview: string;
   platforms: PlatformId[];
-  /** platform → success */
-  results: Partial<Record<PlatformId, boolean>>;
+  /**
+   * per-SNS の result detail (v0.4.88〜)。
+   * success だけでなく url / error を保持して、 履歴 UI からの再送や直接遷移を可能に。
+   * 旧 schema (`boolean` only) は migrateHistoryEntry が変換。
+   */
+  results: Partial<Record<PlatformId, { success: boolean; url?: string; error?: string }>>;
   hasMedia: boolean;
   timestamp: number;
 }
@@ -230,7 +234,24 @@ const MAX_HISTORY = 20;
 
 export async function getPostHistory(): Promise<HistoryEntry[]> {
   const stored = await browser.storage.local.get(HISTORY_KEY);
-  return (stored[HISTORY_KEY] as HistoryEntry[] | undefined) ?? [];
+  const raw = (stored[HISTORY_KEY] as unknown[] | undefined) ?? [];
+  // v0.4.88: 旧 schema (results が boolean だけ) からの lazy migration
+  return raw.map((r) => migrateHistoryEntry(r));
+}
+
+function migrateHistoryEntry(raw: unknown): HistoryEntry {
+  const e = raw as HistoryEntry;
+  const firstVal = e.results ? Object.values(e.results)[0] : undefined;
+  // 旧 schema: results が boolean だけ → 新 shape に変換
+  if (typeof firstVal === 'boolean') {
+    const old = e.results as unknown as Partial<Record<PlatformId, boolean>>;
+    const migrated: HistoryEntry['results'] = {};
+    for (const [k, v] of Object.entries(old)) {
+      if (typeof v === 'boolean') migrated[k as PlatformId] = { success: v };
+    }
+    return { ...e, results: migrated };
+  }
+  return e;
 }
 
 export async function clearPostHistory(): Promise<void> {
@@ -246,7 +267,10 @@ export async function addToPostHistory(
     id: Date.now().toString(36),
     textPreview: text.slice(0, 80),
     platforms: results.map((r) => r.platform),
-    results: Object.fromEntries(results.map((r) => [r.platform, r.success])),
+    // v0.4.88: per-SNS の success / url / error を全部保存
+    results: Object.fromEntries(
+      results.map((r) => [r.platform, { success: r.success, url: r.url, error: r.error }]),
+    ),
     hasMedia,
     timestamp: Date.now(),
   };
