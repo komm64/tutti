@@ -101,22 +101,44 @@ describe('UI svelte files: no hardcoded Japanese text', () => {
   }
 });
 
-describe('messages.json: en and ja key sets must match', () => {
-  it('every en key has a ja counterpart and vice versa', () => {
-    const en = JSON.parse(readFileSync('public/_locales/en/messages.json', 'utf8')) as Record<string, unknown>;
+describe('messages.json invariants', () => {
+  const en = JSON.parse(readFileSync('public/_locales/en/messages.json', 'utf8')) as Record<string, unknown>;
+  const enKeys = new Set(Object.keys(en));
+
+  it('ja is fully translated (= same key set as en)', () => {
     const ja = JSON.parse(readFileSync('public/_locales/ja/messages.json', 'utf8')) as Record<string, unknown>;
-    const enKeys = new Set(Object.keys(en));
     const jaKeys = new Set(Object.keys(ja));
     const enOnly = [...enKeys].filter((k) => !jaKeys.has(k));
     const jaOnly = [...jaKeys].filter((k) => !enKeys.has(k));
     if (enOnly.length > 0 || jaOnly.length > 0) {
       throw new Error(
-        `messages.json mismatch:\n` +
+        `en / ja mismatch:\n` +
         `  en only: ${enOnly.join(', ') || '(none)'}\n` +
         `  ja only: ${jaOnly.join(', ') || '(none)'}`,
       );
     }
     expect(enOnly).toEqual([]);
     expect(jaOnly).toEqual([]);
+  });
+
+  // 31 言語対応 (v0.5.2〜): 他 locale は partial 翻訳 OK (en に fallback)。
+  // ただし 「en に無い key を持つ」 のは禁止 (typo / stale key の事故防止)。
+  it('every non-en locale has only keys that exist in en (no orphan keys)', () => {
+    const locales = readdirSync('public/_locales')
+      .filter((d) => d !== 'en' && statSync(join('public/_locales', d)).isDirectory());
+    const errors: string[] = [];
+    for (const loc of locales) {
+      try {
+        const data = JSON.parse(readFileSync(`public/_locales/${loc}/messages.json`, 'utf8')) as Record<string, unknown>;
+        const orphan = Object.keys(data).filter((k) => !enKeys.has(k));
+        if (orphan.length > 0) {
+          errors.push(`  ${loc}: orphan keys (not in en): ${orphan.join(', ')}`);
+        }
+      } catch (e) {
+        errors.push(`  ${loc}: failed to parse: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+    if (errors.length > 0) throw new Error(`locale orphan keys:\n${errors.join('\n')}`);
+    expect(errors).toEqual([]);
   });
 });

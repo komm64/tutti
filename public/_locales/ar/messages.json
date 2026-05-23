@@ -1,0 +1,38 @@
+{
+  "appName": {
+    "message": "Tutti"
+  },
+  "appDescription": {
+    "message": "إضافة Chrome تتولى عناء النشر المتقاطع على شبكات التواصل الاجتماعي المتعددة في وقت واحد."
+  },
+  "appTagline": {
+    "message": "النشر المتقاطع بدون متاعب."
+  },
+  "textareaPlaceholder": {
+    "message": "اكتب منشورك..."
+  },
+  "headerHistory": {
+    "message": "السجل"
+  },
+  "headerSettings": {
+    "message": "الإعدادات"
+  },
+  "posting": {
+    "message": "جارٍ النشر..."
+  },
+  "previewing": {
+    "message": "جارٍ المعاينة..."
+  },
+  "save": {
+    "message": "حفظ"
+  },
+  "saved": {
+    "message": "تم الحفظ"
+  },
+  "uiLanguageTitle": {
+    "message": "لغة Tutti"
+  },
+  "uiLanguageAuto": {
+    "message": "تلقائي (افتراضي المتصفح)"
+  }
+}

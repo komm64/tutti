@@ -1,0 +1,38 @@
+{
+  "appName": {
+    "message": "Tutti"
+  },
+  "appDescription": {
+    "message": "여러 소셜 네트워크에 동시에 게시하는 번거로움을 대신 처리하는 Chrome 확장 프로그램입니다."
+  },
+  "appTagline": {
+    "message": "크로스 포스팅의 번거로움, 한 번에 해결."
+  },
+  "textareaPlaceholder": {
+    "message": "게시물을 작성하세요..."
+  },
+  "headerHistory": {
+    "message": "기록"
+  },
+  "headerSettings": {
+    "message": "설정"
+  },
+  "posting": {
+    "message": "게시 중..."
+  },
+  "previewing": {
+    "message": "미리보기..."
+  },
+  "save": {
+    "message": "저장"
+  },
+  "saved": {
+    "message": "저장됨"
+  },
+  "uiLanguageTitle": {
+    "message": "Tutti UI 언어"
+  },
+  "uiLanguageAuto": {
+    "message": "자동 (브라우저 기본)"
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "appName": {
+    "message": "Tutti"
+  },
+  "appDescription": {
+    "message": "Chrome-laajennus, joka hoitaa puolestasi useaan sosiaaliseen verkostoon julkaisemisen vaivan."
+  },
+  "appTagline": {
+    "message": "Ristijulkaisu vaivatta."
+  },
+  "textareaPlaceholder": {
+    "message": "Kirjoita julkaisusi..."
+  },
+  "headerHistory": {
+    "message": "Historia"
+  },
+  "headerSettings": {
+    "message": "Asetukset"
+  },
+  "posting": {
+    "message": "Julkaistaan..."
+  },
+  "previewing": {
+    "message": "Esikatselu..."
+  },
+  "save": {
+    "message": "Tallenna"
+  },
+  "saved": {
+    "message": "Tallennettu"
+  },
+  "uiLanguageTitle": {
+    "message": "Tutti-kieli"
+  },
+  "uiLanguageAuto": {
+    "message": "Automaattinen (selaimen oletus)"
+  }
+}

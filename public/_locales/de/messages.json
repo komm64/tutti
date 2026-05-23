@@ -1,0 +1,38 @@
+{
+  "appName": {
+    "message": "Tutti"
+  },
+  "appDescription": {
+    "message": "Eine Chrome-Erweiterung, die das Cross-Posting in mehrere soziale Netzwerke übernimmt."
+  },
+  "appTagline": {
+    "message": "Cross-Posting, ganz ohne Aufwand."
+  },
+  "textareaPlaceholder": {
+    "message": "Schreibe deinen Beitrag..."
+  },
+  "headerHistory": {
+    "message": "Verlauf"
+  },
+  "headerSettings": {
+    "message": "Einstellungen"
+  },
+  "posting": {
+    "message": "Wird gepostet..."
+  },
+  "previewing": {
+    "message": "Vorschau..."
+  },
+  "save": {
+    "message": "Speichern"
+  },
+  "saved": {
+    "message": "Gespeichert"
+  },
+  "uiLanguageTitle": {
+    "message": "Tutti-Sprache"
+  },
+  "uiLanguageAuto": {
+    "message": "Automatisch (Browser-Standard)"
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "appName": {
+    "message": "Tutti"
+  },
+  "appDescription": {
+    "message": "O extensie Chrome care se ocupă de bătaia de cap de a publica simultan pe mai multe rețele sociale."
+  },
+  "appTagline": {
+    "message": "Cross-posting fără bătăi de cap."
+  },
+  "textareaPlaceholder": {
+    "message": "Scrie postarea ta..."
+  },
+  "headerHistory": {
+    "message": "Istoric"
+  },
+  "headerSettings": {
+    "message": "Setări"
+  },
+  "posting": {
+    "message": "Se postează..."
+  },
+  "previewing": {
+    "message": "Previzualizare..."
+  },
+  "save": {
+    "message": "Salvează"
+  },
+  "saved": {
+    "message": "Salvat"
+  },
+  "uiLanguageTitle": {
+    "message": "Limbă Tutti"
+  },
+  "uiLanguageAuto": {
+    "message": "Automat (implicit browser)"
+  }
+}

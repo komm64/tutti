@@ -1,0 +1,38 @@
+{
+  "appName": {
+    "message": "Tutti"
+  },
+  "appDescription": {
+    "message": "Een Chrome-extensie die het gedoe van crossposten naar meerdere sociale netwerken voor je regelt."
+  },
+  "appTagline": {
+    "message": "Crossposten zonder gedoe."
+  },
+  "textareaPlaceholder": {
+    "message": "Schrijf je bericht..."
+  },
+  "headerHistory": {
+    "message": "Geschiedenis"
+  },
+  "headerSettings": {
+    "message": "Instellingen"
+  },
+  "posting": {
+    "message": "Plaatsen..."
+  },
+  "previewing": {
+    "message": "Voorbeeld..."
+  },
+  "save": {
+    "message": "Opslaan"
+  },
+  "saved": {
+    "message": "Opgeslagen"
+  },
+  "uiLanguageTitle": {
+    "message": "Tutti-taal"
+  },
+  "uiLanguageAuto": {
+    "message": "Automatisch (browser-standaard)"
+  }
+}

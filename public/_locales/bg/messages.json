@@ -1,0 +1,38 @@
+{
+  "appName": {
+    "message": "Tutti"
+  },
+  "appDescription": {
+    "message": "Разширение за Chrome, което поема грижата за публикуване в множество социални мрежи едновременно."
+  },
+  "appTagline": {
+    "message": "Кръстосано публикуване без главоболия."
+  },
+  "textareaPlaceholder": {
+    "message": "Напиши публикацията си..."
+  },
+  "headerHistory": {
+    "message": "История"
+  },
+  "headerSettings": {
+    "message": "Настройки"
+  },
+  "posting": {
+    "message": "Публикуване..."
+  },
+  "previewing": {
+    "message": "Преглед..."
+  },
+  "save": {
+    "message": "Запиши"
+  },
+  "saved": {
+    "message": "Записано"
+  },
+  "uiLanguageTitle": {
+    "message": "Език на Tutti"
+  },
+  "uiLanguageAuto": {
+    "message": "Автоматично (по подразбиране на браузъра)"
+  }
+}

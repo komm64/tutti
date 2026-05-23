@@ -1,0 +1,38 @@
+{
+  "appName": {
+    "message": "Tutti"
+  },
+  "appDescription": {
+    "message": "Ekstensi Chrome yang menangani kerumitan posting ke beberapa jejaring sosial sekaligus."
+  },
+  "appTagline": {
+    "message": "Posting silang, tanpa repot."
+  },
+  "textareaPlaceholder": {
+    "message": "Tulis postinganmu..."
+  },
+  "headerHistory": {
+    "message": "Riwayat"
+  },
+  "headerSettings": {
+    "message": "Pengaturan"
+  },
+  "posting": {
+    "message": "Memposting..."
+  },
+  "previewing": {
+    "message": "Pratinjau..."
+  },
+  "save": {
+    "message": "Simpan"
+  },
+  "saved": {
+    "message": "Tersimpan"
+  },
+  "uiLanguageTitle": {
+    "message": "Bahasa Tutti"
+  },
+  "uiLanguageAuto": {
+    "message": "Otomatis (default browser)"
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "appName": {
+    "message": "Tutti"
+  },
+  "appDescription": {
+    "message": "一鍵將文字、圖片、影片同時跨平台發布到多個社群網路的 Chrome 擴充功能。"
+  },
+  "appTagline": {
+    "message": "一鍵跨平台發布。"
+  },
+  "textareaPlaceholder": {
+    "message": "撰寫你的貼文..."
+  },
+  "headerHistory": {
+    "message": "歷史"
+  },
+  "headerSettings": {
+    "message": "設定"
+  },
+  "posting": {
+    "message": "發布中..."
+  },
+  "previewing": {
+    "message": "預覽中..."
+  },
+  "save": {
+    "message": "儲存"
+  },
+  "saved": {
+    "message": "已儲存"
+  },
+  "uiLanguageTitle": {
+    "message": "Tutti UI 語言"
+  },
+  "uiLanguageAuto": {
+    "message": "自動 (瀏覽器預設)"
+  }
+}

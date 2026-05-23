@@ -1,0 +1,38 @@
+{
+  "appName": {
+    "message": "Tutti"
+  },
+  "appDescription": {
+    "message": "Расширение Chrome, избавляющее от хлопот при кросспостинге в несколько социальных сетей."
+  },
+  "appTagline": {
+    "message": "Кросспостинг без хлопот."
+  },
+  "textareaPlaceholder": {
+    "message": "Напишите свой пост..."
+  },
+  "headerHistory": {
+    "message": "История"
+  },
+  "headerSettings": {
+    "message": "Настройки"
+  },
+  "posting": {
+    "message": "Публикация..."
+  },
+  "previewing": {
+    "message": "Предпросмотр..."
+  },
+  "save": {
+    "message": "Сохранить"
+  },
+  "saved": {
+    "message": "Сохранено"
+  },
+  "uiLanguageTitle": {
+    "message": "Язык Tutti"
+  },
+  "uiLanguageAuto": {
+    "message": "Авто (по умолчанию браузера)"
+  }
+}

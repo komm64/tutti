@@ -296,5 +296,8 @@
   "platformFailedShort": {
     "message": "$P$: 失敗 (詳細無し)",
     "placeholders": { "P": { "content": "$1" } }
-  }
+  },
+  "uiLanguageTitle": { "message": "Tutti UI 言語" },
+  "uiLanguageAuto": { "message": "自動 (ブラウザ既定)" },
+  "uiLanguageHint": { "message": "Tutti 自身の UI 表示言語をブラウザのロケールから上書きします。 popup / side panel / オプション画面にのみ影響し、 各 SNS 側には影響しません。" }
 }

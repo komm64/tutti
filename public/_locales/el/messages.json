@@ -1,0 +1,38 @@
+{
+  "appName": {
+    "message": "Tutti"
+  },
+  "appDescription": {
+    "message": "Επέκταση Chrome που αναλαμβάνει τον κόπο της ταυτόχρονης δημοσίευσης σε πολλά κοινωνικά δίκτυα."
+  },
+  "appTagline": {
+    "message": "Διασταυρούμενες δημοσιεύσεις, χωρίς κόπο."
+  },
+  "textareaPlaceholder": {
+    "message": "Γράψε την ανάρτησή σου..."
+  },
+  "headerHistory": {
+    "message": "Ιστορικό"
+  },
+  "headerSettings": {
+    "message": "Ρυθμίσεις"
+  },
+  "posting": {
+    "message": "Δημοσίευση..."
+  },
+  "previewing": {
+    "message": "Προεπισκόπηση..."
+  },
+  "save": {
+    "message": "Αποθήκευση"
+  },
+  "saved": {
+    "message": "Αποθηκεύτηκε"
+  },
+  "uiLanguageTitle": {
+    "message": "Γλώσσα Tutti"
+  },
+  "uiLanguageAuto": {
+    "message": "Αυτόματη (προεπιλογή προγράμματος περιήγησης)"
+  }
+}

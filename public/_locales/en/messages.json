@@ -296,5 +296,8 @@
   "platformFailedShort": {
     "message": "$P$: failed (no details)",
     "placeholders": { "P": { "content": "$1" } }
-  }
+  },
+  "uiLanguageTitle": { "message": "Tutti UI language" },
+  "uiLanguageAuto": { "message": "Auto (browser default)" },
+  "uiLanguageHint": { "message": "Override your browser's locale for Tutti's own UI. Affects the popup, side panel, and options page only; doesn't affect the social networks themselves." }
 }

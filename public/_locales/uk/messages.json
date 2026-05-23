@@ -1,0 +1,38 @@
+{
+  "appName": {
+    "message": "Tutti"
+  },
+  "appDescription": {
+    "message": "Розширення Chrome, що позбавляє клопоту з кросспостингу в кілька соціальних мереж."
+  },
+  "appTagline": {
+    "message": "Кросспостинг без клопоту."
+  },
+  "textareaPlaceholder": {
+    "message": "Напишіть свій пост..."
+  },
+  "headerHistory": {
+    "message": "Історія"
+  },
+  "headerSettings": {
+    "message": "Налаштування"
+  },
+  "posting": {
+    "message": "Публікація..."
+  },
+  "previewing": {
+    "message": "Перегляд..."
+  },
+  "save": {
+    "message": "Зберегти"
+  },
+  "saved": {
+    "message": "Збережено"
+  },
+  "uiLanguageTitle": {
+    "message": "Мова Tutti"
+  },
+  "uiLanguageAuto": {
+    "message": "Авто (за замовчуванням браузера)"
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "appName": {
+    "message": "Tutti"
+  },
+  "appDescription": {
+    "message": "ส่วนขยาย Chrome ที่จัดการความวุ่นวายในการโพสต์ไปยังโซเชียลเน็ตเวิร์กหลายแห่งพร้อมกัน"
+  },
+  "appTagline": {
+    "message": "โพสต์ข้ามแพลตฟอร์ม แบบไม่ยุ่งยาก"
+  },
+  "textareaPlaceholder": {
+    "message": "เขียนโพสต์ของคุณ..."
+  },
+  "headerHistory": {
+    "message": "ประวัติ"
+  },
+  "headerSettings": {
+    "message": "การตั้งค่า"
+  },
+  "posting": {
+    "message": "กำลังโพสต์..."
+  },
+  "previewing": {
+    "message": "กำลังแสดงตัวอย่าง..."
+  },
+  "save": {
+    "message": "บันทึก"
+  },
+  "saved": {
+    "message": "บันทึกแล้ว"
+  },
+  "uiLanguageTitle": {
+    "message": "ภาษา Tutti"
+  },
+  "uiLanguageAuto": {
+    "message": "อัตโนมัติ (ค่าเริ่มต้นของเบราว์เซอร์)"
+  }
+}

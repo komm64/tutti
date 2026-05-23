@@ -14,6 +14,7 @@
   import { testCredentials as testBluesky } from '../../src/api/bluesky';
   import { testCredentials as testMastodon } from '../../src/api/mastodon';
   import { testCredentials as testMisskey } from '../../src/api/misskey';
+  import { t, TUTTI_LOCALES } from '../../src/utils/i18n';
 
   let mastodonInstance = $state('https://mastodon.social');
   let misskeyInstance = $state('https://misskey.io');
@@ -31,6 +32,7 @@
   let pixivAiType = $state<'notAiGenerated' | 'aiGenerated'>('notAiGenerated');
   let autoLetterboxVerticalVideo = $state(false);
   let displayMode = $state<'popup' | 'sidepanel' | 'floating'>('popup');
+  let uiLanguage = $state<string>('auto');
   let saved = $state(false);
   let loading = $state(true);
 
@@ -51,8 +53,7 @@
   let mskyBusy = $state(false);
 
   const version = browser.runtime.getManifest().version;
-  const t = (key: string, ...substitutions: string[]) =>
-    browser.i18n.getMessage(key, substitutions.length > 0 ? substitutions : undefined) || key;
+  // v0.5.2: t() は src/utils/i18n から import 済。 Settings.uiLanguage で切替可能。
 
   $effect(() => {
     void Promise.all([getSettings(), getFetchedAt(), getOverrides(), getApiCredentials()]).then(([s, at, ov, creds]) => {
@@ -66,6 +67,7 @@
       pixivAiType = s.pixivAiType;
       autoLetterboxVerticalVideo = s.autoLetterboxVerticalVideo;
       displayMode = s.displayMode ?? 'popup';
+      uiLanguage = s.uiLanguage ?? 'auto';
       overrideFetchedAt = at;
       overrideCount = Object.values(ov).reduce((sum, v) => sum + Object.keys(v ?? {}).length, 0);
       // API credentials のロード (パスワード / トークンは UI に出すと見えるので
@@ -242,7 +244,7 @@
       alert(t('alertPermissionDenied'));
       return;
     }
-    await saveSettings({ mastodonInstance: m, misskeyInstance: k, selectorOverrideUrl, logLevel, disableReportDedup, autoOpenPostUrl, pixivVisibility, pixivAiType, autoLetterboxVerticalVideo, displayMode });
+    await saveSettings({ mastodonInstance: m, misskeyInstance: k, selectorOverrideUrl, logLevel, disableReportDedup, autoOpenPostUrl, pixivVisibility, pixivAiType, autoLetterboxVerticalVideo, displayMode, uiLanguage });
     // disableReportDedup=true にしたら既存の dedup 履歴も clear
     // (再 enable まで storage に dead key が残らないように)
     if (disableReportDedup) {
@@ -472,6 +474,23 @@
           <span>{t('autoLetterboxLabel')}</span>
         </label>
         <p class="text-xs text-gray-400">{t('autoLetterboxHint')}</p>
+      </div>
+    </section>
+
+    <section class="mb-6">
+      <h2 class="text-sm font-semibold text-gray-700 mb-3">{t('uiLanguageTitle')}</h2>
+      <div class="space-y-2">
+        <select
+          bind:value={uiLanguage}
+          class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+        >
+          {#each TUTTI_LOCALES as loc}
+            <option value={loc.code}>
+              {loc.code === 'auto' ? t('uiLanguageAuto') : `${loc.nativeName} (${loc.englishName})`}
+            </option>
+          {/each}
+        </select>
+        <p class="text-xs text-gray-400">{t('uiLanguageHint')}</p>
       </div>
     </section>
 

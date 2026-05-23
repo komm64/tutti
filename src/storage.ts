@@ -70,6 +70,13 @@ export interface Settings {
    */
   snsPresets: Array<{ id: string; name: string; platforms: PlatformId[] }>;
   /**
+   * Tutti UI 言語 (v0.5.2〜)。 'auto' は Chrome の browser locale に従う、
+   * それ以外は明示指定。 Settings 画面で切替可能。 user が browser を English に
+   * してるが Tutti は Japanese で使いたい、 等の override 用途。
+   * 値は Chrome の locale code: 'en', 'ja', 'zh_CN', 'es', 等。
+   */
+  uiLanguage: string;
+  /**
    * Tutti UI の表示方式 (v0.5.0〜)。 user の好みに合わせて切替:
    * - `'popup'` (default): browser_action popup。 click でアイコン下に出る。
    *   tab focus を移すと閉じる Chrome 仕様の制約あり (v0.4.96 の state 復元で
@@ -102,6 +109,7 @@ const DEFAULT_SETTINGS: Settings = {
   autoLetterboxVerticalVideo: false,
   snsPresets: [],
   displayMode: 'popup',
+  uiLanguage: 'auto',
 };
 
 export async function getSettings(): Promise<Settings> {

@@ -1,0 +1,38 @@
+{
+  "appName": {
+    "message": "Tutti"
+  },
+  "appDescription": {
+    "message": "Birden fazla sosyal ağa aynı anda paylaşım yapmanın derdini üstlenen bir Chrome eklentisi."
+  },
+  "appTagline": {
+    "message": "Çapraz paylaşım, dertsiz."
+  },
+  "textareaPlaceholder": {
+    "message": "Gönderini yaz..."
+  },
+  "headerHistory": {
+    "message": "Geçmiş"
+  },
+  "headerSettings": {
+    "message": "Ayarlar"
+  },
+  "posting": {
+    "message": "Gönderiliyor..."
+  },
+  "previewing": {
+    "message": "Önizleniyor..."
+  },
+  "save": {
+    "message": "Kaydet"
+  },
+  "saved": {
+    "message": "Kaydedildi"
+  },
+  "uiLanguageTitle": {
+    "message": "Tutti dili"
+  },
+  "uiLanguageAuto": {
+    "message": "Otomatik (tarayıcı varsayılanı)"
+  }
+}

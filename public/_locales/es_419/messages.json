@@ -1,0 +1,38 @@
+{
+  "appName": {
+    "message": "Tutti"
+  },
+  "appDescription": {
+    "message": "Una extensión de Chrome que se encarga de la molestia de publicar en varias redes sociales a la vez."
+  },
+  "appTagline": {
+    "message": "Publicación cruzada, sin complicaciones."
+  },
+  "textareaPlaceholder": {
+    "message": "Escribe tu publicación..."
+  },
+  "headerHistory": {
+    "message": "Historial"
+  },
+  "headerSettings": {
+    "message": "Configuración"
+  },
+  "posting": {
+    "message": "Publicando..."
+  },
+  "previewing": {
+    "message": "Vista previa..."
+  },
+  "save": {
+    "message": "Guardar"
+  },
+  "saved": {
+    "message": "Guardado"
+  },
+  "uiLanguageTitle": {
+    "message": "Idioma de Tutti"
+  },
+  "uiLanguageAuto": {
+    "message": "Automático (predeterminado del navegador)"
+  }
+}

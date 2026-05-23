@@ -1,0 +1,38 @@
+{
+  "appName": {
+    "message": "Tutti"
+  },
+  "appDescription": {
+    "message": "Rozšíření Chrome, které vás zbaví starostí s publikováním na více sociálních sítích současně."
+  },
+  "appTagline": {
+    "message": "Sdílení na více sítí bez starostí."
+  },
+  "textareaPlaceholder": {
+    "message": "Napiš svůj příspěvek..."
+  },
+  "headerHistory": {
+    "message": "Historie"
+  },
+  "headerSettings": {
+    "message": "Nastavení"
+  },
+  "posting": {
+    "message": "Publikování..."
+  },
+  "previewing": {
+    "message": "Náhled..."
+  },
+  "save": {
+    "message": "Uložit"
+  },
+  "saved": {
+    "message": "Uloženo"
+  },
+  "uiLanguageTitle": {
+    "message": "Jazyk Tutti"
+  },
+  "uiLanguageAuto": {
+    "message": "Automaticky (výchozí pro prohlížeč)"
+  }
+}

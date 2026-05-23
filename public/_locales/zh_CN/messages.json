@@ -1,0 +1,38 @@
+{
+  "appName": {
+    "message": "Tutti"
+  },
+  "appDescription": {
+    "message": "一键将文本、图片、视频同时跨平台发布到多个社交网络的 Chrome 扩展。"
+  },
+  "appTagline": {
+    "message": "一键跨平台发布。"
+  },
+  "textareaPlaceholder": {
+    "message": "撰写你的帖子..."
+  },
+  "headerHistory": {
+    "message": "历史"
+  },
+  "headerSettings": {
+    "message": "设置"
+  },
+  "posting": {
+    "message": "发布中..."
+  },
+  "previewing": {
+    "message": "预览中..."
+  },
+  "save": {
+    "message": "保存"
+  },
+  "saved": {
+    "message": "已保存"
+  },
+  "uiLanguageTitle": {
+    "message": "Tutti UI 语言"
+  },
+  "uiLanguageAuto": {
+    "message": "自动 (浏览器默认)"
+  }
+}

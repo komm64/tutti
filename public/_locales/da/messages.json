@@ -1,0 +1,38 @@
+{
+  "appName": {
+    "message": "Tutti"
+  },
+  "appDescription": {
+    "message": "En Chrome-udvidelse, der tager besværet ud af at krydsposte til flere sociale netværk."
+  },
+  "appTagline": {
+    "message": "Krydsposting uden besvær."
+  },
+  "textareaPlaceholder": {
+    "message": "Skriv dit opslag..."
+  },
+  "headerHistory": {
+    "message": "Historik"
+  },
+  "headerSettings": {
+    "message": "Indstillinger"
+  },
+  "posting": {
+    "message": "Sender..."
+  },
+  "previewing": {
+    "message": "Forhåndsviser..."
+  },
+  "save": {
+    "message": "Gem"
+  },
+  "saved": {
+    "message": "Gemt"
+  },
+  "uiLanguageTitle": {
+    "message": "Tutti-sprog"
+  },
+  "uiLanguageAuto": {
+    "message": "Automatisk (browser-standard)"
+  }
+}

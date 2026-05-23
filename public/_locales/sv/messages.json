@@ -1,0 +1,38 @@
+{
+  "appName": {
+    "message": "Tutti"
+  },
+  "appDescription": {
+    "message": "Ett Chrome-tillägg som tar hand om besväret med att korsposta till flera sociala nätverk."
+  },
+  "appTagline": {
+    "message": "Korspostande utan krångel."
+  },
+  "textareaPlaceholder": {
+    "message": "Skriv ditt inlägg..."
+  },
+  "headerHistory": {
+    "message": "Historik"
+  },
+  "headerSettings": {
+    "message": "Inställningar"
+  },
+  "posting": {
+    "message": "Publicerar..."
+  },
+  "previewing": {
+    "message": "Förhandsgranskar..."
+  },
+  "save": {
+    "message": "Spara"
+  },
+  "saved": {
+    "message": "Sparat"
+  },
+  "uiLanguageTitle": {
+    "message": "Tutti-språk"
+  },
+  "uiLanguageAuto": {
+    "message": "Automatiskt (webbläsarens standard)"
+  }
+}

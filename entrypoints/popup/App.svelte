@@ -38,6 +38,7 @@
   import { redactPII } from '../../src/utils/redact';
   import { formatRelTime, formatDuration, formatBytes } from '../../src/utils/formatters';
   import { classifyFailure, type FailureHintCta } from '../../src/utils/failure-hint';
+  import { t } from '../../src/utils/i18n';
 
   type PlatformOption = {
     id: PlatformId;
@@ -351,7 +352,7 @@
     if (!autoPostLoaded) return;
     void saveSettings({ autoPost });
   });
-  const t = (key: string, ...subs: string[]) => browser.i18n.getMessage(key, subs) || key;
+  // v0.5.2: t() は ./src/utils/i18n からの named import (top of script)
 
   // ログイン中アカウントを popup 起動時に読み込む。
   // v0.4.83: stale 値 (multi-account 切替後など) を防ぐため、 background に

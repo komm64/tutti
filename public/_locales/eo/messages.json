@@ -1,0 +1,38 @@
+{
+  "appName": {
+    "message": "Tutti"
+  },
+  "appDescription": {
+    "message": "Chrome-etendaĵo, kiu transprenas la ĉagrenon de samtempa afiŝado al pluraj sociaj retoj."
+  },
+  "appTagline": {
+    "message": "Trans-afiŝado, sen ĉagreno."
+  },
+  "textareaPlaceholder": {
+    "message": "Skribu vian afiŝon..."
+  },
+  "headerHistory": {
+    "message": "Historio"
+  },
+  "headerSettings": {
+    "message": "Agordoj"
+  },
+  "posting": {
+    "message": "Afiŝante..."
+  },
+  "previewing": {
+    "message": "Antaŭmontrante..."
+  },
+  "save": {
+    "message": "Konservi"
+  },
+  "saved": {
+    "message": "Konservita"
+  },
+  "uiLanguageTitle": {
+    "message": "Tutti-lingvo"
+  },
+  "uiLanguageAuto": {
+    "message": "Aŭtomata (defaŭlta de retumilo)"
+  }
+}

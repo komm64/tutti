@@ -1,0 +1,38 @@
+{
+  "appName": {
+    "message": "Tutti"
+  },
+  "appDescription": {
+    "message": "Chrome-bővítmény, amely átveszi a több közösségi hálózatra történő egyidejű posztolás gondját."
+  },
+  "appTagline": {
+    "message": "Keresztposztolás gond nélkül."
+  },
+  "textareaPlaceholder": {
+    "message": "Írd be a bejegyzésed..."
+  },
+  "headerHistory": {
+    "message": "Előzmények"
+  },
+  "headerSettings": {
+    "message": "Beállítások"
+  },
+  "posting": {
+    "message": "Posztolás..."
+  },
+  "previewing": {
+    "message": "Előnézet..."
+  },
+  "save": {
+    "message": "Mentés"
+  },
+  "saved": {
+    "message": "Mentve"
+  },
+  "uiLanguageTitle": {
+    "message": "Tutti nyelve"
+  },
+  "uiLanguageAuto": {
+    "message": "Automatikus (böngésző alapértelmezett)"
+  }
+}

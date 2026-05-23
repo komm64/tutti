@@ -1,0 +1,38 @@
+{
+  "appName": {
+    "message": "Tutti"
+  },
+  "appDescription": {
+    "message": "Une extension Chrome qui prend en charge la publication croisée sur plusieurs réseaux sociaux."
+  },
+  "appTagline": {
+    "message": "Publication multi-réseaux, sans souci."
+  },
+  "textareaPlaceholder": {
+    "message": "Écris ton message..."
+  },
+  "headerHistory": {
+    "message": "Historique"
+  },
+  "headerSettings": {
+    "message": "Paramètres"
+  },
+  "posting": {
+    "message": "Publication..."
+  },
+  "previewing": {
+    "message": "Aperçu..."
+  },
+  "save": {
+    "message": "Enregistrer"
+  },
+  "saved": {
+    "message": "Enregistré"
+  },
+  "uiLanguageTitle": {
+    "message": "Langue de Tutti"
+  },
+  "uiLanguageAuto": {
+    "message": "Auto (langue du navigateur)"
+  }
+}

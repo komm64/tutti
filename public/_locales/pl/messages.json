@@ -1,0 +1,38 @@
+{
+  "appName": {
+    "message": "Tutti"
+  },
+  "appDescription": {
+    "message": "Rozszerzenie Chrome, które przejmuje trudy publikowania w wielu sieciach społecznościowych jednocześnie."
+  },
+  "appTagline": {
+    "message": "Crossposting bez kłopotów."
+  },
+  "textareaPlaceholder": {
+    "message": "Napisz swój post..."
+  },
+  "headerHistory": {
+    "message": "Historia"
+  },
+  "headerSettings": {
+    "message": "Ustawienia"
+  },
+  "posting": {
+    "message": "Publikowanie..."
+  },
+  "previewing": {
+    "message": "Podgląd..."
+  },
+  "save": {
+    "message": "Zapisz"
+  },
+  "saved": {
+    "message": "Zapisano"
+  },
+  "uiLanguageTitle": {
+    "message": "Język Tutti"
+  },
+  "uiLanguageAuto": {
+    "message": "Automatycznie (domyślny język przeglądarki)"
+  }
+}

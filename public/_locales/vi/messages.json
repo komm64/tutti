@@ -1,0 +1,38 @@
+{
+  "appName": {
+    "message": "Tutti"
+  },
+  "appDescription": {
+    "message": "Tiện ích mở rộng Chrome xử lý mọi rắc rối khi đăng bài lên nhiều mạng xã hội cùng lúc."
+  },
+  "appTagline": {
+    "message": "Đăng chéo, không phiền hà."
+  },
+  "textareaPlaceholder": {
+    "message": "Viết bài đăng của bạn..."
+  },
+  "headerHistory": {
+    "message": "Lịch sử"
+  },
+  "headerSettings": {
+    "message": "Cài đặt"
+  },
+  "posting": {
+    "message": "Đang đăng..."
+  },
+  "previewing": {
+    "message": "Đang xem trước..."
+  },
+  "save": {
+    "message": "Lưu"
+  },
+  "saved": {
+    "message": "Đã lưu"
+  },
+  "uiLanguageTitle": {
+    "message": "Ngôn ngữ Tutti"
+  },
+  "uiLanguageAuto": {
+    "message": "Tự động (mặc định của trình duyệt)"
+  }
+}

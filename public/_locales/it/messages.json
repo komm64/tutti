@@ -1,0 +1,38 @@
+{
+  "appName": {
+    "message": "Tutti"
+  },
+  "appDescription": {
+    "message": "Un'estensione Chrome che si occupa di pubblicare su più social network contemporaneamente."
+  },
+  "appTagline": {
+    "message": "Cross-posting senza fatica."
+  },
+  "textareaPlaceholder": {
+    "message": "Scrivi il tuo post..."
+  },
+  "headerHistory": {
+    "message": "Cronologia"
+  },
+  "headerSettings": {
+    "message": "Impostazioni"
+  },
+  "posting": {
+    "message": "Pubblicazione..."
+  },
+  "previewing": {
+    "message": "Anteprima..."
+  },
+  "save": {
+    "message": "Salva"
+  },
+  "saved": {
+    "message": "Salvato"
+  },
+  "uiLanguageTitle": {
+    "message": "Lingua di Tutti"
+  },
+  "uiLanguageAuto": {
+    "message": "Automatico (predefinito del browser)"
+  }
+}
