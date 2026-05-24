@@ -21,6 +21,7 @@ const UI_DIRS = [
   'entrypoints/popup',
   'entrypoints/options',
   'entrypoints/sidepanel',
+  'entrypoints/history',
 ];
 
 const JP_REGEX = /[぀-ゟ゠-ヿ一-鿿]/;

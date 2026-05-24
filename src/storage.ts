@@ -369,6 +369,13 @@ export async function clearPostHistory(): Promise<void> {
   await browser.storage.local.remove(HISTORY_KEY);
 }
 
+/** v0.5.9: 個別 entry を削除 (History tab の 🗑 ボタンから)。 */
+export async function removeHistoryEntry(id: string): Promise<void> {
+  const history = await getPostHistory();
+  const next = history.filter((e) => e.id !== id);
+  await browser.storage.local.set({ [HISTORY_KEY]: next });
+}
+
 export async function addToPostHistory(
   text: string,
   results: PostResultMessage[],

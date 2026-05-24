@@ -29,7 +29,6 @@
     }
   },
   "errorPrefix": { "message": "エラー: " },
-  "historyTitle": { "message": "投稿履歴" },
   "historyEmpty": { "message": "履歴はまだありません" },
   "clearAll": { "message": "すべて削除" },
   "confirmClearHistory": { "message": "投稿履歴をすべて削除しますか?" },
@@ -305,5 +304,26 @@
   },
   "uiLanguageTitle": { "message": "Tutti UI 言語" },
   "uiLanguageAuto": { "message": "自動 (ブラウザ既定)" },
-  "uiLanguageHint": { "message": "Tutti 自身の UI 表示言語をブラウザのロケールから上書きします。 popup / side panel / オプション画面にのみ影響し、 各 SNS 側には影響しません。" }
+  "uiLanguageHint": { "message": "Tutti 自身の UI 表示言語をブラウザのロケールから上書きします。 popup / side panel / オプション画面にのみ影響し、 各 SNS 側には影響しません。" },
+
+  "historyHasMedia": { "message": "メディア添付あり" },
+  "historyViewAll": { "message": "全部見る →" },
+  "historyEntriesUnit": { "message": "件" },
+  "historyExport": { "message": "JSON 書き出し" },
+  "historyCopy": { "message": "本文コピー" },
+  "historyCopied": { "message": "コピーしました!" },
+  "historyDelete": { "message": "削除" },
+  "historyRepostAll": { "message": "全部再投稿" },
+  "historyDeleteConfirm": { "message": "この履歴 entry を削除しますか?" },
+  "historyClearAllConfirm": { "message": "履歴をすべて削除しますか? 元に戻せません。" },
+  "historyRepostConfirm": {
+    "message": "この本文を $N$ 件の SNS に再投稿しますか?",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "historyRepostAllOk": { "message": "全 SNS への再投稿に成功しました。" },
+  "historyRepostFailed": {
+    "message": "一部の再投稿が失敗しました: $P$",
+    "placeholders": { "P": { "content": "$1" } }
+  },
+  "failedShort": { "message": "失敗" }
 }

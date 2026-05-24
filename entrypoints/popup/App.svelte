@@ -102,23 +102,8 @@
   let pendingPlatforms = $state<PlatformId[]>([]);
   let lastResults = $state<PostResultMessage[] | null>(null);
   let errorMessage = $state<string | null>(null);
-  let showHistory = $state(false);
+  // v0.5.9〜 履歴は popup 下部に常時表示 (compact strip)。 詳細・検索・編集は History tab 側で。
   let history = $state<HistoryEntry[]>([]);
-  /** v0.4.91: filter された history (search + status filter) */
-  const filteredHistory = $derived(
-    history.filter((e) => {
-      // 状態 filter
-      if (historyFilter === 'failed') {
-        if (!Object.values(e.results).some((r) => r && !r.success)) return false;
-      } else if (historyFilter === 'success') {
-        if (!Object.values(e.results).every((r) => r?.success)) return false;
-      }
-      // 検索 filter
-      const q = historySearch.trim().toLowerCase();
-      if (q && !e.textPreview.toLowerCase().includes(q)) return false;
-      return true;
-    }),
-  );
   let draftLoaded = $state(false);
   let lastSeenUsers = $state<LastSeenUsers>({});
   /** v0.4.86: 失敗 hint card を expand してる platform (null = 全て collapse) */
@@ -138,10 +123,6 @@
   let trimToS = $state<number | null>(null);
   /** v0.4.91: SNS 組み合わせプリセット (Settings から読み込み) */
   let snsPresets = $state<Array<{ id: string; name: string; platforms: PlatformId[] }>>([]);
-  /** v0.4.91: 履歴検索 query */
-  let historySearch = $state('');
-  /** v0.4.91: 履歴の filter mode */
-  let historyFilter = $state<'all' | 'failed' | 'success'>('all');
   // 自動投稿(autoPost): false=dry run(ボタンを押すだけで Compose 確認、実投稿はしない)
   // true=実投稿。デフォルトは false にして、初回ユーザーの誤投稿を防ぐ。
   let autoPost = $state(false);
@@ -487,11 +468,19 @@
     history = await getPostHistory();
   }
 
-  async function handleClearHistory() {
-    if (!confirm(t('confirmClearHistory'))) return;
-    await clearPostHistory();
-    history = [];
-  }
+  // v0.5.9: 履歴は常時表示なので popup mount 時に load + storage 変更で auto refresh
+  $effect(() => {
+    void loadHistory();
+    const listener = (changes: Record<string, unknown>, area: string): void => {
+      if (area === 'local' && 'postHistory' in changes) void loadHistory();
+    };
+    chrome.storage.onChanged.addListener(listener as Parameters<typeof chrome.storage.onChanged.addListener>[0]);
+    return () => chrome.storage.onChanged.removeListener(listener as Parameters<typeof chrome.storage.onChanged.removeListener>[0]);
+  });
+
+  // v0.5.9〜 popup から 「すべて削除」 は撤去 (History tab へ移行)。
+  // clearPostHistory の import も消せるが、 storage 関連で他から使われる可能性に
+  // 備えて残す (実害なし、 build に影響しない)。
 
   // P16: 動画圧縮の進捗 (offscreen から broadcast)
   let compressionProgress = $state<{ stage: 'load' | 'transcode'; progress: number } | null>(null);
@@ -603,9 +592,9 @@
     }
   }
 
-  function toggleHistory() {
-    showHistory = !showHistory;
-    if (showHistory && history.length === 0) void loadHistory();
+  // v0.5.9: 履歴は常時表示。 「History」 link は full History tab を開く
+  function openHistoryTab(): void {
+    void browser.tabs.create({ url: browser.runtime.getURL('history.html') });
   }
 
   /**
@@ -634,19 +623,20 @@
    * textarea に本文を流し込んで失敗した SNS を選択 → user に確認して投稿。
    * 媒体は user 側で再添付が必要。
    */
-  async function retryFromHistory(entry: { textPreview: string; results: Partial<Record<PlatformId, { success: boolean; url?: string; error?: string }>>; }): Promise<void> {
+  async function retryFromHistory(entry: { text?: string; textPreview: string; results: Partial<Record<PlatformId, { success: boolean; url?: string; error?: string }>>; }): Promise<void> {
     const failedIds = (Object.entries(entry.results) as [PlatformId, { success: boolean }][])
       .filter(([, r]) => !r.success)
       .map(([id]) => id);
     if (failedIds.length === 0) return;
-    text = entry.textPreview;
+    // v0.5.9〜 v1 entry は text (full) を持つ。 v0 legacy は textPreview (80 char) のみ
+    text = entry.text ?? entry.textPreview;
     // 失敗 SNS をチェック状態に
     for (const id of failedIds) {
       selected[id] = true;
     }
-    showHistory = false; // history panel を閉じて投稿フォームに戻る
     // user が media を再添付 or 本文を編集してから手動で post boutton 押す前提。
-    // 自動 submit はしない (履歴から prefill するだけ)
+    // 自動 submit はしない (履歴から prefill するだけ)。
+    // v0.5.9〜 履歴は常時表示なので 「panel を閉じる」 処理は不要
   }
 
   async function handleFailureCta(p: PlatformId, cta: FailureHintCta): Promise<void> {
@@ -1084,7 +1074,7 @@
     } finally {
       posting = false;
       pendingPlatforms = [];
-      if (showHistory) void loadHistory();
+      void loadHistory(); // v0.5.9〜 常時表示なので必ず refresh
     }
   }
 </script>
@@ -1127,10 +1117,10 @@
     </div>
     <div class="flex items-center gap-2 mt-0.5">
       <button
-        onclick={toggleHistory}
+        onclick={openHistoryTab}
         class="text-xs text-gray-400 hover:text-gray-600"
         title={t('historyTitle')}
-      >{t('headerHistory')}</button>
+      >{t('headerHistory')} ↗</button>
       <button
         onclick={runDiagnostics}
         class="text-xs text-gray-400 hover:text-gray-600"
@@ -1624,103 +1614,63 @@
     </div>
   {/if}
 
-  {#if showHistory}
-    <div class="mt-3 border-t border-gray-100 pt-3">
-      <div class="flex items-center justify-between mb-2">
-        <p class="text-xs font-medium text-gray-500">{t('historyTitle')}</p>
-        {#if history.length > 0}
-          <button onclick={handleClearHistory} class="text-[10px] text-gray-400 hover:text-red-500">{t('clearAll')}</button>
-        {/if}
-      </div>
-      {#if history.length === 0}
-        <p class="text-xs text-gray-400">{t('historyEmpty')}</p>
-      {:else}
-        <!-- v0.4.91: 検索 + 状態 filter -->
-        <div class="mb-2 flex gap-1.5 items-center">
-          <input
-            type="text"
-            bind:value={historySearch}
-            placeholder={t('historySearchPlaceholder')}
-            class="flex-1 min-w-0 border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
-          />
-          <select
-            bind:value={historyFilter}
-            class="border border-gray-200 rounded px-1.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400"
-          >
-            <option value="all">{t('historyFilterAll')}</option>
-            <option value="failed">{t('historyFilterFailed')}</option>
-            <option value="success">{t('historyFilterSuccess')}</option>
-          </select>
-        </div>
-        {#if filteredHistory.length === 0}
-          <p class="text-xs text-gray-400">{t('historyNoMatch')}</p>
-        {/if}
-        <ul class="space-y-2">
-          {#each filteredHistory as entry}
-            {@const hasFailures = Object.values(entry.results).some((r) => r && !r.success)}
-            {@const successCount = Object.values(entry.results).filter((r) => r?.success).length}
-            {@const totalCount = entry.platforms.length}
-            <li class="text-xs border border-gray-200 rounded p-2">
-              <!-- summary line -->
-              <div class="flex items-center gap-2 mb-1">
-                <span class="font-medium {hasFailures ? 'text-red-700' : 'text-green-700'}">
-                  {successCount}/{totalCount} {hasFailures ? t('historyStatusPartial') : t('historyStatusSuccess')}
-                </span>
-                {#if entry.hasMedia}
-                  <span class="text-gray-400" title={t('historyHasMedia')}>📎</span>
+  <!-- v0.5.9〜 履歴は popup 下部に常時表示。 詳細・編集・検索は History tab へ。 -->
+  <div class="mt-3 border-t border-gray-100 pt-2">
+    <div class="flex items-center justify-between mb-1.5">
+      <p class="text-xs font-medium text-gray-500">{t('historyTitle')}</p>
+      <button
+        onclick={openHistoryTab}
+        class="text-[10px] text-blue-600 hover:text-blue-800 hover:underline"
+      >{t('historyViewAll')}</button>
+    </div>
+    {#if history.length === 0}
+      <p class="text-xs text-gray-400">{t('historyEmpty')}</p>
+    {:else}
+      <ul class="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+        {#each history as entry}
+          {@const hasFailures = Object.values(entry.results).some((r) => r && !r.success)}
+          {@const successCount = Object.values(entry.results).filter((r) => r?.success).length}
+          {@const totalCount = entry.platforms.length}
+          <li class="text-xs border border-gray-200 rounded p-2">
+            <div class="flex items-center gap-1.5 mb-1 text-[11px]">
+              <span class="font-medium {hasFailures ? 'text-red-700' : 'text-green-700'}">
+                {successCount}/{totalCount}
+              </span>
+              {#if entry.hasMedia}
+                <span class="text-gray-400" title={t('historyHasMedia')}>📎</span>
+              {/if}
+              <span class="ml-auto text-gray-400">{formatRelTime(entry.timestamp)}</span>
+            </div>
+            <p class="text-gray-700 mb-1 break-words" style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">{entry.text ?? entry.textPreview}</p>
+            <div class="flex items-center gap-1 text-[10px] text-gray-500">
+              {#each entry.platforms as pid}
+                {@const r = entry.results[pid]}
+                {#if r?.success}
+                  {#if r.url}
+                    <a href={r.url} target="_blank" rel="noopener noreferrer" class="text-green-600 hover:underline" title={`${pid}: ${r.url}`}>✓{pid.slice(0, 2)}</a>
+                  {:else}
+                    <span class="text-green-600" title={pid}>✓{pid.slice(0, 2)}</span>
+                  {/if}
+                {:else if r}
+                  <span class="text-red-600" title={`${pid}: ${r.error ?? ''}`}>✗{pid.slice(0, 2)}</span>
+                {:else}
+                  <span class="text-gray-400" title={pid}>?{pid.slice(0, 2)}</span>
                 {/if}
-                <span class="ml-auto text-gray-400">{formatRelTime(entry.timestamp)}</span>
-              </div>
-
-              <!-- 本文 preview -->
-              <p class="text-gray-700 mb-2 break-words" style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">{entry.textPreview}</p>
-
-              <!-- per-SNS row 詳細 (v0.4.102: user 報告 「成否が分からない」 を解消) -->
-              <ul class="space-y-1 mb-1">
-                {#each entry.platforms as pid}
-                  {@const r = entry.results[pid]}
-                  <li class="flex items-start gap-1.5 text-[11px]">
-                    {#if r?.success}
-                      <span class="shrink-0 w-4 text-green-600 font-bold">✓</span>
-                      <span class="shrink-0 font-medium text-gray-700">{pid}</span>
-                      {#if r.url}
-                        <a
-                          href={r.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          class="text-blue-600 hover:text-blue-800 hover:underline truncate"
-                          title={r.url}
-                        >{r.url.replace(/^https?:\/\//, '')} ↗</a>
-                      {:else}
-                        <span class="text-gray-400 italic">{t('historyUrlNotCaptured')}</span>
-                      {/if}
-                    {:else if r}
-                      <span class="shrink-0 w-4 text-red-600 font-bold">✗</span>
-                      <span class="shrink-0 font-medium text-gray-700">{pid}</span>
-                      <span class="text-red-700 break-words flex-1 min-w-0">{r.error ?? t('failedShort')}</span>
-                    {:else}
-                      <span class="shrink-0 w-4 text-gray-400">?</span>
-                      <span class="shrink-0 font-medium text-gray-500">{pid}</span>
-                      <span class="text-gray-400 italic">{t('historyNotAttempted')}</span>
-                    {/if}
-                  </li>
-                {/each}
-              </ul>
-
+              {/each}
               {#if hasFailures}
                 <button
                   type="button"
                   onclick={() => retryFromHistory(entry)}
-                  class="text-[11px] text-red-600 hover:text-red-700 hover:underline"
+                  class="ml-auto text-red-600 hover:text-red-700 hover:underline"
                   title={t('historyRetryFailedTooltip')}
-                >{t('historyRetryFailed')} ↻</button>
+                >↻</button>
               {/if}
-            </li>
-          {/each}
-        </ul>
-      {/if}
-    </div>
-  {/if}
+            </div>
+          </li>
+        {/each}
+      </ul>
+    {/if}
+  </div>
 
   <!-- 障害報告 dialog (proactive: エラー発生時に自動で開く) -->
   {#if errorDialogOpen}

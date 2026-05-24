@@ -29,7 +29,6 @@
     }
   },
   "errorPrefix": { "message": "Error: " },
-  "historyTitle": { "message": "Post history" },
   "historyEmpty": { "message": "No posts yet" },
   "clearAll": { "message": "Clear all" },
   "confirmClearHistory": { "message": "Delete all post history?" },
@@ -305,5 +304,26 @@
   },
   "uiLanguageTitle": { "message": "Tutti UI language" },
   "uiLanguageAuto": { "message": "Auto (browser default)" },
-  "uiLanguageHint": { "message": "Override your browser's locale for Tutti's own UI. Affects the popup, side panel, and options page only; doesn't affect the social networks themselves." }
+  "uiLanguageHint": { "message": "Override your browser's locale for Tutti's own UI. Affects the popup, side panel, and options page only; doesn't affect the social networks themselves." },
+
+  "historyHasMedia": { "message": "Has attached media" },
+  "historyViewAll": { "message": "View all →" },
+  "historyEntriesUnit": { "message": "entries" },
+  "historyExport": { "message": "Export JSON" },
+  "historyCopy": { "message": "Copy text" },
+  "historyCopied": { "message": "Copied!" },
+  "historyDelete": { "message": "Delete" },
+  "historyRepostAll": { "message": "Repost all" },
+  "historyDeleteConfirm": { "message": "Delete this history entry?" },
+  "historyClearAllConfirm": { "message": "Clear all post history? This cannot be undone." },
+  "historyRepostConfirm": {
+    "message": "Repost this text to $N$ network(s)?",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "historyRepostAllOk": { "message": "All reposts succeeded." },
+  "historyRepostFailed": {
+    "message": "Some reposts failed: $P$",
+    "placeholders": { "P": { "content": "$1" } }
+  },
+  "failedShort": { "message": "failed" }
 }
