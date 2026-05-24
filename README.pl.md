@@ -1,0 +1,96 @@
+# Tutti
+
+> Wszystkie kłopoty z publikacją krzyżową, załatwione — jedno rozszerzenie Chrome, jedenaście sieci.
+
+[English](./README.md) &middot; [日本語](./README.ja.md) &middot; [简体中文](./README.zh_CN.md) &middot; [繁體中文](./README.zh_TW.md) &middot; [한국어](./README.ko.md) &middot; [Español](./README.es.md) &middot; [Español (LatAm)](./README.es_419.md) &middot; [Português (BR)](./README.pt_BR.md) &middot; [Português (PT)](./README.pt_PT.md) &middot; [Русский](./README.ru.md) &middot; [Deutsch](./README.de.md) &middot; [Français](./README.fr.md) &middot; [Türkçe](./README.tr.md) &middot; [Italiano](./README.it.md) &middot; [Čeština](./README.cs.md) &middot; [Українська](./README.uk.md) &middot; [Magyar](./README.hu.md) &middot; [ไทย](./README.th.md) &middot; [Tiếng Việt](./README.vi.md) &middot; [Nederlands](./README.nl.md) &middot; [Svenska](./README.sv.md) &middot; [العربية](./README.ar.md) &middot; [Bahasa Indonesia](./README.id.md) &middot; [Suomi](./README.fi.md) &middot; [Ελληνικά](./README.el.md) &middot; [Български](./README.bg.md) &middot; [Norsk](./README.no.md) &middot; [Română](./README.ro.md) &middot; [Dansk](./README.da.md) &middot; [Esperanto](./README.eo.md)
+
+Tutti pozwala napisać raz i rozesłać ten sam post do wszystkich Twoich sieci społecznościowych jednym kliknięciem (obsługiwanych 11 sieci). Tekst przekraczający limit jest automatycznie dzielony (X używa właściwego łańcucha odpowiedzi, dzięki czemu staje się thread); obrazy są automatycznie zmieniane do ograniczeń każdej platformy; filmy są sprawdzane pod kątem długości / rozmiaru, a zbyt duże klipy są transkodowane w locie za pomocą `ffmpeg.wasm`.
+
+**Zawartość Twoich postów nigdy nie dotyka żadnego serwera trzeciej strony.**
+
+🔒 [Polityka prywatności](https://komm64.github.io/tutti/)
+
+## Funkcje
+
+- 📤 **Rozsyłanie wieloplatformowe** — napisz raz, kliknij raz, opublikuj w każdej wybranej sieci (11 sieci)
+- ✂️ **Automatyczny podział tekstu nadlimitowego** — ponumerowane jako `(1/N)`, publikowane sekwencyjnie. Na X są łączone jako **łańcuch odpowiedzi (thread)**, w innych sieciach publikowane niezależnie
+- Granice `#hashtag` są zachowywane przy podziałach / Bluesky otrzymuje właściwe **rich-text facets** (klikalne tagi + URL annotations)
+- 🖼️ **Do 4 obrazów + automatyczna zmiana rozmiaru** — automatycznie dopasowuje się do ścisłych limitów, takich jak pułap 1 MB Bluesky
+- 🎬 **Publikowanie wideo + automatyczna kompresja** — nadlimitowe klipy są przekodowywane na miejscu przez `ffmpeg.wasm` (w dokumencie offscreen)
+- 🔌 **Opcjonalna ścieżka oficjalnego API** — dla Bluesky / Mastodon / Misskey zarejestruj poświadczenia w Ustawieniach, a Tutti publikuje przez publiczne API zamiast skryptowania DOM (odporne na zmiany UI SNS)
+- 📊 **Postęp na żywo** — zobacz status każdej sieci w czasie rzeczywistym
+- 🪪 **Wyświetlanie zalogowanego konta** — popup pokazuje, z którego konta każda sieć opublikuje (pomaga zapobiec wypadkom)
+- 🛡️ **Przełącznik autoPost** — domyślnie wyłączony. Tryb domyślny otwiera każdą stronę tworzenia, wypełnia treść + załączniki i **zatrzymuje się tuż przed kliknięciem przycisku publikacji** (tryb "podglądu"), abyś mógł zauważyć błędy
+- 📜 **Historia postów** — ostatnich 20 wpisów zapisanych lokalnie
+- 💾 **Automatycznie zapisywane wersje robocze** — Twój tekst przetrwa zamknięcie popup
+- ⌨️ **Ctrl/Cmd + Enter, aby opublikować**
+- ⚙️ **Przełączanie instancji Mastodon / Misskey** — wskaż dowolną instancję z Ustawień
+- 🩹 **Hot-fix selektorów** — gdy DOM SNS się zmienia i łamie ścieżkę, Tutti może pobrać patch `selectors.json`, więc nie musisz czekać na następne wydanie rozszerzenia
+- 🐞 **Przycisk zgłaszania błędów** — jedno kliknięcie z popup zgłasza issue GitHub z zredagowanym snapshotem DOM (potok auto-triage przekształca to w PR selektora)
+- 🌐 **Zlokalizowany** — 31 języków (popup + opcje)
+
+## Obsługiwane sieci
+
+11 sieci. "Stable" oznacza, że rzeczywista publikacja została zweryfikowana end-to-end; "Experimental" oznacza, że adapter jest podłączony, ale rzeczywista publikacja z autoPost nie została jeszcze w pełni zwalidowana. Dla Experimental zacznij w trybie podglądu (autoPost WYŁ).
+
+### Stable (rzeczywista publikacja zweryfikowana)
+
+| Sieć | text | image | shortVideo | longVideo | Ścieżka |
+|---|:---:|:---:|:---:|:---:|---|
+| X | ✅ | ✅ | ✅ | ✅ | DOM |
+| Bluesky | ✅ | ✅ | ✅ | — | DOM + API |
+| Threads | ✅ | ✅ | ✅ | ✅ | DOM |
+| Mastodon | ✅ | ✅ | ✅ | ✅ | DOM + API |
+| Misskey | ✅ | ✅ | ✅ | ✅ | DOM + API |
+| Tumblr | ✅ | ✅ | ✅ | ✅ | DOM |
+| Pixiv | — | ✅ | — | — | DOM (multi-step) |
+| TikTok | — | — | ✅ | — | DOM (multi-step) |
+| YouTube (Shorts) | — | — | ✅ | — | DOM (multi-step) |
+| Instagram | — | ✅ | ✅ | — | DOM (multi-step) |
+
+### Experimental (tylko adapter; rzeczywista publikacja z autoPost jeszcze nie zweryfikowana)
+
+| Sieć | text | image | shortVideo | longVideo | Ścieżka |
+|---|:---:|:---:|:---:|:---:|---|
+| DeviantArt | — | ✅ | — | — | DOM (multi-step) |
+
+- **DOM**: Tutti automatyzuje webowy UI tworzenia SNS (bardziej wrażliwy na zmiany anti-bot)
+- **DOM + API**: Jeśli zapiszesz poświadczenia w Ustawieniach, Tutti przełączy się na oficjalne API. W przypadku awarii API Tutti **nie wraca po cichu do DOM** — zobaczysz wyraźny błąd. Bez poświadczeń uruchamia się tylko ścieżka DOM.
+- **multi-step**: Dla modali w stylu kreatora w wielu krokach (framework: `executeMultiStepFlow`)
+
+## Instalacja
+
+### Chrome Web Store
+
+Opublikowane (Unlisted): [Tutti w Web Store](https://chromewebstore.google.com/detail/tutti/mcjfgdcffjfhkcepfpnifcpknlddmbpe)
+
+### Rozpakowana / build deweloperski
+
+Pobierz najnowszy zip z [Releases](https://github.com/komm64/tutti/releases), następnie:
+
+1. Rozpakuj go
+2. Otwórz `chrome://extensions/` (lub `brave://extensions/` w Brave)
+3. Włącz "Tryb dewelopera"
+4. Kliknij "Załaduj rozpakowane" i wybierz rozpakowany folder
+
+## Pomoc
+
+Pytania, zgłoszenia błędów, prośby o funkcje: **[komm64.github.io/tutti/support.html](https://komm64.github.io/tutti/support.html)**
+
+Lub wyślij e-mail na **contact@komm64.com**.
+
+## Prywatność
+
+Tekst postów, obrazy i wideo są przetwarzane **całkowicie wewnątrz Twojej przeglądarki** — nigdy nie są wysyłane do żadnego serwera trzeciej strony. Zobacz [politykę prywatności](https://komm64.github.io/tutti/) po szczegóły.
+
+## Licencja
+
+[Wszelkie prawa zastrzeżone](./LICENSE) — © 2026 komm64
+
+Kod źródłowy jest publikowany w celach przejrzystości. Redystrybucja, ponowne użycie lub modyfikacja nie są dozwolone.
+
+---
+
+## Rozwój
+
+Dokumentacja dewelopera (Stack, Commands, Layout) jest po angielsku w [README.md](./README.md).
