@@ -13,7 +13,7 @@
     --line: #e5e7eb;
     --accent-bg: #f0fdfa;
   }
-  html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", sans-serif; color: var(--fg); }
+  html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", "Noto Sans CJK JP", "Noto Sans CJK SC", "Noto Sans CJK TC", "Noto Sans CJK KR", "Noto Sans Thai", "Noto Sans Arabic", "Noto Sans Devanagari", sans-serif; color: var(--fg); }
   body { max-width: 720px; margin: 0 auto; padding: 2rem 1.5rem 4rem; line-height: 1.7; }
   header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
   h1 { font-size: 1.75rem; margin: 0; }
@@ -26,6 +26,9 @@
   h3 { font-size: 1rem; margin-top: 1.5rem; }
   ul, ol { padding-left: 1.5rem; }
   code { background: #f3f4f6; padding: 0.1em 0.4em; border-radius: 4px; font-size: 0.9em; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-weight: 600; }
   .callout {
     background: var(--accent-bg);
     border-left: 3px solid var(--brand);
@@ -35,6 +38,9 @@
   }
   .callout p { margin: 0.25rem 0; }
   a { color: var(--brand); }
+  .lang-switch { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--line); font-size: 0.85rem; color: var(--muted); }
+  .lang-switch a { color: var(--brand); text-decoration: none; margin-right: 0.75rem; display: inline-block; margin-bottom: 0.25rem; }
+  .lang-switch a.current { color: var(--fg); font-weight: 600; }
   footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.85rem; }
 </style>
 </head>
@@ -48,97 +54,51 @@
 </header>
 
 <nav>
+  <a href="./index.html">Home</a>
   <a href="https://github.com/komm64/tutti">GitHub</a>
-  <a href="./index.html">Privacy Policy</a>
-  <a href="./support.ja.html">日本語</a>
+  <a href="./privacy.html">Privacy Policy</a>
 </nav>
 
 <h2>Need help?</h2>
 
 <h3>1. Posting failed / something behaves oddly</h3>
-<p>
-Use the <strong>"Diagnose" → "Report" button inside the popup</strong>.
-This is the canonical channel. The report is redacted (handles, URLs, emails)
-and forwarded to our private issue tracker, where a selector fix PR is opened
-automatically and pushed as a hot-fix to all users within days.
-</p>
+<p>Use the <strong>&ldquo;Diagnose&rdquo; &rarr; &ldquo;Report&rdquo; button inside the popup</strong>. This is the canonical channel. The report is redacted (handles, URLs, emails) and forwarded to our private issue tracker, where a selector fix PR is opened automatically and pushed as a hot-fix to all users within days.</p>
 
 <div class="callout">
 <p><strong>Why use the in-product Report button?</strong></p>
-<p>
-The popup's Report flow automatically attaches the final compose state,
-a redacted DOM snapshot, and selector audit results — exactly what's needed
-to fix selector breakage fast. PII is stripped through multiple layers before
-sending.
-</p>
+<p>The popup's Report flow automatically attaches the final compose state, a redacted DOM snapshot, and selector audit results — exactly what's needed to fix selector breakage fast. PII is stripped through multiple layers before sending.</p>
 </div>
 
 <h3>2. General questions / feature requests</h3>
-<p>
-Email us at <a href="mailto:contact@komm64.com">contact@komm64.com</a>.
-This is a private channel, safe to share screenshots / personal handles with.
-</p>
+<p>Email us at <a href="mailto:contact@komm64.com">contact@komm64.com</a>. This is a private channel, safe to share screenshots / personal handles with.</p>
 
 <h3>3. Install / account questions</h3>
-<p>
-Tutti <strong>reuses your existing browser logins</strong> for each social
-network. There's no separate Tutti account or login step. Once you're logged
-in to a social network in the same Chrome profile, Tutti can post from there.
-</p>
+<p>Tutti <strong>reuses your existing browser logins</strong> for each social network. There's no separate Tutti account or login step. Once you're logged in to a social network in the same Chrome profile, Tutti can post from there.</p>
 
 <h2>FAQ</h2>
 
 <h3>Q. My post failed.</h3>
-<p>
-This usually means a social network changed its DOM. Use
-<strong>Diagnose → Report</strong> in the popup. A selector hot-fix usually
-ships within days via <code>selectors.json</code> auto-update (no extension
-update required).
-</p>
+<p>This usually means a social network changed its DOM. Use <strong>Diagnose &rarr; Report</strong> in the popup. A selector hot-fix usually ships within days via <code>selectors.json</code> auto-update (no extension update required).</p>
 
 <h3>Q. Tutti doesn't remember my login.</h3>
-<p>
-Tutti relies on the network's normal browser login. Log in to each network
-in Chrome first, then Tutti can post on your behalf. Incognito mode doesn't
-work because the network sessions aren't there.
-</p>
+<p>Tutti relies on the network's normal browser login. Log in to each network in Chrome first, then Tutti can post on your behalf. Incognito mode doesn't work because the network sessions aren't there.</p>
 
 <h3>Q. Character limits differ per network — is that a problem?</h3>
-<p>
-No. Long posts that exceed a network's character limit are automatically
-split into a continuation thread (on X, a proper reply chain; on other
-networks, sequential posts). Posts within the limit go through as-is.
-</p>
+<p>No. Long posts that exceed a network's character limit are automatically split into a continuation thread (on X, a proper reply chain; on other networks, sequential posts). Posts within the limit go through as-is.</p>
 
 <h3>Q. I'm told my image / video is too large.</h3>
-<p>
-Images are auto-resized via Canvas to fit each network's size limit. Videos
-are auto-compressed with ffmpeg.wasm when above a network's cap. If even
-compression can't fit, you'll see an error — please verify the file uploads
-via the network's native app first.
-</p>
+<p>Images are auto-resized via Canvas to fit each network's size limit. Videos are auto-compressed with ffmpeg.wasm when above a network's cap. If even compression can't fit, you'll see an error — please verify the file uploads via the network's native app first.</p>
 
 <h3>Q. Does Tutti see my post content?</h3>
-<p>
-No. Post content never passes through a third-party server. Tutti injects
-directly into each network's web compose page. See our
-<a href="./index.html">Privacy Policy</a> for details. The only exception is
-when you press the in-product Report button, which sends redacted error
-information to our private issue tracker.
-</p>
+<p>No. Post content never passes through a third-party server. Tutti injects directly into each network's web compose page. See our <a href="./privacy.html">Privacy Policy</a> for details. The only exception is when you press the in-product Report button, which sends redacted error information to our private issue tracker.</p>
 
 <h3>Q. Can I donate?</h3>
-<p>
-Not yet — we're working on a low-pressure support channel. The biggest
-ongoing cost is keeping up with each social network's UI changes; future
-Ko-fi flows will fund that maintenance.
-</p>
+<p>Not yet — we're working on a low-pressure support channel. The biggest ongoing cost is keeping up with each social network's UI changes; future Ko-fi flows will fund that maintenance.</p>
+
+<div class="lang-switch"><a href="./support.html" class="current">English</a><a href="./support.ja.html">日本語</a><a href="./support.zh_CN.html">简体中文</a><a href="./support.zh_TW.html">繁體中文</a><a href="./support.ko.html">한국어</a><a href="./support.es.html">Español</a><a href="./support.es_419.html">Español (Latinoamérica)</a><a href="./support.pt_BR.html">Português (Brasil)</a><a href="./support.pt_PT.html">Português (Portugal)</a><a href="./support.ru.html">Русский</a><a href="./support.de.html">Deutsch</a><a href="./support.fr.html">Français</a><a href="./support.pl.html">Polski</a><a href="./support.tr.html">Türkçe</a><a href="./support.it.html">Italiano</a><a href="./support.cs.html">Čeština</a><a href="./support.uk.html">Українська</a><a href="./support.hu.html">Magyar</a><a href="./support.th.html">ไทย</a><a href="./support.vi.html">Tiếng Việt</a><a href="./support.nl.html">Nederlands</a><a href="./support.sv.html">Svenska</a><a href="./support.ar.html">العربية</a><a href="./support.id.html">Bahasa Indonesia</a><a href="./support.fi.html">Suomi</a><a href="./support.el.html">Ελληνικά</a><a href="./support.bg.html">Български</a><a href="./support.no.html">Norsk</a><a href="./support.ro.html">Română</a><a href="./support.da.html">Dansk</a><a href="./support.eo.html">Esperanto</a></div>
 
 <footer>
-  Tutti is a Chrome extension by <a href="https://github.com/komm64">komm64</a>.
-  Contact: <a href="mailto:contact@komm64.com">contact@komm64.com</a>
-  <br>
-  日本語版: <a href="./support.ja.html">support.ja.html</a>
+  Tutti is a Chrome extension by <a href="https://github.com/komm64">komm64</a>. Contact: <a href="mailto:contact@komm64.com">contact@komm64.com</a>
 </footer>
 
 </body>

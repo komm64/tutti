@@ -11,8 +11,9 @@
     --brand: #0d9488;
     --bg: #ffffff;
     --line: #e5e7eb;
+    --accent-bg: #f0fdfa;
   }
-  html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", sans-serif; color: var(--fg); }
+  html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", "Noto Sans CJK JP", "Noto Sans CJK SC", "Noto Sans CJK TC", "Noto Sans CJK KR", "Noto Sans Thai", "Noto Sans Arabic", "Noto Sans Devanagari", sans-serif; color: var(--fg); }
   body { max-width: 720px; margin: 0 auto; padding: 2rem 1.5rem 4rem; line-height: 1.7; }
   header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
   h1 { font-size: 1.75rem; margin: 0; }
@@ -22,11 +23,24 @@
   nav a { color: var(--brand); text-decoration: none; margin-right: 1rem; }
   nav a:hover { text-decoration: underline; }
   h2 { font-size: 1.2rem; margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--line); }
-  ul { padding-left: 1.5rem; }
+  h3 { font-size: 1rem; margin-top: 1.5rem; }
+  ul, ol { padding-left: 1.5rem; }
   code { background: #f3f4f6; padding: 0.1em 0.4em; border-radius: 4px; font-size: 0.9em; }
   table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.9rem; }
   th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--line); vertical-align: top; }
   th { font-weight: 600; }
+  .callout {
+    background: var(--accent-bg);
+    border-left: 3px solid var(--brand);
+    padding: 0.75rem 1rem;
+    margin: 1rem 0;
+    border-radius: 4px;
+  }
+  .callout p { margin: 0.25rem 0; }
+  a { color: var(--brand); }
+  .lang-switch { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--line); font-size: 0.85rem; color: var(--muted); }
+  .lang-switch a { color: var(--brand); text-decoration: none; margin-right: 0.75rem; display: inline-block; margin-bottom: 0.25rem; }
+  .lang-switch a.current { color: var(--fg); font-weight: 600; }
   footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.85rem; }
 </style>
 </head>
@@ -41,7 +55,7 @@
 </header>
 
 <nav>
-  <a href="./">Home</a>
+  <a href="./index.html">Home</a>
   <a href="https://github.com/komm64/tutti">GitHub</a>
   <a href="./support.html">Support</a>
 </nav>
@@ -61,7 +75,7 @@
 
 <h3>Exception — manual error reports (opt-in per click)</h3>
 
-<p>When (and only when) you press the <strong>"Report" button</strong> shown in an error dialog or the diagnose panel, the following is sent through a Cloudflare Workers relay to a <strong>private GitHub issue tracker</strong> (<code>komm64/tutti-issues</code>, viewable only by the Tutti developer):</p>
+<p>When (and only when) you press the <strong>&ldquo;Report&rdquo; button</strong> shown in an error dialog or the diagnose panel, the following is sent through a Cloudflare Workers relay to a <strong>private GitHub issue tracker</strong> (<code>komm64/tutti-issues</code>, viewable only by the Tutti developer):</p>
 
 <ul>
 <li>The error message, extension version, browser User-Agent string.</li>
@@ -114,10 +128,10 @@ Email: <a href="mailto:contact@komm64.com">contact@komm64.com</a>
 
 <p>Updates to this policy are communicated by updating this page and the canonical source file (<a href="https://github.com/komm64/tutti/blob/main/PRIVACY.md">PRIVACY.md</a>).</p>
 
-<p style="margin-top: 2rem;"><a href="./privacy.ja.html">日本語版はこちら</a></p>
+<div class="lang-switch"><a href="./privacy.html" class="current">English</a><a href="./privacy.ja.html">日本語</a><a href="./privacy.zh_CN.html">简体中文</a><a href="./privacy.zh_TW.html">繁體中文</a><a href="./privacy.ko.html">한국어</a><a href="./privacy.es.html">Español</a><a href="./privacy.es_419.html">Español (Latinoamérica)</a><a href="./privacy.pt_BR.html">Português (Brasil)</a><a href="./privacy.pt_PT.html">Português (Portugal)</a><a href="./privacy.ru.html">Русский</a><a href="./privacy.de.html">Deutsch</a><a href="./privacy.fr.html">Français</a><a href="./privacy.pl.html">Polski</a><a href="./privacy.tr.html">Türkçe</a><a href="./privacy.it.html">Italiano</a><a href="./privacy.cs.html">Čeština</a><a href="./privacy.uk.html">Українська</a><a href="./privacy.hu.html">Magyar</a><a href="./privacy.th.html">ไทย</a><a href="./privacy.vi.html">Tiếng Việt</a><a href="./privacy.nl.html">Nederlands</a><a href="./privacy.sv.html">Svenska</a><a href="./privacy.ar.html">العربية</a><a href="./privacy.id.html">Bahasa Indonesia</a><a href="./privacy.fi.html">Suomi</a><a href="./privacy.el.html">Ελληνικά</a><a href="./privacy.bg.html">Български</a><a href="./privacy.no.html">Norsk</a><a href="./privacy.ro.html">Română</a><a href="./privacy.da.html">Dansk</a><a href="./privacy.eo.html">Esperanto</a></div>
 
 <footer>
-  &copy; komm64 — Tutti
+  &copy; komm64 &mdash; Tutti
 </footer>
 
 </body>

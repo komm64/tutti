@@ -13,7 +13,7 @@
     --line: #e5e7eb;
     --accent-bg: #f0fdfa;
   }
-  html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif; color: var(--fg); }
+  html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", "Noto Sans CJK JP", "Noto Sans CJK SC", "Noto Sans CJK TC", "Noto Sans CJK KR", "Noto Sans Thai", "Noto Sans Arabic", "Noto Sans Devanagari", sans-serif; color: var(--fg); }
   body { max-width: 720px; margin: 0 auto; padding: 2rem 1.5rem 4rem; line-height: 1.7; }
   header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
   h1 { font-size: 1.75rem; margin: 0; }
@@ -26,6 +26,9 @@
   h3 { font-size: 1rem; margin-top: 1.5rem; }
   ul, ol { padding-left: 1.5rem; }
   code { background: #f3f4f6; padding: 0.1em 0.4em; border-radius: 4px; font-size: 0.9em; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-weight: 600; }
   .callout {
     background: var(--accent-bg);
     border-left: 3px solid var(--brand);
@@ -35,6 +38,9 @@
   }
   .callout p { margin: 0.25rem 0; }
   a { color: var(--brand); }
+  .lang-switch { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--line); font-size: 0.85rem; color: var(--muted); }
+  .lang-switch a { color: var(--brand); text-decoration: none; margin-right: 0.75rem; display: inline-block; margin-bottom: 0.25rem; }
+  .lang-switch a.current { color: var(--fg); font-weight: 600; }
   footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.85rem; }
 </style>
 </head>
@@ -43,100 +49,56 @@
   <div class="icon">T</div>
   <div>
     <h1>Tutti — サポート</h1>
-    <p class="tagline">困ったときの連絡先と FAQ</p>
+    <p class="tagline">サポートリソースと FAQ</p>
   </div>
 </header>
 
 <nav>
+  <a href="./index.ja.html">ホーム</a>
   <a href="https://github.com/komm64/tutti">GitHub</a>
-  <a href="./index.html">プライバシーポリシー</a>
-  <a href="./support.html">English</a>
+  <a href="./privacy.ja.html">プライバシーポリシー</a>
 </nav>
 
 <h2>困ったときは</h2>
 
-<h3>1. 投稿でエラーが出た / 期待通り動かない</h3>
-<p>
-popup の <strong>「診断」 ボタン → 「報告する」</strong> から送ってください。
-これが正規経路です。 内部で個人ハンドル / URL / メールアドレスを redact し、
-私たちの private な issue tracker に届きます。 そこから自動で selector 修正の
-PR が作られて、 数日中に hot-fix が全ユーザーに配信される仕組みになっています。
-</p>
+<h3>1. 投稿が失敗した / 動作が変</h3>
+<p><strong>popup の「診断」 → 「報告する」ボタン</strong>をお使いください。これが正規経路です。レポートは redact (ハンドル・URL・メール) 済みで private な issue tracker に転送され、そこから自動的に selector 修正 PR が作成され、数日中に hot-fix として全ユーザーに配信されます。</p>
 
 <div class="callout">
-<p><strong>なぜ正規経路を使ってほしい?</strong></p>
-<p>
-popup の Report ボタンを経由した報告には、 投稿の最終状態 / DOM snapshot /
-selector 検出結果が自動添付されます。 これがあると selector breakage の修正が
-桁違いに早くなります。 個人特定可能な情報は送信前に多段で redact されます。
-</p>
+<p><strong>なぜ製品内の Report ボタンを?</strong></p>
+<p>popup の Report 経路は投稿の最終状態、redacted DOM snapshot、selector 検出結果を自動添付します。これが selector breakage の修正に必要なすべてです。個人特定可能な情報は送信前に多段で redact されます。</p>
 </div>
 
-<h3>2. 使い方の質問 / 機能の要望</h3>
-<p>
-<a href="mailto:contact@komm64.com">contact@komm64.com</a> に直接メールしてください。
-個人 SNS のスクショ / ハンドル等を貼っても外部に漏れない経路です。
-</p>
+<h3>2. 一般的な質問 / 機能要望</h3>
+<p><a href="mailto:contact@komm64.com">contact@komm64.com</a> までメールしてください。private な経路です。スクリーンショットや個人ハンドルを安全に共有できます。</p>
 
 <h3>3. インストール / アカウント関連</h3>
-<p>
-Tutti は <strong>各 SNS の既存ブラウザログインを再利用</strong>します。
-Tutti 側でアカウントを登録する手順はありません。 popup を開いて投稿先 SNS
-にチェックを入れたタイミングで、 該当 SNS にすでにログイン済の Chrome 拡張
-セッションがそのまま使われます。
-</p>
+<p>Tutti は <strong>各 SNS の既存ブラウザログインを再利用</strong>します。Tutti 専用のアカウントやログイン手順はありません。同じ Chrome プロファイルで SNS にログイン済みなら、そこから Tutti が投稿できます。</p>
 
-<h2>よくある質問</h2>
+<h2>FAQ</h2>
 
-<h3>Q. 投稿が失敗しました</h3>
-<p>
-SNS 側の DOM 構造が変わった可能性があります。 <strong>popup の診断ボタン →
-報告する</strong> で送ってください。 多くの場合、 数日中に hot-fix が
-selectors.json 経由で自動配信されます (拡張本体の更新は不要)。
-</p>
+<h3>Q. 投稿が失敗しました。</h3>
+<p>多くの場合、SNS が DOM 構造を変更したためです。popup の <strong>診断 → 報告する</strong> をお使いください。多くの場合 <code>selectors.json</code> 自動更新で数日中に hot-fix が配信されます (拡張本体の更新は不要)。</p>
 
-<h3>Q. ログインを覚えてくれない</h3>
-<p>
-Tutti は各 SNS の Chrome ログイン状態をそのまま使います。 SNS タブで先に
-ブラウザログインしてから Tutti を使ってください。 シークレットモードでは
-SNS 側のログインが切れているので動きません。
-</p>
+<h3>Q. Tutti がログインを覚えてくれない。</h3>
+<p>Tutti は各 SNS の通常のブラウザログインに依存します。まず各 SNS に Chrome でログインしてください。そうすれば Tutti が代わりに投稿できます。シークレットモードでは SNS のセッションが存在しないため動きません。</p>
 
-<h3>Q. 投稿の文字数が SNS によって違うけど大丈夫?</h3>
-<p>
-各 SNS の文字数上限を超えた長文は自動でスレッド分割されます (X は reply chain、
-他 SNS は連投)。 上限以内ならそのまま投稿されます。
-</p>
+<h3>Q. SNS によって文字数制限が違うけど問題は?</h3>
+<p>問題ありません。文字数制限を超える長文は自動で連投スレッドに分割されます (X は真の reply chain、他 SNS は連投)。制限以内ならそのまま投稿されます。</p>
 
-<h3>Q. 画像 / 動画のサイズが大きすぎると言われる</h3>
-<p>
-画像は各 SNS のサイズ制限に合わせて Canvas で自動リサイズされます。 動画は
-SNS 別の上限を超える場合、 ffmpeg.wasm で自動圧縮を試みます。 それでも
-上限を超える動画はエラーになります。 SNS のネイティブアプリで一度
-アップロードできるサイズか確認してください。
-</p>
+<h3>Q. 画像 / 動画が大きすぎると言われる。</h3>
+<p>画像は Canvas で各 SNS のサイズ上限に合わせて自動リサイズされます。動画は SNS の上限を超える場合 ffmpeg.wasm で自動圧縮されます。それでも収まらない場合はエラーになります。SNS のネイティブアプリでアップロードできるサイズか先に確認してください。</p>
 
-<h3>Q. Tutti は私の投稿内容を見ていますか?</h3>
-<p>
-いいえ。 投稿内容は第三者サーバーを一切経由しません。 各 SNS の Web 投稿
-ページに直接 inject されます。 詳細は<a href="./index.html">プライバシー
-ポリシー</a>を参照してください。 唯一例外は popup の「報告する」 ボタンを
-押した時のみで、 これは redact 済のエラー情報を private な issue tracker に
-転送します。
-</p>
+<h3>Q. Tutti は投稿内容を見ていますか?</h3>
+<p>いいえ。投稿内容は第三者サーバーを一切経由しません。Tutti は各 SNS の Web 投稿ページに直接 inject します。詳細は<a href="./privacy.html">プライバシーポリシー</a>を参照。唯一の例外は製品内の Report ボタンを押した時で、これは redact 済のエラー情報を private な issue tracker に送信します。</p>
 
-<h3>Q. 寄付 / 支援 はできますか?</h3>
-<p>
-現在準備中です。 まずは Tutti を使い続けてもらえれば嬉しいです。
-SNS UI の変更に追従しつづける継続保守がコストの中心なので、 安定した
-品質を維持するために将来 Ko-fi 等の支援導線を設ける予定です。
-</p>
+<h3>Q. 寄付できますか?</h3>
+<p>まだです — プレッシャーの少ないサポート経路を準備中です。最大の継続コストは各 SNS の UI 変更への追従なので、将来の Ko-fi 等はそのメンテナンス費用に充てられます。</p>
+
+<div class="lang-switch"><a href="./support.html">English</a><a href="./support.ja.html" class="current">日本語</a><a href="./support.zh_CN.html">简体中文</a><a href="./support.zh_TW.html">繁體中文</a><a href="./support.ko.html">한국어</a><a href="./support.es.html">Español</a><a href="./support.es_419.html">Español (Latinoamérica)</a><a href="./support.pt_BR.html">Português (Brasil)</a><a href="./support.pt_PT.html">Português (Portugal)</a><a href="./support.ru.html">Русский</a><a href="./support.de.html">Deutsch</a><a href="./support.fr.html">Français</a><a href="./support.pl.html">Polski</a><a href="./support.tr.html">Türkçe</a><a href="./support.it.html">Italiano</a><a href="./support.cs.html">Čeština</a><a href="./support.uk.html">Українська</a><a href="./support.hu.html">Magyar</a><a href="./support.th.html">ไทย</a><a href="./support.vi.html">Tiếng Việt</a><a href="./support.nl.html">Nederlands</a><a href="./support.sv.html">Svenska</a><a href="./support.ar.html">العربية</a><a href="./support.id.html">Bahasa Indonesia</a><a href="./support.fi.html">Suomi</a><a href="./support.el.html">Ελληνικά</a><a href="./support.bg.html">Български</a><a href="./support.no.html">Norsk</a><a href="./support.ro.html">Română</a><a href="./support.da.html">Dansk</a><a href="./support.eo.html">Esperanto</a></div>
 
 <footer>
-  Tutti is a Chrome extension by <a href="https://github.com/komm64">komm64</a>.
-  Contact: <a href="mailto:contact@komm64.com">contact@komm64.com</a>
-  <br>
-  English version: <a href="./support.html">support.html</a>
+  Tutti は <a href="https://github.com/komm64">komm64</a> による Chrome 拡張です。連絡先: <a href="mailto:contact@komm64.com">contact@komm64.com</a>
 </footer>
 
 </body>

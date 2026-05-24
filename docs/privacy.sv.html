@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tutti — Integritetspolicy</title>
+<style>
+  :root {
+    --fg: #1f2937;
+    --muted: #6b7280;
+    --brand: #0d9488;
+    --bg: #ffffff;
+    --line: #e5e7eb;
+    --accent-bg: #f0fdfa;
+  }
+  html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", "Noto Sans CJK JP", "Noto Sans CJK SC", "Noto Sans CJK TC", "Noto Sans CJK KR", "Noto Sans Thai", "Noto Sans Arabic", "Noto Sans Devanagari", sans-serif; color: var(--fg); }
+  body { max-width: 720px; margin: 0 auto; padding: 2rem 1.5rem 4rem; line-height: 1.7; }
+  header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
+  h1 { font-size: 1.75rem; margin: 0; }
+  .tagline { color: var(--muted); margin: 0.25rem 0 1.5rem; }
+  .icon { width: 48px; height: 48px; border-radius: 8px; background: var(--brand); display: grid; place-items: center; color: white; font-weight: 700; font-size: 1.25rem; flex-shrink: 0; }
+  nav { font-size: 0.9rem; color: var(--muted); margin-bottom: 2rem; }
+  nav a { color: var(--brand); text-decoration: none; margin-right: 1rem; }
+  nav a:hover { text-decoration: underline; }
+  h2 { font-size: 1.2rem; margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--line); }
+  h3 { font-size: 1rem; margin-top: 1.5rem; }
+  ul, ol { padding-left: 1.5rem; }
+  code { background: #f3f4f6; padding: 0.1em 0.4em; border-radius: 4px; font-size: 0.9em; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-weight: 600; }
+  .callout {
+    background: var(--accent-bg);
+    border-left: 3px solid var(--brand);
+    padding: 0.75rem 1rem;
+    margin: 1rem 0;
+    border-radius: 4px;
+  }
+  .callout p { margin: 0.25rem 0; }
+  a { color: var(--brand); }
+  .lang-switch { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--line); font-size: 0.85rem; color: var(--muted); }
+  .lang-switch a { color: var(--brand); text-decoration: none; margin-right: 0.75rem; display: inline-block; margin-bottom: 0.25rem; }
+  .lang-switch a.current { color: var(--fg); font-weight: 600; }
+  footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="icon">T</div>
+  <div>
+    <h1>Tutti — Integritetspolicy</h1>
+    <p class="tagline">Ingen datainsamling av tredje part. Allt inläggsinnehåll går direkt från din webbläsare till varje SNS.</p>
+  </div>
+</header>
+
+<nav>
+  <a href="./index.sv.html">Hem</a>
+  <a href="https://github.com/komm64/tutti">GitHub</a>
+  <a href="./support.sv.html">Support</a>
+</nav>
+
+<p>Senast uppdaterad: 2026-05-23 (v0.5.0)</p>
+
+<h2>1. Data vi samlar in och överför</h2>
+
+<p><strong>Tutti har ingen backend-server.</strong> Inläggsinnehåll (text, bilder, video) överförs aldrig till någon tredjepartsserver. Det färdas direkt från din webbläsare till varje socialt nätverk du väljer, precis som om du hade skrivit och skickat det där själv.</p>
+
+<ul>
+<li>Inläggets text, bilder och video skickas endast till de SNS-sidor du väljer (X, Bluesky, Threads, Mastodon, Misskey, Tumblr, Pixiv, DeviantArt, Instagram, TikTok, YouTube) inom din webbläsare.</li>
+<li>När den valfria officiella API-vägen är aktiverad för Bluesky / Mastodon / Misskey skickas inlägg direkt från din webbläsare till <strong>det SNS:s egna API-server</strong> med de uppgifter du angett i Inställningar. Ingen Tutti- / utvecklarserver är inblandad.</li>
+<li>Inga analys-, spårnings- eller annonsdata samlas in.</li>
+<li>Tutti <strong>läser inte</strong> och lagrar inte dina autentiseringstokens, cookies eller sessionsdata från SNS-webbplatserna.</li>
+</ul>
+
+<h3>Undantag — manuella felrapporter (samtycke per klick)</h3>
+
+<p>När (och endast när) du trycker på <strong>knappen &ldquo;Rapportera&rdquo;</strong> som visas i en feldialog eller diagnospanelen skickas följande via ett Cloudflare Workers-relä till en <strong>privat GitHub-issue-tracker</strong> (<code>komm64/tutti-issues</code>, endast synlig för Tutti-utvecklaren):</p>
+
+<ul>
+<li>Felmeddelandet, tilläggets version och webbläsarens User-Agent-sträng.</li>
+<li>De senaste 30 posterna i tilläggets interna logg (loggnivån du konfigurerat; INFO som standard). Inläggsinnehåll, bilder, video, SNS-inloggningsdata och API-uppgifter ingår <strong>aldrig</strong>.</li>
+<li>En redigerad DOM-ögonblicksbild av SNS-fliken där felet inträffade, används för att reparera trasiga selektorer. Textinnehåll, attributvärden, URL-sökvägar/-frågor/-fragment, <code>href</code>/<code>src</code>-attribut och <code>&lt;meta&gt;</code>/<code>&lt;link&gt;</code>-taggar tas bort. Nyttolasten är begränsad till 8 KB. Se <a href="https://github.com/komm64/tutti/blob/main/src/utils/dom-snapshot.ts">dom-snapshot.ts</a> för implementeringen.</li>
+</ul>
+
+<p>Inget skickas förrän du trycker på rapporteringsknappen. Destinationen är privat och endast synlig för Tutti-utvecklaren.</p>
+
+<h2>2. Lokalt lagrade data</h2>
+
+<p>Följande lagras endast i din webbläsare via Chromes <code>storage</code>-API. Inget överförs från enheten av Tutti.</p>
+
+<ul>
+<li><strong>Inställningar</strong> (<code>chrome.storage.sync</code>): Mastodon-/Misskey-instans-URL:er, autoPost-omkopplare, visningsläge, selector-override-URL osv. Kan replikeras till dina andra enheter via Chrome Sync om du är inloggad på Chrome.</li>
+<li><strong>Utkast</strong> (<code>chrome.storage.session</code>): Pågående inläggstext och bifogade media (bilder / video). Rensas automatiskt när webbläsaren avslutas.</li>
+<li><strong>Valda SNS</strong> (<code>chrome.storage.local</code>): De SNS du markerat som publiceringsmål. Bibehålls mellan sessioner för bekvämlighets skull; endast lokalt på enheten.</li>
+<li><strong>Senast sedda användarnamn</strong> (<code>chrome.storage.local</code>): Det användarnamn som för närvarande är inloggat på varje SNS, visat i popupen så att du kan bekräfta vilket konto som tar emot inlägget. Endast lokalt på enheten.</li>
+<li><strong>Inläggshistorik</strong> (<code>chrome.storage.local</code>): De senaste 20 inläggen: de första 80 tecknen av texten, målplattformar, framgång/misslyckande per plattform och tidsstämpel. Endast lokalt på enheten.</li>
+<li><strong>API-uppgifter</strong> (<code>chrome.storage.local</code>): Endast om du uttryckligen aktiverat den officiella API-vägen för Bluesky / Mastodon / Misskey: ditt Bluesky app password eller Mastodon-/Misskey-access-token. <strong>Endast lokalt på enheten; replikeras aldrig via Chrome Sync; skickas aldrig till någon utvecklarserver.</strong> Borttagbart från inställningsguiden.</li>
+<li><strong>Cache för selector-override</strong> (<code>chrome.storage.local</code>): Selector-hot-fix-data hämtad från den URL du konfigurerat i Inställningar (standard: den offentliga <code>selectors.json</code> på Tuttis GitHub Pages).</li>
+<li><strong>Cache för videouppladdningsgräns</strong> (<code>chrome.storage.local</code>): Resultat av API-sonderingar för videouppladdningsgränser per konto (t.ex. Bluesky). Endast numeriska värden; inga uppgifter.</li>
+</ul>
+
+<p>Allt detta kan raderas när som helst genom att avinstallera tillägget eller rensa Chromes tilläggslagring.</p>
+
+<h2>3. Använda behörigheter</h2>
+
+<table>
+<tr><th>Behörighet</th><th>Syfte</th></tr>
+<tr><td><code>storage</code></td><td>Lagra ovanstående lokala data (inställningar, utkast, historik, valda plattformar osv.) i din webbläsare.</td></tr>
+<tr><td><code>offscreen</code></td><td>Köra <code>ffmpeg.wasm</code> i ett offscreen-dokument för att komprimera / omkoda videofiler när källan överskrider storleksgränsen för mål-SNS. Videodata bearbetas endast lokalt; överförs inte någonstans av Tutti.</td></tr>
+<tr><td><code>sidePanel</code></td><td>Valfritt UI-visningsläge: visar Tuttis komposeringsformulär i Chromes sidopanel istället för åtgärds-popupen, så att det förblir öppet medan du växlar mellan SNS-flikar. Du väljer detta från Alternativ-sidan; standardvärdet är standard-popupen.</td></tr>
+<tr><td><code>host_permissions</code></td><td>Injicera content scripts i varje SNS-webbplats (x.com / twitter.com / bsky.app / bsky.social / threads.net / threads.com / mastodon.social / misskey.io / tumblr.com / pixiv.net / tiktok.com / youtube.com / instagram.com / deviantart.com) för att fylla i komposeringsformuläret med ditt inläggsinnehåll och skicka det å dina vägnar. Inga data läses från dessa webbplatser och skickas någon annanstans; content-skriptet skriver endast din egen inmatning.</td></tr>
+<tr><td><code>optional_host_permissions: https://*/*</code></td><td>Begärs vid körning endast om du konfigurerar en anpassad Mastodon- eller Misskey-instans-URL (annan än standardvärdena). Chrome visar standardbehörighetsprompten vid den tidpunkten.</td></tr>
+</table>
+
+<h2>4. Förhållande till SNS-leverantörerna</h2>
+
+<p>Tutti automatiserar webb-UI:n (eller, valfritt, publicerar via det officiella API:et) för de 11 stödda nätverken. Detta är inofficiell funktionalitet; Tutti är inte ansluten till X, Bluesky, Meta (Threads / Instagram), Mastodon gGmbH, Misskey, Tumblr, Pixiv, DeviantArt, TikTok eller YouTube. Du förblir bunden av varje tjänsts egna användarvillkor.</p>
+
+<h2>5. Kontakt</h2>
+
+<p>
+GitHub Issues: <a href="https://github.com/komm64/tutti/issues">https://github.com/komm64/tutti/issues</a><br />
+E-post: <a href="mailto:contact@komm64.com">contact@komm64.com</a>
+</p>
+
+<h2>6. Ändringar i denna policy</h2>
+
+<p>Uppdateringar av denna policy kommuniceras genom att uppdatera denna sida och den kanoniska källfilen (<a href="https://github.com/komm64/tutti/blob/main/PRIVACY.md">PRIVACY.md</a>).</p>
+
+<div class="lang-switch"><a href="./privacy.html">English</a><a href="./privacy.ja.html">日本語</a><a href="./privacy.zh_CN.html">简体中文</a><a href="./privacy.zh_TW.html">繁體中文</a><a href="./privacy.ko.html">한국어</a><a href="./privacy.es.html">Español</a><a href="./privacy.es_419.html">Español (Latinoamérica)</a><a href="./privacy.pt_BR.html">Português (Brasil)</a><a href="./privacy.pt_PT.html">Português (Portugal)</a><a href="./privacy.ru.html">Русский</a><a href="./privacy.de.html">Deutsch</a><a href="./privacy.fr.html">Français</a><a href="./privacy.pl.html">Polski</a><a href="./privacy.tr.html">Türkçe</a><a href="./privacy.it.html">Italiano</a><a href="./privacy.cs.html">Čeština</a><a href="./privacy.uk.html">Українська</a><a href="./privacy.hu.html">Magyar</a><a href="./privacy.th.html">ไทย</a><a href="./privacy.vi.html">Tiếng Việt</a><a href="./privacy.nl.html">Nederlands</a><a href="./privacy.sv.html" class="current">Svenska</a><a href="./privacy.ar.html">العربية</a><a href="./privacy.id.html">Bahasa Indonesia</a><a href="./privacy.fi.html">Suomi</a><a href="./privacy.el.html">Ελληνικά</a><a href="./privacy.bg.html">Български</a><a href="./privacy.no.html">Norsk</a><a href="./privacy.ro.html">Română</a><a href="./privacy.da.html">Dansk</a><a href="./privacy.eo.html">Esperanto</a></div>
+
+<footer>
+  &copy; komm64 &mdash; Tutti
+</footer>
+
+</body>
+</html>

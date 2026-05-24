@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tutti — Støtte</title>
+<style>
+  :root {
+    --fg: #1f2937;
+    --muted: #6b7280;
+    --brand: #0d9488;
+    --bg: #ffffff;
+    --line: #e5e7eb;
+    --accent-bg: #f0fdfa;
+  }
+  html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", "Noto Sans CJK JP", "Noto Sans CJK SC", "Noto Sans CJK TC", "Noto Sans CJK KR", "Noto Sans Thai", "Noto Sans Arabic", "Noto Sans Devanagari", sans-serif; color: var(--fg); }
+  body { max-width: 720px; margin: 0 auto; padding: 2rem 1.5rem 4rem; line-height: 1.7; }
+  header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
+  h1 { font-size: 1.75rem; margin: 0; }
+  .tagline { color: var(--muted); margin: 0.25rem 0 1.5rem; }
+  .icon { width: 48px; height: 48px; border-radius: 8px; background: var(--brand); display: grid; place-items: center; color: white; font-weight: 700; font-size: 1.25rem; flex-shrink: 0; }
+  nav { font-size: 0.9rem; color: var(--muted); margin-bottom: 2rem; }
+  nav a { color: var(--brand); text-decoration: none; margin-right: 1rem; }
+  nav a:hover { text-decoration: underline; }
+  h2 { font-size: 1.2rem; margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--line); }
+  h3 { font-size: 1rem; margin-top: 1.5rem; }
+  ul, ol { padding-left: 1.5rem; }
+  code { background: #f3f4f6; padding: 0.1em 0.4em; border-radius: 4px; font-size: 0.9em; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-weight: 600; }
+  .callout {
+    background: var(--accent-bg);
+    border-left: 3px solid var(--brand);
+    padding: 0.75rem 1rem;
+    margin: 1rem 0;
+    border-radius: 4px;
+  }
+  .callout p { margin: 0.25rem 0; }
+  a { color: var(--brand); }
+  .lang-switch { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--line); font-size: 0.85rem; color: var(--muted); }
+  .lang-switch a { color: var(--brand); text-decoration: none; margin-right: 0.75rem; display: inline-block; margin-bottom: 0.25rem; }
+  .lang-switch a.current { color: var(--fg); font-weight: 600; }
+  footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<header>
+  <div class="icon">T</div>
+  <div>
+    <h1>Tutti — Støtte</h1>
+    <p class="tagline">Støtteressurser og FAQ</p>
+  </div>
+</header>
+
+<nav>
+  <a href="./index.no.html">Hjem</a>
+  <a href="https://github.com/komm64/tutti">GitHub</a>
+  <a href="./privacy.no.html">Personvernerklæring</a>
+</nav>
+
+<h2>Trenger du hjelp?</h2>
+
+<h3>1. Publisering mislyktes / noe oppfører seg merkelig</h3>
+<p>Bruk <strong>knappen &laquo;Diagnostiser&raquo; → &laquo;Rapporter&raquo; inne i popupen</strong>. Dette er den kanoniske kanalen. Rapporten redigeres (håndtak, URL-er, e-poster) og videresendes til vår private issue-tracker, der en selector-fiks-PR åpnes automatisk og pushes som hurtigreparasjon til alle brukere innen få dager.</p>
+
+<div class="callout">
+<p><strong>Hvorfor bruke rapporteringsknappen i produktet?</strong></p>
+<p>Popupens rapporteringsflyt vedlegger automatisk den endelige komposisjonstilstanden, et redigert DOM-øyeblikksbilde og selector-revisjonsresultater — nøyaktig det som trengs for å raskt fikse selector-brudd. PII fjernes gjennom flere lag før sending.</p>
+</div>
+
+<h3>2. Generelle spørsmål / funksjonsforespørsler</h3>
+<p>Send oss e-post på <a href="mailto:contact@komm64.com">contact@komm64.com</a>. Dette er en privat kanal, trygg for å dele skjermbilder / personlige håndtak.</p>
+
+<h3>3. Installasjons- / kontospørsmål</h3>
+<p>Tutti <strong>gjenbruker dine eksisterende nettleserinnlogginger</strong> for hvert sosiale nettverk. Det er ingen separat Tutti-konto eller innloggingstrinn. Når du er logget på et sosialt nettverk i samme Chrome-profil, kan Tutti publisere derfra.</p>
+
+<h2>FAQ</h2>
+
+<h3>S. Publiseringen min mislyktes.</h3>
+<p>Dette betyr vanligvis at et sosialt nettverk har endret sitt DOM. Bruk <strong>Diagnostiser → Rapporter</strong> i popupen. En selector-hurtigreparasjon leveres vanligvis innen få dager via den automatiske oppdateringen av <code>selectors.json</code> (ingen utvidelsesoppdatering kreves).</p>
+
+<h3>S. Tutti husker ikke innloggingen min.</h3>
+<p>Tutti er avhengig av nettverkets normale nettleserinnlogging. Logg inn på hvert nettverk i Chrome først, så kan Tutti publisere på dine vegne. Inkognitomodus fungerer ikke fordi nettverkets sesjoner ikke er der.</p>
+
+<h3>S. Tegngrenser varierer per nettverk — er det et problem?</h3>
+<p>Nei. Lange innlegg som overskrider et nettverks tegngrense deles automatisk opp i en fortsettelsestråd (på X en ordentlig svarkjede; på andre nettverk sekvensielle innlegg). Innlegg innenfor grensen går gjennom som de er.</p>
+
+<h3>S. Det blir fortalt meg at bildet / videoen min er for stor.</h3>
+<p>Bilder endres automatisk i størrelse via Canvas for å passe hvert nettverks størrelsesgrense. Videoer komprimeres automatisk med ffmpeg.wasm når de er over et nettverks grense. Hvis selv komprimering ikke passer, vil du se en feil — vennligst verifiser først at filen lastes opp via nettverkets opprinnelige app.</p>
+
+<h3>S. Ser Tutti innleggsinnholdet mitt?</h3>
+<p>Nei. Innleggsinnhold går aldri gjennom en tredjepartsserver. Tutti injiserer direkte i hvert nettverks webkomposisjonsside. Se vår <a href="./privacy.html">Personvernerklæring</a> for detaljer. Det eneste unntaket er når du trykker på den innebygde rapporteringsknappen, som sender redigert feilinformasjon til vår private issue-tracker.</p>
+
+<h3>S. Kan jeg donere?</h3>
+<p>Ikke ennå — vi jobber med en lavpress støttekanal. Den største pågående kostnaden er å holde tritt med hvert sosiale nettverks UI-endringer; fremtidige Ko-fi-flyter vil finansiere det vedlikeholdet.</p>
+
+<div class="lang-switch"><a href="./support.html">English</a><a href="./support.ja.html">日本語</a><a href="./support.zh_CN.html">简体中文</a><a href="./support.zh_TW.html">繁體中文</a><a href="./support.ko.html">한국어</a><a href="./support.es.html">Español</a><a href="./support.es_419.html">Español (Latinoamérica)</a><a href="./support.pt_BR.html">Português (Brasil)</a><a href="./support.pt_PT.html">Português (Portugal)</a><a href="./support.ru.html">Русский</a><a href="./support.de.html">Deutsch</a><a href="./support.fr.html">Français</a><a href="./support.pl.html">Polski</a><a href="./support.tr.html">Türkçe</a><a href="./support.it.html">Italiano</a><a href="./support.cs.html">Čeština</a><a href="./support.uk.html">Українська</a><a href="./support.hu.html">Magyar</a><a href="./support.th.html">ไทย</a><a href="./support.vi.html">Tiếng Việt</a><a href="./support.nl.html">Nederlands</a><a href="./support.sv.html">Svenska</a><a href="./support.ar.html">العربية</a><a href="./support.id.html">Bahasa Indonesia</a><a href="./support.fi.html">Suomi</a><a href="./support.el.html">Ελληνικά</a><a href="./support.bg.html">Български</a><a href="./support.no.html" class="current">Norsk</a><a href="./support.ro.html">Română</a><a href="./support.da.html">Dansk</a><a href="./support.eo.html">Esperanto</a></div>
+
+<footer>
+  Tutti er en Chrome-utvidelse av <a href="https://github.com/komm64">komm64</a>. Kontakt: <a href="mailto:contact@komm64.com">contact@komm64.com</a>
+</footer>
+
+</body>
+</html>

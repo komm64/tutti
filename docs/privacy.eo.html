@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="eo">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tutti — Politiko pri privateco</title>
+<style>
+  :root {
+    --fg: #1f2937;
+    --muted: #6b7280;
+    --brand: #0d9488;
+    --bg: #ffffff;
+    --line: #e5e7eb;
+    --accent-bg: #f0fdfa;
+  }
+  html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", "Noto Sans CJK JP", "Noto Sans CJK SC", "Noto Sans CJK TC", "Noto Sans CJK KR", "Noto Sans Thai", "Noto Sans Arabic", "Noto Sans Devanagari", sans-serif; color: var(--fg); }
+  body { max-width: 720px; margin: 0 auto; padding: 2rem 1.5rem 4rem; line-height: 1.7; }
+  header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
+  h1 { font-size: 1.75rem; margin: 0; }
+  .tagline { color: var(--muted); margin: 0.25rem 0 1.5rem; }
+  .icon { width: 48px; height: 48px; border-radius: 8px; background: var(--brand); display: grid; place-items: center; color: white; font-weight: 700; font-size: 1.25rem; flex-shrink: 0; }
+  nav { font-size: 0.9rem; color: var(--muted); margin-bottom: 2rem; }
+  nav a { color: var(--brand); text-decoration: none; margin-right: 1rem; }
+  nav a:hover { text-decoration: underline; }
+  h2 { font-size: 1.2rem; margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--line); }
+  h3 { font-size: 1rem; margin-top: 1.5rem; }
+  ul, ol { padding-left: 1.5rem; }
+  code { background: #f3f4f6; padding: 0.1em 0.4em; border-radius: 4px; font-size: 0.9em; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-weight: 600; }
+  .callout {
+    background: var(--accent-bg);
+    border-left: 3px solid var(--brand);
+    padding: 0.75rem 1rem;
+    margin: 1rem 0;
+    border-radius: 4px;
+  }
+  .callout p { margin: 0.25rem 0; }
+  a { color: var(--brand); }
+  .lang-switch { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--line); font-size: 0.85rem; color: var(--muted); }
+  .lang-switch a { color: var(--brand); text-decoration: none; margin-right: 0.75rem; display: inline-block; margin-bottom: 0.25rem; }
+  .lang-switch a.current { color: var(--fg); font-weight: 600; }
+  footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="icon">T</div>
+  <div>
+    <h1>Tutti — Politiko pri privateco</h1>
+    <p class="tagline">Neniu triaparta datenkolekto. Ĉiu afiŝa enhavo iras rekte de via retumilo al ĉiu SNS.</p>
+  </div>
+</header>
+
+<nav>
+  <a href="./index.eo.html">Hejmo</a>
+  <a href="https://github.com/komm64/tutti">GitHub</a>
+  <a href="./support.eo.html">Subteno</a>
+</nav>
+
+<p>Lastfoje ĝisdatigita: 2026-05-23 (v0.5.0)</p>
+
+<h2>1. Datumoj, kiujn ni kolektas kaj transdonas</h2>
+
+<p><strong>Tutti ne havas malantaŭan servilon.</strong> Afiŝa enhavo (teksto, bildoj, video) neniam estas transdonita al iu ajn triaparta servilo. Ĝi vojaĝas rekte de via retumilo al ĉiu socia reto, kiun vi elektas, ekzakte kvazaŭ vi mem tajpis kaj sendis ĝin tie.</p>
+
+<ul>
+<li>Afiŝa teksto, bildoj kaj video estas transdonitaj nur al la SNS-paĝoj, kiujn vi elektas (X, Bluesky, Threads, Mastodon, Misskey, Tumblr, Pixiv, DeviantArt, Instagram, TikTok, YouTube) ene de via retumilo.</li>
+<li>Kiam la laŭvola oficiala API-vojo estas ebligita por Bluesky / Mastodon / Misskey, afiŝoj estas senditaj rekte de via retumilo al la <strong>propra API-servilo de tiu SNS</strong> uzante la akreditaĵojn, kiujn vi provizis en Agordoj. Neniu Tutti / programista servilo estas implikita.</li>
+<li>Neniaj analizaj, spurad-aj aŭ reklamaj datumoj estas kolektitaj.</li>
+<li>Tutti <strong>ne</strong> legas aŭ konservas viajn aŭtentigajn ĵetonojn, kuketojn aŭ seancajn datumojn de la SNS-paĝaroj.</li>
+</ul>
+
+<h3>Escepto — manaj erar-raportoj (konsento per klako)</h3>
+
+<p>Kiam (kaj nur kiam) vi premas la <strong>butonon &laquo;Raporti&raquo;</strong> montrita en erara dialogujo aŭ diagnoza panelo, la sekvanta estas sendita per Cloudflare Workers relais al <strong>privata GitHub-issue-spuristo</strong> (<code>komm64/tutti-issues</code>, videbla nur al la Tutti-programisto):</p>
+
+<ul>
+<li>La erar-mesaĝo, la etendaĵo-versio, la User-Agent-ĉeno de la retumilo.</li>
+<li>La lastaj 30 enskriboj de la interna protokolo de la etendaĵo (la protokol-nivelo, kiun vi agordis; INFO defaŭlte). Afiŝa enhavo, bildoj, video, SNS-ensalutaj datumoj kaj API-akreditaĵoj <strong>neniam</strong> estas inkluzivitaj.</li>
+<li>Redaktita DOM-foto de la SNS-langeto, kie okazis la eraro, uzata por ripari rompitajn elektilojn. Tekstoenhavo, atributaj valoroj, URL-vojoj/-demandoj/-fragmentoj, atributoj <code>href</code>/<code>src</code> kaj etikedoj <code>&lt;meta&gt;</code>/<code>&lt;link&gt;</code> estas forigitaj. La ŝarĝo estas limigita al 8 KB. Vidu <a href="https://github.com/komm64/tutti/blob/main/src/utils/dom-snapshot.ts">dom-snapshot.ts</a> por la efektivigo.</li>
+</ul>
+
+<p>Nenio estas sendita ĝis vi premas la raport-butonon. La celloko estas privata, videbla nur al la Tutti-programisto.</p>
+
+<h2>2. Loke konservitaj datumoj</h2>
+
+<p>La sekvantaj estas konservitaj nur ene de via retumilo per la <code>storage</code>-API de Chrome. Nenio estas transdonita ekster la aparato de Tutti.</p>
+
+<ul>
+<li><strong>Agordoj</strong> (<code>chrome.storage.sync</code>): URL-oj de Mastodon-/Misskey-instancoj, autoPost-baskulo, aspekt-reĝimo, elektilo-superregila URL ktp. Povas esti reproduktita al viaj aliaj aparatoj per Chrome Sync, se vi estas ensalutinta al Chrome.</li>
+<li><strong>Malnetoj</strong> (<code>chrome.storage.session</code>): Afiŝa teksto en progreso kaj ligitaj amaskomunikiloj (bildoj / video). Aŭtomate forviŝita kiam la retumilo finiĝas.</li>
+<li><strong>Elektitaj SNS</strong> (<code>chrome.storage.local</code>): La SNS, kiujn vi markis kiel afiŝajn celojn. Persistas inter seancoj por komforto; nur loka al la aparato.</li>
+<li><strong>Lastaj viditaj uzantnomoj</strong> (<code>chrome.storage.local</code>): La nuntempe ensalutita uzantnomo en ĉiu SNS, montrita en la ŝprucfenestro por ke vi povu konfirmi, kiu konto ricevos la afiŝon. Nur loka al la aparato.</li>
+<li><strong>Afiŝa historio</strong> (<code>chrome.storage.local</code>): La lastaj 20 afiŝoj: la unuaj 80 signoj de teksto, celplatformoj, sukceso/malsukceso per platformo kaj tempomarko. Nur loka al la aparato.</li>
+<li><strong>API-akreditaĵoj</strong> (<code>chrome.storage.local</code>): Nur se vi eksplicite ebligis la oficialan API-vojon por Bluesky / Mastodon / Misskey: via Bluesky app password aŭ aliro-ĵetono de Mastodon / Misskey. <strong>Nur loka al la aparato; neniam reproduktita per Chrome Sync; neniam transdonita al iu ajn programista servilo.</strong> Forigebla el la Agordoj-asistanto.</li>
+<li><strong>Kaŝmemoro de elektilo-superregilo</strong> (<code>chrome.storage.local</code>): Elektilo-hotfix-datumoj prenitaj de la URL, kiun vi agordis en Agordoj (defaŭlta: la publika <code>selectors.json</code> sur la GitHub Pages de Tutti).</li>
+<li><strong>Kaŝmemoro de video-alŝuto-limo</strong> (<code>chrome.storage.local</code>): Rezulto de API-sondoj por video-alŝuto-limoj per konto (ekz. Bluesky). Nur numeraj valoroj; neniaj akreditaĵoj.</li>
+</ul>
+
+<p>Ĉio ĉi povas esti forigita iam ajn malinstalante la etendaĵon aŭ purigante la etendaĵan stokadon de Chrome.</p>
+
+<h2>3. Uzataj permesoj</h2>
+
+<table>
+<tr><th>Permeso</th><th>Celo</th></tr>
+<tr><td><code>storage</code></td><td>Konservi la suprajn lokajn datumojn (agordoj, malnetoj, historio, elektitaj platformoj, ktp.) ene de via retumilo.</td></tr>
+<tr><td><code>offscreen</code></td><td>Funkciigi <code>ffmpeg.wasm</code> en ekstera dokumento por kunpremi / re-kodigi videodosierojn, kiam la fonto superas la grandec-limon de la cela SNS. Videodatenoj estas prilaboritaj nur loke; ne transdonitaj ie ajn de Tutti.</td></tr>
+<tr><td><code>sidePanel</code></td><td>Laŭvola UI-aspekt-reĝimo: montras la verkadan formularon de Tutti en la flanka panelo de Chrome anstataŭ la ago-ŝprucfenestro, por ke ĝi restu malfermita dum vi ŝanĝas inter SNS-langetoj. Vi elektas el la paĝo de Opcioj; la defaŭlta estas la norma ŝprucfenestro.</td></tr>
+<tr><td><code>host_permissions</code></td><td>Injekti content-skriptojn en ĉiun SNS-retejon (x.com / twitter.com / bsky.app / bsky.social / threads.net / threads.com / mastodon.social / misskey.io / tumblr.com / pixiv.net / tiktok.com / youtube.com / instagram.com / deviantart.com) por plenigi la verkadan formularon kun via afiŝa enhavo kaj sendi ĝin nome de vi. Neniaj datumoj estas legitaj el ĉi tiuj retejoj kaj senditaj aliloken; la content-skripto skribas nur vian propran enigon.</td></tr>
+<tr><td><code>optional_host_permissions: https://*/*</code></td><td>Petita ĉe rultempo nur se vi agordas kutiman URL-on de Mastodon- aŭ Misskey-instanco (krom la defaŭltaj). Chrome montras la norman permes-inviton tiumomente.</td></tr>
+</table>
+
+<h2>4. Rilato kun la SNS-provizantoj</h2>
+
+<p>Tutti aŭtomatigas la retan UI de (aŭ, laŭvole, afiŝas per la oficiala API de) la 11 subtenataj retoj. Ĉi tio estas neoficiala funkcio; Tutti ne estas asociita kun X, Bluesky, Meta (Threads / Instagram), Mastodon gGmbH, Misskey, Tumblr, Pixiv, DeviantArt, TikTok aŭ YouTube. Vi restas ligita al la propraj uzkondiĉoj de ĉiu servo.</p>
+
+<h2>5. Kontakto</h2>
+
+<p>
+GitHub Issues: <a href="https://github.com/komm64/tutti/issues">https://github.com/komm64/tutti/issues</a><br />
+Retpoŝto: <a href="mailto:contact@komm64.com">contact@komm64.com</a>
+</p>
+
+<h2>6. Ŝanĝoj al ĉi tiu politiko</h2>
+
+<p>Ĝisdatigoj al ĉi tiu politiko estas komunikitaj per ĝisdatigo de ĉi tiu paĝo kaj la kanona fontodosiero (<a href="https://github.com/komm64/tutti/blob/main/PRIVACY.md">PRIVACY.md</a>).</p>
+
+<div class="lang-switch"><a href="./privacy.html">English</a><a href="./privacy.ja.html">日本語</a><a href="./privacy.zh_CN.html">简体中文</a><a href="./privacy.zh_TW.html">繁體中文</a><a href="./privacy.ko.html">한국어</a><a href="./privacy.es.html">Español</a><a href="./privacy.es_419.html">Español (Latinoamérica)</a><a href="./privacy.pt_BR.html">Português (Brasil)</a><a href="./privacy.pt_PT.html">Português (Portugal)</a><a href="./privacy.ru.html">Русский</a><a href="./privacy.de.html">Deutsch</a><a href="./privacy.fr.html">Français</a><a href="./privacy.pl.html">Polski</a><a href="./privacy.tr.html">Türkçe</a><a href="./privacy.it.html">Italiano</a><a href="./privacy.cs.html">Čeština</a><a href="./privacy.uk.html">Українська</a><a href="./privacy.hu.html">Magyar</a><a href="./privacy.th.html">ไทย</a><a href="./privacy.vi.html">Tiếng Việt</a><a href="./privacy.nl.html">Nederlands</a><a href="./privacy.sv.html">Svenska</a><a href="./privacy.ar.html">العربية</a><a href="./privacy.id.html">Bahasa Indonesia</a><a href="./privacy.fi.html">Suomi</a><a href="./privacy.el.html">Ελληνικά</a><a href="./privacy.bg.html">Български</a><a href="./privacy.no.html">Norsk</a><a href="./privacy.ro.html">Română</a><a href="./privacy.da.html">Dansk</a><a href="./privacy.eo.html" class="current">Esperanto</a></div>
+
+<footer>
+  &copy; komm64 &mdash; Tutti
+</footer>
+
+</body>
+</html>

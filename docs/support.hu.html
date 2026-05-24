@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tutti — Támogatás</title>
+<style>
+  :root {
+    --fg: #1f2937;
+    --muted: #6b7280;
+    --brand: #0d9488;
+    --bg: #ffffff;
+    --line: #e5e7eb;
+    --accent-bg: #f0fdfa;
+  }
+  html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", "Noto Sans CJK JP", "Noto Sans CJK SC", "Noto Sans CJK TC", "Noto Sans CJK KR", "Noto Sans Thai", "Noto Sans Arabic", "Noto Sans Devanagari", sans-serif; color: var(--fg); }
+  body { max-width: 720px; margin: 0 auto; padding: 2rem 1.5rem 4rem; line-height: 1.7; }
+  header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
+  h1 { font-size: 1.75rem; margin: 0; }
+  .tagline { color: var(--muted); margin: 0.25rem 0 1.5rem; }
+  .icon { width: 48px; height: 48px; border-radius: 8px; background: var(--brand); display: grid; place-items: center; color: white; font-weight: 700; font-size: 1.25rem; flex-shrink: 0; }
+  nav { font-size: 0.9rem; color: var(--muted); margin-bottom: 2rem; }
+  nav a { color: var(--brand); text-decoration: none; margin-right: 1rem; }
+  nav a:hover { text-decoration: underline; }
+  h2 { font-size: 1.2rem; margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--line); }
+  h3 { font-size: 1rem; margin-top: 1.5rem; }
+  ul, ol { padding-left: 1.5rem; }
+  code { background: #f3f4f6; padding: 0.1em 0.4em; border-radius: 4px; font-size: 0.9em; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-weight: 600; }
+  .callout {
+    background: var(--accent-bg);
+    border-left: 3px solid var(--brand);
+    padding: 0.75rem 1rem;
+    margin: 1rem 0;
+    border-radius: 4px;
+  }
+  .callout p { margin: 0.25rem 0; }
+  a { color: var(--brand); }
+  .lang-switch { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--line); font-size: 0.85rem; color: var(--muted); }
+  .lang-switch a { color: var(--brand); text-decoration: none; margin-right: 0.75rem; display: inline-block; margin-bottom: 0.25rem; }
+  .lang-switch a.current { color: var(--fg); font-weight: 600; }
+  footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<header>
+  <div class="icon">T</div>
+  <div>
+    <h1>Tutti — Támogatás</h1>
+    <p class="tagline">Támogatási erőforrások és GYIK</p>
+  </div>
+</header>
+
+<nav>
+  <a href="./index.hu.html">Kezdőlap</a>
+  <a href="https://github.com/komm64/tutti">GitHub</a>
+  <a href="./privacy.hu.html">Adatvédelmi szabályzat</a>
+</nav>
+
+<h2>Segítségre van szüksége?</h2>
+
+<h3>1. A posztolás sikertelen / valami furcsán viselkedik</h3>
+<p>Használja a popup-on belüli <strong>&bdquo;Diagnosztika&rdquo; → &bdquo;Jelentés&rdquo; gombot</strong>. Ez a kanonikus csatorna. A jelentés szerkesztésre kerül (kezelőnevek, URL-ek, e-mailek) és továbbításra kerül a privát issue trackerünkbe, ahol automatikusan megnyílik egy szelektor-javítási PR, és néhány napon belül hot-fix-ként minden felhasználóhoz eljut.</p>
+
+<div class="callout">
+<p><strong>Miért használjam a termékbe épített jelentési gombot?</strong></p>
+<p>A popup jelentési folyamata automatikusan csatolja a végső szerkesztési állapotot, egy szerkesztett DOM pillanatfelvételt és a szelektor audit eredményeit — pontosan amire szükség van a szelektorok hibájának gyors javításához. A PII több rétegen keresztül kerül eltávolításra a küldés előtt.</p>
+</div>
+
+<h3>2. Általános kérdések / funkciókérések</h3>
+<p>Írjon nekünk a <a href="mailto:contact@komm64.com">contact@komm64.com</a> címre. Ez egy privát csatorna, biztonságos képernyőképek / személyes kezelőnevek megosztásához.</p>
+
+<h3>3. Telepítési / fiókkérdések</h3>
+<p>A Tutti minden közösségi hálózat esetén <strong>a meglévő böngésző bejelentkezéseit használja újra</strong>. Nincs külön Tutti fiók vagy bejelentkezési lépés. Miután bejelentkezett egy közösségi hálózatba ugyanabban a Chrome profilban, a Tutti onnan posztolhat.</p>
+
+<h2>GYIK</h2>
+
+<h3>K. A posztolásom nem sikerült.</h3>
+<p>Ez általában azt jelenti, hogy egy közösségi hálózat megváltoztatta a DOM-ját. Használja a popup-ban a <strong>Diagnosztika → Jelentés</strong>-t. A szelektor hot-fix általában néhány napon belül érkezik a <code>selectors.json</code> automatikus frissítésén keresztül (nincs szükség bővítményfrissítésre).</p>
+
+<h3>K. A Tutti nem emlékszik a bejelentkezésemre.</h3>
+<p>A Tutti a hálózat normál böngésző-bejelentkezésére támaszkodik. Először jelentkezzen be minden hálózatba Chrome-ban, majd a Tutti az Ön nevében posztolhat. Inkognitó módban nem működik, mert a hálózat munkamenetei nincsenek ott.</p>
+
+<h3>K. A karakterkorlátok hálózatonként eltérőek — probléma ez?</h3>
+<p>Nem. A hálózat karakterkorlátját meghaladó hosszú bejegyzések automatikusan folytatás-szálra oszlanak (X-en megfelelő válaszláncra; más hálózatokon szekvenciális bejegyzésekre). A korláton belüli bejegyzések úgy mennek át, ahogy vannak.</p>
+
+<h3>K. Azt mondják, hogy a képem / videóm túl nagy.</h3>
+<p>A képek automatikusan átméreteződnek a Canvas-on keresztül, hogy illeszkedjenek az egyes hálózatok méretkorlátjához. A videók automatikusan tömörítésre kerülnek az ffmpeg.wasm segítségével, amikor egy hálózat korlátja fölé érnek. Ha még a tömörítés sem fér el, hibaüzenetet fog látni — kérjük, először ellenőrizze, hogy a fájl feltöltődik a hálózat natív alkalmazásán keresztül.</p>
+
+<h3>K. Látja a Tutti a bejegyzéseim tartalmát?</h3>
+<p>Nem. A bejegyzés tartalma soha nem halad át harmadik fél szerverén. A Tutti közvetlenül beilleszti minden hálózat web-szerkesztő oldalába. Részletekért lásd az <a href="./privacy.html">Adatvédelmi szabályzatunkat</a>. Az egyetlen kivétel az, amikor megnyomja a termékbe épített jelentési gombot, amely szerkesztett hibainformációt küld a privát issue trackerünkbe.</p>
+
+<h3>K. Adományozhatok?</h3>
+<p>Még nem — alacsony nyomású támogatási csatornán dolgozunk. A legnagyobb folyamatos költség az egyes közösségi hálózatok UI változtatásainak követése; a jövőbeli Ko-fi folyamatok ezt a karbantartást finanszírozzák majd.</p>
+
+<div class="lang-switch"><a href="./support.html">English</a><a href="./support.ja.html">日本語</a><a href="./support.zh_CN.html">简体中文</a><a href="./support.zh_TW.html">繁體中文</a><a href="./support.ko.html">한국어</a><a href="./support.es.html">Español</a><a href="./support.es_419.html">Español (Latinoamérica)</a><a href="./support.pt_BR.html">Português (Brasil)</a><a href="./support.pt_PT.html">Português (Portugal)</a><a href="./support.ru.html">Русский</a><a href="./support.de.html">Deutsch</a><a href="./support.fr.html">Français</a><a href="./support.pl.html">Polski</a><a href="./support.tr.html">Türkçe</a><a href="./support.it.html">Italiano</a><a href="./support.cs.html">Čeština</a><a href="./support.uk.html">Українська</a><a href="./support.hu.html" class="current">Magyar</a><a href="./support.th.html">ไทย</a><a href="./support.vi.html">Tiếng Việt</a><a href="./support.nl.html">Nederlands</a><a href="./support.sv.html">Svenska</a><a href="./support.ar.html">العربية</a><a href="./support.id.html">Bahasa Indonesia</a><a href="./support.fi.html">Suomi</a><a href="./support.el.html">Ελληνικά</a><a href="./support.bg.html">Български</a><a href="./support.no.html">Norsk</a><a href="./support.ro.html">Română</a><a href="./support.da.html">Dansk</a><a href="./support.eo.html">Esperanto</a></div>
+
+<footer>
+  A Tutti egy <a href="https://github.com/komm64">komm64</a> által készített Chrome-bővítmény. Kapcsolat: <a href="mailto:contact@komm64.com">contact@komm64.com</a>
+</footer>
+
+</body>
+</html>

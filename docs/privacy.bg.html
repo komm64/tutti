@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="bg">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tutti — Политика за поверителност</title>
+<style>
+  :root {
+    --fg: #1f2937;
+    --muted: #6b7280;
+    --brand: #0d9488;
+    --bg: #ffffff;
+    --line: #e5e7eb;
+    --accent-bg: #f0fdfa;
+  }
+  html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", "Noto Sans CJK JP", "Noto Sans CJK SC", "Noto Sans CJK TC", "Noto Sans CJK KR", "Noto Sans Thai", "Noto Sans Arabic", "Noto Sans Devanagari", sans-serif; color: var(--fg); }
+  body { max-width: 720px; margin: 0 auto; padding: 2rem 1.5rem 4rem; line-height: 1.7; }
+  header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
+  h1 { font-size: 1.75rem; margin: 0; }
+  .tagline { color: var(--muted); margin: 0.25rem 0 1.5rem; }
+  .icon { width: 48px; height: 48px; border-radius: 8px; background: var(--brand); display: grid; place-items: center; color: white; font-weight: 700; font-size: 1.25rem; flex-shrink: 0; }
+  nav { font-size: 0.9rem; color: var(--muted); margin-bottom: 2rem; }
+  nav a { color: var(--brand); text-decoration: none; margin-right: 1rem; }
+  nav a:hover { text-decoration: underline; }
+  h2 { font-size: 1.2rem; margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--line); }
+  h3 { font-size: 1rem; margin-top: 1.5rem; }
+  ul, ol { padding-left: 1.5rem; }
+  code { background: #f3f4f6; padding: 0.1em 0.4em; border-radius: 4px; font-size: 0.9em; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-weight: 600; }
+  .callout {
+    background: var(--accent-bg);
+    border-left: 3px solid var(--brand);
+    padding: 0.75rem 1rem;
+    margin: 1rem 0;
+    border-radius: 4px;
+  }
+  .callout p { margin: 0.25rem 0; }
+  a { color: var(--brand); }
+  .lang-switch { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--line); font-size: 0.85rem; color: var(--muted); }
+  .lang-switch a { color: var(--brand); text-decoration: none; margin-right: 0.75rem; display: inline-block; margin-bottom: 0.25rem; }
+  .lang-switch a.current { color: var(--fg); font-weight: 600; }
+  footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="icon">T</div>
+  <div>
+    <h1>Tutti — Политика за поверителност</h1>
+    <p class="tagline">Без събиране на данни от трети страни. Цялото съдържание на публикациите отива директно от вашия браузър към всяка SNS.</p>
+  </div>
+</header>
+
+<nav>
+  <a href="./index.bg.html">Начало</a>
+  <a href="https://github.com/komm64/tutti">GitHub</a>
+  <a href="./support.bg.html">Поддръжка</a>
+</nav>
+
+<p>Последна актуализация: 2026-05-23 (v0.5.0)</p>
+
+<h2>1. Данни, които събираме и предаваме</h2>
+
+<p><strong>Tutti няма бекенд сървър.</strong> Съдържанието на публикациите (текст, изображения, видео) никога не се предава на сървър на трета страна. То пътува директно от вашия браузър към всяка избрана от вас социална мрежа, точно както ако сами сте го въвели и изпратили там.</p>
+
+<ul>
+<li>Текстът, изображенията и видеото на публикациите се предават само на избраните от вас SNS страници (X, Bluesky, Threads, Mastodon, Misskey, Tumblr, Pixiv, DeviantArt, Instagram, TikTok, YouTube) във вашия браузър.</li>
+<li>Когато опционалният път през официалния API е активиран за Bluesky / Mastodon / Misskey, публикациите се изпращат директно от вашия браузър към <strong>собствения API сървър на тази SNS</strong> с използване на пълномощията, които сте предоставили в Настройките. Никакъв Tutti / разработчиков сървър не е намесен.</li>
+<li>Не се събират аналитични, проследяващи или рекламни данни.</li>
+<li>Tutti <strong>не</strong> чете и не съхранява вашите токени за автентикация, бисквитки или сесийни данни от SNS сайтовете.</li>
+</ul>
+
+<h3>Изключение — ръчни доклади за грешки (съгласие на кликване)</h3>
+
+<p>Когато (и само когато) натиснете <strong>бутона &bdquo;Докладвай&ldquo;</strong>, показан в диалог за грешка или диагностичен панел, следното се изпраща през Cloudflare Workers релей към <strong>частен GitHub issue tracker</strong> (<code>komm64/tutti-issues</code>, видим само за разработчика на Tutti):</p>
+
+<ul>
+<li>Съобщението за грешка, версията на разширението, низа User-Agent на браузъра.</li>
+<li>Последните 30 записа на вътрешния лог на разширението (нивото на лога, което сте конфигурирали; INFO по подразбиране). Съдържание на публикации, изображения, видео, данни за вход в SNS и API пълномощия <strong>никога</strong> не са включени.</li>
+<li>Редактиран DOM моментен снимка на SNS таба, където е възникнала грешката, използвана за поправка на счупени селектори. Текстово съдържание, стойности на атрибути, пътища/заявки/фрагменти на URL, атрибути <code>href</code>/<code>src</code> и тагове <code>&lt;meta&gt;</code>/<code>&lt;link&gt;</code> се премахват. Полезният товар е ограничен до 8 KB. Вижте <a href="https://github.com/komm64/tutti/blob/main/src/utils/dom-snapshot.ts">dom-snapshot.ts</a> за реализацията.</li>
+</ul>
+
+<p>Нищо не се изпраща, докато не натиснете бутона за докладване. Дестинацията е частна, видима само за разработчика на Tutti.</p>
+
+<h2>2. Локално съхранявани данни</h2>
+
+<p>Следното се съхранява само вътре във вашия браузър чрез API <code>storage</code> на Chrome. Tutti не предава нищо извън устройството.</p>
+
+<ul>
+<li><strong>Настройки</strong> (<code>chrome.storage.sync</code>): URL на инстанции Mastodon / Misskey, превключвател autoPost, режим на показване, URL за override на селектори и т.н. Може да се репликира на другите ви устройства чрез Chrome Sync, ако сте влезли в Chrome.</li>
+<li><strong>Чернови</strong> (<code>chrome.storage.session</code>): Текст на публикация в процес и прикачени медии (изображения / видео). Автоматично се изчистват при затваряне на браузъра.</li>
+<li><strong>Избрани SNS</strong> (<code>chrome.storage.local</code>): SNS, които сте отметнали като цели на публикация. Запазва се между сесии за удобство; само локално на устройството.</li>
+<li><strong>Последно видени имена на потребители</strong> (<code>chrome.storage.local</code>): Текущото име на потребител, влязъл във всяка SNS, показано в popup, за да можете да потвърдите кой акаунт ще получи публикацията. Само локално на устройството.</li>
+<li><strong>История на публикации</strong> (<code>chrome.storage.local</code>): Последните 20 публикации: първите 80 символа текст, целеви платформи, успех/неуспех по платформа и времеви печат. Само локално на устройството.</li>
+<li><strong>API пълномощия</strong> (<code>chrome.storage.local</code>): Само ако изрично сте активирали пътя през официалния API за Bluesky / Mastodon / Misskey: вашата Bluesky app password или достъпен токен за Mastodon / Misskey. <strong>Само локално на устройството; никога не се репликира чрез Chrome Sync; никога не се предава на никой разработчиков сървър.</strong> Може да се премахне от съветника на Настройки.</li>
+<li><strong>Кеш за override на селектори</strong> (<code>chrome.storage.local</code>): Данни за hot-fix на селектори, извлечени от URL, който сте конфигурирали в Настройки (по подразбиране: публичният <code>selectors.json</code> на GitHub Pages на Tutti).</li>
+<li><strong>Кеш за лимит на качване на видео</strong> (<code>chrome.storage.local</code>): Резултат от API сондажи за лимити на качване на видео по акаунт (напр. Bluesky). Само числови стойности; без пълномощия.</li>
+</ul>
+
+<p>Всичко това може да бъде изтрито по всяко време чрез деинсталиране на разширението или изчистване на хранилището за разширения на Chrome.</p>
+
+<h2>3. Използвани разрешения</h2>
+
+<table>
+<tr><th>Разрешение</th><th>Цел</th></tr>
+<tr><td><code>storage</code></td><td>Съхранява гореспоменатите локални данни (настройки, чернови, история, избрани платформи и т.н.) вътре във вашия браузър.</td></tr>
+<tr><td><code>offscreen</code></td><td>Изпълнява <code>ffmpeg.wasm</code> в offscreen документ за компресиране / прекодиране на видеофайлове, когато източникът надхвърля лимита на размера на целевата SNS. Видеоданните се обработват само локално; Tutti не ги предава никъде.</td></tr>
+<tr><td><code>sidePanel</code></td><td>Опционален режим на показване на UI: показва формуляра за съставяне на публикация на Tutti в страничния панел на Chrome вместо в popup на действие, така че да остане отворен, докато превключвате между SNS табове. Активирате го от страницата с Опции; стойността по подразбиране е стандартният popup.</td></tr>
+<tr><td><code>host_permissions</code></td><td>Инжектиране на content scripts във всеки SNS сайт (x.com / twitter.com / bsky.app / bsky.social / threads.net / threads.com / mastodon.social / misskey.io / tumblr.com / pixiv.net / tiktok.com / youtube.com / instagram.com / deviantart.com) за попълване на формуляра за съставяне със съдържанието на вашата публикация и изпращането ѝ от ваше име. Никакви данни не се четат от тези сайтове и не се изпращат другаде; content скриптът само записва собствения ви вход.</td></tr>
+<tr><td><code>optional_host_permissions: https://*/*</code></td><td>Изисква се по време на изпълнение само ако конфигурирате персонализиран URL на инстанция Mastodon или Misskey (различен от стойностите по подразбиране). Chrome показва стандартното подканване за разрешение в този момент.</td></tr>
+</table>
+
+<h2>4. Връзка с доставчиците на SNS</h2>
+
+<p>Tutti автоматизира уеб UI (или, опционално, публикува чрез официалния API) на 11-те поддържани мрежи. Това е неофициална функционалност; Tutti не е свързан с X, Bluesky, Meta (Threads / Instagram), Mastodon gGmbH, Misskey, Tumblr, Pixiv, DeviantArt, TikTok или YouTube. Продължавате да сте обвързани със собствените условия за използване на всяка услуга.</p>
+
+<h2>5. Контакт</h2>
+
+<p>
+GitHub Issues: <a href="https://github.com/komm64/tutti/issues">https://github.com/komm64/tutti/issues</a><br />
+Имейл: <a href="mailto:contact@komm64.com">contact@komm64.com</a>
+</p>
+
+<h2>6. Промени в тази политика</h2>
+
+<p>Актуализациите на тази политика се съобщават чрез актуализиране на тази страница и каноничния изходен файл (<a href="https://github.com/komm64/tutti/blob/main/PRIVACY.md">PRIVACY.md</a>).</p>
+
+<div class="lang-switch"><a href="./privacy.html">English</a><a href="./privacy.ja.html">日本語</a><a href="./privacy.zh_CN.html">简体中文</a><a href="./privacy.zh_TW.html">繁體中文</a><a href="./privacy.ko.html">한국어</a><a href="./privacy.es.html">Español</a><a href="./privacy.es_419.html">Español (Latinoamérica)</a><a href="./privacy.pt_BR.html">Português (Brasil)</a><a href="./privacy.pt_PT.html">Português (Portugal)</a><a href="./privacy.ru.html">Русский</a><a href="./privacy.de.html">Deutsch</a><a href="./privacy.fr.html">Français</a><a href="./privacy.pl.html">Polski</a><a href="./privacy.tr.html">Türkçe</a><a href="./privacy.it.html">Italiano</a><a href="./privacy.cs.html">Čeština</a><a href="./privacy.uk.html">Українська</a><a href="./privacy.hu.html">Magyar</a><a href="./privacy.th.html">ไทย</a><a href="./privacy.vi.html">Tiếng Việt</a><a href="./privacy.nl.html">Nederlands</a><a href="./privacy.sv.html">Svenska</a><a href="./privacy.ar.html">العربية</a><a href="./privacy.id.html">Bahasa Indonesia</a><a href="./privacy.fi.html">Suomi</a><a href="./privacy.el.html">Ελληνικά</a><a href="./privacy.bg.html" class="current">Български</a><a href="./privacy.no.html">Norsk</a><a href="./privacy.ro.html">Română</a><a href="./privacy.da.html">Dansk</a><a href="./privacy.eo.html">Esperanto</a></div>
+
+<footer>
+  &copy; komm64 &mdash; Tutti
+</footer>
+
+</body>
+</html>

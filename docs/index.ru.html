@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tutti — Расширение кросс-постинга</title>
+<style>
+  :root {
+    --fg: #1f2937;
+    --muted: #6b7280;
+    --brand: #0d9488;
+    --bg: #ffffff;
+    --line: #e5e7eb;
+    --accent-bg: #f0fdfa;
+  }
+  html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", "Noto Sans CJK JP", "Noto Sans CJK SC", "Noto Sans CJK TC", "Noto Sans CJK KR", "Noto Sans Thai", "Noto Sans Arabic", "Noto Sans Devanagari", sans-serif; color: var(--fg); }
+  body { max-width: 720px; margin: 0 auto; padding: 2rem 1.5rem 4rem; line-height: 1.7; }
+  header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
+  h1 { font-size: 1.75rem; margin: 0; }
+  .tagline { color: var(--muted); margin: 0.25rem 0 1.5rem; }
+  .icon { width: 48px; height: 48px; border-radius: 8px; background: var(--brand); display: grid; place-items: center; color: white; font-weight: 700; font-size: 1.25rem; flex-shrink: 0; }
+  nav { font-size: 0.9rem; color: var(--muted); margin-bottom: 2rem; }
+  nav a { color: var(--brand); text-decoration: none; margin-right: 1rem; }
+  nav a:hover { text-decoration: underline; }
+  h2 { font-size: 1.2rem; margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--line); }
+  h3 { font-size: 1rem; margin-top: 1.5rem; }
+  ul, ol { padding-left: 1.5rem; }
+  code { background: #f3f4f6; padding: 0.1em 0.4em; border-radius: 4px; font-size: 0.9em; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-weight: 600; }
+  .callout {
+    background: var(--accent-bg);
+    border-left: 3px solid var(--brand);
+    padding: 0.75rem 1rem;
+    margin: 1rem 0;
+    border-radius: 4px;
+  }
+  .callout p { margin: 0.25rem 0; }
+  a { color: var(--brand); }
+  .lang-switch { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--line); font-size: 0.85rem; color: var(--muted); }
+  .lang-switch a { color: var(--brand); text-decoration: none; margin-right: 0.75rem; display: inline-block; margin-bottom: 0.25rem; }
+  .lang-switch a.current { color: var(--fg); font-weight: 600; }
+  footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="icon">T</div>
+  <div>
+    <h1>Tutti</h1>
+    <p class="tagline">Одно расширение Chrome. Одиннадцать соцсетей. Ноль хлопот.</p>
+  </div>
+</header>
+
+<nav>
+  <a href="https://github.com/komm64/tutti">GitHub</a>
+  <a href="./support.ru.html">Поддержка</a>
+  <a href="./privacy.ru.html">Политика конфиденциальности</a>
+</nav>
+
+<section id="overview">
+<h2>Обзор</h2>
+<p>Tutti рассылает один и тот же пост в 11 соцсетей (X, Bluesky, Threads, Tumblr, Mastodon, Misskey, Pixiv, TikTok, YouTube Shorts, Instagram, DeviantArt) в один клик. У него нет бэкенда; содержимое постов никогда не проходит через сторонние серверы.</p>
+</section>
+
+<section id="privacy-summary">
+<h2>Конфиденциальность одним предложением</h2>
+<p>У Tutti нет бэкенд-сервера. Содержимое постов (текст, изображения, видео) идёт прямо из вашего браузера в каждую выбранную вами соцсеть — никогда через сервер, контролируемый разработчиком.</p>
+<p>Полная политика: <a href="./privacy.ru.html">privacy.html</a></p>
+</section>
+
+<div class="lang-switch"><a href="./index.html">English</a><a href="./index.ja.html">日本語</a><a href="./index.zh_CN.html">简体中文</a><a href="./index.zh_TW.html">繁體中文</a><a href="./index.ko.html">한국어</a><a href="./index.es.html">Español</a><a href="./index.es_419.html">Español (Latinoamérica)</a><a href="./index.pt_BR.html">Português (Brasil)</a><a href="./index.pt_PT.html">Português (Portugal)</a><a href="./index.ru.html" class="current">Русский</a><a href="./index.de.html">Deutsch</a><a href="./index.fr.html">Français</a><a href="./index.pl.html">Polski</a><a href="./index.tr.html">Türkçe</a><a href="./index.it.html">Italiano</a><a href="./index.cs.html">Čeština</a><a href="./index.uk.html">Українська</a><a href="./index.hu.html">Magyar</a><a href="./index.th.html">ไทย</a><a href="./index.vi.html">Tiếng Việt</a><a href="./index.nl.html">Nederlands</a><a href="./index.sv.html">Svenska</a><a href="./index.ar.html">العربية</a><a href="./index.id.html">Bahasa Indonesia</a><a href="./index.fi.html">Suomi</a><a href="./index.el.html">Ελληνικά</a><a href="./index.bg.html">Български</a><a href="./index.no.html">Norsk</a><a href="./index.ro.html">Română</a><a href="./index.da.html">Dansk</a><a href="./index.eo.html">Esperanto</a></div>
+
+<footer>
+  &copy; 2026 komm64 &mdash; <a href="https://github.com/komm64/tutti/blob/main/LICENSE">Все права защищены</a>
+</footer>
+</body>
+</html>

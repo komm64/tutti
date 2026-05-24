@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tutti — การสนับสนุน</title>
+<style>
+  :root {
+    --fg: #1f2937;
+    --muted: #6b7280;
+    --brand: #0d9488;
+    --bg: #ffffff;
+    --line: #e5e7eb;
+    --accent-bg: #f0fdfa;
+  }
+  html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", "Noto Sans CJK JP", "Noto Sans CJK SC", "Noto Sans CJK TC", "Noto Sans CJK KR", "Noto Sans Thai", "Noto Sans Arabic", "Noto Sans Devanagari", sans-serif; color: var(--fg); }
+  body { max-width: 720px; margin: 0 auto; padding: 2rem 1.5rem 4rem; line-height: 1.7; }
+  header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
+  h1 { font-size: 1.75rem; margin: 0; }
+  .tagline { color: var(--muted); margin: 0.25rem 0 1.5rem; }
+  .icon { width: 48px; height: 48px; border-radius: 8px; background: var(--brand); display: grid; place-items: center; color: white; font-weight: 700; font-size: 1.25rem; flex-shrink: 0; }
+  nav { font-size: 0.9rem; color: var(--muted); margin-bottom: 2rem; }
+  nav a { color: var(--brand); text-decoration: none; margin-right: 1rem; }
+  nav a:hover { text-decoration: underline; }
+  h2 { font-size: 1.2rem; margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--line); }
+  h3 { font-size: 1rem; margin-top: 1.5rem; }
+  ul, ol { padding-left: 1.5rem; }
+  code { background: #f3f4f6; padding: 0.1em 0.4em; border-radius: 4px; font-size: 0.9em; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-weight: 600; }
+  .callout {
+    background: var(--accent-bg);
+    border-left: 3px solid var(--brand);
+    padding: 0.75rem 1rem;
+    margin: 1rem 0;
+    border-radius: 4px;
+  }
+  .callout p { margin: 0.25rem 0; }
+  a { color: var(--brand); }
+  .lang-switch { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--line); font-size: 0.85rem; color: var(--muted); }
+  .lang-switch a { color: var(--brand); text-decoration: none; margin-right: 0.75rem; display: inline-block; margin-bottom: 0.25rem; }
+  .lang-switch a.current { color: var(--fg); font-weight: 600; }
+  footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<header>
+  <div class="icon">T</div>
+  <div>
+    <h1>Tutti — การสนับสนุน</h1>
+    <p class="tagline">แหล่งข้อมูลสนับสนุนและคำถามที่พบบ่อย</p>
+  </div>
+</header>
+
+<nav>
+  <a href="./index.th.html">หน้าแรก</a>
+  <a href="https://github.com/komm64/tutti">GitHub</a>
+  <a href="./privacy.th.html">นโยบายความเป็นส่วนตัว</a>
+</nav>
+
+<h2>ต้องการความช่วยเหลือ?</h2>
+
+<h3>1. การโพสต์ล้มเหลว / มีบางสิ่งทำงานผิดปกติ</h3>
+<p>ใช้ <strong>ปุ่ม &laquo;วินิจฉัย&raquo; → &laquo;รายงาน&raquo; ภายใน popup</strong> นี่คือช่องทางมาตรฐาน รายงานจะถูกแก้ไขข้อมูล (handles, URLs, อีเมล) และส่งต่อไปยังตัวติดตามประเด็นส่วนตัวของเรา ซึ่งจะเปิด PR แก้ไขตัวเลือกโดยอัตโนมัติและส่งเป็น hot-fix ให้ผู้ใช้ทุกคนภายในไม่กี่วัน</p>
+
+<div class="callout">
+<p><strong>ทำไมต้องใช้ปุ่มรายงานในผลิตภัณฑ์?</strong></p>
+<p>ขั้นตอนการรายงานของ popup จะแนบสถานะการสร้างโพสต์สุดท้าย, ภาพรวม DOM ที่แก้ไขแล้ว, และผลการตรวจสอบตัวเลือกโดยอัตโนมัติ — แน่นอนสิ่งที่จำเป็นในการแก้ไขการแตกหักของตัวเลือกอย่างรวดเร็ว PII ถูกลบผ่านหลายชั้นก่อนการส่ง</p>
+</div>
+
+<h3>2. คำถามทั่วไป / คำขอคุณสมบัติ</h3>
+<p>ส่งอีเมลถึงเราที่ <a href="mailto:contact@komm64.com">contact@komm64.com</a> นี่เป็นช่องทางส่วนตัว ปลอดภัยสำหรับการแชร์ภาพหน้าจอ / handles ส่วนตัว</p>
+
+<h3>3. คำถามเกี่ยวกับการติดตั้ง / บัญชี</h3>
+<p>Tutti <strong>นำการล็อกอินเบราว์เซอร์ที่มีอยู่ของคุณกลับมาใช้ใหม่</strong> สำหรับแต่ละเครือข่ายสังคม ไม่มีบัญชี Tutti แยกหรือขั้นตอนการเข้าสู่ระบบ เมื่อคุณเข้าสู่ระบบเครือข่ายสังคมในโปรไฟล์ Chrome เดียวกัน Tutti สามารถโพสต์จากที่นั่นได้</p>
+
+<h2>คำถามที่พบบ่อย</h2>
+
+<h3>ถ. การโพสต์ของฉันล้มเหลว</h3>
+<p>โดยปกติหมายความว่าเครือข่ายสังคมได้เปลี่ยน DOM ของมัน ใช้ <strong>วินิจฉัย → รายงาน</strong> ใน popup การ hot-fix ตัวเลือกมักจะส่งภายในไม่กี่วันผ่านการอัปเดตอัตโนมัติของ <code>selectors.json</code> (ไม่ต้องอัปเดตส่วนขยาย)</p>
+
+<h3>ถ. Tutti ไม่จำการเข้าสู่ระบบของฉัน</h3>
+<p>Tutti พึ่งพาการเข้าสู่ระบบเบราว์เซอร์ปกติของเครือข่าย เข้าสู่ระบบแต่ละเครือข่ายใน Chrome ก่อน จากนั้น Tutti จะสามารถโพสต์ในนามของคุณได้ โหมดไม่ระบุตัวตนไม่ทำงานเพราะไม่มีเซสชันเครือข่ายอยู่ที่นั่น</p>
+
+<h3>ถ. ขีดจำกัดอักขระต่างกันในแต่ละเครือข่าย — เป็นปัญหาหรือไม่?</h3>
+<p>ไม่ใช่ โพสต์ยาวที่เกินขีดจำกัดอักขระของเครือข่ายจะถูกแบ่งเป็นเธรดต่อเนื่องโดยอัตโนมัติ (บน X เป็นห่วงโซ่ตอบกลับที่เหมาะสม; บนเครือข่ายอื่น ๆ เป็นโพสต์ตามลำดับ) โพสต์ภายในขีดจำกัดจะถูกส่งไปตามที่เป็น</p>
+
+<h3>ถ. ฉันได้รับการแจ้งว่าภาพ / วิดีโอของฉันใหญ่เกินไป</h3>
+<p>ภาพจะถูกปรับขนาดโดยอัตโนมัติผ่าน Canvas เพื่อให้พอดีกับขีดจำกัดขนาดของแต่ละเครือข่าย วิดีโอจะถูกบีบอัดโดยอัตโนมัติด้วย ffmpeg.wasm เมื่อเกินขีดจำกัดของเครือข่าย หากแม้แต่การบีบอัดก็ไม่สามารถใส่ได้ คุณจะเห็นข้อผิดพลาด — โปรดยืนยันก่อนว่าไฟล์อัปโหลดผ่านแอปพลิเคชันดั้งเดิมของเครือข่ายได้</p>
+
+<h3>ถ. Tutti เห็นเนื้อหาโพสต์ของฉันหรือไม่?</h3>
+<p>ไม่เห็น เนื้อหาโพสต์ไม่เคยผ่านเซิร์ฟเวอร์บุคคลที่สาม Tutti ฉีดเข้าโดยตรงไปยังหน้าสร้างโพสต์เว็บของแต่ละเครือข่าย ดูรายละเอียดใน<a href="./privacy.html">นโยบายความเป็นส่วนตัว</a>ของเรา ข้อยกเว้นเดียวคือเมื่อคุณกดปุ่มรายงานในผลิตภัณฑ์ ซึ่งส่งข้อมูลข้อผิดพลาดที่แก้ไขแล้วไปยังตัวติดตามประเด็นส่วนตัวของเรา</p>
+
+<h3>ถ. ฉันบริจาคได้ไหม?</h3>
+<p>ยังไม่ได้ — เรากำลังทำงานในช่องทางสนับสนุนที่ไม่กดดัน ค่าใช้จ่ายต่อเนื่องที่ใหญ่ที่สุดคือการตามทันการเปลี่ยนแปลง UI ของแต่ละเครือข่ายสังคม; กระแสเงิน Ko-fi ในอนาคตจะเป็นทุนสำหรับการบำรุงรักษานั้น</p>
+
+<div class="lang-switch"><a href="./support.html">English</a><a href="./support.ja.html">日本語</a><a href="./support.zh_CN.html">简体中文</a><a href="./support.zh_TW.html">繁體中文</a><a href="./support.ko.html">한국어</a><a href="./support.es.html">Español</a><a href="./support.es_419.html">Español (Latinoamérica)</a><a href="./support.pt_BR.html">Português (Brasil)</a><a href="./support.pt_PT.html">Português (Portugal)</a><a href="./support.ru.html">Русский</a><a href="./support.de.html">Deutsch</a><a href="./support.fr.html">Français</a><a href="./support.pl.html">Polski</a><a href="./support.tr.html">Türkçe</a><a href="./support.it.html">Italiano</a><a href="./support.cs.html">Čeština</a><a href="./support.uk.html">Українська</a><a href="./support.hu.html">Magyar</a><a href="./support.th.html" class="current">ไทย</a><a href="./support.vi.html">Tiếng Việt</a><a href="./support.nl.html">Nederlands</a><a href="./support.sv.html">Svenska</a><a href="./support.ar.html">العربية</a><a href="./support.id.html">Bahasa Indonesia</a><a href="./support.fi.html">Suomi</a><a href="./support.el.html">Ελληνικά</a><a href="./support.bg.html">Български</a><a href="./support.no.html">Norsk</a><a href="./support.ro.html">Română</a><a href="./support.da.html">Dansk</a><a href="./support.eo.html">Esperanto</a></div>
+
+<footer>
+  Tutti เป็นส่วนขยาย Chrome โดย <a href="https://github.com/komm64">komm64</a> ติดต่อ: <a href="mailto:contact@komm64.com">contact@komm64.com</a>
+</footer>
+
+</body>
+</html>
