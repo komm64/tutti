@@ -274,10 +274,11 @@
     }
   },
   "displayModeTitle": { "message": "Tutti の表示方式" },
+  "displayModeAutoOption": { "message": "auto — Tutti におまかせ (sidepanel → floating → popup の順、 ブラウザ capability で fallback)" },
   "displayModePopupOption": { "message": "popup — Chrome 標準 (アイコン下に出る、 tab focus で閉じる)" },
   "displayModeSidepanelOption": { "message": "sidepanel — 画面右に dock (Chrome 114+、 閉じるまで残る)" },
   "displayModeFloatingOption": { "message": "floating — 独立した小窓 (位置自由、 multi-monitor 対応)" },
-  "displayModeHint": { "message": "投稿中に Tutti が勝手に閉じる問題は sidepanel / floating で解消されます。 設定変更後、 拡張アイコンを次に click したときから新しい方式で開きます。" },
+  "displayModeHint": { "message": "投稿中に Tutti が勝手に閉じる問題は sidepanel / floating で解消されます。 設定変更後、 拡張アイコンを次に click したときから新しい方式で開きます。 auto は最近の Chrome では sidepanel に着地します。" },
   "historyStatusPartial": { "message": "部分成功" },
   "historyStatusSuccess": { "message": "成功" },
   "historyUrlNotCaptured": { "message": "(URL 未取得)" },

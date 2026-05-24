@@ -100,18 +100,24 @@ let postingStateInMemory: PostingState | null = null;
  * - 'floating': setPanelBehavior false。 default_popup が無効化されるよう
  *   action.setPopup({popup: ''}) で popup HTML を空にする → onClicked が発火
  *   → openFloatingTutti を呼ぶ。
+ *
+ * v0.5.6: 'auto' を追加 (default)。 sidepanel → floating → popup の順に capability
+ * 検出してフォールスルー。 Chrome 114+ は sidepanel に着地、 旧 Chrome や
+ * sidePanel 無効化環境では floating、 さらにダメなら popup。
  */
 async function applyDisplayModeBehavior(): Promise<void> {
   try {
     const { displayMode } = await getSettings();
-    if (displayMode === 'sidepanel') {
+    const effective = displayMode === 'auto' ? resolveAutoDisplayMode() : displayMode;
+
+    if (effective === 'sidepanel') {
       // sidepanel mode: 「アイコン click で side panel open」 を Chrome ネイティブで
       if (browser.sidePanel?.setPanelBehavior) {
         await browser.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
       }
       // popup は無効化 (= sidepanel に流す)
       await browser.action.setPopup({ popup: '' });
-    } else if (displayMode === 'floating') {
+    } else if (effective === 'floating') {
       if (browser.sidePanel?.setPanelBehavior) {
         await browser.sidePanel.setPanelBehavior({ openPanelOnActionClick: false });
       }
@@ -124,10 +130,25 @@ async function applyDisplayModeBehavior(): Promise<void> {
       }
       await browser.action.setPopup({ popup: 'popup.html' });
     }
-    log.info(`displayMode applied: ${displayMode}`);
+    log.info(`displayMode applied: ${displayMode}${displayMode === 'auto' ? ` (resolved: ${effective})` : ''}`);
   } catch (e) {
     log.warn(`applyDisplayModeBehavior failed: ${e instanceof Error ? e.message : String(e)}`);
   }
+}
+
+/**
+ * 'auto' を解決: sidepanel → floating → popup の順で利用可能なものに着地。
+ *
+ * - sidepanel: `chrome.sidePanel.setPanelBehavior` が関数として存在するか
+ *   (Chrome 114+ で導入。 Firefox は未対応)
+ * - floating: `chrome.windows.create` が利用可能か (MV3 で常にある想定だが
+ *   一応 detect。 ChromeBook/Android tablet 等で window 無いケースに備える)
+ * - popup: 最終フォールバック (default_popup は manifest にあるので常に動く)
+ */
+function resolveAutoDisplayMode(): 'sidepanel' | 'floating' | 'popup' {
+  if (typeof browser.sidePanel?.setPanelBehavior === 'function') return 'sidepanel';
+  if (typeof browser.windows?.create === 'function') return 'floating';
+  return 'popup';
 }
 
 /**
@@ -246,9 +267,10 @@ export default defineBackground(() => {
   browser.action.onClicked.addListener(async () => {
     try {
       const { displayMode } = await getSettings();
-      if (displayMode === 'floating') {
+      const effective = displayMode === 'auto' ? resolveAutoDisplayMode() : displayMode;
+      if (effective === 'floating') {
         await openFloatingTutti();
-      } else if (displayMode === 'popup') {
+      } else if (effective === 'popup') {
         // setPanelBehavior=false + default_popup=空 のはずだが、 念のため fallback
         try { await browser.action.openPopup(); } catch { /* user gesture が足りなければ skip */ }
       }

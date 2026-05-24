@@ -274,10 +274,11 @@
     }
   },
   "displayModeTitle": { "message": "Display mode" },
+  "displayModeAutoOption": { "message": "auto — let Tutti pick (sidepanel → floating → popup, fallback by browser capability)" },
   "displayModePopupOption": { "message": "popup — Chrome default (drops down under the icon; closes on tab focus change)" },
   "displayModeSidepanelOption": { "message": "sidepanel — docked on the right (Chrome 114+; stays open until you close it)" },
   "displayModeFloatingOption": { "message": "floating — independent window (movable, multi-monitor friendly)" },
-  "displayModeHint": { "message": "sidepanel / floating solve the issue where Tutti closes mid-post. After saving, the new mode applies the next time you click the extension icon." },
+  "displayModeHint": { "message": "sidepanel / floating solve the issue where Tutti closes mid-post. After saving, the new mode applies the next time you click the extension icon. auto resolves to sidepanel on modern Chrome." },
   "historyStatusPartial": { "message": "partial" },
   "historyStatusSuccess": { "message": "success" },
   "historyUrlNotCaptured": { "message": "(URL not captured)" },

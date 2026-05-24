@@ -88,7 +88,13 @@ export interface Settings {
    *   位置・サイズを自由に変えられる。 multi-monitor 友好的。 OS の window と
    *   して扱われる (タスクバー / Alt+Tab に出る)。
    */
-  displayMode: 'popup' | 'sidepanel' | 'floating';
+  /**
+   * v0.5.6〜 'auto' を追加。 新規 install のデフォルト。 起動時に sidepanel
+   * (Chrome 114+) → floating → popup の順で capability 検出して 1 つに着地する。
+   * 旧 install (v0.5.5 以前) は 'popup' のまま、 user が明示的に 'auto' を
+   * 選ぶまで動作変わらず (= 既存 UX 破壊しない)。
+   */
+  displayMode: 'auto' | 'popup' | 'sidepanel' | 'floating';
   /**
    * 履歴 entry に添付メディア (画像 / 動画) を保存するか (v0.5.5〜)。
    * - `false` (default): メディアは保存しない。 履歴は text + 結果メタデータのみ。
@@ -115,7 +121,8 @@ const DEFAULT_SETTINGS: Settings = {
   pixivAiType: 'notAiGenerated',
   autoLetterboxVerticalVideo: false,
   snsPresets: [],
-  displayMode: 'popup',
+  // v0.5.6〜 新規 install は 'auto' で起動 (capability 検出して sidepanel/floating/popup を選ぶ)
+  displayMode: 'auto',
   uiLanguage: 'auto',
   historyKeepMedia: false,
 };

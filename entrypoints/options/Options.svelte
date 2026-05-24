@@ -32,7 +32,7 @@
   let pixivAiType = $state<'notAiGenerated' | 'aiGenerated'>('notAiGenerated');
   let autoLetterboxVerticalVideo = $state(false);
   let historyKeepMedia = $state(false);
-  let displayMode = $state<'popup' | 'sidepanel' | 'floating'>('popup');
+  let displayMode = $state<'auto' | 'popup' | 'sidepanel' | 'floating'>('auto');
   let uiLanguage = $state<string>('auto');
   let saved = $state(false);
   let loading = $state(true);
@@ -68,7 +68,7 @@
       pixivAiType = s.pixivAiType;
       autoLetterboxVerticalVideo = s.autoLetterboxVerticalVideo;
       historyKeepMedia = s.historyKeepMedia ?? false;
-      displayMode = s.displayMode ?? 'popup';
+      displayMode = s.displayMode ?? 'auto';
       uiLanguage = s.uiLanguage ?? 'auto';
       overrideFetchedAt = at;
       overrideCount = Object.values(ov).reduce((sum, v) => sum + Object.keys(v ?? {}).length, 0);
@@ -514,6 +514,7 @@
           bind:value={displayMode}
           class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
         >
+          <option value="auto">{t('displayModeAutoOption')}</option>
           <option value="popup">{t('displayModePopupOption')}</option>
           <option value="sidepanel">{t('displayModeSidepanelOption')}</option>
           <option value="floating">{t('displayModeFloatingOption')}</option>
