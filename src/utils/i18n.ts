@@ -14,10 +14,40 @@
  * 全 svelte / TS file は `import { t } from '~/utils/i18n'` で参照する。
  * `t()` は同期、 init は popup / sidepanel / options entry で main.ts から
  * 起動時に `initI18n()` を await して messages を pre-load しておく。
+ *
+ * production build 注意: WXT は dev mode でしか `browser` global を inject しない。
+ * production では `chrome.*` を使う必要がある。 v0.5.3 で `globalThis.browser` 経由
+ * の lookup が全失敗して raw key 表示になる事故が発生したため、 全 API access を
+ * `chrome.* ?? browser.*` の二段にする (v0.5.4〜)。
  */
 
 type MessageEntry = { message: string; placeholders?: Record<string, { content: string }> };
 type LocaleMessages = Record<string, MessageEntry>;
+
+type WebExtGlobals = {
+  chrome?: {
+    i18n?: { getMessage: (k: string, s?: string[]) => string };
+    runtime?: { getURL: (p: string) => string };
+    storage?: {
+      sync?: { get: (k: string) => Promise<Record<string, unknown>> };
+      onChanged?: { addListener: (fn: (changes: Record<string, { newValue?: unknown }>, area: string) => void) => void };
+    };
+  };
+  browser?: {
+    i18n?: { getMessage: (k: string, s?: string[]) => string };
+    runtime?: { getURL: (p: string) => string };
+    storage?: {
+      sync?: { get: (k: string) => Promise<Record<string, unknown>> };
+      onChanged?: { addListener: (fn: (changes: Record<string, { newValue?: unknown }>, area: string) => void) => void };
+    };
+  };
+};
+
+/** prod (Chrome) では `chrome.*`、 firefox では `browser.*`、 dev WXT polyfill では `browser.*` も生える。 */
+function webExt(): NonNullable<WebExtGlobals['chrome']> | undefined {
+  const g = globalThis as unknown as WebExtGlobals;
+  return g.chrome ?? g.browser;
+}
 
 const cache = new Map<string, LocaleMessages>();
 let currentLocale = 'auto';
@@ -27,8 +57,8 @@ async function loadLocale(locale: string): Promise<LocaleMessages> {
   const cached = cache.get(locale);
   if (cached) return cached;
   try {
-    const url = (globalThis as { browser?: { runtime?: { getURL: (p: string) => string } } })
-      .browser?.runtime?.getURL(`_locales/${locale}/messages.json`)
+    const api = webExt();
+    const url = api?.runtime?.getURL?.(`_locales/${locale}/messages.json`)
       ?? `/_locales/${locale}/messages.json`;
     const res = await fetch(url);
     if (!res.ok) {
@@ -52,8 +82,8 @@ export async function initI18n(): Promise<void> {
   if (initialized) return;
   initialized = true;
   try {
-    const stored = await (globalThis as { browser?: { storage?: { sync?: { get: (key: string) => Promise<Record<string, unknown>> } } } })
-      .browser?.storage?.sync?.get?.('settings');
+    const api = webExt();
+    const stored = await api?.storage?.sync?.get?.('settings');
     const settings = stored?.['settings'] as { uiLanguage?: string } | undefined;
     currentLocale = settings?.uiLanguage ?? 'auto';
   } catch {
@@ -64,8 +94,7 @@ export async function initI18n(): Promise<void> {
     await Promise.all([loadLocale(currentLocale), loadLocale('en')]);
   }
   // Settings 変更時に reload
-  const browserApi = (globalThis as { browser?: { storage?: { onChanged?: { addListener: (fn: (changes: Record<string, { newValue?: unknown }>, area: string) => void) => void } } } }).browser;
-  browserApi?.storage?.onChanged?.addListener?.((changes, area) => {
+  webExt()?.storage?.onChanged?.addListener?.((changes, area) => {
     if (area !== 'sync' || !changes['settings']) return;
     const newSettings = changes['settings'].newValue as { uiLanguage?: string } | undefined;
     const next = newSettings?.uiLanguage ?? 'auto';
@@ -94,8 +123,7 @@ function applyPlaceholders(entry: MessageEntry, subs: string[]): string {
 export function t(key: string, ...subs: (string | number)[]): string {
   const subStrs = subs.map(String);
   if (currentLocale === 'auto' || currentLocale === '') {
-    const browserApi = (globalThis as { browser?: { i18n?: { getMessage: (k: string, s: string[]) => string } } }).browser;
-    const v = browserApi?.i18n?.getMessage?.(key, subStrs);
+    const v = webExt()?.i18n?.getMessage?.(key, subStrs);
     if (v) return v;
     return key;
   }
@@ -105,8 +133,7 @@ export function t(key: string, ...subs: (string | number)[]): string {
   const entry = localeMsgs?.[key] ?? enMsgs?.[key];
   if (entry) return applyPlaceholders(entry, subStrs);
   // 最終 fallback (init 前に呼ばれた等)
-  const browserApi = (globalThis as { browser?: { i18n?: { getMessage: (k: string, s: string[]) => string } } }).browser;
-  return browserApi?.i18n?.getMessage?.(key, subStrs) || key;
+  return webExt()?.i18n?.getMessage?.(key, subStrs) || key;
 }
 
 /**

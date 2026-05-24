@@ -52,3 +52,4 @@ tmp/
 
 # ffmpeg.wasm runtime (postinstall + prebuild で node_modules からコピー)
 public/ffmpeg/
+.tmp
