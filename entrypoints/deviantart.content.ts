@@ -197,13 +197,11 @@ async function runPost(
   // dryRun でなければ DA が /<user>/art/<title>-<id> へ redirect するのを待つ
   let url: string | undefined;
   if (!dryRun) {
+    // v0.5.7: redirect 検知失敗時に throw しない (実投稿は landing しているケースあり)
     const captured = await waitForPostUrl([
       /^https:\/\/(?:www\.)?deviantart\.com\/[^/]+\/art\/[^/?#]+/,
     ], 30000);
-    if (!captured) {
-      throw new Error('DeviantArt: 投稿後 URL に redirect されませんでした');
-    }
-    url = captured;
+    if (captured) url = captured;
   }
 
   return {

@@ -285,16 +285,14 @@ async function runPost(
   // するのを待つ (= 「本当の完了」)。timeout なら error 扱い。
   let url: string | undefined;
   if (!dryRun) {
+    // v0.5.7: redirect 検知失敗時に throw しない (実投稿は landing しているケースあり)
     const captured = await waitForPostUrl([
       /^https:\/\/(?:www\.)?pixiv\.net\/[a-z]+\/artworks\/\d+/,
       /^https:\/\/(?:www\.)?pixiv\.net\/artworks\/\d+/,
       /^https:\/\/(?:www\.)?pixiv\.net\/[a-z]+\/users\/\d+/,
       /^https:\/\/(?:www\.)?pixiv\.net\/users\/\d+/,
     ], 30000);
-    if (!captured) {
-      throw new Error('Pixiv: 投稿後 URL に redirect されませんでした');
-    }
-    url = captured;
+    if (captured) url = captured;
   }
 
   return {

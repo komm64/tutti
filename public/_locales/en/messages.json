@@ -153,6 +153,7 @@
     "message": "Re-send the $N$ failed posts",
     "placeholders": { "N": { "content": "$1" } }
   },
+  "retryDedupSkippedHint": { "message": "Likely already posted — skipped re-send (a successful entry for the same content was found in the last 10 minutes of history)." },
   "reportDeduped": {
     "message": "Same error already reported $N$h ago (24h cooldown).",
     "placeholders": { "N": { "content": "$1" } }

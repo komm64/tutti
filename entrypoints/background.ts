@@ -34,7 +34,7 @@ import { getApiCredentials } from '../src/utils/api-credentials';
 import { postViaApi as postBlueskyApi, postViaSession as postBlueskyViaSession, type BlueskyReplyTarget } from '../src/api/bluesky';
 import { isVerifySupported } from '../src/utils/post-verify';
 import { runVerify } from '../src/background/verify-dispatcher';
-import { openOrFocusTab, notifyResults, clearBadge, updateProgressBadge } from '../src/background/tab-management';
+import { openOrFocusTab, notifyResults, clearBadge, updateProgressBadge, closeTabSafely } from '../src/background/tab-management';
 import { postViaApi as postMastodonApi } from '../src/api/mastodon';
 import { postViaApi as postMisskeyApi } from '../src/api/misskey';
 import type { ApiPostResult } from '../src/api/types';
@@ -590,6 +590,8 @@ async function handlePostRequest(
   notifyResults(results);
   // v0.5.5: schema v1 用の metadata 計算 → addToPostHistory に渡す
   void recordHistoryEntry(text, results, adjustedImages);
+  // v0.5.7: 成功 SNS の compose / share タブを cleanup (Tutti が新規 open したものに限る)
+  void cleanupOpenedTabs(results);
   // IndexedDB binary-transfer の cleanup (元 dataRef + 圧縮結果 dataRef 両方)
   void releaseAttachmentTransfers(adjustedImages);
   if (adjustedImages !== images) void releaseAttachmentTransfers(images);
@@ -605,6 +607,52 @@ async function handlePostRequest(
       postingStateInMemory.finishedAt = Date.now();
     }
     compressionStateInMemory = null;
+  }
+}
+
+/**
+ * v0.5.7: handlePostRequest 内で開かれた compose / share タブを追跡。
+ * platform → 新規 open した tab ID の Set。 post 成功後に cleanup する判定で使う。
+ * 1 つの POST_REQUEST 内では同じ platform に複数 tab が紐づくことは無いが (= 1 tab/post)、
+ * future-proof のため Set 構造で持つ。
+ */
+const openedTabsByPlatform: Map<PlatformId, Set<number>> = new Map();
+
+function recordOpenedTab(platform: PlatformId, tabId: number): void {
+  let set = openedTabsByPlatform.get(platform);
+  if (!set) {
+    set = new Set();
+    openedTabsByPlatform.set(platform, set);
+  }
+  set.add(tabId);
+}
+
+/**
+ * v0.5.7: post 成功 SNS の Tutti 起源 tab を閉じる。 例 Mastodon の /share タブが
+ * 投稿完了後も残って 「印象悪い」 問題の対処。 失敗 SNS の tab は user が
+ * 調査できるように残す。
+ *
+ * - success=true かつ Tutti が新規 open した tab を close
+ * - tab record は閉じても残らず使い切り
+ * - autoOpenPostUrl='always' で別 tab が開かれるので post URL は失われない
+ */
+async function cleanupOpenedTabs(results: PostResultMessage[]): Promise<void> {
+  try {
+    for (const r of results) {
+      if (!r.success) continue;
+      const set = openedTabsByPlatform.get(r.platform);
+      if (!set) continue;
+      for (const tabId of set) {
+        await closeTabSafely(tabId);
+      }
+      openedTabsByPlatform.delete(r.platform);
+    }
+    // 失敗 SNS の tab record も clean (次回の POST_REQUEST に持ち越さない)
+    for (const r of results) {
+      if (!r.success) openedTabsByPlatform.delete(r.platform);
+    }
+  } catch (e) {
+    log.warn(`cleanupOpenedTabs failed: ${e instanceof Error ? e.message : String(e)}`);
   }
 }
 
@@ -1258,7 +1306,7 @@ async function postBlueskyThread(
     session = { ...data, pdsHost: pds };
   } else {
     // localStorage 経由: bsky.app タブを開いて content script に session を取らせる
-    const tab = await openOrFocusTab('https://bsky.app/', adapter.matchUrl, false);
+    const { tab } = await openOrFocusTab('https://bsky.app/', adapter.matchUrl, false);
     if (typeof tab.id !== 'number') throw new Error('bsky.app タブを開けません');
     // content script の準備を待つ
     await sleep(2000);
@@ -1379,7 +1427,7 @@ async function postSingleChunk(
   // setTimeout がブラウザに throttle されて React state や file upload が
   // 極端に遅くなる。popup が閉じる tradeoff を許容して foreground で開く。
   const active = adapter.requiresForegroundTab === true;
-  const tab = await openOrFocusTab(
+  const { tab, wasCreated } = await openOrFocusTab(
     overrideUrl ?? adapter.getComposeUrl(text),
     adapter.matchUrl,
     active,
@@ -1387,6 +1435,7 @@ async function postSingleChunk(
   if (typeof tab.id !== 'number') {
     throw new Error('SNS タブを開けませんでした');
   }
+  if (wasCreated) recordOpenedTab(adapter.id, tab.id);
 
   // v0.4.83: 想定 user を message に乗せて content script に渡す。
   // content script 側で post 直前に detectUser() を再走させて mismatch を検知、

@@ -176,16 +176,16 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
   });
 
   // dryRun でなければ post URL を捕捉 (= 本当に landing したことの証跡)。
-  // Threads は post 直後に /@<user>/post/<id> へ redirect する。
+  // Threads は post 直後に /@<user>/post/<id> へ redirect する… のが期待だが、
+  // v0.5.7〜 「redirect 来なかった = 失敗」 と即決しない (実際には landing して
+  // いるケースが報告された)。 URL を取れた時は付与、 取れなかった時は url=undefined
+  // のまま success=true を返す。 verify は post-verify framework が timeline scrape で補完。
   let url: string | undefined;
   if (!dryRun) {
     const captured = await waitForPostUrl([
       /^https:\/\/(?:www\.)?threads\.(?:com|net)\/@[^/]+\/post\/[\w-]+/,
     ], 20000);
-    if (!captured) {
-      throw new Error('Threads: 投稿後 URL に redirect されませんでした (post が landing してない疑い)');
-    }
-    url = captured;
+    if (captured) url = captured;
   }
 
   return {

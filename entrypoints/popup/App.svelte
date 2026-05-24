@@ -901,14 +901,90 @@
    * 直前の text / images / video が popup state に残っている前提 (= 全成功でない
    * 場合は handlePost が clear しないので残る)。失敗した platform だけを対象に
    * もう一度 background へ送る。
+   *
+   * v0.5.7: bodyHash で直近 10 分以内の同一 post に既に成功 entry が居る platform は
+   * 「retry してもどうせ重複投稿になる」 ので skip。 user 報告 (Threads が false-fail
+   * 後の retry で実重複投稿になる) の対処。
    */
   async function handleRetryFailed() {
     if (!lastResults || posting) return;
     const failedIds = lastResults.filter((r) => !r.success).map((r) => r.platform);
     if (failedIds.length === 0) return;
+
+    // 同一 bodyHash で直近 10 分以内に成功してる platform を retry 対象から外す
+    const dedupedFailedIds = await filterAlreadyLandedPlatforms(failedIds);
+    if (dedupedFailedIds.length === 0) {
+      // 全部 「実は landed 済」 → retry を実行しない、 既存の失敗表示を成功扱いに置き換え
+      const now = Date.now();
+      const alreadyLanded = failedIds.map((p) => ({
+        type: 'POST_RESULT' as const,
+        platform: p,
+        success: true,
+        error: undefined,
+        url: undefined,
+        timestamp: now,
+        verify: { verified: true, issues: [{
+          kind: 'retry-dedup-skipped',
+          message: t('retryDedupSkippedHint'),
+          severity: 'warn' as const,
+        }] },
+      }));
+      lastResults = [
+        ...lastResults.filter((r) => r.success),
+        ...alreadyLanded,
+      ];
+      errorMessage = null;
+      return;
+    }
+
     // 既存の失敗 entry だけ消す。成功 entry は維持して result panel に表示し続ける
     lastResults = lastResults.filter((r) => r.success);
-    await submitPostFor(failedIds, /* isRetry */ true);
+    await submitPostFor(dedupedFailedIds, /* isRetry */ true);
+  }
+
+  /**
+   * 直近 10 分以内に同一 bodyHash + 同一 platform で成功している entry がある platform を
+   * 候補から除外。 戻り値: 真の retry が必要な platform 列。
+   */
+  async function filterAlreadyLandedPlatforms(candidates: PlatformId[]): Promise<PlatformId[]> {
+    try {
+      const { getPostHistory } = await import('../../src/storage');
+      const { computeBodyHash, sha256Hex } = await import('../../src/utils/body-hash');
+      const history = await getPostHistory();
+      // media digest: 簡略化のため text のみで dedup (media 含めると popup での digest 計算が
+      // 重い + text 一致だけで連投検出としては十分実用)
+      const mediaDigests: string[] = [];
+      if (images.length > 0) {
+        for (const img of images) {
+          // base64 → bytes → sha256
+          const bin = atob(img.data);
+          const bytes = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
+          mediaDigests.push(await sha256Hex(bytes));
+        }
+      } else if (video) {
+        const bin = atob(video.data);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
+        mediaDigests.push(await sha256Hex(bytes));
+      }
+      const currentHash = await computeBodyHash(text, mediaDigests);
+      const tenMinAgo = Date.now() - 10 * 60 * 1000;
+      const safe: PlatformId[] = [];
+      for (const p of candidates) {
+        const landed = history.some((e) => {
+          if (!e.timestamp || e.timestamp < tenMinAgo) return false;
+          if (e.bodyHash !== currentHash) return false;
+          const r = e.results?.[p];
+          return r && r.success === true;
+        });
+        if (!landed) safe.push(p);
+      }
+      return safe;
+    } catch {
+      // 検出失敗時は安全側に倒さず、 既存挙動 (= 全 candidates retry) で続行
+      return candidates;
+    }
   }
 
   async function submitPostFor(platforms: PlatformId[], isRetry: boolean) {
@@ -1475,7 +1551,14 @@
         class="px-2 py-1 rounded bg-red-600 text-white hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium"
       >{t('retryFailedButton', String(failures.length))} ↻</button>
       <button
-        onclick={() => handleReportError(failures.map((r) => `${r.platform}: ${r.error ?? '(no detail)'}`).join('\n'))}
+        onclick={() => {
+          // v0.5.7: 直接 fetch せず errorDialog を開く形に統一。 inline 直叩きだと
+          // dedup hit / network 失敗時に user に何も feedback されず 「無反応」 と
+          // 感じさせていた。 dialog 側に reportResult の表示があるので、 そこに乗せる。
+          errorDialogText = failures.map((r) => `${r.platform}: ${r.error ?? '(no detail)'}`).join('\n');
+          errorDialogOpen = true;
+          reportResult = null;
+        }}
         title={t('errorReportHint')}
         class="underline hover:text-red-900"
       >{t('errorReportButton')} →</button>

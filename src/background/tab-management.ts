@@ -13,11 +13,22 @@ const READY_DELAY_MS = 800;
 /** waitForTabComplete の上限 */
 const TAB_LOAD_TIMEOUT_MS = 15000;
 
+/**
+ * v0.5.7〜 戻り値が `{ tab, wasCreated }` に変更。 wasCreated は 「この呼び出しで
+ * Tutti が新規に open したタブか」 を示す。 投稿成功後に Tutti 作成タブのみを
+ * close する判定 (closeOpenedTabIfSafe) に使う。 user が元々開いていた SNS タブを
+ * 勝手に閉じる事故を回避するため。
+ */
+export interface OpenTabResult {
+  tab: Browser.tabs.Tab;
+  wasCreated: boolean;
+}
+
 export async function openOrFocusTab(
   composeUrl: string,
   matchUrl: (url: string) => boolean,
   active: boolean,
-): Promise<Browser.tabs.Tab> {
+): Promise<OpenTabResult> {
   const existing = (await browser.tabs.query({})).find(
     (t) => typeof t.url === 'string' && matchUrl(t.url),
   );
@@ -42,7 +53,7 @@ export async function openOrFocusTab(
     }
     await waitPromise;
     await sleep(READY_DELAY_MS);
-    return updated;
+    return { tab: updated, wasCreated: false };
   }
 
   // 新規タブ作成は create + waitForTabComplete の順で OK
@@ -53,7 +64,23 @@ export async function openOrFocusTab(
   }
   await waitForTabComplete(created.id);
   await sleep(READY_DELAY_MS);
-  return created;
+  return { tab: created, wasCreated: true };
+}
+
+/**
+ * v0.5.7〜 Tutti が新規 open したタブのみ閉じる (= compose 画面 / share 画面の
+ * 後片付け)。 user が元から開いていた SNS タブは閉じない。
+ *
+ * 「post 成功後、 SNS が post URL に redirect してくれた」 ケースは tab を残す方が
+ * 親切なので、 caller 側で 「URL を取れた / autoOpenPostUrl='always' で別タブで開く」
+ * 判断後にこの関数を呼ぶ。
+ */
+export async function closeTabSafely(tabId: number): Promise<void> {
+  try {
+    await browser.tabs.remove(tabId);
+  } catch (e) {
+    log.warn(`close tab ${tabId} failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
 }
 
 /**

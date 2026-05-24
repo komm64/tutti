@@ -153,6 +153,7 @@
     "message": "失敗した $N$ 件をもう一度送信",
     "placeholders": { "N": { "content": "$1" } }
   },
+  "retryDedupSkippedHint": { "message": "すでに投稿が完了している可能性が高いので再送を skip しました (直近 10 分の履歴に同一内容の成功 entry あり)。" },
   "reportDeduped": {
     "message": "同じエラーは既に $N$h 前に報告済みです (24h cooldown)。",
     "placeholders": { "N": { "content": "$1" } }

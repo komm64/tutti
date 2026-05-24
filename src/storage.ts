@@ -116,7 +116,11 @@ const DEFAULT_SETTINGS: Settings = {
   selectorOverrideUrl: 'https://komm64.github.io/tutti/selectors.json',
   logLevel: 'INFO',
   disableReportDedup: false,
-  autoOpenPostUrl: 'on-issue',
+  // v0.5.7〜 default を 'always' に。 旧 default ('on-issue') では成功投稿で URL が
+  // 開かず 「自分のポストを確認しに行けない」 と感じる UX だった。 「always」 は
+  // 成功 SNS の post URL を全部 (background tab で) 開く。 user は新タブ群を後で
+  // 順次見られる。 静かにしたい user は options で 'on-issue' or 'never' に戻せる。
+  autoOpenPostUrl: 'always',
   pixivVisibility: 'general',
   pixivAiType: 'notAiGenerated',
   autoLetterboxVerticalVideo: false,

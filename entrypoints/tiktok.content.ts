@@ -113,14 +113,12 @@ async function runPost(
   // 動画 thumbnail 経由でしか取れないので、 listing URL で完了 proof とする。
   let url: string | undefined;
   if (!dryRun) {
+    // v0.5.7: redirect 検知失敗時に throw しない (実投稿は landing しているケースあり)
     const captured = await waitForPostUrl([
       /^https:\/\/(?:www\.)?tiktok\.com\/tiktokstudio\/content/,
       /^https:\/\/(?:www\.)?tiktok\.com\/@[^/]+\/video\/\d+/,
     ], 60000);
-    if (!captured) {
-      throw new Error('TikTok: 投稿後 listing / video URL に redirect されませんでした');
-    }
-    url = captured;
+    if (captured) url = captured;
   }
 
   return {
