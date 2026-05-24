@@ -31,6 +31,7 @@
   let pixivVisibility = $state<'general' | 'r18' | 'r18g'>('general');
   let pixivAiType = $state<'notAiGenerated' | 'aiGenerated'>('notAiGenerated');
   let autoLetterboxVerticalVideo = $state(false);
+  let historyKeepMedia = $state(false);
   let displayMode = $state<'popup' | 'sidepanel' | 'floating'>('popup');
   let uiLanguage = $state<string>('auto');
   let saved = $state(false);
@@ -66,6 +67,7 @@
       pixivVisibility = s.pixivVisibility;
       pixivAiType = s.pixivAiType;
       autoLetterboxVerticalVideo = s.autoLetterboxVerticalVideo;
+      historyKeepMedia = s.historyKeepMedia ?? false;
       displayMode = s.displayMode ?? 'popup';
       uiLanguage = s.uiLanguage ?? 'auto';
       overrideFetchedAt = at;
@@ -244,7 +246,7 @@
       alert(t('alertPermissionDenied'));
       return;
     }
-    await saveSettings({ mastodonInstance: m, misskeyInstance: k, selectorOverrideUrl, logLevel, disableReportDedup, autoOpenPostUrl, pixivVisibility, pixivAiType, autoLetterboxVerticalVideo, displayMode, uiLanguage });
+    await saveSettings({ mastodonInstance: m, misskeyInstance: k, selectorOverrideUrl, logLevel, disableReportDedup, autoOpenPostUrl, pixivVisibility, pixivAiType, autoLetterboxVerticalVideo, historyKeepMedia, displayMode, uiLanguage });
     // disableReportDedup=true にしたら既存の dedup 履歴も clear
     // (再 enable まで storage に dead key が残らないように)
     if (disableReportDedup) {
@@ -474,6 +476,17 @@
           <span>{t('autoLetterboxLabel')}</span>
         </label>
         <p class="text-xs text-gray-400">{t('autoLetterboxHint')}</p>
+      </div>
+    </section>
+
+    <section class="mb-6">
+      <h2 class="text-sm font-semibold text-gray-700 mb-3">{t('historyTitle')}</h2>
+      <div class="space-y-2">
+        <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+          <input type="checkbox" bind:checked={historyKeepMedia} class="rounded" />
+          <span>{t('historyKeepMediaLabel')}</span>
+        </label>
+        <p class="text-xs text-gray-400">{t('historyKeepMediaHint')}</p>
       </div>
     </section>
 

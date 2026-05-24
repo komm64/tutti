@@ -219,6 +219,10 @@
   "autoLetterboxLabel": { "message": "横長動画を 9:16 縦に自動 letterbox する (TikTok / YouTube Shorts / IG Reels 向け)" },
   "autoLetterboxHint": { "message": "ON: 横長動画 + 縦動画 SNS 選択時に 1080×1920 にぼかし背景で letterbox する (SNS 側の黒帯より見栄えが良い)。 OFF: そのまま送信 (SNS 側で自動 crop or letterbox される)。 注: ON にすると同じ 9:16 動画が選択中の全 SNS に行くので、 横長 SNS (X / Bluesky 等) にも縦動画が表示される tradeoff。" },
 
+  "historyTitle": { "message": "投稿履歴" },
+  "historyKeepMediaLabel": { "message": "履歴に添付メディアを保持する (7 日間)" },
+  "historyKeepMediaHint": { "message": "OFF (default): 履歴はテキスト + 各 SNS の結果メタデータのみ記録。 ローカルストレージは小さく保たれる。 ON: 添付画像 / 動画を 7 日間 IndexedDB に保存。 「失敗 SNS だけ再送」 が後から履歴 UI からできる。 投稿ごとにストレージ使用量が増えるので、 再送機能を使わないなら OFF のままで OK。" },
+
   "autoOpenTitle": { "message": "投稿後の自動オープン" },
   "autoOpenLabel": { "message": "投稿成功後の挙動" },
   "autoOpenNeverDesc": { "message": "自動オープンしない (従来挙動)" },

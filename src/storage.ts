@@ -89,6 +89,13 @@ export interface Settings {
    *   して扱われる (タスクバー / Alt+Tab に出る)。
    */
   displayMode: 'popup' | 'sidepanel' | 'floating';
+  /**
+   * 履歴 entry に添付メディア (画像 / 動画) を保存するか (v0.5.5〜)。
+   * - `false` (default): メディアは保存しない。 履歴は text + 結果メタデータのみ。
+   * - `true`: IndexedDB に media を 7 日間保存。 「失敗 SNS だけ再送」 を popup
+   *   から push できるようになる。 storage 容量を喰うので opt-in。
+   */
+  historyKeepMedia: boolean;
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -110,6 +117,7 @@ const DEFAULT_SETTINGS: Settings = {
   snsPresets: [],
   displayMode: 'popup',
   uiLanguage: 'auto',
+  historyKeepMedia: false,
 };
 
 export async function getSettings(): Promise<Settings> {
@@ -277,18 +285,47 @@ export async function setLastSeenUser(
 
 // ── 投稿履歴 (chrome.storage.local) ─────────────────────────────────────────
 
+/**
+ * Per-SNS の投稿結果メタ。 result detail の蓄積場所 (popup の再送 / リンク跳び用)。
+ *
+ * - `success`: 投稿が SNS 側で landing したか
+ * - `url`: post URL (= 「本当に landing した」 証跡。 失敗時は無し)
+ * - `error`: 失敗時の文字列メッセージ
+ * - `postId`: url から抽出した SNS 固有 ID (v0.5.5〜)。 status check API
+ *   で URL より stable に扱える primary key
+ */
+export interface HistoryPlatformResult {
+  success: boolean;
+  url?: string;
+  error?: string;
+  postId?: string;
+}
+
 export interface HistoryEntry {
-  id: string;
-  /** 投稿テキストの先頭 80 文字 */
-  textPreview: string;
-  platforms: PlatformId[];
   /**
-   * per-SNS の result detail (v0.4.88〜)。
-   * success だけでなく url / error を保持して、 履歴 UI からの再送や直接遷移を可能に。
-   * 旧 schema (`boolean` only) は migrateHistoryEntry が変換。
+   * Schema version (v0.5.5〜)。 undefined は legacy (v0)。
+   * - v0: textPreview のみ、 hash なし、 postId なし
+   * - v1: text (full) + bodyHash + postId 追加、 textPreview は UI 互換のため残置
    */
-  results: Partial<Record<PlatformId, { success: boolean; url?: string; error?: string }>>;
+  version?: 1;
+  id: string;
+  /** 投稿テキストの先頭 80 文字 (popup 一覧で fast render するため残す)。 */
+  textPreview: string;
+  /** v1: 投稿の本文 full text (重複検出 / archive 用)。 v0 entry には無し。 */
+  text?: string;
+  /**
+   * v1: 本文 + 添付メディア digest の SHA-256 hex (content addressing)。
+   * 同一内容の重複投稿検知 / 履歴 entry の安定識別子。
+   */
+  bodyHash?: string;
+  platforms: PlatformId[];
+  results: Partial<Record<PlatformId, HistoryPlatformResult>>;
   hasMedia: boolean;
+  /**
+   * v1: Settings.historyKeepMedia=ON の時に IndexedDB に保存した media の
+   * ID 列。 形式 `${entry.id}-${index}`、 値 7 日後に自動削除。
+   */
+  mediaRefs?: string[];
   timestamp: number;
 }
 
@@ -325,16 +362,38 @@ export async function addToPostHistory(
   text: string,
   results: PostResultMessage[],
   hasMedia: boolean,
-): Promise<void> {
+  opts: {
+    /** v1: 本文 + media digest を結合した SHA-256 hex (body-hash.ts 経由)。 */
+    bodyHash?: string;
+    /** v1: 各 SNS の URL から抽出した post ID (post-id.ts 経由)。 */
+    postIds?: Partial<Record<PlatformId, string>>;
+    /** v1: Settings.historyKeepMedia=ON 時のみ。 IndexedDB 保存済 media の id 列。 */
+    mediaRefs?: string[];
+  } = {},
+): Promise<string> {
+  const id = Date.now().toString(36);
   const entry: HistoryEntry = {
-    id: Date.now().toString(36),
+    version: 1,
+    id,
     textPreview: text.slice(0, 80),
+    text,
+    bodyHash: opts.bodyHash,
     platforms: results.map((r) => r.platform),
     // v0.4.88: per-SNS の success / url / error を全部保存
+    // v0.5.5: postId も保存 (URL より stable な status check 入力)
     results: Object.fromEntries(
-      results.map((r) => [r.platform, { success: r.success, url: r.url, error: r.error }]),
+      results.map((r) => [
+        r.platform,
+        {
+          success: r.success,
+          url: r.url,
+          error: r.error,
+          postId: opts.postIds?.[r.platform],
+        },
+      ]),
     ),
     hasMedia,
+    mediaRefs: opts.mediaRefs && opts.mediaRefs.length > 0 ? opts.mediaRefs : undefined,
     timestamp: Date.now(),
   };
 
@@ -342,4 +401,5 @@ export async function addToPostHistory(
   await browser.storage.local.set({
     [HISTORY_KEY]: [entry, ...history].slice(0, MAX_HISTORY),
   });
+  return id;
 }

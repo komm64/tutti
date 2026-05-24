@@ -219,6 +219,10 @@
   "autoLetterboxLabel": { "message": "Auto-letterbox landscape videos to 9:16 vertical (for TikTok / YouTube Shorts / IG Reels)" },
   "autoLetterboxHint": { "message": "ON: when a vertical SNS is selected, landscape videos are letterboxed to 1080×1920 with a blurred background (looks better than the platform's default black bars). OFF: pass through as-is (platforms auto-crop or letterbox). Note: when ON, the same 9:16 video is sent to all selected platforms — landscape SNS (X / Bluesky etc.) will also receive the vertical variant." },
 
+  "historyTitle": { "message": "Post history" },
+  "historyKeepMediaLabel": { "message": "Keep attached media in history (7-day retention)" },
+  "historyKeepMediaHint": { "message": "OFF (default): history records only text + per-platform result metadata. Local storage stays small. ON: attached images / videos are kept for 7 days in IndexedDB so you can resend a failed-only subset from history later. Storage usage grows with each post — turn off if you don't need resend." },
+
   "autoOpenTitle": { "message": "Auto-open after posting" },
   "autoOpenLabel": { "message": "When to open the post URL" },
   "autoOpenNeverDesc": { "message": "Don't open automatically (legacy behavior)" },

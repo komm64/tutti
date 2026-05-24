@@ -22,7 +22,11 @@ import {
   attachmentSize,
   releaseAttachmentTransfers,
   resolveAttachmentToBase64,
+  resolveAttachmentToBytes,
 } from '../src/utils/attachment';
+import { computeBodyHash, sha256Hex } from '../src/utils/body-hash';
+import { extractPostId } from '../src/utils/post-id';
+import { putMedia, sweepExpired } from '../src/utils/history-media';
 import { fetchOverridesFrom } from '../src/utils/selector-overrides';
 import { splitText } from '../src/utils/split';
 import { letterboxToSquare } from '../src/utils/image-letterbox';
@@ -218,6 +222,11 @@ export default defineBackground(() => {
       log.warn('override bootstrap failed', e);
     }
   })();
+
+  // v0.5.5: 履歴メディア (IndexedDB) の 7 日 retention sweep。 起動時に古い
+  // record を一掃して storage を圧迫しないようにする。 失敗しても拡張機能本体
+  // には影響しないので catch して swallow。
+  void sweepExpired().catch((e) => log.warn('history media sweep failed', e));
 
   // v0.5.0: displayMode に応じて action click 動作を切替。
   // - popup: manifest の default_popup が処理 (= 何もしない)
@@ -557,7 +566,8 @@ async function handlePostRequest(
   await Promise.all(workers);
 
   notifyResults(results);
-  void addToPostHistory(text, results, (adjustedImages?.length ?? 0) > 0);
+  // v0.5.5: schema v1 用の metadata 計算 → addToPostHistory に渡す
+  void recordHistoryEntry(text, results, adjustedImages);
   // IndexedDB binary-transfer の cleanup (元 dataRef + 圧縮結果 dataRef 両方)
   void releaseAttachmentTransfers(adjustedImages);
   if (adjustedImages !== images) void releaseAttachmentTransfers(images);
@@ -574,6 +584,94 @@ async function handlePostRequest(
     }
     compressionStateInMemory = null;
   }
+}
+
+/**
+ * v0.5.5: 履歴 entry を schema v1 で保存。
+ * - 本文 + 各メディア digest から bodyHash 計算
+ * - 各 SNS 結果 URL から postId 抽出
+ * - Settings.historyKeepMedia=ON なら IndexedDB に media を保存 (7 日間 retention)
+ *
+ * すべて 「投稿は終わっている」 段階の post-hoc 処理。 失敗しても投稿には
+ * 影響しないので catch して swallow する (履歴は best-effort 機能)。
+ */
+async function recordHistoryEntry(
+  text: string,
+  results: PostResultMessage[],
+  adjustedImages?: ImageAttachment[],
+): Promise<void> {
+  try {
+    const hasMedia = (adjustedImages?.length ?? 0) > 0;
+
+    // 各メディアの SHA-256 digest を並列で計算
+    const mediaDigests: string[] = [];
+    if (adjustedImages && adjustedImages.length > 0) {
+      const bytesList = await Promise.all(
+        adjustedImages.map((img) => resolveAttachmentToBytes(img).catch(() => null)),
+      );
+      for (const bytes of bytesList) {
+        if (bytes) mediaDigests.push(await sha256Hex(bytes));
+      }
+    }
+
+    const bodyHash = await computeBodyHash(text, mediaDigests);
+
+    // 各 SNS の post URL から固有 postId を抽出
+    const postIds: Partial<Record<PlatformId, string>> = {};
+    for (const r of results) {
+      const pid = extractPostId(r.platform, r.url);
+      if (pid) postIds[r.platform] = pid;
+    }
+
+    // Settings.historyKeepMedia=ON 時のみ、 媒体実体を IndexedDB に保存。
+    // 保存 ID は `${entryId}-${index}` 形式 (entryId は addToPostHistory が決める)。
+    // ここでは「保存するつもりの index 列」 を準備して、 entryId が確定したら参照を作る。
+    const settings = await getSettings().catch(() => null);
+    const keepMedia = settings?.historyKeepMedia === true;
+
+    // entry を先に作って ID を得る → そこから media key 列を構築
+    const entryId = await addToPostHistory(text, results, hasMedia, {
+      bodyHash,
+      postIds,
+      mediaRefs: keepMedia && adjustedImages && adjustedImages.length > 0
+        ? adjustedImages.map((_, i) => `pending-${i}`) // 後で書き換える placeholder
+        : undefined,
+    });
+
+    if (keepMedia && adjustedImages && adjustedImages.length > 0) {
+      const mediaIds: string[] = [];
+      for (let i = 0; i < adjustedImages.length; i += 1) {
+        const img = adjustedImages[i];
+        if (!img) continue;
+        try {
+          const bytes = await resolveAttachmentToBytes(img);
+          // Uint8Array → BlobPart: TS の SharedArrayBuffer 型差異を避けて buffer をコピー
+          const blob = new Blob([bytes.slice().buffer as ArrayBuffer], {
+            type: img.type || 'application/octet-stream',
+          });
+          const id = `${entryId}-${i}`;
+          await putMedia(id, blob);
+          mediaIds.push(id);
+        } catch {
+          // 個別 attach の保存失敗は無視 (history 自体は既に保存済)
+        }
+      }
+      // 実際に保存できた id 列で entry を update (placeholder からの差し替え)
+      if (mediaIds.length > 0) {
+        await updateHistoryMediaRefs(entryId, mediaIds);
+      }
+    }
+  } catch {
+    // 履歴記録は best-effort。 失敗しても表に出さない (= 投稿は既に成功)
+  }
+}
+
+/** v0.5.5: 履歴 entry の mediaRefs だけを後から書き換える (IndexedDB 保存完了後)。 */
+async function updateHistoryMediaRefs(entryId: string, mediaIds: string[]): Promise<void> {
+  const stored = await browser.storage.local.get('postHistory');
+  const arr = (stored['postHistory'] as Array<{ id: string; mediaRefs?: string[] }> | undefined) ?? [];
+  const updated = arr.map((e) => (e.id === entryId ? { ...e, mediaRefs: mediaIds } : e));
+  await browser.storage.local.set({ postHistory: updated });
 }
 
 /**
