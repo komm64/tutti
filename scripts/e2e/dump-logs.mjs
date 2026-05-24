@@ -22,13 +22,9 @@ for (let i = 0; i < 50; i += 1) {
 const page = await ctx.newPage();
 await page.goto(`chrome-extension://${extId}/options.html`);
 await page.waitForTimeout(500);
-const dump = await page.evaluate(async () => {
-  const got = await chrome.storage.local.get(null);
-  const out = {};
-  for (const [k, v] of Object.entries(got)) {
-    if (k === 'postHistory' || k.startsWith('__debug_')) out[k] = v;
-  }
-  return JSON.stringify(out, null, 2);
+const logs = await page.evaluate(async () => {
+  const g = await chrome.storage.local.get('logBuffer');
+  return g.logBuffer || [];
 });
-console.log(dump);
+console.log(JSON.stringify(logs.slice(-40), null, 2));
 await ctx.close();

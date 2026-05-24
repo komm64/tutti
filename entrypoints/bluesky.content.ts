@@ -288,9 +288,83 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     log.info('Bluesky: post 完了 verify (modal closed)');
   }
 
+  // v0.5.8〜 DOM 経路でも post URL を取得する。 Bluesky は localStorage に session
+  // を持つので、 そこから accessJwt を取り出して getAuthorFeed で latest を引く。
+  // dryRun 時は scrape しない。
+  let url: string | undefined;
+  if (!dryRun) {
+    url = await fetchBlueskyRecentPostUrl(text);
+  }
+
   return {
     type: 'POST_RESULT',
     platform: 'bluesky',
     success: true,
+    url,
   };
+}
+
+/**
+ * v0.5.8〜 Bluesky の post URL を AT Protocol API で取得。
+ * - bsky.app の localStorage `BSKY_STORAGE` から accessJwt + did を取り出す
+ * - getAuthorFeed で my account の latest 5 件を引いて text 一致するもの探す
+ * - PDS は bsky.social が default、 他 PDS の場合は localStorage に書いてある
+ */
+async function fetchBlueskyRecentPostUrl(text: string): Promise<string | undefined> {
+  try {
+    // localStorage の構造: BSKY_STORAGE は JSON、 session.currentAccount に accessJwt / did / handle / service
+    let session: { accessJwt?: string; did?: string; handle?: string; service?: string } | null = null;
+    for (let i = 0; i < 5; i += 1) {
+      const raw = localStorage.getItem('BSKY_STORAGE');
+      if (raw) {
+        try {
+          const data = JSON.parse(raw) as {
+            session?: { currentAccount?: { accessJwt?: string; did?: string; handle?: string; service?: string } };
+          };
+          const acc = data.session?.currentAccount;
+          if (acc?.accessJwt && acc.did) {
+            session = acc;
+            break;
+          }
+        } catch { /* ignore */ }
+      }
+      await new Promise((r) => setTimeout(r, 300));
+    }
+    if (!session?.accessJwt || !session.did) {
+      log.warn('bluesky: BSKY_STORAGE session not available, skip URL capture');
+      return undefined;
+    }
+    const pds = session.service || 'https://bsky.social';
+    const target = text.replace(/\s+/g, ' ').trim().slice(0, 60);
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      if (attempt > 0) await new Promise((r) => setTimeout(r, 1000));
+      const res = await fetch(
+        `${pds}/xrpc/app.bsky.feed.getAuthorFeed?actor=${encodeURIComponent(session.did)}&limit=5`,
+        { headers: { Authorization: `Bearer ${session.accessJwt}` } },
+      );
+      if (!res.ok) continue;
+      const data = (await res.json()) as { feed?: Array<{ post?: { uri?: string; record?: { text?: string } } }> };
+      const feed = data.feed ?? [];
+      for (const item of feed) {
+        const postText = (item.post?.record?.text ?? '').replace(/\s+/g, ' ').trim();
+        if (postText.startsWith(target)) {
+          const uri = item.post?.uri;
+          if (uri) {
+            // at://did:plc:xxx/app.bsky.feed.post/rkey → bsky.app/profile/handle/post/rkey
+            const m = uri.match(/\/app\.bsky\.feed\.post\/([a-zA-Z0-9]+)$/);
+            if (m && session.handle) {
+              const url = `https://bsky.app/profile/${session.handle}/post/${m[1]}`;
+              log.info(`bluesky: URL captured via API: ${url}`);
+              return url;
+            }
+          }
+        }
+      }
+    }
+    log.warn('bluesky: post URL not found in recent 5 feed entries');
+  } catch (e) {
+    log.warn(`bluesky URL capture failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  return undefined;
 }

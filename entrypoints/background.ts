@@ -1469,8 +1469,10 @@ async function postSingleChunk(
     // tutti-issues#14 (mastodon)
     const msg = err instanceof Error ? err.message : String(err);
     if (msg.includes('asynchronous response') || msg.includes('message channel closed')) {
-      log.warn(`${adapter.id}: post 後の channel closed を成功扱い (tab navigation のため) — ${msg}`);
-      return { type: 'POST_RESULT', platform: adapter.id, success: true };
+      log.warn(`${adapter.id}: post 後の channel closed を成功扱い — ${msg.slice(0, 80)}`);
+      // v0.5.8〜 channel closed でも post URL を後付けで取りに行く (Mastodon 等の navigation 系)
+      const capturedUrl = await capturePostUrlFromTab(adapter.id, tab.id, text).catch(() => undefined);
+      return { type: 'POST_RESULT', platform: adapter.id, success: true, url: capturedUrl };
     }
     throw err;
   }
@@ -1479,7 +1481,156 @@ async function postSingleChunk(
     throw new Error('SNS ページが応答しません(タブを再読み込みしてください)');
   }
   if (!response.success) throw new Error(response.error ?? '投稿に失敗しました');
+  // v0.5.8〜 response に url が無い場合 (content script が channel closed 寸前に
+  // 戻った等) も bg 側で URL を後付け fetch する
+  if (!response.url) {
+    const capturedUrl = await capturePostUrlFromTab(adapter.id, tab.id, text).catch(() => undefined);
+    if (capturedUrl) response = { ...response, url: capturedUrl };
+  }
   return response;
+}
+
+/**
+ * v0.5.8〜 post 後の URL を tab 側 API で取得 (content script を経由しない)。
+ * - chrome.scripting.executeScript で tab 内に fetch を実行 (= cookies 引き継ぎ)
+ * - 各 SNS の REST API で my account の latest を引いて text 一致するものを探す
+ * - Mastodon / Misskey / Bluesky 等で使う。 navigation や channel-closed で content
+ *   script の URL 取得が間に合わないケースを補完
+ */
+async function capturePostUrlFromTab(
+  platform: PlatformId,
+  tabId: number,
+  text: string,
+): Promise<string | undefined> {
+  if (platform !== 'mastodon' && platform !== 'misskey' && platform !== 'bluesky') {
+    return undefined;
+  }
+  const dbg = (m: string): void => {
+    appendLog({ ts: Date.now(), level: 'INFO', context: 'background', message: `[capturePostUrl ${platform}] ${m}` });
+  };
+  dbg(`start (tabId=${tabId}, text="${text.slice(0, 30)}...")`);
+  try {
+    const target = text.replace(/\s+/g, ' ').trim().slice(0, 60);
+    const results = await browser.scripting.executeScript({
+      target: { tabId },
+      func: async (platform: string, target: string) => {
+        const trace: string[] = [];
+        async function tryFetch(): Promise<{ url?: string; trace: string[] }> {
+          if (platform === 'mastodon') {
+            // Mastodon Web は cookie auth でなく、 initial-state script に access_token を埋め込む
+            const initScript = document.querySelector<HTMLScriptElement>('script#initial-state');
+            let token: string | undefined;
+            let meId: string | undefined;
+            try {
+              const data = JSON.parse(initScript?.textContent ?? '{}') as {
+                meta?: { access_token?: string; me?: string };
+              };
+              token = data.meta?.access_token;
+              meId = data.meta?.me;
+            } catch { /* ignore */ }
+            trace.push(`initial-state: token=${token ? 'present' : 'missing'}, me=${meId ?? 'missing'}`);
+            if (!token || !meId) return { trace };
+            for (let i = 0; i < 5; i++) {
+              if (i > 0) await new Promise((r) => setTimeout(r, 1000));
+              trace.push(`attempt ${i}: statuses fetch`);
+              const sRes = await fetch(
+                `/api/v1/accounts/${meId}/statuses?limit=5&exclude_replies=false&exclude_reblogs=true`,
+                { headers: { Authorization: `Bearer ${token}` } },
+              );
+              trace.push(`  status=${sRes.status}`);
+              if (!sRes.ok) continue;
+              const statuses = await sRes.json() as Array<{ url?: string; content?: string }>;
+              trace.push(`  got ${statuses.length} statuses`);
+              for (const s of statuses) {
+                const div = document.createElement('div');
+                div.innerHTML = s.content ?? '';
+                const c = (div.textContent ?? '').replace(/\s+/g, ' ').trim();
+                trace.push(`  cmp "${c.slice(0, 30)}" vs "${target.slice(0, 30)}"`);
+                if (c.startsWith(target)) return { url: s.url, trace };
+              }
+            }
+          }
+          if (platform === 'misskey') {
+            const raw = localStorage.getItem('account');
+            trace.push(`misskey account in localStorage: ${raw ? 'yes' : 'no'}`);
+            if (!raw) return { trace };
+            let token: string | undefined;
+            let userId: string | undefined;
+            try {
+              // Misskey 2025+ は account.token に API key を保存 (旧 account.i は無い)
+              const acc = JSON.parse(raw) as { token?: string; i?: string; id?: string };
+              token = acc.token ?? acc.i;
+              userId = acc.id;
+            } catch { /* ignore */ }
+            trace.push(`token: ${token ? 'present' : 'missing'}, userId: ${userId ?? 'missing'}`);
+            if (!token || !userId) return { trace };
+            for (let i = 0; i < 5; i++) {
+              if (i > 0) await new Promise((r) => setTimeout(r, 1000));
+              const res = await fetch('/api/users/notes', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ i: token, userId, limit: 5 }),
+              });
+              trace.push(`attempt ${i}: notes status=${res.status}`);
+              if (!res.ok) continue;
+              const notes = await res.json() as Array<{ id?: string; text?: string }>;
+              trace.push(`  got ${notes.length} notes`);
+              for (const n of notes) {
+                const t = (n.text ?? '').replace(/\s+/g, ' ').trim();
+                trace.push(`  cmp "${t.slice(0, 30)}" vs "${target.slice(0, 30)}"`);
+                if (t.startsWith(target) && n.id) return { url: `${location.origin}/notes/${n.id}`, trace };
+              }
+            }
+          }
+          if (platform === 'bluesky') {
+            const raw = localStorage.getItem('BSKY_STORAGE');
+            trace.push(`BSKY_STORAGE: ${raw ? 'present' : 'missing'}`);
+            if (!raw) return { trace };
+            let session: { accessJwt?: string; did?: string; handle?: string; service?: string } | undefined;
+            try {
+              const data = JSON.parse(raw) as { session?: { currentAccount?: { accessJwt?: string; did?: string; handle?: string; service?: string } } };
+              session = data.session?.currentAccount;
+            } catch { /* ignore */ }
+            trace.push(`session: jwt=${session?.accessJwt ? 'present' : 'missing'} did=${session?.did} handle=${session?.handle}`);
+            if (!session?.accessJwt || !session.did || !session.handle) return { trace };
+            // appview (auth 不要、 public feed read 用) ※ getAuthorFeed は appview にあって PDS には無い
+            const appview = 'https://public.api.bsky.app';
+            for (let i = 0; i < 5; i++) {
+              if (i > 0) await new Promise((r) => setTimeout(r, 1000));
+              const res = await fetch(`${appview}/xrpc/app.bsky.feed.getAuthorFeed?actor=${encodeURIComponent(session.did)}&limit=5`);
+              trace.push(`attempt ${i}: feed status=${res.status}`);
+              if (!res.ok) continue;
+              const data = await res.json() as { feed?: Array<{ post?: { uri?: string; record?: { text?: string } } }> };
+              for (const item of data.feed ?? []) {
+                const t = (item.post?.record?.text ?? '').replace(/\s+/g, ' ').trim();
+                if (t.startsWith(target)) {
+                  const uri = item.post?.uri;
+                  const m = uri?.match(/\/app\.bsky\.feed\.post\/([a-zA-Z0-9]+)$/);
+                  if (m) return { url: `https://bsky.app/profile/${session.handle}/post/${m[1]}`, trace };
+                }
+              }
+            }
+          }
+          return { trace };
+        }
+        return await tryFetch();
+      },
+      args: [platform, target],
+      world: 'MAIN',
+    });
+    dbg(`scripting result count=${results?.length}`);
+    const r = results?.[0]?.result as { url?: string; trace?: string[] } | null | undefined;
+    if (r?.trace) {
+      for (const line of r.trace.slice(0, 30)) dbg(`  ${line}`);
+    }
+    if (typeof r?.url === 'string') {
+      dbg(`URL captured: ${r.url}`);
+      return r.url;
+    }
+    dbg(`URL not found`);
+  } catch (e) {
+    dbg(`exception: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  return undefined;
 }
 
 // openOrFocusTab / waitForTabComplete / notifyResults は src/background/tab-management.ts に移設 (v0.4.80)。

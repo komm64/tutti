@@ -119,6 +119,10 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     dryRun,
   });
 
+  // v0.5.8〜 URL 取得は bg 側 (capturePostUrl in background.ts) で行う。
+  // Mastodon は post 後 /share → /home へ navigation するため content script が
+  // 死ぬ。 「runPost を return → channel-closed で bg が success 確定 → bg が
+  // scripting.executeScript で API を叩く」 の流れに変えた。
   return {
     type: 'POST_RESULT',
     platform: 'mastodon',

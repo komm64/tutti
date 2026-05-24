@@ -79,9 +79,72 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     dryRun,
   });
 
+  // v0.5.8〜 DOM 経路でも post URL を取得する。 Misskey は localStorage の
+  // accounts に i (access token) を持つので、 そこから token を取って /api/i/notes で
+  // my account の latest を引く。
+  let url: string | undefined;
+  if (!dryRun) {
+    url = await fetchMisskeyRecentNoteUrl(text);
+  }
+
   return {
     type: 'POST_RESULT',
     platform: 'misskey',
     success: true,
+    url,
   };
+}
+
+/**
+ * v0.5.8〜 Misskey の note URL を REST API で取得。
+ * - localStorage の `account` (現在ログイン中のアカウント情報、 `i` フィールドが access token)
+ * - /api/i/notes で my account の latest 5 件を取得
+ * - text 一致するものを探す
+ */
+async function fetchMisskeyRecentNoteUrl(text: string): Promise<string | undefined> {
+  try {
+    // Misskey は localStorage の 'account' key に { id, i, ... } を保存
+    let token: string | null = null;
+    for (let i = 0; i < 5; i += 1) {
+      const raw = localStorage.getItem('account');
+      if (raw) {
+        try {
+          const data = JSON.parse(raw) as { i?: string };
+          if (data.i) {
+            token = data.i;
+            break;
+          }
+        } catch { /* ignore */ }
+      }
+      await new Promise((r) => setTimeout(r, 300));
+    }
+    if (!token) {
+      log.warn('misskey: account token not in localStorage, skip URL capture');
+      return undefined;
+    }
+    const target = text.replace(/\s+/g, ' ').trim().slice(0, 60);
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      if (attempt > 0) await new Promise((r) => setTimeout(r, 1000));
+      const res = await fetch('/api/i/notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ i: token, limit: 5 }),
+      });
+      if (!res.ok) continue;
+      const notes = (await res.json()) as Array<{ id?: string; text?: string }>;
+      for (const n of notes) {
+        const noteText = (n.text ?? '').replace(/\s+/g, ' ').trim();
+        if (noteText.startsWith(target) && n.id) {
+          const url = `${location.origin}/notes/${n.id}`;
+          log.info(`misskey: URL captured via API: ${url}`);
+          return url;
+        }
+      }
+    }
+    log.warn('misskey: post URL not found in recent 5 notes');
+  } catch (e) {
+    log.warn(`misskey URL capture failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  return undefined;
 }

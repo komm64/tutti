@@ -1,3 +1,4 @@
+// Check what API credentials are stored in the Surface profile
 import { chromium } from 'playwright';
 const ctx = await chromium.launchPersistentContext(
   process.env.E2E_USER_DATA_DIR ?? 'C:/Users/komm64/.tutti-e2e-chrome',
@@ -22,13 +23,18 @@ for (let i = 0; i < 50; i += 1) {
 const page = await ctx.newPage();
 await page.goto(`chrome-extension://${extId}/options.html`);
 await page.waitForTimeout(500);
-const dump = await page.evaluate(async () => {
-  const got = await chrome.storage.local.get(null);
-  const out = {};
-  for (const [k, v] of Object.entries(got)) {
-    if (k === 'postHistory' || k.startsWith('__debug_')) out[k] = v;
+const all = await page.evaluate(async () => {
+  const g = await chrome.storage.local.get(null);
+  // mask secrets
+  const masked = JSON.parse(JSON.stringify(g));
+  if (masked.apiCredentials) {
+    for (const k of Object.keys(masked.apiCredentials)) {
+      const c = masked.apiCredentials[k];
+      if (c.appPassword) c.appPassword = '<set ' + c.appPassword.length + ' chars>';
+      if (c.accessToken) c.accessToken = '<set ' + c.accessToken.length + ' chars>';
+    }
   }
-  return JSON.stringify(out, null, 2);
+  return JSON.stringify(masked, null, 2);
 });
-console.log(dump);
+console.log(all);
 await ctx.close();

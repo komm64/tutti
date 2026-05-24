@@ -7,7 +7,9 @@ export default defineConfig({
     name: '__MSG_appName__',
     description: '__MSG_appDescription__',
     default_locale: 'en',
-    permissions: ['storage', 'offscreen', 'sidePanel'],
+    // v0.5.8〜 scripting: post 後 URL を bg から tab 内 fetch で取得するため。
+    // Mastodon /share → /home navigation 後でも cookie 認証で API 叩ける。
+    permissions: ['storage', 'offscreen', 'sidePanel', 'scripting'],
     host_permissions: [
       'https://x.com/*',
       'https://twitter.com/*',
