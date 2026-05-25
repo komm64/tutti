@@ -325,5 +325,24 @@
     "message": "一部の再投稿が失敗しました: $P$",
     "placeholders": { "P": { "content": "$1" } }
   },
-  "failedShort": { "message": "失敗" }
+  "failedShort": { "message": "失敗" },
+
+  "notifyInteractionsLabel": { "message": "投稿にリプライ・いいね・リポストが付いたら通知" },
+  "notifyInteractionsHint": { "message": "投稿後 24 時間以内の Bluesky / Mastodon / Misskey の投稿を 5-60 分間隔で polling (時間が経つほど間隔を伸ばす)。 新着があれば OS 通知を出します。 v0.5.10 では公式 API が安定している 3 SNS のみ対象、 他 SNS は将来追加予定です。" },
+  "interactionNotifyTitle": {
+    "message": "$P$ に新しい反応",
+    "placeholders": { "P": { "content": "$1" } }
+  },
+  "interactionLike": {
+    "message": "$N$ ❤",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "interactionReply": {
+    "message": "$N$ 💬",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "interactionRepost": {
+    "message": "$N$ 🔁",
+    "placeholders": { "N": { "content": "$1" } }
+  }
 }

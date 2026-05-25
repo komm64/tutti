@@ -102,6 +102,16 @@ export interface Settings {
    *   から push できるようになる。 storage 容量を喰うので opt-in。
    */
   historyKeepMedia: boolean;
+  /**
+   * v0.5.10〜 投稿後のインタラクション通知。
+   * - `false` (default): 通知しない (旧挙動)
+   * - `true`: 直近 24h の投稿 (Bluesky / Mastodon / Misskey) を 5min/15min/1h で
+   *   polling、 like / reply / repost の差分を chrome.notifications で通知する。
+   *   click で post URL を開く。
+   * v0.5.10 では 3 SNS のみ対応 (公式 API が安定、 auth が拾える)。 他 SNS は
+   *   将来 API path で順次対応予定。
+   */
+  notifyInteractions: boolean;
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -129,6 +139,9 @@ const DEFAULT_SETTINGS: Settings = {
   displayMode: 'auto',
   uiLanguage: 'auto',
   historyKeepMedia: false,
+  // v0.5.10〜 interaction 通知は opt-in (デフォルト OFF)。 「Tutti が勝手に
+  // 通知を出す」 は user surprise なので Settings で明示 ON にした人だけ。
+  notifyInteractions: false,
 };
 
 export async function getSettings(): Promise<Settings> {
@@ -374,6 +387,57 @@ export async function removeHistoryEntry(id: string): Promise<void> {
   const history = await getPostHistory();
   const next = history.filter((e) => e.id !== id);
   await browser.storage.local.set({ [HISTORY_KEY]: next });
+}
+
+/**
+ * v0.5.10〜 interaction polling 用 snapshot。
+ * key: `${platform}:${postId}` (e.g., "bluesky:3mmm6x4...")
+ * value: 直近 polling 時の like / reply / repost 数 + メタ。
+ */
+export interface InteractionSnapshot {
+  /** 投稿時刻 (msec)。 polling schedule の age 判定に使う */
+  postedAt: number;
+  /** 投稿 URL (notification click で open する) */
+  url: string;
+  /** 投稿本文 head (通知 body に出す) */
+  textHead: string;
+  /** 直近 poll 結果 (差分 base)。 未 poll なら undefined */
+  counts?: {
+    likes: number;
+    replies: number;
+    reposts: number;
+  };
+  /** 最後に poll した時刻 (msec)。 cadence 判定用 */
+  lastChecked?: number;
+  /** 最後に通知した時の counts (重複通知抑止用) */
+  lastNotified?: {
+    likes: number;
+    replies: number;
+    reposts: number;
+  };
+}
+
+const INTERACTIONS_KEY = 'interactionSnapshots';
+
+export async function getInteractionSnapshots(): Promise<Record<string, InteractionSnapshot>> {
+  const stored = await browser.storage.local.get(INTERACTIONS_KEY);
+  return (stored[INTERACTIONS_KEY] as Record<string, InteractionSnapshot> | undefined) ?? {};
+}
+
+export async function setInteractionSnapshots(snapshots: Record<string, InteractionSnapshot>): Promise<void> {
+  await browser.storage.local.set({ [INTERACTIONS_KEY]: snapshots });
+}
+
+/** 24h 超 + 既に retire したものを掃除。 */
+export async function pruneInteractionSnapshots(): Promise<void> {
+  const RETIRE_AGE_MS = 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  const snapshots = await getInteractionSnapshots();
+  const next: Record<string, InteractionSnapshot> = {};
+  for (const [key, snap] of Object.entries(snapshots)) {
+    if (now - snap.postedAt < RETIRE_AGE_MS) next[key] = snap;
+  }
+  await setInteractionSnapshots(next);
 }
 
 export async function addToPostHistory(

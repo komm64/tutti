@@ -325,5 +325,24 @@
     "message": "Some reposts failed: $P$",
     "placeholders": { "P": { "content": "$1" } }
   },
-  "failedShort": { "message": "failed" }
+  "failedShort": { "message": "failed" },
+
+  "notifyInteractionsLabel": { "message": "Notify me when my posts get replies, likes, or reposts" },
+  "notifyInteractionsHint": { "message": "Polls Bluesky, Mastodon, and Misskey every 5–60 minutes for the first 24 hours after you post (intervals stretch as posts age). OS notifications fire on new interactions. Only the 3 platforms with stable public APIs are supported in v0.5.10 — other networks may be added later." },
+  "interactionNotifyTitle": {
+    "message": "New activity on $P$",
+    "placeholders": { "P": { "content": "$1" } }
+  },
+  "interactionLike": {
+    "message": "$N$ ❤",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "interactionReply": {
+    "message": "$N$ 💬",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "interactionRepost": {
+    "message": "$N$ 🔁",
+    "placeholders": { "N": { "content": "$1" } }
+  }
 }

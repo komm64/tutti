@@ -32,6 +32,7 @@
   let pixivAiType = $state<'notAiGenerated' | 'aiGenerated'>('notAiGenerated');
   let autoLetterboxVerticalVideo = $state(false);
   let historyKeepMedia = $state(false);
+  let notifyInteractions = $state(false);
   let displayMode = $state<'auto' | 'popup' | 'sidepanel' | 'floating'>('auto');
   let uiLanguage = $state<string>('auto');
   let saved = $state(false);
@@ -68,6 +69,7 @@
       pixivAiType = s.pixivAiType;
       autoLetterboxVerticalVideo = s.autoLetterboxVerticalVideo;
       historyKeepMedia = s.historyKeepMedia ?? false;
+      notifyInteractions = s.notifyInteractions ?? false;
       displayMode = s.displayMode ?? 'auto';
       uiLanguage = s.uiLanguage ?? 'auto';
       overrideFetchedAt = at;
@@ -246,7 +248,7 @@
       alert(t('alertPermissionDenied'));
       return;
     }
-    await saveSettings({ mastodonInstance: m, misskeyInstance: k, selectorOverrideUrl, logLevel, disableReportDedup, autoOpenPostUrl, pixivVisibility, pixivAiType, autoLetterboxVerticalVideo, historyKeepMedia, displayMode, uiLanguage });
+    await saveSettings({ mastodonInstance: m, misskeyInstance: k, selectorOverrideUrl, logLevel, disableReportDedup, autoOpenPostUrl, pixivVisibility, pixivAiType, autoLetterboxVerticalVideo, historyKeepMedia, notifyInteractions, displayMode, uiLanguage });
     // disableReportDedup=true にしたら既存の dedup 履歴も clear
     // (再 enable まで storage に dead key が残らないように)
     if (disableReportDedup) {
@@ -487,6 +489,12 @@
           <span>{t('historyKeepMediaLabel')}</span>
         </label>
         <p class="text-xs text-gray-400">{t('historyKeepMediaHint')}</p>
+
+        <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer pt-3 border-t border-gray-100 mt-2">
+          <input type="checkbox" bind:checked={notifyInteractions} class="rounded" />
+          <span>{t('notifyInteractionsLabel')}</span>
+        </label>
+        <p class="text-xs text-gray-400">{t('notifyInteractionsHint')}</p>
       </div>
     </section>
 

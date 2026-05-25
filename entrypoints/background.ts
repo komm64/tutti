@@ -27,6 +27,14 @@ import {
 import { computeBodyHash, sha256Hex } from '../src/utils/body-hash';
 import { extractPostId } from '../src/utils/post-id';
 import { putMedia, sweepExpired } from '../src/utils/history-media';
+import {
+  ALARM_NAME as INTERACTION_ALARM_NAME,
+  clearAlarm as clearInteractionAlarm,
+  ensureAlarm as ensureInteractionAlarm,
+  handleNotificationClick as handleInteractionNotificationClick,
+  pruneInteractionSnapshots,
+  runPollCycle as runInteractionPollCycle,
+} from '../src/utils/interaction-notify';
 import { fetchOverridesFrom } from '../src/utils/selector-overrides';
 import { splitText } from '../src/utils/split';
 import { letterboxToSquare } from '../src/utils/image-letterbox';
@@ -249,6 +257,44 @@ export default defineBackground(() => {
   // には影響しないので catch して swallow。
   void sweepExpired().catch((e) => log.warn('history media sweep failed', e));
 
+  // v0.5.10: interaction polling alarm 起動。 Settings.notifyInteractions=true
+  // の時のみ alarm を作る。 settings 変更時にも追随。
+  void (async () => {
+    try {
+      const settings = await getSettings();
+      if (settings.notifyInteractions) {
+        await ensureInteractionAlarm();
+        await pruneInteractionSnapshots();
+      }
+    } catch (e) {
+      log.warn('interaction alarm bootstrap failed', e);
+    }
+  })();
+
+  // chrome.alarms 発火 (5 分おき) → poll cycle 実行
+  browser.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name !== INTERACTION_ALARM_NAME) return;
+    void (async () => {
+      try {
+        const settings = await getSettings();
+        if (!settings.notifyInteractions) {
+          await clearInteractionAlarm();
+          return;
+        }
+        await runInteractionPollCycle();
+      } catch (e) {
+        log.warn('interaction poll cycle failed', e);
+      }
+    })();
+  });
+
+  // 通知 click → post URL を open + 通知 dismiss
+  browser.notifications.onClicked.addListener((notificationId: string) => {
+    void handleInteractionNotificationClick(notificationId).catch((e) => {
+      log.warn('notification click handler failed', e);
+    });
+  });
+
   // v0.5.0: displayMode に応じて action click 動作を切替。
   // - popup: manifest の default_popup が処理 (= 何もしない)
   // - sidepanel: setPanelBehavior でアイコン click → side panel open
@@ -258,6 +304,16 @@ export default defineBackground(() => {
   browser.storage.onChanged.addListener((changes, area) => {
     if (area === 'sync' && changes.settings) {
       void applyDisplayModeBehavior();
+      // v0.5.10: notifyInteractions toggle に追随。 ON で alarm 生成、 OFF で停止。
+      void (async () => {
+        try {
+          const settings = await getSettings();
+          if (settings.notifyInteractions) await ensureInteractionAlarm();
+          else await clearInteractionAlarm();
+        } catch (e) {
+          log.warn('interaction alarm toggle failed', e);
+        }
+      })();
     }
   });
 

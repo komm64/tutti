@@ -8,14 +8,19 @@ export default defineConfig({
     description: '__MSG_appDescription__',
     default_locale: 'en',
     // v0.5.8〜 scripting: post 後 URL を bg から tab 内 fetch で取得するため。
-    // Mastodon /share → /home navigation 後でも cookie 認証で API 叩ける。
-    permissions: ['storage', 'offscreen', 'sidePanel', 'scripting'],
+    //   Mastodon /share → /home navigation 後でも cookie 認証で API 叩ける。
+    // v0.5.10〜 alarms / notifications: 投稿後 24h 以内の post を 5min/15min/1h で
+    //   polling して、 like / reply / repost の差分を OS native 通知で出す。
+    permissions: ['storage', 'offscreen', 'sidePanel', 'scripting', 'alarms', 'notifications'],
     host_permissions: [
       'https://x.com/*',
       'https://twitter.com/*',
       'https://bsky.app/*',
       // P15: Bluesky API path (default PDS)。custom PDS は optional で
       'https://bsky.social/*',
+      // v0.5.10: Bluesky appview (no-auth で post の like/reply 数を取れる)。
+      //   bg-direct で叩くので bsky.app tab 不要で polling 可能。
+      'https://public.api.bsky.app/*',
       'https://www.threads.net/*',
       'https://www.threads.com/*',
       'https://mastodon.social/*',
