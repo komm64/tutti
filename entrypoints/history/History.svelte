@@ -111,6 +111,14 @@
   <div class="max-w-3xl mx-auto p-6">
     <header class="flex items-center justify-between mb-4">
       <div>
+        <!-- v0.5.12〜 brand mark を home link 化 (タイトル H1 とは別、 上に小さく) -->
+        <a
+          href="https://komm64.github.io/tutti/"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="text-xs text-gray-400 hover:text-blue-600 transition-colors"
+          title={t('appBrandLinkTooltip')}
+        >{t('appName')} ↗</a>
         <h1 class="text-xl font-bold">{t('historyTitle')}</h1>
         <p class="text-xs text-gray-500 mt-0.5">{filtered.length} / {history.length} {t('historyEntriesUnit')}</p>
       </div>

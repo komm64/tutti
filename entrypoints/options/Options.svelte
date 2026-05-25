@@ -263,7 +263,14 @@
 
 <div class="max-w-lg mx-auto p-6 text-gray-900">
   <h1 class="text-xl font-bold mb-1">
-    {t('optionsTitle')}
+    <!-- v0.5.12〜 brand mark を home link 化 ([[komm64_tutti_pages]] への動線) -->
+    <a
+      href="https://komm64.github.io/tutti/"
+      target="_blank"
+      rel="noopener noreferrer"
+      class="hover:text-blue-600 transition-colors"
+      title={t('appBrandLinkTooltip')}
+    >{t('optionsTitle')}</a>
     <span class="text-sm font-normal text-gray-400 ml-1">v{version}</span>
   </h1>
   <p class="text-sm text-gray-500 mb-6">{t('optionsSubtitle')}</p>

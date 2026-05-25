@@ -1105,7 +1105,14 @@
   <header class="mb-3 flex items-start justify-between">
     <div>
       <h1 class="text-lg font-bold">
-        {t('appName')}
+        <!-- v0.5.12〜 brand mark を home link 化。 hover で trust signal、 default は地味に。 -->
+        <a
+          href="https://komm64.github.io/tutti/"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="hover:text-blue-600 transition-colors"
+          title={t('appBrandLinkTooltip')}
+        >{t('appName')}</a>
         <span class="text-xs font-normal text-gray-400 ml-1">v{version}</span>
         <!-- BETA バッジ: 正式版になったらこの span を削除する -->
         <span

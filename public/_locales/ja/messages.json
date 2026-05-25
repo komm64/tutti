@@ -344,5 +344,7 @@
   "interactionRepost": {
     "message": "$N$ 🔁",
     "placeholders": { "N": { "content": "$1" } }
-  }
+  },
+
+  "appBrandLinkTooltip": { "message": "Tutti のホームページを開く (komm64.github.io/tutti)" }
 }

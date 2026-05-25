@@ -344,5 +344,7 @@
   "interactionRepost": {
     "message": "$N$ 🔁",
     "placeholders": { "N": { "content": "$1" } }
-  }
+  },
+
+  "appBrandLinkTooltip": { "message": "Open the Tutti home page (komm64.github.io/tutti)" }
 }
