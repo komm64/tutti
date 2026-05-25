@@ -184,7 +184,8 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
 /**
  * 投稿ボタン押下後に出る確認ダイアログのボタンを自動クリックする。
  * モーダル系の標準的なコンテナ内に限って探索する(本体の "Post" 等と被らないように)。
- * 最大 3 秒待機。見つからなければ何もせず戻る。
+ * v0.5.11〜 deadline は 8s に延長 (YouTube の "still checking" dialog が出るまで
+ *   server-side validation の round trip があり、 3s では取りこぼすケースを確認)。
  *
  * step-runner.ts の finalize からも再利用するため export してある。
  */
@@ -194,17 +195,23 @@ export async function maybeConfirmDialog(texts: string[]): Promise<void> {
     '[role="alertdialog"]',
     '.modal-root__container', // Mastodon
     '.components-modal__frame', // Gutenberg / Tumblr
+    'ytcp-dialog', // YouTube Studio custom dialog (role="dialog" も付くが念のため)
+    'tp-yt-paper-dialog', // YouTube Studio polymer dialog
   ];
-  const deadline = Date.now() + 3000;
+  const deadline = Date.now() + 8000;
+  let lastSeenDialog: HTMLElement | null = null;
+  let lastSeenButtonTexts: string[] = [];
   while (Date.now() < deadline) {
     for (const sel of DIALOG_SELECTORS) {
       const dialog = document.querySelector<HTMLElement>(sel);
       if (!dialog) continue;
+      lastSeenDialog = dialog;
       // ダイアログ内の button のうち、テキストが完全一致するもの(部分一致だと "Post anyway" が "Post" に弾かれる)
-      const buttons = Array.from(dialog.querySelectorAll<HTMLButtonElement>('button'));
+      const buttons = Array.from(dialog.querySelectorAll<HTMLButtonElement>('button, ytcp-button[role="button"], [role="button"]')) as HTMLElement[];
+      lastSeenButtonTexts = buttons.map((b) => (b.textContent ?? '').trim()).filter((t) => t.length > 0);
       for (const wanted of texts) {
         const target = buttons.find((b) => (b.textContent ?? '').trim() === wanted);
-        if (target && !target.disabled) {
+        if (target && !(target as HTMLButtonElement).disabled) {
           console.log(`[Tutti] confirm dialog: clicking "${wanted}"`);
           target.click();
           return;
@@ -212,5 +219,15 @@ export async function maybeConfirmDialog(texts: string[]): Promise<void> {
       }
     }
     await sleep(150);
+  }
+  // dialog が居て texts が全部空振りした場合: auto-triage の手掛かりとして
+  // 観測した button text を warn log に残す (CWS / users 側で再現したときに
+  // diagnostics で button text が分かるようになる)
+  if (lastSeenDialog && lastSeenButtonTexts.length > 0) {
+    console.warn(
+      `[Tutti] confirm dialog detected but no button matched. ` +
+      `Tried: [${texts.join(', ')}]. ` +
+      `Saw: [${lastSeenButtonTexts.join(', ')}]`,
+    );
   }
 }

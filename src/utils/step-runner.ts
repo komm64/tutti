@@ -123,8 +123,13 @@ export async function executeMultiStepFlow(options: MultiStepFlowOptions): Promi
 
     const advanceBtn = await waitForStepButton(step.advance, step.advance.timeoutMs ?? 8000);
     if (!advanceBtn) {
+      // v0.5.11〜 diagnostics: dialog 内に見えた button text を error message に
+      // 含める。 auto-triage が SNS UI 変更で出てくる新 button text を patch
+      // しやすくなる (= "Next" を期待してたが実際は "Continue" だった、等)。
+      const seen = dumpVisibleDialogButtons();
+      const seenHint = seen ? ` [visible buttons: ${seen}]` : '';
       throw new Error(
-        `step "${step.name}" の次へ進むボタンが見つかりませんでした(SNS UI が更新された可能性)`,
+        `step "${step.name}" の次へ進むボタンが見つかりませんでした(SNS UI が更新された可能性)${seenHint}`,
       );
     }
     advanceBtn.click();
@@ -164,6 +169,25 @@ export async function executeMultiStepFlow(options: MultiStepFlowOptions): Promi
   }
 
   await sleep(finalize.afterClickDelayMs ?? 1500);
+}
+
+/**
+ * v0.5.11: 「次へ進むボタンが見つかりません」 系 error の診断用に、 開いている
+ * dialog 内で見える button text を集約して 1 行に。 user の auto-report に
+ * 載って、 auto-triage が SNS UI 変更の新 button text を patch しやすくなる。
+ */
+function dumpVisibleDialogButtons(): string {
+  if (typeof document === 'undefined') return '';
+  const dialogs = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"]'));
+  if (dialogs.length === 0) return '';
+  const texts: string[] = [];
+  for (const d of dialogs) {
+    for (const b of d.querySelectorAll<HTMLElement>('button, [role="button"]')) {
+      const t = (b.textContent ?? '').trim().slice(0, 30);
+      if (t && !texts.includes(t)) texts.push(t);
+    }
+  }
+  return texts.join(' | ');
 }
 
 /**

@@ -139,7 +139,7 @@ async function runPost(
       },
       settleMs: 300,
     },
-    // Step 2: image inject。Modal #2 (Crop) に自動遷移する
+    // Step 2: image / video inject。Modal #2 (Crop / Reel intro) に自動遷移する
     {
       name: 'inject-image',
       action: async () => {
@@ -157,14 +157,21 @@ async function runPost(
         await selectOriginalCrop();
       },
       settleMs: 200,
-      // Crop 画面の Next ボタン click で進む
+      // Crop / Reel intro 画面の primary action ボタン click で進む。
+      // v0.5.11: video の場合、 file 注入後に IG が 「Post as Reel?」 系の
+      // 中間 dialog (OK / Continue / Confirm / Got it) を挟んでくることがある。
+      // 「Next」 「次へ」 だけだとマッチしないので primary action 候補を拡張。
+      // また video upload は image よりも時間がかかるので timeout を 30s に。
       advance: {
-        // upload エラー (file too small 等) も polling 中に検出する
         finder: () => {
           checkForIgErrorDialog();
-          return findDialogButtonByText(['Next', '次へ']);
+          return findDialogButtonByText([
+            'Next', '次へ',
+            'OK', 'Continue', 'Confirm', 'Got it', 'Got It', 'Done',
+            '続行', '完了', '了解', '確認',
+          ]);
         },
-        timeoutMs: 15000, // upload + crop 画面 mount に時間かかる
+        timeoutMs: 30000, // video は 30s かかることもある
       },
       // Edit (filter) 画面の Next ボタンが出るまで待つ
       awaitNextDom: { selector: '[role="dialog"]', timeoutMs: 8000 },
@@ -521,3 +528,4 @@ function findDialogButtonByText(texts: string[]): HTMLElement | null {
   }
   return lastMatch;
 }
+

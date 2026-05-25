@@ -309,6 +309,16 @@ async function runPost(
         return enabled ?? btns[0] ?? null;
       },
       texts: ['Publish', 'Save', '公開', '保存'],
+      // v0.5.11〜 YouTube は自動 content check (copyright / safety) が間に合わない
+      // 動画 (実写 / 長尺 / 音楽あり) で Publish click 直後に確認 dialog を出す:
+      //   "We're still checking your content / We recommend keeping your content
+      //    private until checks complete. If you publish now, you may get a strike..."
+      // 各 locale で primary button のテキストを多変種で当て、 dialog scope 内
+      // (maybeConfirmDialog は [role="dialog"] / ytcp-dialog 配下のみ探索) で押す。
+      confirmDialogButtonTexts: [
+        'Publish', 'Publish anyway', 'Continue', 'Got it',
+        '公開', 'このまま公開', '続行', '了解',
+      ],
       timeoutMs: 30000,
       afterClickDelayMs: 5000,
     },
