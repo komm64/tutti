@@ -106,7 +106,7 @@ if (bskyPage) {
   await bskyPage.bringToFront();
   await new Promise((r) => setTimeout(r, 4000));
   const bskyCompose = await bskyPage.evaluate(() => {
-    const textareas = Array.from(document.querySelectorAll('[contenteditable="true"][role="textbox"]'));
+    const textareas = Array.from(document.querySelectorAll('.tiptap.ProseMirror[contenteditable="true"], [contenteditable="true"][role="textbox"]'));
     return {
       textareaCount: textareas.length,
       texts: textareas.slice(0, 5).map((t) => (t.textContent ?? '').slice(0, 50)),

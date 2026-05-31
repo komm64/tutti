@@ -162,7 +162,7 @@ const text = `tutti v0.5.5 history-v1 verify ${new Date().toISOString()}`;
 const composeUrl = `https://bsky.app/intent/compose?text=${encodeURIComponent(text)}`;
 await page.goto(composeUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
 await page.waitForTimeout(2000);
-const loggedIn = await page.locator('[contenteditable="true"][role="textbox"]').first().isVisible().catch(() => false);
+const loggedIn = await page.locator('.tiptap.ProseMirror[contenteditable="true"], [contenteditable="true"][role="textbox"]').first().isVisible().catch(() => false);
 if (!loggedIn) {
   console.error('[verify] not logged in to Bluesky test account in this profile');
   await ctx.close();

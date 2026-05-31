@@ -1,21 +1,21 @@
 {
   "name": "tutti",
-  "version": "0.5.12",
+  "version": "0.5.13",
   "description": "クロスポストの面倒を全部肩代わりする Chrome 拡張",
   "type": "module",
   "private": true,
   "scripts": {
     "dev": "wxt",
     "dev:firefox": "wxt -b firefox",
-    "build": "node scripts/copy-ffmpeg.mjs && wxt build",
+    "build": "node scripts/patch-ffmpeg-package.mjs && node scripts/copy-ffmpeg.mjs && wxt build && node scripts/patch-ffmpeg-worker.mjs",
     "build:firefox": "node scripts/copy-ffmpeg.mjs && wxt build -b firefox",
-    "zip": "wxt zip",
+    "zip": "npm run build && node scripts/zip-extension.mjs",
     "compile": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e-api": "vitest run --config vitest.config.e2e-api.ts",
     "e2e": "node scripts/e2e/run.mjs",
-    "postinstall": "wxt prepare && node scripts/copy-ffmpeg.mjs"
+    "postinstall": "wxt prepare && node scripts/patch-ffmpeg-package.mjs && node scripts/copy-ffmpeg.mjs"
   },
   "repository": {
     "type": "git",

@@ -1,6 +1,6 @@
 import { log } from '../src/utils/logger';
 import type { ImageAttachment, PostResultMessage } from '../src/messages';
-import { BLUESKY_SELECTORS, blueskyAdapter } from '../src/adapters/bluesky';
+import { BLUESKY_EDITOR_SELECTOR, BLUESKY_SELECTORS, blueskyAdapter } from '../src/adapters/bluesky';
 import { executePostFlow } from '../src/utils/post-flow';
 import { sleep, waitForElement } from '../src/utils/dom';
 import { resolveSelectors } from '../src/utils/selector-overrides';
@@ -102,8 +102,13 @@ async function executeBlueskyInlineThread(
   const textarea0 = await waitForElement<HTMLElement>(sel.textarea, 8000);
   if (!textarea0) throw new Error('Bluesky: 最初の textarea が見つかりません');
 
-  // chunk 0 を inject (= 「Add another post to thread」 button が現れる前提)
-  await injectTextIntoElement(chunks[0]!, sel.textarea);
+  // /intent/compose?text= で chunk 0 は通常 prefill 済み。再注入すると TipTap が
+  // 既存本文へ追記して重複するため、空または不一致の場合だけ補完する。
+  await sleep(300);
+  const normalizeText = (value: string) => value.replace(/\s+/g, ' ').trim();
+  if (normalizeText(textarea0.textContent ?? '') !== normalizeText(chunks[0]!)) {
+    await injectTextIntoElement(chunks[0]!, sel.textarea);
+  }
   await sleep(500);
 
   // images は最初の chunk にだけ attach (drop target に drop)
@@ -123,7 +128,7 @@ async function executeBlueskyInlineThread(
     let target: HTMLElement | undefined;
     const deadline = Date.now() + 5000;
     while (Date.now() < deadline) {
-      const tas = Array.from(document.querySelectorAll<HTMLElement>('[contenteditable="true"][role="textbox"]'));
+      const tas = Array.from(document.querySelectorAll<HTMLElement>(BLUESKY_EDITOR_SELECTOR));
       if (tas.length > i) {
         target = tas[i];
         break;
@@ -131,7 +136,7 @@ async function executeBlueskyInlineThread(
       await sleep(150);
     }
     if (!target) {
-      const got = document.querySelectorAll('[contenteditable="true"][role="textbox"]').length;
+      const got = document.querySelectorAll(BLUESKY_EDITOR_SELECTOR).length;
       throw new Error(`Bluesky: chunk ${i + 1}/${chunks.length} の textarea が 5s 以内に出現しませんでした (要 ${i + 1} 個、 実 ${got} 個)`);
     }
     const marker = `tutti-bsky-chunk-${i}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
@@ -174,7 +179,7 @@ async function executeBlueskyInlineThread(
   // modal close 待ち (Bluesky の post 完了 verify)
   const stillOpen = () =>
     document.querySelector('[data-testid="composer"]') ||
-    document.querySelector('[contenteditable="true"][role="textbox"]');
+    document.querySelector(BLUESKY_EDITOR_SELECTOR);
   const closeDeadline = Date.now() + 30_000;
   while (Date.now() < closeDeadline) {
     if (!stillOpen()) break;
@@ -274,7 +279,7 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
   if (!dryRun) {
     const stillOpen = () =>
       document.querySelector('[data-testid="composer"]') ||
-      document.querySelector('[contenteditable="true"][role="textbox"]');
+      document.querySelector(BLUESKY_EDITOR_SELECTOR);
     const deadline = Date.now() + 30_000;
     while (Date.now() < deadline) {
       if (!stillOpen()) break;

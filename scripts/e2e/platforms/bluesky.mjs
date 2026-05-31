@@ -9,7 +9,7 @@ import { ensureLoggedIn, sendPostMessage, timestampedText } from '../_lib.mjs';
 
 const URL_GLOB = 'https://bsky.app/*';
 // ログイン確認: compose dialog の textbox が現れる
-const TEXTBOX = '[contenteditable="true"][role="textbox"]';
+const TEXTBOX = '.tiptap.ProseMirror[contenteditable="true"], [contenteditable="true"][role="textbox"]';
 
 export async function run({ ctx, debug }) {
   const text = timestampedText('bluesky');
