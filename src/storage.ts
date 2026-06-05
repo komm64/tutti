@@ -118,7 +118,7 @@ const DEFAULT_SETTINGS: Settings = {
   // (auto-triage.yml) のマージで全ユーザーに反映される。
   // 自分の運用 (selectorOverrideUrl 空・自社相当) ではない一般ユーザーは
   // この default を継続使用する想定。
-  selectorOverrideUrl: 'https://komm64.github.io/tutti/selectors.json',
+  selectorOverrideUrl: 'https://tutti.komm64.com/selectors.json',
   logLevel: 'INFO',
   disableReportDedup: false,
   // v0.5.7〜 default を 'always' に。 旧 default ('on-issue') では成功投稿で URL が

@@ -1,34 +1,50 @@
 #!/usr/bin/env node
-// Build docs/{index,privacy,support}.<locale>.html from docs/_strings/<locale>.json.
+// Build docs/{index,privacy,support}.html — Vellie-style single-file pages.
+// All 31 locale translations are baked into each HTML as a JS object.
+// Language is detected from localStorage > navigator.language > 'en'.
 // Run: node scripts/build-public-docs.mjs
 
 import { readFile, writeFile, readdir } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { TUTTI_LOCALES as LOCALES } from './locale-config.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 const STRINGS_DIR = join(ROOT, 'docs', '_strings');
 const OUT_DIR = join(ROOT, 'docs');
 
-const RTL = new Set(['ar']);
+const LOCALES = JSON.parse(await readFile(join(ROOT, 'config', 'locales.json'), 'utf8'));
 
-const SHARED_STYLE = `
-  :root {
-    --fg: #1f2937;
-    --muted: #6b7280;
-    --brand: #0d9488;
-    --bg: #ffffff;
-    --line: #e5e7eb;
-    --accent-bg: #f0fdfa;
+async function loadTranslations() {
+  const files = (await readdir(STRINGS_DIR)).filter((f) => f.endsWith('.json'));
+  const T = {};
+  for (const file of files) {
+    const code = file.replace('.json', '');
+    T[code] = JSON.parse(await readFile(join(STRINGS_DIR, file), 'utf8'));
   }
-  html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", "Noto Sans CJK JP", "Noto Sans CJK SC", "Noto Sans CJK TC", "Noto Sans CJK KR", "Noto Sans Thai", "Noto Sans Arabic", "Noto Sans Devanagari", sans-serif; color: var(--fg); }
+  return T;
+}
+
+const CSS = `
+  :root {
+    --fg: #1f2937; --muted: #6b7280; --brand: #0d9488;
+    --bg: #ffffff; --line: #e5e7eb; --accent-bg: #f0fdfa;
+  }
+  html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans",
+    "Noto Sans CJK JP", "Noto Sans CJK SC", "Noto Sans CJK TC", "Noto Sans CJK KR",
+    "Noto Sans Thai", "Noto Sans Arabic", "Noto Sans Devanagari", sans-serif;
+    color: var(--fg); }
   body { max-width: 720px; margin: 0 auto; padding: 2rem 1.5rem 4rem; line-height: 1.7; }
-  header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
+  header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; flex-wrap: wrap; }
+  .icon { width: 48px; height: 48px; border-radius: 8px; background: var(--brand);
+    display: grid; place-items: center; color: white; font-weight: 700;
+    font-size: 1.25rem; flex-shrink: 0; }
+  .header-text { flex: 1; min-width: 0; }
   h1 { font-size: 1.75rem; margin: 0; }
-  .tagline { color: var(--muted); margin: 0.25rem 0 1.5rem; }
-  .icon { width: 48px; height: 48px; border-radius: 8px; background: var(--brand); display: grid; place-items: center; color: white; font-weight: 700; font-size: 1.25rem; flex-shrink: 0; }
+  .tagline { color: var(--muted); margin: 0.25rem 0 0; font-size: 0.95rem; }
+  select#lang { padding: 0.4rem 0.75rem; font-size: 0.9rem; border: 1.5px solid var(--line);
+    border-radius: 8px; background: #fafafa; cursor: pointer; outline: none; margin-left: auto; }
+  select#lang:focus { border-color: var(--brand); }
   nav { font-size: 0.9rem; color: var(--muted); margin-bottom: 2rem; }
   nav a { color: var(--brand); text-decoration: none; margin-right: 1rem; }
   nav a:hover { text-decoration: underline; }
@@ -39,283 +55,175 @@ const SHARED_STYLE = `
   table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.9rem; }
   th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--line); vertical-align: top; }
   th { font-weight: 600; }
-  .callout {
-    background: var(--accent-bg);
-    border-left: 3px solid var(--brand);
-    padding: 0.75rem 1rem;
-    margin: 1rem 0;
-    border-radius: 4px;
-  }
+  .callout { background: var(--accent-bg); border-left: 3px solid var(--brand);
+    padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 4px; }
   .callout p { margin: 0.25rem 0; }
   a { color: var(--brand); }
-  .lang-switch { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--line); font-size: 0.85rem; color: var(--muted); }
-  .lang-switch a { color: var(--brand); text-decoration: none; margin-right: 0.75rem; display: inline-block; margin-bottom: 0.25rem; }
-  .lang-switch a.current { color: var(--fg); font-weight: 600; }
-  footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.85rem; }
+  footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--line);
+    color: var(--muted); font-size: 0.85rem; }
 `;
 
-function fileName(doc, locale) {
-  // en is the canonical (no suffix). Others get .<locale> suffix.
-  if (locale === 'en') return `${doc}.html`;
-  return `${doc}.${locale}.html`;
+// Escapes </script so it can't accidentally close the script tag when baked into HTML.
+function safeJson(obj) {
+  return JSON.stringify(obj).replace(/<\/script/gi, '<\\/script');
 }
 
-function langSwitch(currentLocale, doc) {
-  const items = LOCALES.map(({ code, native }) => {
-    const href = fileName(doc, code);
-    const cls = code === currentLocale ? ' class="current"' : '';
-    return `<a href="./${href}"${cls}>${native}</a>`;
-  });
-  return `<div class="lang-switch">${items.join('')}</div>`;
+function langsJs() {
+  const items = LOCALES.map(({ code, nativeName }) => `["${code}","${nativeName}"]`);
+  return `const LANGS=[${items.join(',')}];`;
 }
 
-function buildIndex(locale, s) {
-  const c = s.common;
-  const i = s.index;
+// Common JS: setLang / detectLang / select population (shared across all 3 pages)
+const COMMON_JS = `
+function setLang(c){try{localStorage.setItem('tutti_lang',c)}catch(e){}render(c);document.getElementById('lang').value=c;}
+function detectLang(){
+  try{var s=localStorage.getItem('tutti_lang');if(s&&T[s])return s;}catch(e){}
+  var n=(navigator.language||'en').toLowerCase();
+  for(var i=0;i<LANGS.length;i++){if(n===LANGS[i][0].toLowerCase())return LANGS[i][0];}
+  for(var i=0;i<LANGS.length;i++){if(n.startsWith(LANGS[i][0].split('-')[0].toLowerCase()))return LANGS[i][0];}
+  return 'en';
+}
+(function(){var sel=document.getElementById('lang');for(var i=0;i<LANGS.length;i++){var o=document.createElement('option');o.value=LANGS[i][0];o.textContent=LANGS[i][1];sel.appendChild(o);}})();
+var _l=detectLang();document.getElementById('lang').value=_l;render(_l);
+`;
+
+// Render function for index.html (uses string concat, no template literals)
+const INDEX_RENDER = `
+function render(code){
+  var t=T[code]||T['en'],c=t.common,i=t.index;
+  document.title=i.title;
+  document.documentElement.lang=code;
+  document.documentElement.dir=code==='ar'?'rtl':'';
+  document.getElementById('tagline').textContent=i.headerTagline;
+  document.getElementById('nav').innerHTML=
+    '<a href="https://github.com/komm64/tutti">'+c.navGitHub+'</a>'+
+    '<a href="./support.html">'+c.navSupport+'</a>'+
+    '<a href="./privacy.html">'+c.navPrivacy+'</a>';
+  document.getElementById('content').innerHTML=
+    '<h2>'+i.h2Overview+'</h2><p>'+i.overviewBody+'</p>'+
+    '<h2>'+i.h2PrivacySummary+'</h2>'+
+    '<p>'+i.privacySummaryBody+'</p>'+
+    '<p>'+i.privacyFullPolicy+' <a href="./privacy.html">Privacy Policy</a></p>';
+  document.getElementById('footer').innerHTML=c.footerCopy;
+}
+`;
+
+// Render function for privacy.html
+const PRIVACY_RENDER = `
+function render(code){
+  var t=T[code]||T['en'],c=t.common,p=t.privacy;
+  document.title=p.title;
+  document.documentElement.lang=code;
+  document.documentElement.dir=code==='ar'?'rtl':'';
+  document.getElementById('tagline').textContent=p.headerTagline;
+  document.getElementById('nav').innerHTML=
+    '<a href="./index.html">'+c.navHome+'</a>'+
+    '<a href="https://github.com/komm64/tutti">'+c.navGitHub+'</a>'+
+    '<a href="./support.html">'+c.navSupport+'</a>';
+  document.getElementById('content').innerHTML=
+    '<p>'+p.lastUpdated+'</p>'+
+    '<h2>'+p.h2Data+'</h2>'+
+    '<p>'+p.dataIntro+'</p>'+
+    '<ul><li>'+p.dataLi1+'</li><li>'+p.dataLi2+'</li><li>'+p.dataLi3+'</li><li>'+p.dataLi4+'</li></ul>'+
+    '<h3>'+p.h3Report+'</h3>'+
+    '<p>'+p.reportIntro+'</p>'+
+    '<ul><li>'+p.reportLi1+'</li><li>'+p.reportLi2+'</li><li>'+p.reportLi3+'</li></ul>'+
+    '<p>'+p.reportOutro+'</p>'+
+    '<h2>'+p.h2Local+'</h2>'+
+    '<p>'+p.localIntro+'</p>'+
+    '<ul><li>'+p.localSettings+'</li><li>'+p.localDrafts+'</li><li>'+p.localSelected+'</li>'+
+    '<li>'+p.localUsers+'</li><li>'+p.localHistory+'</li><li>'+p.localCreds+'</li>'+
+    '<li>'+p.localSelectors+'</li><li>'+p.localVideoCap+'</li></ul>'+
+    '<p>'+p.localWipe+'</p>'+
+    '<h2>'+p.h2Perms+'</h2>'+
+    '<table><tr><th>'+p.permsThead1+'</th><th>'+p.permsThead2+'</th></tr>'+
+    '<tr><td><code>storage</code></td><td>'+p.permsStorage+'</td></tr>'+
+    '<tr><td><code>offscreen</code></td><td>'+p.permsOffscreen+'</td></tr>'+
+    '<tr><td><code>sidePanel</code></td><td>'+p.permsSidePanel+'</td></tr>'+
+    '<tr><td><code>host_permissions</code></td><td>'+p.permsHost+'</td></tr>'+
+    '<tr><td><code>optional_host_permissions</code></td><td>'+p.permsOptHost+'</td></tr>'+
+    '</table>'+
+    '<h2>'+p.h2Relationship+'</h2>'+
+    '<p>'+p.relationshipBody+'</p>'+
+    '<h2>'+p.h2Contact+'</h2>'+
+    '<p>'+p.contactGitHub+' <a href="https://github.com/komm64/tutti/issues">github.com/komm64/tutti/issues</a><br>'+
+    p.contactEmail+' <a href="mailto:contact@komm64.com">contact@komm64.com</a></p>'+
+    '<h2>'+p.h2Changes+'</h2>'+
+    '<p>'+p.changesBody+'</p>';
+  document.getElementById('footer').innerHTML=c.footerCopy;
+}
+`;
+
+// Render function for support.html
+const SUPPORT_RENDER = `
+function render(code){
+  var t=T[code]||T['en'],c=t.common,u=t.support;
+  document.title=u.title;
+  document.documentElement.lang=code;
+  document.documentElement.dir=code==='ar'?'rtl':'';
+  document.getElementById('tagline').textContent=u.headerTagline;
+  document.getElementById('nav').innerHTML=
+    '<a href="./index.html">'+c.navHome+'</a>'+
+    '<a href="https://github.com/komm64/tutti">'+c.navGitHub+'</a>'+
+    '<a href="./privacy.html">'+c.navPrivacy+'</a>';
+  document.getElementById('content').innerHTML=
+    '<h2>'+u.h2Help+'</h2>'+
+    '<h3>'+u.h3Failed+'</h3><p>'+u.failedBody+'</p>'+
+    '<div class="callout"><p><strong>'+u.calloutTitle+'</strong></p><p>'+u.calloutBody+'</p></div>'+
+    '<h3>'+u.h3General+'</h3><p>'+u.generalBody+'</p>'+
+    '<h3>'+u.h3Install+'</h3><p>'+u.installBody+'</p>'+
+    '<h2>'+u.h2Faq+'</h2>'+
+    '<h3>'+u.q1+'</h3><p>'+u.a1+'</p>'+
+    '<h3>'+u.q2+'</h3><p>'+u.a2+'</p>'+
+    '<h3>'+u.q3+'</h3><p>'+u.a3+'</p>'+
+    '<h3>'+u.q4+'</h3><p>'+u.a4+'</p>'+
+    '<h3>'+u.q5+'</h3><p>'+u.a5+'</p>'+
+    '<h3>'+u.q6+'</h3><p>'+u.a6+'</p>';
+  document.getElementById('footer').innerHTML=c.footerContact;
+}
+`;
+
+function buildHtml(renderFn, T) {
+  const tJson = safeJson(T);
   return `<!doctype html>
-<html lang="${s.lang}"${RTL.has(s.lang) ? ' dir="rtl"' : ''}>
+<html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>${i.title}</title>
-<style>${SHARED_STYLE}</style>
-</head>
-<body>
-
-<header>
-  <div class="icon">T</div>
-  <div>
-    <h1>${c.appName}</h1>
-    <p class="tagline">${i.headerTagline}</p>
-  </div>
-</header>
-
-<nav>
-  <a href="https://github.com/komm64/tutti">${c.navGitHub}</a>
-  <a href="./${fileName('support', locale)}">${c.navSupport}</a>
-  <a href="./${fileName('privacy', locale)}">${c.navPrivacy}</a>
-</nav>
-
-<section id="overview">
-<h2>${i.h2Overview}</h2>
-<p>${i.overviewBody}</p>
-</section>
-
-<section id="privacy-summary">
-<h2>${i.h2PrivacySummary}</h2>
-<p>${i.privacySummaryBody}</p>
-<p>${i.privacyFullPolicy} <a href="./${fileName('privacy', locale)}">privacy.html</a></p>
-</section>
-
-${langSwitch(locale, 'index')}
-
-<footer>
-  ${c.footerCopy}
-</footer>
-</body>
-</html>
-`;
-}
-
-function buildPrivacy(locale, s) {
-  const c = s.common;
-  const p = s.privacy;
-  return `<!doctype html>
-<html lang="${s.lang}"${RTL.has(s.lang) ? ' dir="rtl"' : ''}>
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>${p.title}</title>
-<style>${SHARED_STYLE}</style>
-</head>
-<body>
-
-<header>
-  <div class="icon">T</div>
-  <div>
-    <h1>${p.title}</h1>
-    <p class="tagline">${p.headerTagline}</p>
-  </div>
-</header>
-
-<nav>
-  <a href="./${fileName('index', locale)}">${c.navHome}</a>
-  <a href="https://github.com/komm64/tutti">${c.navGitHub}</a>
-  <a href="./${fileName('support', locale)}">${c.navSupport}</a>
-</nav>
-
-<p>${p.lastUpdated}</p>
-
-<h2>${p.h2Data}</h2>
-
-<p>${p.dataIntro}</p>
-
-<ul>
-<li>${p.dataLi1}</li>
-<li>${p.dataLi2}</li>
-<li>${p.dataLi3}</li>
-<li>${p.dataLi4}</li>
-</ul>
-
-<h3>${p.h3Report}</h3>
-
-<p>${p.reportIntro}</p>
-
-<ul>
-<li>${p.reportLi1}</li>
-<li>${p.reportLi2}</li>
-<li>${p.reportLi3}</li>
-</ul>
-
-<p>${p.reportOutro}</p>
-
-<h2>${p.h2Local}</h2>
-
-<p>${p.localIntro}</p>
-
-<ul>
-<li>${p.localSettings}</li>
-<li>${p.localDrafts}</li>
-<li>${p.localSelected}</li>
-<li>${p.localUsers}</li>
-<li>${p.localHistory}</li>
-<li>${p.localCreds}</li>
-<li>${p.localSelectors}</li>
-<li>${p.localVideoCap}</li>
-</ul>
-
-<p>${p.localWipe}</p>
-
-<h2>${p.h2Perms}</h2>
-
-<table>
-<tr><th>${p.permsThead1}</th><th>${p.permsThead2}</th></tr>
-<tr><td><code>storage</code></td><td>${p.permsStorage}</td></tr>
-<tr><td><code>offscreen</code></td><td>${p.permsOffscreen}</td></tr>
-<tr><td><code>sidePanel</code></td><td>${p.permsSidePanel}</td></tr>
-<tr><td><code>host_permissions</code></td><td>${p.permsHost}</td></tr>
-<tr><td><code>optional_host_permissions: https://*/*</code></td><td>${p.permsOptHost}</td></tr>
-</table>
-
-<h2>${p.h2Relationship}</h2>
-
-<p>${p.relationshipBody}</p>
-
-<h2>${p.h2Contact}</h2>
-
-<p>
-${p.contactGitHub} <a href="https://github.com/komm64/tutti/issues">https://github.com/komm64/tutti/issues</a><br />
-${p.contactEmail} <a href="mailto:contact@komm64.com">contact@komm64.com</a>
-</p>
-
-<h2>${p.h2Changes}</h2>
-
-<p>${p.changesBody}</p>
-
-${langSwitch(locale, 'privacy')}
-
-<footer>
-  &copy; komm64 &mdash; Tutti
-</footer>
-
-</body>
-</html>
-`;
-}
-
-function buildSupport(locale, s) {
-  const c = s.common;
-  const u = s.support;
-  return `<!doctype html>
-<html lang="${s.lang}"${RTL.has(s.lang) ? ' dir="rtl"' : ''}>
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>${u.title}</title>
-<style>${SHARED_STYLE}</style>
+<title>Tutti</title>
+<style>${CSS}</style>
 </head>
 <body>
 <header>
-  <div class="icon">T</div>
-  <div>
-    <h1>${u.title}</h1>
-    <p class="tagline">${u.headerTagline}</p>
-  </div>
+  <a href="./index.html" style="display:flex;align-items:center;gap:0.75rem;text-decoration:none;color:inherit;flex:1;min-width:0;">
+    <div class="icon">T</div>
+    <div class="header-text">
+      <h1>Tutti</h1>
+      <p id="tagline" class="tagline"></p>
+    </div>
+  </a>
+  <select id="lang" onchange="setLang(this.value)"></select>
 </header>
-
-<nav>
-  <a href="./${fileName('index', locale)}">${c.navHome}</a>
-  <a href="https://github.com/komm64/tutti">${c.navGitHub}</a>
-  <a href="./${fileName('privacy', locale)}">${c.navPrivacy}</a>
-</nav>
-
-<h2>${u.h2Help}</h2>
-
-<h3>${u.h3Failed}</h3>
-<p>${u.failedBody}</p>
-
-<div class="callout">
-<p><strong>${u.calloutTitle}</strong></p>
-<p>${u.calloutBody}</p>
-</div>
-
-<h3>${u.h3General}</h3>
-<p>${u.generalBody}</p>
-
-<h3>${u.h3Install}</h3>
-<p>${u.installBody}</p>
-
-<h2>${u.h2Faq}</h2>
-
-<h3>${u.q1}</h3>
-<p>${u.a1}</p>
-
-<h3>${u.q2}</h3>
-<p>${u.a2}</p>
-
-<h3>${u.q3}</h3>
-<p>${u.a3}</p>
-
-<h3>${u.q4}</h3>
-<p>${u.a4}</p>
-
-<h3>${u.q5}</h3>
-<p>${u.a5}</p>
-
-<h3>${u.q6}</h3>
-<p>${u.a6}</p>
-
-${langSwitch(locale, 'support')}
-
-<footer>
-  ${c.footerContact}
-</footer>
-
+<nav id="nav"></nav>
+<main id="content"></main>
+<footer id="footer"></footer>
+<script>
+${langsJs()}
+const T=${tJson};
+${renderFn}
+${COMMON_JS}
+</script>
 </body>
 </html>
 `;
 }
 
 async function main() {
-  const entries = await readdir(STRINGS_DIR);
-  const localeFiles = entries.filter((e) => e.endsWith('.json'));
-  let written = 0;
-  for (const file of localeFiles) {
-    const locale = file.replace(/\.json$/, '');
-    const data = JSON.parse(await readFile(join(STRINGS_DIR, file), 'utf8'));
-    const indexHtml = buildIndex(locale, data);
-    const privacyHtml = buildPrivacy(locale, data);
-    const supportHtml = buildSupport(locale, data);
-    await writeFile(join(OUT_DIR, fileName('index', locale)), indexHtml, 'utf8');
-    await writeFile(join(OUT_DIR, fileName('privacy', locale)), privacyHtml, 'utf8');
-    await writeFile(join(OUT_DIR, fileName('support', locale)), supportHtml, 'utf8');
-    written += 3;
-    process.stdout.write(`  ${locale}: index, privacy, support\n`);
-  }
-  console.log(`\nDone. ${written} HTML files written across ${localeFiles.length} locales.`);
+  const T = await loadTranslations();
+  await writeFile(join(OUT_DIR, 'index.html'), buildHtml(INDEX_RENDER, T), 'utf8');
+  await writeFile(join(OUT_DIR, 'privacy.html'), buildHtml(PRIVACY_RENDER, T), 'utf8');
+  await writeFile(join(OUT_DIR, 'support.html'), buildHtml(SUPPORT_RENDER, T), 'utf8');
+  console.log('Done. Generated index.html, privacy.html, support.html');
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+main().catch((e) => { console.error(e); process.exit(1); });
