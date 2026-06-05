@@ -73,6 +73,8 @@ const CSS = `
   .donate-btn:hover { opacity: 0.85; }
   .donate-btn.kofi { background: #29abe0; color: #fff; }
   .donate-btn.kofi:hover { color: #fff; }
+  .donate-btn.gh-sponsors { background: #ea4aaa; color: #fff; }
+  .donate-btn.gh-sponsors:hover { color: #fff; }
   footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--line);
     color: var(--muted); font-size: 0.85rem; }
 `;
@@ -203,6 +205,7 @@ function render(code){
     '<h3>'+u.q6+'</h3><p>'+u.a6+'</p>'+
     '<div class="donate-links">'+
     '<a class="donate-btn kofi" href="${KOFI_URL}" target="_blank" rel="noopener">☕ Ko-fi</a>'+
+    '<a class="donate-btn gh-sponsors" href="https://github.com/sponsors/komm64" target="_blank" rel="noopener">♥ GitHub Sponsors</a>'+
     '</div>';
   document.getElementById('footer').innerHTML=c.footerContact;
 }
