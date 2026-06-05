@@ -467,13 +467,15 @@
     } catch { /* ignore */ }
   }
 
+  // popup inline history はサムネイルを直近5件のみ読み込む (多数 entry での IDB 負荷防止)
+  const POPUP_THUMB_LIMIT = 5;
+
   async function loadHistory() {
     const entries = await getPostHistory();
-    // 古い object URL を revoke してから差し替え
     for (const url of historyThumbUrls) URL.revokeObjectURL(url);
     historyThumbUrls = [];
     const thumbs: Record<string, string[]> = {};
-    for (const entry of entries) {
+    for (const entry of entries.slice(0, POPUP_THUMB_LIMIT)) {
       if (!entry.mediaRefs?.length) continue;
       const urls: string[] = [];
       for (const ref of entry.mediaRefs) {

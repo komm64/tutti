@@ -24,6 +24,13 @@ const UI_DIRS = [
   'entrypoints/history',
 ];
 
+// TS utility files that return user-visible strings (not just log messages).
+// Apply the same no-hardcoded-JP rule as Svelte UI files.
+const UI_TS_FILES = [
+  'src/utils/formatters.ts',
+  'src/utils/failure-hint.ts',
+];
+
 const JP_REGEX = /[぀-ゟ゠-ヿ一-鿿]/;
 
 function listSvelteFiles(dir: string): string[] {
@@ -110,6 +117,31 @@ describe('UI svelte files: no hardcoded Japanese text', () => {
         expect(offenders).toEqual([]);
       });
     }
+  }
+});
+
+describe('UI utility TS files: no hardcoded Japanese text', () => {
+  for (const file of UI_TS_FILES) {
+    it(`${file} routes all JP text through i18n`, () => {
+      const content = readFileSync(file, 'utf8');
+      const lines = content.split('\n');
+      const offenders: { line: number; text: string }[] = [];
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i]!;
+        if (!JP_REGEX.test(line)) continue;
+        if (isAllowed(line)) continue;
+        const codeOnly = stripComments(line);
+        if (!JP_REGEX.test(codeOnly)) continue;
+        offenders.push({ line: i + 1, text: line.trim().slice(0, 120) });
+      }
+      if (offenders.length > 0) {
+        const msg = offenders.map((o) => `  ${file}:${o.line}: ${o.text}`).join('\n');
+        throw new Error(
+          `Hardcoded Japanese in UI utility TS file. Use Intl API or t('key'):\n${msg}`,
+        );
+      }
+      expect(offenders).toEqual([]);
+    });
   }
 });
 

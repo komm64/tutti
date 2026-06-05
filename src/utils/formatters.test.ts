@@ -4,25 +4,31 @@ import { formatBytes, formatDuration, formatRelTime } from './formatters';
 describe('formatRelTime', () => {
   const NOW = 2_000_000_000_000;
 
-  it('returns たった今 for < 60s', () => {
-    expect(formatRelTime(NOW - 30_000, NOW)).toBe('たった今');
+  it('returns a "now" equivalent for < 60s', () => {
+    const result = formatRelTime(NOW - 30_000, NOW);
+    expect(result).toMatch(/now|just now|0 seconds ago/i);
   });
 
-  it('returns 分前 for < 60min', () => {
-    expect(formatRelTime(NOW - 5 * 60_000, NOW)).toBe('5分前');
+  it('returns minutes ago for < 60min', () => {
+    const result = formatRelTime(NOW - 5 * 60_000, NOW);
+    expect(result).toMatch(/5.*(min|分)/i);
   });
 
-  it('returns 時間前 for < 24h', () => {
-    expect(formatRelTime(NOW - 3 * 3600_000, NOW)).toBe('3時間前');
+  it('returns hours ago for < 24h', () => {
+    const result = formatRelTime(NOW - 3 * 3600_000, NOW);
+    expect(result).toMatch(/3.*(hour|時)/i);
   });
 
-  it('returns 日前 for >= 24h', () => {
-    expect(formatRelTime(NOW - 2 * 86400_000, NOW)).toBe('2日前');
+  it('returns days ago for >= 24h', () => {
+    const result = formatRelTime(NOW - 2 * 86400_000, NOW);
+    expect(result).toMatch(/2.*(day|日)/i);
   });
 
   it('rounds down (no rounding to nearest)', () => {
-    expect(formatRelTime(NOW - 59_000, NOW)).toBe('たった今');
-    expect(formatRelTime(NOW - 119_000, NOW)).toBe('1分前');
+    const r1 = formatRelTime(NOW - 59_000, NOW);
+    expect(r1).toMatch(/now|just now|0 seconds ago/i);
+    const r2 = formatRelTime(NOW - 119_000, NOW);
+    expect(r2).toMatch(/1.*(min|分)/i);
   });
 });
 

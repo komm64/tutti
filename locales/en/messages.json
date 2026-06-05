@@ -483,5 +483,8 @@
   "verifyIssueTagsMissing": {
     "message": "Tags not reflected: $TAGS$",
     "placeholders": { "TAGS": { "content": "$1" } }
-  }
+  },
+
+  "historyClearedConfirmation": { "message": "Cleared ✓" },
+  "historyClearAllHint": { "message": "Removes all post history entries and saved media from this device." }
 }

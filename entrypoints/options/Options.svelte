@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { LogEntry, LogLevel } from '../../src/messages';
-  import { getSettings, saveSettings } from '../../src/storage';
+  import { clearPostHistory, getSettings, saveSettings } from '../../src/storage';
   import {
     fetchOverridesFrom,
     getFetchedAt,
@@ -36,6 +36,7 @@
   let uiLanguage = $state<string>('auto');
   let saved = $state(false);
   let loading = $state(true);
+  let historyCleared = $state(false);
 
   // ── API 連携 (P15 Phase 1: Bluesky / Mastodon / Misskey) ────────
   let bskyId = $state('');
@@ -229,6 +230,13 @@
     await clearApiCredentials('misskey');
     mskyToken = '';
     mskyStatus = { ok: true, msg: `✓ ${t('apiCleared')}` };
+  }
+
+  async function handleClearHistory() {
+    if (!confirm(t('historyClearAllConfirm'))) return;
+    await clearPostHistory();
+    historyCleared = true;
+    setTimeout(() => { historyCleared = false; }, 2000);
   }
 
   async function handleSave() {
@@ -498,6 +506,14 @@
           <span>{t('notifyInteractionsLabel')}</span>
         </label>
         <p class="text-xs text-gray-400">{t('notifyInteractionsHint')}</p>
+        <div class="pt-3 border-t border-gray-100 mt-2">
+          <button
+            type="button"
+            onclick={handleClearHistory}
+            class="px-3 py-1.5 text-xs font-medium border border-red-300 text-red-700 rounded hover:bg-red-50"
+          >{historyCleared ? t('historyClearedConfirmation') : t('clearAll')}</button>
+          <p class="text-xs text-gray-400 mt-1">{t('historyClearAllHint')}</p>
+        </div>
       </div>
     </section>
 

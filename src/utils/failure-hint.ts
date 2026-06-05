@@ -39,8 +39,8 @@ export function classifyFailure(
 
   // ── ログイン必要 ─────────────────────────────────────────────
   if (
-    /login|signin|sign in|ログイン|未ログイン|auth(?:enticat)?|unauthorized|401/.test(e) ||
-    /投稿入力欄が見つかりません/.test(error)
+    /login|signin|sign in|ログイン|未ログイン|auth(?:enticat)?|unauthorized|401/.test(e) || // allow-jp
+    /投稿入力欄が見つかりません/.test(error) // allow-jp
   ) {
     return {
       reason: t('failureReasonLogin'),
@@ -53,7 +53,7 @@ export function classifyFailure(
   }
 
   // ── アカウント不一致 (multi-account 誤爆 guard) ────────────────
-  if (/アカウント|account/.test(e) && /想定|expected|mismatch|違い|switch/.test(e)) {
+  if (/アカウント|account/.test(e) && /想定|expected|mismatch|違い|switch/.test(e)) { // allow-jp
     return {
       reason: t('failureReasonAccountMismatch'),
       guidance: t('failureGuidanceAccountMismatch', platform),
@@ -65,7 +65,7 @@ export function classifyFailure(
   }
 
   // ── captcha / security check (Pixiv 等) ──────────────────────
-  if (/captcha|recaptcha|security check|セキュリティチェック|verify you are human/.test(e)) {
+  if (/captcha|recaptcha|security check|セキュリティチェック|verify you are human/.test(e)) { // allow-jp
     return {
       reason: t('failureReasonCaptcha'),
       guidance: t('failureGuidanceCaptcha', platform),
@@ -77,7 +77,7 @@ export function classifyFailure(
   }
 
   // ── サイズ / 尺 オーバー ───────────────────────────────────
-  if (/too\s*(?:large|big|long)|over.*limit|exceed|オーバー|超えて|maxbytes|maxduration/.test(e)) {
+  if (/too\s*(?:large|big|long)|over.*limit|exceed|オーバー|超えて|maxbytes|maxduration/.test(e)) { // allow-jp
     return {
       reason: t('failureReasonMediaLimit'),
       guidance: t('failureGuidanceMediaLimit'),
@@ -88,7 +88,7 @@ export function classifyFailure(
   }
 
   // ── タイムアウト / network ────────────────────────────────
-  if (/timeout|timed?\s*out|network|読み込みがタイムアウト|応答がありません/.test(e)) {
+  if (/timeout|timed?\s*out|network|読み込みがタイムアウト|応答がありません/.test(e)) { // allow-jp
     return {
       reason: t('failureReasonTimeout'),
       guidance: t('failureGuidanceTimeout'),
@@ -110,7 +110,7 @@ export function classifyFailure(
   }
 
   // ── selector が見つからない (UI 変更?) ──────────────────────
-  if (/selector|見つかりません|not found|UI が更新された/.test(e)) {
+  if (/selector|見つかりません|not found|UI が更新された/.test(e)) { // allow-jp
     return {
       reason: t('failureReasonSelector'),
       guidance: t('failureGuidanceSelector'),

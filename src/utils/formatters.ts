@@ -4,15 +4,18 @@
  */
 
 /**
- * Unix ms timestamp を 「たった今」 / 「N 分前」 / 「N 時間前」 / 「N 日前」 に整形。
- * popup の history list で使う。 ja-only (popup の locale が limited なので)。
+ * Unix ms timestamp を相対表記 ("1 minute ago", "3 hours ago" etc.) に整形。
+ * Intl.RelativeTimeFormat(undefined) でブラウザロケールに自動追随。
  */
 export function formatRelTime(ts: number, now: number = Date.now()): string {
   const diffS = Math.floor((now - ts) / 1000);
-  if (diffS < 60) return 'たった今';
-  if (diffS < 3600) return `${Math.floor(diffS / 60)}分前`;
-  if (diffS < 86400) return `${Math.floor(diffS / 3600)}時間前`;
-  return `${Math.floor(diffS / 86400)}日前`;
+  const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
+  if (diffS < 60) return rtf.format(0, 'second');
+  if (diffS < 3600) return rtf.format(-Math.floor(diffS / 60), 'minute');
+  if (diffS < 86400) return rtf.format(-Math.floor(diffS / 3600), 'hour');
+  if (diffS < 86400 * 30) return rtf.format(-Math.floor(diffS / 86400), 'day');
+  if (diffS < 86400 * 365) return rtf.format(-Math.floor(diffS / (86400 * 30)), 'month');
+  return rtf.format(-Math.floor(diffS / (86400 * 365)), 'year');
 }
 
 /** 動画長 (秒) を `M:SS` に整形。 */

@@ -483,5 +483,8 @@
   "verifyIssueTagsMissing": {
     "message": "タグが反映されていません: $TAGS$",
     "placeholders": { "TAGS": { "content": "$1" } }
-  }
+  },
+
+  "historyClearedConfirmation": { "message": "削除しました ✓" },
+  "historyClearAllHint": { "message": "このデバイスの投稿履歴とメディアをすべて削除します。" }
 }

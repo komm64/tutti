@@ -175,11 +175,6 @@
           disabled={history.length === 0}
           class="px-3 py-1.5 text-xs font-medium border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-40"
         >{t('historyExport')}</button>
-        <button
-          onclick={handleClearAll}
-          disabled={history.length === 0}
-          class="px-3 py-1.5 text-xs font-medium border border-red-300 text-red-700 rounded hover:bg-red-50 disabled:opacity-40"
-        >{t('clearAll')}</button>
       </div>
     </header>
 
