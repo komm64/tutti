@@ -10,6 +10,7 @@
  */
 
 import type { PlatformId } from '../messages';
+import { t } from './i18n';
 
 /** verify に期待する投稿内容 (Tutti が送ったもの) */
 export interface VerifyExpectation {
@@ -88,13 +89,13 @@ export function buildVerifyResult(
     if (!found?.text || found.text.trim().length === 0) {
       issues.push({
         kind: 'caption-missing',
-        message: '本文が post detail に見つかりませんでした (SNS 側で silent strip された可能性)',
+        message: t('verifyIssueCaptionMissing'),
         severity: 'error',
       });
     } else if (!fuzzyContainsText(expected.text, found.text)) {
       issues.push({
         kind: 'caption-mismatch',
-        message: `本文が一部欠落の可能性 (期待 ${expected.text.length} char、 実 ${found.text.length} char)`,
+        message: t('verifyIssueCaptionMismatch', expected.text.length, found.text.length),
         severity: 'warn',
       });
     }
@@ -103,7 +104,7 @@ export function buildVerifyResult(
   if (expected.hasImages && found?.hasImages === false) {
     issues.push({
       kind: 'image-missing',
-      message: '画像が post detail に見つかりませんでした (upload 失敗の可能性)',
+      message: t('verifyIssueImageMissing'),
       severity: 'error',
     });
   }
@@ -114,7 +115,7 @@ export function buildVerifyResult(
     if (missing.length > 0) {
       issues.push({
         kind: 'tags-missing',
-        message: `tag 未反映: ${missing.slice(0, 5).join(', ')}${missing.length > 5 ? '…' : ''}`,
+        message: t('verifyIssueTagsMissing', missing.slice(0, 5).join(', ') + (missing.length > 5 ? '…' : '')),
         severity: 'warn',
       });
     }

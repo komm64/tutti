@@ -39,6 +39,7 @@
   import { formatRelTime, formatDuration, formatBytes } from '../../src/utils/formatters';
   import { classifyFailure, type FailureHintCta } from '../../src/utils/failure-hint';
   import { t } from '../../src/utils/i18n';
+  import { getMedia } from '../../src/utils/history-media';
 
   type PlatformOption = {
     id: PlatformId;
@@ -104,6 +105,8 @@
   let errorMessage = $state<string | null>(null);
   // v0.5.9〜 履歴は popup 下部に常時表示 (compact strip)。 詳細・検索・編集は History tab 側で。
   let history = $state<HistoryEntry[]>([]);
+  let historyThumbs = $state<Record<string, string[]>>({});
+  let historyThumbUrls: string[] = [];
   let draftLoaded = $state(false);
   let lastSeenUsers = $state<LastSeenUsers>({});
   /** v0.4.86: 失敗 hint card を expand してる platform (null = 全て collapse) */
@@ -465,7 +468,26 @@
   }
 
   async function loadHistory() {
-    history = await getPostHistory();
+    const entries = await getPostHistory();
+    // 古い object URL を revoke してから差し替え
+    for (const url of historyThumbUrls) URL.revokeObjectURL(url);
+    historyThumbUrls = [];
+    const thumbs: Record<string, string[]> = {};
+    for (const entry of entries) {
+      if (!entry.mediaRefs?.length) continue;
+      const urls: string[] = [];
+      for (const ref of entry.mediaRefs) {
+        const blob = await getMedia(ref).catch(() => null);
+        if (blob?.type.startsWith('image/')) {
+          const url = URL.createObjectURL(blob);
+          urls.push(url);
+          historyThumbUrls.push(url);
+        }
+      }
+      if (urls.length) thumbs[entry.id] = urls;
+    }
+    history = entries;
+    historyThumbs = thumbs;
   }
 
   // v0.5.9: 履歴は常時表示なので popup mount 時に load + storage 変更で auto refresh
@@ -1688,6 +1710,13 @@
               <span class="ml-auto text-gray-400">{formatRelTime(entry.timestamp)}</span>
             </div>
             <p class="text-gray-700 mb-1 break-words" style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">{entry.text ?? entry.textPreview}</p>
+            {#if historyThumbs[entry.id]?.length}
+              <div class="flex gap-1 mb-1 flex-wrap">
+                {#each historyThumbs[entry.id] as url}
+                  <img src={url} alt="" class="h-10 w-10 object-cover rounded border border-gray-200 flex-shrink-0" />
+                {/each}
+              </div>
+            {/if}
             <div class="flex items-center gap-1 text-[10px] text-gray-500">
               {#each entry.platforms as pid}
                 {@const r = entry.results[pid]}

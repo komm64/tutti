@@ -51,6 +51,32 @@ function tx<T>(mode: IDBTransactionMode, fn: (store: IDBObjectStore) => IDBReque
   );
 }
 
+const HISTORY_THUMB_MAX_PX = 480;
+const HISTORY_THUMB_QUALITY = 0.75;
+
+/**
+ * 画像 Blob を履歴サムネイル用に圧縮する。
+ * max 480px / JPEG 0.75。 OffscreenCanvas は SW でも使えるので background.ts から呼べる。
+ * 非画像 (動画等) はそのまま返す。
+ */
+export async function compressImageForHistory(blob: Blob): Promise<Blob> {
+  if (!blob.type.startsWith('image/')) return blob;
+  try {
+    const bitmap = await createImageBitmap(blob);
+    const scale = Math.min(1, HISTORY_THUMB_MAX_PX / Math.max(bitmap.width, bitmap.height));
+    const w = Math.round(bitmap.width * scale);
+    const h = Math.round(bitmap.height * scale);
+    const canvas = new OffscreenCanvas(w, h);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) { bitmap.close(); return blob; }
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    bitmap.close();
+    return canvas.convertToBlob({ type: 'image/jpeg', quality: HISTORY_THUMB_QUALITY });
+  } catch {
+    return blob;
+  }
+}
+
 export async function putMedia(id: string, blob: Blob): Promise<void> {
   const record: MediaRecord = { id, blob, ts: Date.now(), mime: blob.type, size: blob.size };
   await tx('readwrite', (s) => s.put(record));

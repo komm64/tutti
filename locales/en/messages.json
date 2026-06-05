@@ -469,5 +469,19 @@
     "placeholders": { "N": { "content": "$1" } }
   },
 
-  "appBrandLinkTooltip": { "message": "Open the Tutti home page (komm64.github.io/tutti)" }
+  "appBrandLinkTooltip": { "message": "Open the Tutti home page (komm64.github.io/tutti)" },
+
+  "verifyIssueCaptionMissing": { "message": "Post text was not found in the published page (possible silent strip by the social network)" },
+  "verifyIssueCaptionMismatch": {
+    "message": "Post text may be partially missing (sent $EXPECTED$ chars, found $ACTUAL$ chars)",
+    "placeholders": {
+      "EXPECTED": { "content": "$1" },
+      "ACTUAL": { "content": "$2" }
+    }
+  },
+  "verifyIssueImageMissing": { "message": "Image was not found in the published page (possible upload failure)" },
+  "verifyIssueTagsMissing": {
+    "message": "Tags not reflected: $TAGS$",
+    "placeholders": { "TAGS": { "content": "$1" } }
+  }
 }

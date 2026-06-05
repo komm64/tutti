@@ -26,7 +26,7 @@ import {
 } from '../src/utils/attachment';
 import { computeBodyHash, sha256Hex } from '../src/utils/body-hash';
 import { extractPostId } from '../src/utils/post-id';
-import { putMedia, sweepExpired } from '../src/utils/history-media';
+import { compressImageForHistory, putMedia, sweepExpired } from '../src/utils/history-media';
 import {
   ALARM_NAME as INTERACTION_ALARM_NAME,
   clearAlarm as clearInteractionAlarm,
@@ -825,7 +825,7 @@ async function recordHistoryEntry(
             type: img.type || 'application/octet-stream',
           });
           const id = `${entryId}-${i}`;
-          await putMedia(id, blob);
+          await putMedia(id, await compressImageForHistory(blob));
           mediaIds.push(id);
         } catch {
           // 個別 attach の保存失敗は無視 (history 自体は既に保存済)

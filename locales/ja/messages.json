@@ -469,5 +469,19 @@
     "placeholders": { "N": { "content": "$1" } }
   },
 
-  "appBrandLinkTooltip": { "message": "Tutti のホームページを開く (komm64.github.io/tutti)" }
+  "appBrandLinkTooltip": { "message": "Tutti のホームページを開く (komm64.github.io/tutti)" },
+
+  "verifyIssueCaptionMissing": { "message": "投稿本文が公開ページで見つかりませんでした (SNS 側でサイレントに削除された可能性)" },
+  "verifyIssueCaptionMismatch": {
+    "message": "本文が一部欠落している可能性があります (送信 $EXPECTED$ 文字、実際 $ACTUAL$ 文字)",
+    "placeholders": {
+      "EXPECTED": { "content": "$1" },
+      "ACTUAL": { "content": "$2" }
+    }
+  },
+  "verifyIssueImageMissing": { "message": "画像が公開ページで見つかりませんでした (アップロード失敗の可能性)" },
+  "verifyIssueTagsMissing": {
+    "message": "タグが反映されていません: $TAGS$",
+    "placeholders": { "TAGS": { "content": "$1" } }
+  }
 }
