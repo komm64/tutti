@@ -1,7 +1,9 @@
 import { log } from '../src/utils/logger';
 import type { ImageAttachment, PostResultMessage } from '../src/messages';
 import { MISSKEY_SELECTORS, misskeyAdapter } from '../src/adapters/misskey';
+import { sleep } from '../src/utils/dom';
 import { executePostFlow } from '../src/utils/post-flow';
+import { clickElementInMainWorld } from '../src/utils/image';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
 
@@ -77,7 +79,17 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     text,
     images,
     dryRun,
+    clickPostButton: () => clickElementInMainWorld('button, [role="button"]', ['投稿', 'ノート', 'Note', 'Post', 'Submit']),
   });
+  if (!dryRun) {
+    await sleep(30_000);
+    const draftStillOpen = location.pathname === '/share' &&
+      Array.from(document.querySelectorAll<HTMLTextAreaElement>('textarea'))
+        .some((textarea) => textarea.value.includes(text));
+    if (draftStillOpen) {
+      await clickElementInMainWorld('button, [role="button"]', ['投稿', 'ノート', 'Note', 'Post', 'Submit']);
+    }
+  }
 
   // v0.5.8〜 DOM 経路でも post URL を取得する。 Misskey は localStorage の
   // accounts に i (access token) を持つので、 そこから token を取って /api/i/notes で
@@ -109,9 +121,9 @@ async function fetchMisskeyRecentNoteUrl(text: string): Promise<string | undefin
       const raw = localStorage.getItem('account');
       if (raw) {
         try {
-          const data = JSON.parse(raw) as { i?: string };
-          if (data.i) {
-            token = data.i;
+          const data = JSON.parse(raw) as { token?: string; i?: string };
+          if (data.token || data.i) {
+            token = data.token ?? data.i ?? null;
             break;
           }
         } catch { /* ignore */ }

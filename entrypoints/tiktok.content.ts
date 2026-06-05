@@ -7,6 +7,7 @@ import { sleep, waitForElement } from '../src/utils/dom';
 import { waitForPostUrl } from '../src/utils/url-capture';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
+import { t } from '../src/utils/i18n';
 
 /**
  * TikTok のログイン中ユーザー検出。
@@ -55,7 +56,7 @@ async function runPost(
   log.info(`TikTok runPost: dryRun=${dryRun} media=${images?.length ?? 0}`);
   const video = images?.find((m) => m.type.startsWith('video/'));
   if (!video) {
-    throw new Error('TikTok は動画必須です (画像 only は Web upload に未対応)');
+    throw new Error(t('runtimeTikTokVideoRequired'));
   }
   const sel = await resolveSelectors('tiktok', TIKTOK_SELECTORS);
   const caption = buildTikTokCaption(text);
@@ -65,6 +66,7 @@ async function runPost(
       // 動画 file input に inject。upload が始まり caption form が mount される
       name: 'inject-video',
       action: async () => {
+        await waitForElement<HTMLInputElement>(sel.fileInput, 15000);
         await injectImages([video], sel.fileInput);
       },
       // upload + caption form 描画。30s 程度かかることもあるので長め
@@ -76,7 +78,7 @@ async function runPost(
       action: async () => {
         const el = await waitForElement<HTMLElement>(sel.captionEditor, 30000);
         if (!el) {
-          throw new Error('TikTok: caption editor が出現しませんでした (動画 upload 失敗の可能性)');
+          throw new Error(t('runtimeTikTokCaptionMissing'));
         }
         await injectTextIntoElement(caption, sel.captionEditor);
       },
@@ -100,24 +102,25 @@ async function runPost(
       },
       texts: ['Post', '投稿', '公開'],
       timeoutMs: 30000, // 動画処理 + 各種 toggle 反映
-      afterClickDelayMs: 3000,
+      afterClickDelayMs: 250,
     },
     dryRun,
   });
 
-  await sleep(500);
-
-  // dryRun でなければ TikTok Studio が /tiktokstudio/content (= 投稿一覧) へ
-  // navigate するのを待つ (= 「本当の完了」)。
-  // 個別の post URL (https://www.tiktok.com/@user/video/<id>) は studio 上では
-  // 動画 thumbnail 経由でしか取れないので、 listing URL で完了 proof とする。
+  // dryRun でなければ個別の post URL への遷移を待つ。
+  // Studio の /tiktokstudio/content は投稿一覧であり、履歴の deep link として
+  // 保存してはいけない。一覧へ遷移した場合は background が thumbnail link から
+  // /@user/video/<id> を補完する。
   let url: string | undefined;
   if (!dryRun) {
     // v0.5.7: redirect 検知失敗時に throw しない (実投稿は landing しているケースあり)
     const captured = await waitForPostUrl([
-      /^https:\/\/(?:www\.)?tiktok\.com\/tiktokstudio\/content/,
       /^https:\/\/(?:www\.)?tiktok\.com\/@[^/]+\/video\/\d+/,
-    ], 60000);
+    ], 60000, 250, [
+      // 一覧へ遷移する variant は background が最新 video link を補完する。
+      // 個別 URL を 60s 待ち切らず、一覧描画の探索へ進む。
+      /^https:\/\/(?:www\.)?tiktok\.com\/tiktokstudio\/content/,
+    ]);
     if (captured) url = captured;
   }
 

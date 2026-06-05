@@ -48,6 +48,7 @@ export async function postViaApi(
   creds: MisskeyCredentials,
   input: ApiPostInput,
 ): Promise<ApiPostResult> {
+  let noteRequestInFlight = false;
   try {
     const fileIds: string[] = [];
     for (const m of input.images ?? []) {
@@ -73,12 +74,14 @@ export async function postViaApi(
     if (fileIds.length > 0) body['fileIds'] = fileIds;
     if (input.cw) body['cw'] = input.cw;
 
+    noteRequestInFlight = true;
     const res = await fetch(`${creds.instance}/api/notes/create`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
     if (!res.ok) {
+      noteRequestInFlight = false;
       const detail = await res.text().catch(() => '');
       throw new Error(`notes/create ${res.status}: ${detail.slice(0, 200)}`);
     }
@@ -89,7 +92,11 @@ export async function postViaApi(
     void username;
     return { success: true, postUrl };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : String(e) };
+    return {
+      success: false,
+      uncertain: noteRequestInFlight || undefined,
+      error: e instanceof Error ? e.message : String(e),
+    };
   }
 }
 

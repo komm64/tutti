@@ -149,7 +149,7 @@ describe('executeMultiStepFlow', () => {
         steps: [],
         finalize: { finder: () => null },
       }),
-    ).rejects.toThrow(/steps が空/);
+    ).rejects.toThrow(/steps must not be empty/);
   });
 
   it('最終 step は advance を省略できる (finalize に直接行く)', async () => {

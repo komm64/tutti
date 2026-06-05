@@ -5,7 +5,14 @@ import { executePostFlow } from '../src/utils/post-flow';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
 import { sleep, waitForElement } from '../src/utils/dom';
-import { injectImages, injectTextIntoElement } from '../src/utils/image';
+import {
+  clickElementInMainWorld,
+  getLatestXPostUrlInMainWorld,
+  injectImages,
+  injectTextIntoElement,
+} from '../src/utils/image';
+import { t } from '../src/utils/i18n';
+import { markPostSubmissionStarted } from '../src/utils/post-submission-state';
 
 const X_RESERVED_PATHS = new Set([
   'home', 'explore', 'notifications', 'messages', 'i', 'compose',
@@ -13,6 +20,14 @@ const X_RESERVED_PATHS = new Set([
 ]);
 
 function detectXUser(): string | null {
+  // 戦略 0: compact side nav では profile link が省略されるが、account menu の
+  // avatar test id に handle が残る。
+  const accountAvatar = document.querySelector<HTMLElement>(
+    '[data-testid="SideNav_AccountSwitcher_Button"] [data-testid^="UserAvatar-Container-"]',
+  );
+  const avatarHandle = accountAvatar?.getAttribute('data-testid')?.match(/^UserAvatar-Container-(.+)$/)?.[1];
+  if (avatarHandle) return '@' + avatarHandle;
+
   // 戦略 1: data-testid 経由(モバイル / 一部レイアウト)
   for (const sel of [
     'a[data-testid="AppTabBar_Profile_Link"]',
@@ -62,7 +77,7 @@ async function runPost(
 
   // post 前に own user の既存 status link を記録 (post 後の new status を識別する用)
   const handle = detectXUser();
-  const cleanHandle = handle?.startsWith('@') ? handle.slice(1) : handle;
+  let cleanHandle = handle?.startsWith('@') ? handle.slice(1) : handle;
   const beforeIds = new Set<string>();
   if (cleanHandle) {
     for (const link of document.querySelectorAll<HTMLAnchorElement>(`a[href*="/${cleanHandle}/status/"]`)) {
@@ -80,13 +95,28 @@ async function runPost(
     await executePostFlow({
       prefillsViaUrl: xAdapter.prefillsViaUrl,
       textareaSelector: sel.textarea,
-      // inline (home) compose の Post を最優先、無ければ modal の Post に fallback
-      postButtonSelector: `${sel.postButtonInline}, ${sel.postButton}`,
-      postButtonTexts: ['Post', 'Tweet', '投稿する', 'ポスト'],
+      // reply intent の modal と home compose が同時に存在する場合がある。
+      // modal を先に選ばないと、home 側の disabled button で待ち続ける。
+      postButtonSelector: `${sel.postButton}, ${sel.postButtonInline}`,
+      postButtonTexts: ['Post', 'Tweet', 'Reply', '投稿する', 'ポスト', '返信'],
       fileInputSelector: sel.fileInput,
-      text,
+      text: images && images.length > 0 ? '' : text,
       images,
       dryRun,
+      composeInputTimeoutMs: 90_000,
+      // X は画像添付時に Lexical editor を再生成し、先に注入した本文を失う
+      // ことがある。画像 upload 後に本文を再注入してから submit する。
+      beforeSubmit: text && images && images.length > 0
+        ? () => injectTextWithRetry(text, sel.textarea, text)
+        : undefined,
+      clickPostButton: () => clickElementInMainWorld(`${sel.postButton}, ${sel.postButtonInline}`, [
+        'Post',
+        'Tweet',
+        'Reply',
+        '投稿する',
+        'ポスト',
+        '返信',
+      ]),
     });
   }
 
@@ -94,12 +124,14 @@ async function runPost(
   // 元として background が tweet_id を抽出するために必要。
   let url: string | undefined;
   if (!dryRun) {
+    const detectedAfterSubmit = detectXUser();
+    cleanHandle ??= detectedAfterSubmit?.startsWith('@') ? detectedAfterSubmit.slice(1) : detectedAfterSubmit;
     if (!cleanHandle) {
-      throw new Error('X: own handle 未検出のため post URL を capture できません');
+      throw new Error(t('runtimeXOwnHandleMissing'));
     }
-    const captured = await captureNewXPostUrl(cleanHandle, beforeIds, 30000);
+    const captured = await captureNewXPostUrl(cleanHandle, beforeIds, 60000);
     if (!captured) {
-      throw new Error('X: 投稿後の tweet URL を 30s 以内に取得できませんでした (timeline 更新失敗?)');
+      throw new Error(t('runtimeXPostUrlTimeout'));
     }
     url = captured;
   }
@@ -142,7 +174,7 @@ async function executeXInlineThread(
 ): Promise<void> {
   // 最初の textarea が visible になるまで wait (compose UI のロード待ち)
   const textarea0 = await waitForElement<HTMLElement>(sel.textarea, 8000);
-  if (!textarea0) throw new Error('X: 最初の textarea が見つかりません');
+  if (!textarea0) throw new Error(t('runtimeXFirstTextareaMissing'));
 
   // v0.4.97: 画像 → text の順序が重要。 旧 (text→image) は X の Lexical が
   // image 追加時に compose を re-mount して chunk 0 text を失う事故があった。
@@ -162,7 +194,7 @@ async function executeXInlineThread(
   for (let i = 1; i < chunks.length; i++) {
     const addBtn = findXAddPostButton();
     if (!addBtn) {
-      throw new Error(`X: chunk ${i + 1}/${chunks.length} の「ポストを追加 (+)」 button が見つかりません (chunk ${i} の text が反映されてない可能性)`);
+      throw new Error(t('runtimeXAddButtonMissing', i + 1, chunks.length, i));
     }
     addBtn.click();
 
@@ -179,7 +211,7 @@ async function executeXInlineThread(
     }
     if (!target) {
       const got = document.querySelectorAll('[data-testid^="tweetTextarea_"][contenteditable="true"]').length;
-      throw new Error(`X: chunk ${i + 1}/${chunks.length} の textarea が 5s 以内に出現しませんでした (要 ${i + 1} 個、 実 ${got} 個)`);
+      throw new Error(t('runtimeXTextareaTimeout', i + 1, chunks.length, i + 1, got));
     }
     const marker = `tutti-x-chunk-${i}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     target.setAttribute('data-tutti-marker', marker);
@@ -208,13 +240,14 @@ async function executeXInlineThread(
 
   // Post button (preview なら highlight だけ、 autoPost なら click)
   const postBtn = findXPostAllButton(sel);
-  if (!postBtn) throw new Error('X: 全ポスト送信ボタンが見つかりません');
+  if (!postBtn) throw new Error(t('runtimeXPostAllButtonMissing'));
   if (dryRun) {
     const orig = postBtn.style.outline;
     postBtn.style.outline = '3px dashed #f59e0b';
     setTimeout(() => { postBtn.style.outline = orig; }, 5000);
     return;
   }
+  markPostSubmissionStarted();
   postBtn.click();
 }
 
@@ -246,7 +279,7 @@ async function injectTextWithRetry(
       log.warn(`X: text inject attempt ${attempt}/${maxAttempts} 失敗 (got "${got.slice(0, 30)}", expected prefix "${expectedPrefix.slice(0, 20)}"), retry`);
     }
   }
-  log.warn(`X: text inject 全 ${maxAttempts} attempts 失敗、 最終 fallback で続行 (post-flow の verify が catch する想定)`);
+  throw new Error(t('runtimeTextInjectFailed'));
 }
 
 /** X の 「ポストを追加 (+)」 button 候補を多段 fallback で探す。 */
@@ -267,7 +300,9 @@ function findXAddPostButton(): HTMLElement | null {
 function findXPostAllButton(sel: typeof X_SELECTORS): HTMLElement | null {
   // inline thread の Post button は 「Post all」 / 「すべてポスト」 等の text を持つ
   // ことがある (X UI バージョン依存)。 通常の Post button selector も fallback で
-  for (const part of (sel.postButtonInline + ',' + sel.postButton).split(',').map((s) => s.trim()).filter(Boolean)) {
+  // 扱う。thread compose では modal 側 tweetButton を先に選ぶ。ホーム画面側の
+  // tweetButtonInline を先に押すと、追加 chunk だけが投稿される。
+  for (const part of (sel.postButton + ',' + sel.postButtonInline).split(',').map((s) => s.trim()).filter(Boolean)) {
     const el = document.querySelector<HTMLElement>(part);
     if (el && !(el as HTMLButtonElement).disabled) return el;
   }
@@ -289,6 +324,8 @@ async function captureNewXPostUrl(
   const deadline = Date.now() + timeoutMs;
   const re = new RegExp(`/${handle}/status/(\\d+)`);
   while (Date.now() < deadline) {
+    const captured = await getLatestXPostUrlInMainWorld(handle);
+    if (captured) return captured;
     const links = Array.from(document.querySelectorAll<HTMLAnchorElement>(`a[href*="/${handle}/status/"]`));
     for (const link of links) {
       const m = link.getAttribute('href')?.match(re);
@@ -300,4 +337,3 @@ async function captureNewXPostUrl(
   }
   return null;
 }
-

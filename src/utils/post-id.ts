@@ -50,8 +50,9 @@ export function extractPostId(platform: PlatformId, url: string | undefined): st
         return m?.[1] ?? null;
       }
       case 'tumblr': {
-        // {blog}.tumblr.com/post/{postId} or /post/{postId}/{slug}
-        const m = path.match(/\/post\/(\d+)/);
+        // {blog}.tumblr.com/post/{postId}, /post/{postId}/{slug},
+        // or tumblr.com/{blog}/{postId}/{slug} (current dashboard permalink)
+        const m = path.match(/\/post\/(\d+)/) ?? path.match(/^\/[^/]+\/(\d+)(?:\/|$)/);
         return m?.[1] ?? null;
       }
       case 'pixiv': {
@@ -82,8 +83,8 @@ export function extractPostId(platform: PlatformId, url: string | undefined): st
         return m?.[1] ?? null;
       }
       case 'deviantart': {
-        // deviantart.com/{user}/art/{title}-{id}
-        const m = path.match(/-(\d+)\/?$/);
+        // deviantart.com/{user}/art/{title}-{id} or /{user}/art/{id}
+        const m = path.match(/-(\d+)\/?$/) ?? path.match(/\/art\/(\d+)\/?$/);
         return m?.[1] ?? null;
       }
     }

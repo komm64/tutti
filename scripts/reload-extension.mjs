@@ -2,7 +2,6 @@
 // tabs are NOT auto-replaced when extension reloads — only fresh navigations
 // pick up the new code). Without this, you'd test against stale content script.
 import puppeteer from 'puppeteer-core';
-const EXT_ID = 'dophemlpjldcejjdjefpjbgngodopkfe';
 const SNS_RE = /^https:\/\/(x\.com|twitter\.com|bsky\.app|.*threads\.(net|com)|mastodon\.social|misskey\.io|.*tumblr\.com|.*pixiv\.net|.*deviantart\.com|.*instagram\.com|.*tiktok\.com|.*youtube\.com)\//;
 
 const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222', protocolTimeout: 240000 });
@@ -14,11 +13,23 @@ if (!extPage) {
   await new Promise(r => setTimeout(r, 1500));
 }
 
+const extId = await extPage.evaluate(() => {
+  const manager = document.querySelector('extensions-manager');
+  const itemList = manager?.shadowRoot?.querySelector('extensions-item-list');
+  const items = itemList?.shadowRoot?.querySelectorAll('extensions-item') ?? [];
+  for (const item of items) {
+    if (item.shadowRoot?.querySelector('#name')?.textContent?.trim() === 'Tutti') return item.id;
+  }
+  return null;
+});
+if (!extId) throw new Error('Tutti extension id not found');
+console.log('extension id:', extId);
+
 const result = await extPage.evaluate((id) => new Promise((resolve) => {
   chrome.developerPrivate.reload(id, {}, () => {
     resolve(chrome.runtime.lastError?.message ?? 'reloaded');
   });
-}), EXT_ID);
+}), extId);
 console.log('extension:', result);
 
 // Reload SNS tabs so they pick up new content scripts

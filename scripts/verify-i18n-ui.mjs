@@ -8,6 +8,7 @@ import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
+import { toChromeLocaleDir } from './locale-config.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -15,10 +16,10 @@ const EXT_DIR = join(ROOT, '.output', 'chrome-mv3');
 const OUT_DIR = join(ROOT, '.tmp', 'i18n-shots');
 
 // Representative locales: covers Latin, Cyrillic, CJK, Arabic (RTL), Greek, Thai
-const LOCALES_TO_TEST = ['en', 'ja', 'zh_CN', 'ko', 'es', 'de', 'fr', 'ru', 'ar', 'el', 'th', 'eo'];
+const LOCALES_TO_TEST = ['en', 'ja', 'zh-Hans', 'ko', 'es-ES', 'de', 'fr', 'ru', 'ar', 'el', 'th', 'eo'];
 
 async function loadMessages(code) {
-  const raw = await readFile(join(EXT_DIR, '_locales', code, 'messages.json'), 'utf8');
+  const raw = await readFile(join(EXT_DIR, '_locales', toChromeLocaleDir(code), 'messages.json'), 'utf8');
   return JSON.parse(raw);
 }
 

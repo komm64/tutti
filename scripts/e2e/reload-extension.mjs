@@ -7,7 +7,15 @@ import puppeteer from 'puppeteer-core';
 const ws = (await (await fetch('http://localhost:9222/json/version')).json()).webSocketDebuggerUrl;
 const browser = await puppeteer.connect({ browserWSEndpoint: ws, defaultViewport: null });
 
-const EXT_ID = 'dophemlpjldcejjdjefpjbgngodopkfe';
+const EXT_ID = process.env.E2E_EXTENSION_ID ??
+  browser.targets()
+    .map((target) => target.url().match(/^chrome-extension:\/\/([a-z]+)\//)?.[1])
+    .find(Boolean);
+if (!EXT_ID) {
+  console.error('[reload] extension id not found');
+  browser.disconnect();
+  process.exit(2);
+}
 async function findSw() {
   return browser.targets().find((t) => t.type() === 'service_worker' && t.url().includes(`chrome-extension://${EXT_ID}/`));
 }

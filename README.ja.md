@@ -2,7 +2,7 @@
 
 > クロスポストの面倒を全部肩代わりする Chrome 拡張機能
 
-[English](./README.md) &middot; [简体中文](./README.zh_CN.md) &middot; [繁體中文](./README.zh_TW.md) &middot; [한국어](./README.ko.md) &middot; [Español](./README.es.md) &middot; [Español (LatAm)](./README.es_419.md) &middot; [Português (BR)](./README.pt_BR.md) &middot; [Português (PT)](./README.pt_PT.md) &middot; [Русский](./README.ru.md) &middot; [Deutsch](./README.de.md) &middot; [Français](./README.fr.md) &middot; [Polski](./README.pl.md) &middot; [Türkçe](./README.tr.md) &middot; [Italiano](./README.it.md) &middot; [Čeština](./README.cs.md) &middot; [Українська](./README.uk.md) &middot; [Magyar](./README.hu.md) &middot; [ไทย](./README.th.md) &middot; [Tiếng Việt](./README.vi.md) &middot; [Nederlands](./README.nl.md) &middot; [Svenska](./README.sv.md) &middot; [العربية](./README.ar.md) &middot; [Bahasa Indonesia](./README.id.md) &middot; [Suomi](./README.fi.md) &middot; [Ελληνικά](./README.el.md) &middot; [Български](./README.bg.md) &middot; [Norsk](./README.no.md) &middot; [Română](./README.ro.md) &middot; [Dansk](./README.da.md) &middot; [Esperanto](./README.eo.md)
+[English](./README.md) &middot; [简体中文](./README.zh-Hans.md) &middot; [繁體中文](./README.zh-Hant.md) &middot; [한국어](./README.ko.md) &middot; [Español](./README.es-ES.md) &middot; [Español (LatAm)](./README.es-419.md) &middot; [Português (BR)](./README.pt-BR.md) &middot; [Português (PT)](./README.pt-PT.md) &middot; [Русский](./README.ru.md) &middot; [Deutsch](./README.de.md) &middot; [Français](./README.fr.md) &middot; [Polski](./README.pl.md) &middot; [Türkçe](./README.tr.md) &middot; [Italiano](./README.it.md) &middot; [Čeština](./README.cs.md) &middot; [Українська](./README.uk.md) &middot; [Magyar](./README.hu.md) &middot; [ไทย](./README.th.md) &middot; [Tiếng Việt](./README.vi.md) &middot; [Nederlands](./README.nl.md) &middot; [Svenska](./README.sv.md) &middot; [العربية](./README.ar.md) &middot; [Bahasa Indonesia](./README.id.md) &middot; [Suomi](./README.fi.md) &middot; [Ελληνικά](./README.el.md) &middot; [Български](./README.bg.md) &middot; [Norsk](./README.no.md) &middot; [Română](./README.ro.md) &middot; [Dansk](./README.da.md) &middot; [Esperanto](./README.eo.md)
 
 複数の SNS に同じ投稿を一気に流す Chrome 拡張機能です (11 ネットワーク対応)。
 文字数オーバーは自動分割 (X はリプライチェーンでスレッド化)、画像は各 SNS の
@@ -12,9 +12,7 @@
 
 🔒 [プライバシーポリシー](https://komm64.github.io/tutti/)
 
-<!-- スクショ追加予定 (1280×800)
-![popup](./docs/screenshots/popup.png)
--->
+![Tutti の概要](./docs/screenshots/01-overview-1280x800.png)
 
 ## できること
 

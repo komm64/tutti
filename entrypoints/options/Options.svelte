@@ -31,7 +31,6 @@
   let pixivVisibility = $state<'general' | 'r18' | 'r18g'>('general');
   let pixivAiType = $state<'notAiGenerated' | 'aiGenerated'>('notAiGenerated');
   let autoLetterboxVerticalVideo = $state(false);
-  let historyKeepMedia = $state(false);
   let notifyInteractions = $state(false);
   let displayMode = $state<'auto' | 'popup' | 'sidepanel' | 'floating'>('auto');
   let uiLanguage = $state<string>('auto');
@@ -68,7 +67,6 @@
       pixivVisibility = s.pixivVisibility;
       pixivAiType = s.pixivAiType;
       autoLetterboxVerticalVideo = s.autoLetterboxVerticalVideo;
-      historyKeepMedia = s.historyKeepMedia ?? false;
       notifyInteractions = s.notifyInteractions ?? false;
       displayMode = s.displayMode ?? 'auto';
       uiLanguage = s.uiLanguage ?? 'auto';
@@ -248,7 +246,7 @@
       alert(t('alertPermissionDenied'));
       return;
     }
-    await saveSettings({ mastodonInstance: m, misskeyInstance: k, selectorOverrideUrl, logLevel, disableReportDedup, autoOpenPostUrl, pixivVisibility, pixivAiType, autoLetterboxVerticalVideo, historyKeepMedia, notifyInteractions, displayMode, uiLanguage });
+    await saveSettings({ mastodonInstance: m, misskeyInstance: k, selectorOverrideUrl, logLevel, disableReportDedup, autoOpenPostUrl, pixivVisibility, pixivAiType, autoLetterboxVerticalVideo, notifyInteractions, displayMode, uiLanguage });
     // disableReportDedup=true にしたら既存の dedup 履歴も clear
     // (再 enable まで storage に dead key が残らないように)
     if (disableReportDedup) {
@@ -281,11 +279,12 @@
     <section class="mb-6">
       <h2 class="text-sm font-semibold text-gray-700 mb-3">Mastodon</h2>
       <div class="space-y-2">
-        <label class="block text-sm text-gray-600">
+        <label for="mastodon-instance" class="block text-sm text-gray-600">
           {t('instanceUrl')}
           <span class="text-xs text-gray-400 ml-1">{t('instanceHint')}</span>
         </label>
         <input
+          id="mastodon-instance"
           type="url"
           bind:value={mastodonInstance}
           placeholder="https://mastodon.social"
@@ -298,11 +297,12 @@
     <section class="mb-6">
       <h2 class="text-sm font-semibold text-gray-700 mb-3">Misskey</h2>
       <div class="space-y-2">
-        <label class="block text-sm text-gray-600">
+        <label for="misskey-instance" class="block text-sm text-gray-600">
           {t('instanceUrl')}
           <span class="text-xs text-gray-400 ml-1">{t('instanceHint')}</span>
         </label>
         <input
+          id="misskey-instance"
           type="url"
           bind:value={misskeyInstance}
           placeholder="https://misskey.io"
@@ -387,8 +387,9 @@
     <section class="mb-6">
       <h2 class="text-sm font-semibold text-gray-700 mb-3">{t('selectorUpdateTitle')}</h2>
       <div class="space-y-2">
-        <label class="block text-sm text-gray-600">{t('selectorUpdateUrl')}</label>
+        <label for="selector-override-url" class="block text-sm text-gray-600">{t('selectorUpdateUrl')}</label>
         <input
+          id="selector-override-url"
           type="url"
           bind:value={selectorOverrideUrl}
           placeholder="https://example.com/tutti-selectors.json"
@@ -419,8 +420,9 @@
     <section class="mb-6">
       <h2 class="text-sm font-semibold text-gray-700 mb-3">{t('logsTitle')}</h2>
       <div class="space-y-2">
-        <label class="block text-sm text-gray-600">{t('logLevelLabel')}</label>
+        <label for="log-level" class="block text-sm text-gray-600">{t('logLevelLabel')}</label>
         <select
+          id="log-level"
           bind:value={logLevel}
           class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
         >
@@ -462,14 +464,14 @@
     <section class="mb-6">
       <h2 class="text-sm font-semibold text-gray-700 mb-3">{t('pixivTitle')}</h2>
       <div class="space-y-2">
-        <label class="block text-sm text-gray-600">{t('pixivVisibilityLabel')}</label>
-        <select bind:value={pixivVisibility} class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+        <label for="pixiv-visibility" class="block text-sm text-gray-600">{t('pixivVisibilityLabel')}</label>
+        <select id="pixiv-visibility" bind:value={pixivVisibility} class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
           <option value="general">general — {t('pixivVisibilityGeneralDesc')}</option>
           <option value="r18">R-18 — {t('pixivVisibilityR18Desc')}</option>
           <option value="r18g">R-18G — {t('pixivVisibilityR18gDesc')}</option>
         </select>
-        <label class="block text-sm text-gray-600 pt-2">{t('pixivAiTypeLabel')}</label>
-        <select bind:value={pixivAiType} class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+        <label for="pixiv-ai-type" class="block text-sm text-gray-600 pt-2">{t('pixivAiTypeLabel')}</label>
+        <select id="pixiv-ai-type" bind:value={pixivAiType} class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
           <option value="notAiGenerated">Not AI — {t('pixivAiTypeNoDesc')}</option>
           <option value="aiGenerated">AI generated — {t('pixivAiTypeYesDesc')}</option>
         </select>
@@ -492,12 +494,6 @@
       <h2 class="text-sm font-semibold text-gray-700 mb-3">{t('historyTitle')}</h2>
       <div class="space-y-2">
         <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-          <input type="checkbox" bind:checked={historyKeepMedia} class="rounded" />
-          <span>{t('historyKeepMediaLabel')}</span>
-        </label>
-        <p class="text-xs text-gray-400">{t('historyKeepMediaHint')}</p>
-
-        <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer pt-3 border-t border-gray-100 mt-2">
           <input type="checkbox" bind:checked={notifyInteractions} class="rounded" />
           <span>{t('notifyInteractionsLabel')}</span>
         </label>
@@ -541,8 +537,9 @@
     <section class="mb-6">
       <h2 class="text-sm font-semibold text-gray-700 mb-3">{t('autoOpenTitle')}</h2>
       <div class="space-y-2">
-        <label class="block text-sm text-gray-600">{t('autoOpenLabel')}</label>
+        <label for="auto-open-post-url" class="block text-sm text-gray-600">{t('autoOpenLabel')}</label>
         <select
+          id="auto-open-post-url"
           bind:value={autoOpenPostUrl}
           class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
         >

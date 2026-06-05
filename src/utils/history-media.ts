@@ -2,7 +2,7 @@
  * 履歴 entry に紐づくメディア (画像 / 動画) を IndexedDB に保存・取り出す。
  *
  * 用途 (v0.5.5〜):
- * - Settings.historyKeepMedia が ON の時のみ書き込まれる (default OFF)
+ * - 投稿時に常に書き込まれる。History は直近の投稿をメディア込みで表示する
  * - 「失敗 SNS だけ再送」 を popup から仕掛ける時に再アップロード元として使う
  * - 7 日経過 entry は startup sweep で自動削除 (storage quota 圧迫回避)
  *
@@ -65,6 +65,11 @@ export async function deleteMedia(id: string): Promise<void> {
   await tx('readwrite', (s) => s.delete(id));
 }
 
+export async function deleteMediaRefs(ids?: string[]): Promise<void> {
+  if (!ids || ids.length === 0) return;
+  await Promise.all(ids.map((id) => deleteMedia(id)));
+}
+
 /**
  * `now - ts > maxAgeMs` の record を全削除。 戻り値は削除数。
  * default 7 日。 bg startup から呼ぶ想定。
@@ -111,8 +116,9 @@ export async function dropOrphans(keepEntryIds: Set<string>): Promise<number> {
       const cursor = cur.result;
       if (cursor) {
         const rec = cursor.value as MediaRecord;
-        const entryId = rec.id.split('-')[0];
-        if (entryId && !keepEntryIds.has(entryId)) {
+        const belongsToKeptEntry = Array.from(keepEntryIds)
+          .some((entryId) => rec.id.startsWith(`${entryId}-`));
+        if (!belongsToKeptEntry) {
           cursor.delete();
           dropped += 1;
         }

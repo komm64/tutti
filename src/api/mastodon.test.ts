@@ -79,4 +79,32 @@ describe('mastodon postViaApi (v0.4.87)', () => {
     const fd = mediaCall![1]!.body as FormData;
     expect(fd.get('description')).toBeNull();
   });
+
+  it('marks a network failure after dispatch as uncertain', async () => {
+    fetchSpy.mockImplementation(async (url: string) => {
+      if (url.endsWith('/api/v1/statuses')) throw new Error('network disconnected');
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const result = await postViaApi(creds, { text: 'maybe landed' });
+    expect(result).toMatchObject({
+      success: false,
+      uncertain: true,
+      error: 'network disconnected',
+    });
+  });
+
+  it('keeps an HTTP rejection as a definite failure', async () => {
+    fetchSpy.mockImplementation(async (url: string) => {
+      if (url.endsWith('/api/v1/statuses')) {
+        return new Response('unauthorized', { status: 401 });
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const result = await postViaApi(creds, { text: 'rejected' });
+    expect(result.success).toBe(false);
+    expect(result.uncertain).toBeUndefined();
+    expect(result.error).toContain('statuses 401');
+  });
 });

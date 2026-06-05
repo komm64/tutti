@@ -9,6 +9,7 @@
  */
 
 import type { PlatformId } from '../messages';
+import { t } from './i18n';
 
 export type FailureHintCta =
   | { kind: 'open-sns'; label: string; url: string }
@@ -42,11 +43,11 @@ export function classifyFailure(
     /投稿入力欄が見つかりません/.test(error)
   ) {
     return {
-      reason: 'ログインが必要かもしれません',
-      guidance: `${platform} のページで sign-in 状態を確認してください。 別タブで開いてログイン → Tutti popup を開き直して再送 で復旧します。`,
+      reason: t('failureReasonLogin'),
+      guidance: t('failureGuidanceLogin', platform),
       ctas: [
-        ...(loginUrl ? [{ kind: 'open-sns' as const, label: `${platform} を開く ↗`, url: loginUrl }] : []),
-        { kind: 'retry' as const, label: 'もう一度試す' },
+        ...(loginUrl ? [{ kind: 'open-sns' as const, label: t('failureCtaOpenSns', platform), url: loginUrl }] : []),
+        { kind: 'retry' as const, label: t('failureCtaRetry') },
       ],
     };
   }
@@ -54,11 +55,11 @@ export function classifyFailure(
   // ── アカウント不一致 (multi-account 誤爆 guard) ────────────────
   if (/アカウント|account/.test(e) && /想定|expected|mismatch|違い|switch/.test(e)) {
     return {
-      reason: 'アカウントが切り替わっていました',
-      guidance: `${platform} の tab で元のアカウントに戻すか、 popup を開き直して新しいアカウントを確認してから再送してください。`,
+      reason: t('failureReasonAccountMismatch'),
+      guidance: t('failureGuidanceAccountMismatch', platform),
       ctas: [
-        ...(loginUrl ? [{ kind: 'open-sns' as const, label: `${platform} を開く ↗`, url: loginUrl }] : []),
-        { kind: 'retry' as const, label: 'アカウント確認後、 再送' },
+        ...(loginUrl ? [{ kind: 'open-sns' as const, label: t('failureCtaOpenSns', platform), url: loginUrl }] : []),
+        { kind: 'retry' as const, label: t('failureCtaRetryAfterAccount') },
       ],
     };
   }
@@ -66,11 +67,11 @@ export function classifyFailure(
   // ── captcha / security check (Pixiv 等) ──────────────────────
   if (/captcha|recaptcha|security check|セキュリティチェック|verify you are human/.test(e)) {
     return {
-      reason: '画像認証 (captcha) が表示されています',
-      guidance: `${platform} の tab で captcha を完了してから 再送してください。 自動突破はできません。`,
+      reason: t('failureReasonCaptcha'),
+      guidance: t('failureGuidanceCaptcha', platform),
       ctas: [
-        ...(loginUrl ? [{ kind: 'open-sns' as const, label: `${platform} を開く ↗`, url: loginUrl }] : []),
-        { kind: 'retry' as const, label: 'captcha 完了後、 再送' },
+        ...(loginUrl ? [{ kind: 'open-sns' as const, label: t('failureCtaOpenSns', platform), url: loginUrl }] : []),
+        { kind: 'retry' as const, label: t('failureCtaRetryAfterCaptcha') },
       ],
     };
   }
@@ -78,10 +79,10 @@ export function classifyFailure(
   // ── サイズ / 尺 オーバー ───────────────────────────────────
   if (/too\s*(?:large|big|long)|over.*limit|exceed|オーバー|超えて|maxbytes|maxduration/.test(e)) {
     return {
-      reason: 'メディアが SNS の上限を超えています',
-      guidance: '画像は Tutti が自動 resize しますが、 動画 / 動画尺は超過すると拒否されます。 Settings の 「動画の自動整形」 を見直すか、 該当 SNS だけ選択を外して再送してください。',
+      reason: t('failureReasonMediaLimit'),
+      guidance: t('failureGuidanceMediaLimit'),
       ctas: [
-        { kind: 'retry' as const, label: 'もう一度試す' },
+        { kind: 'retry' as const, label: t('failureCtaRetry') },
       ],
     };
   }
@@ -89,10 +90,10 @@ export function classifyFailure(
   // ── タイムアウト / network ────────────────────────────────
   if (/timeout|timed?\s*out|network|読み込みがタイムアウト|応答がありません/.test(e)) {
     return {
-      reason: 'タイムアウト or ネットワーク不調',
-      guidance: 'SNS 側の応答が遅れています。 数秒待ってから再送してください。 繰り返すなら回線 / SNS の状態を確認。',
+      reason: t('failureReasonTimeout'),
+      guidance: t('failureGuidanceTimeout'),
       ctas: [
-        { kind: 'retry' as const, label: 'もう一度試す' },
+        { kind: 'retry' as const, label: t('failureCtaRetry') },
       ],
     };
   }
@@ -100,10 +101,10 @@ export function classifyFailure(
   // ── 重複投稿 / rate-limit (X 等) ───────────────────────────
   if (/duplicate|rate\s*limit|too\s*many\s*requests|429|same\s*tweet/.test(e)) {
     return {
-      reason: '重複 or rate-limit の可能性',
-      guidance: '同じ本文を最近投稿していませんか? SNS 側で重複検知された可能性。 少し時間を置いて再送するか、 本文を変えてください。',
+      reason: t('failureReasonDuplicate'),
+      guidance: t('failureGuidanceDuplicate'),
       ctas: [
-        { kind: 'wait' as const, label: '5 分待って再送' },
+        { kind: 'wait' as const, label: t('failureCtaWaitFiveMinutes') },
       ],
     };
   }
@@ -111,22 +112,22 @@ export function classifyFailure(
   // ── selector が見つからない (UI 変更?) ──────────────────────
   if (/selector|見つかりません|not found|UI が更新された/.test(e)) {
     return {
-      reason: 'SNS の UI が変更された可能性',
-      guidance: 'Tutti が想定している投稿フォームの構造を見つけられませんでした。 報告すれば Tutti が自動 PR を立てて修正します (auto-triage)。',
+      reason: t('failureReasonSelector'),
+      guidance: t('failureGuidanceSelector'),
       ctas: [
-        { kind: 'report' as const, label: 'この問題を報告' },
-        { kind: 'retry' as const, label: 'もう一度試す' },
+        { kind: 'report' as const, label: t('errorReportButton') },
+        { kind: 'retry' as const, label: t('failureCtaRetry') },
       ],
     };
   }
 
   // ── 未分類 ────────────────────────────────────────────────
   return {
-    reason: '原因不明のエラー',
-    guidance: error.slice(0, 200) || '詳細無し',
+    reason: t('failureReasonUnknown'),
+    guidance: error.slice(0, 200) || t('failureNoDetails'),
     ctas: [
-      { kind: 'retry' as const, label: 'もう一度試す' },
-      { kind: 'report' as const, label: 'この問題を報告' },
+      { kind: 'retry' as const, label: t('failureCtaRetry') },
+      { kind: 'report' as const, label: t('errorReportButton') },
     ],
   };
 }

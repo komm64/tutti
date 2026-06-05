@@ -1,5 +1,6 @@
 import type { ImageAttachment } from '../messages';
 import { sleep, waitForElement } from './dom';
+import { t } from './i18n';
 
 const REQ_TAG = 'tutti-inject-req-v1';
 const RES_TAG = 'tutti-inject-res-v1';
@@ -7,11 +8,12 @@ const RES_TAG = 'tutti-inject-res-v1';
 interface InjectRequest {
   source: typeof REQ_TAG;
   id: string;
-  mode: 'input' | 'drop' | 'text' | 'tag-list';
+  mode: 'input' | 'drop' | 'text' | 'tag-list' | 'click' | 'x-post-url';
   selector: string;
   files: { name: string; type: string; data: string }[];
   text?: string;
   tags?: string[];
+  texts?: string[];
   uploadTimeoutMs?: number;
 }
 
@@ -24,6 +26,7 @@ interface InjectResponse {
   droppedOn?: string;
   uploadCount?: number;
   uploadTimedOut?: boolean;
+  url?: string;
 }
 
 const RESPONSE_TIMEOUT_MS = 35000; // helper 側が最大 30s 待つので 35s で安全マージン
@@ -89,7 +92,7 @@ export async function injectImages(
   });
 
   if (!result.ok) {
-    throw new Error(result.error ?? '画像添付に失敗(SNS の UI が変わった可能性)');
+    throw new Error(result.error ?? t('runtimeImageAttachFailed'));
   }
   console.log(`[Tutti] image upload complete (count=${result.uploadCount ?? 0})`);
   // helper が in-flight = 0 + quiet 800ms を確認した直後。少し追加で
@@ -117,7 +120,7 @@ export async function injectTextIntoElement(
     text,
   });
   if (!result.ok) {
-    throw new Error(result.error ?? '本文の挿入に失敗(SNS の UI が変わった可能性)');
+    throw new Error(result.error ?? t('runtimeTextInjectFailed'));
   }
 }
 
@@ -138,9 +141,31 @@ export async function injectTagList(
     tags,
   });
   if (!result.ok) {
-    throw new Error(result.error ?? 'tag list 注入に失敗');
+    throw new Error(result.error ?? t('runtimeTagInjectFailed'));
   }
   await sleep(200);
+}
+
+export async function clickElementInMainWorld(selector: string, texts?: string[]): Promise<void> {
+  const result = await sendInjectRequest({
+    mode: 'click',
+    selector,
+    files: [],
+    texts,
+  });
+  if (!result.ok) {
+    throw new Error(result.error ?? 'click target not found');
+  }
+}
+
+export async function getLatestXPostUrlInMainWorld(handle: string): Promise<string | undefined> {
+  const result = await sendInjectRequest({
+    mode: 'x-post-url',
+    selector: '',
+    files: [],
+    text: handle,
+  });
+  return result.url;
 }
 
 /**
@@ -173,7 +198,7 @@ export async function dropImages(
   });
 
   if (!result.ok) {
-    throw new Error(result.error ?? '画像添付に失敗(SNS の UI が変わった可能性)');
+    throw new Error(result.error ?? t('runtimeImageAttachFailed'));
   }
   console.log(`[Tutti] image upload complete via drop (count=${result.uploadCount ?? 0})`);
   await sleep(300);

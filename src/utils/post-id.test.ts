@@ -30,6 +30,7 @@ describe('extractPostId', () => {
   it('extracts Tumblr post id', () => {
     expect(extractPostId('tumblr', 'https://blog.tumblr.com/post/123456789')).toBe('123456789');
     expect(extractPostId('tumblr', 'https://blog.tumblr.com/post/987/slug')).toBe('987');
+    expect(extractPostId('tumblr', 'https://www.tumblr.com/ren-fujimoto/818245963998232576/title')).toBe('818245963998232576');
   });
 
   it('extracts Pixiv illust id', () => {
@@ -54,6 +55,7 @@ describe('extractPostId', () => {
 
   it('extracts DeviantArt id from end-numeric url', () => {
     expect(extractPostId('deviantart', 'https://www.deviantart.com/artist/art/title-slug-1234567890')).toBe('1234567890');
+    expect(extractPostId('deviantart', 'https://www.deviantart.com/artist/art/1328289647?action=published')).toBe('1328289647');
   });
 
   it('returns null for malformed / unrelated urls', () => {

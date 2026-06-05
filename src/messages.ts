@@ -91,6 +91,16 @@ export interface PostResultMessage {
   type: 'POST_RESULT';
   platform: PlatformId;
   success: boolean;
+  /**
+   * SNS 側で landing を確認できた場合のみ true。post URL、API の create 応答、
+   * または SNS 固有の完了 UI が証跡になる。preview の場合も true。
+   */
+  confirmed?: boolean;
+  /**
+   * Post click 後に証跡を取得できず、成功とも失敗とも断定できない状態。
+   * 非 idempotent な投稿を重複させないため、自動 retry 対象にしない。
+   */
+  uncertain?: boolean;
   error?: string;
   /**
    * 投稿後の post URL (= 「本当に landing した」 証跡)。 redirect 型 SNS では
@@ -317,6 +327,13 @@ export interface BroadcastRefreshUsersMessage {
   type: 'BROADCAST_REFRESH_USERS';
 }
 
+/** content script → background: captcha 等、利用者の画面操作が必要になった。 */
+export interface UserActionRequiredMessage {
+  type: 'USER_ACTION_REQUIRED';
+  platform: PlatformId;
+  reason: 'captcha' | 'confirmation';
+}
+
 export interface VerifyPostDomResult {
   type: 'VERIFY_POST_DOM_RESULT';
   ogDescription: string;
@@ -358,4 +375,5 @@ export type Message =
   | VerifyPostDomResult
   | RefreshUserMessage
   | BroadcastRefreshUsersMessage
+  | UserActionRequiredMessage
   | LogClearMessage;

@@ -116,6 +116,7 @@ export async function postViaSession(
   input: ApiPostInput,
   replyTarget?: BlueskyReplyTarget,
 ): Promise<ApiPostResult & { uri?: string; cid?: string }> {
+  let recordRequestInFlight = false;
   try {
     const pds = session.pdsHost || DEFAULT_PDS;
 
@@ -150,6 +151,7 @@ export async function postViaSession(
       };
     }
 
+    recordRequestInFlight = true;
     const createRes = await fetch(`${pds}/xrpc/com.atproto.repo.createRecord`, {
       method: 'POST',
       headers: {
@@ -163,6 +165,7 @@ export async function postViaSession(
       }),
     });
     if (!createRes.ok) {
+      recordRequestInFlight = false;
       const detail = await createRes.text().catch(() => '');
       throw new Error(`createRecord ${createRes.status}: ${detail.slice(0, 200)}`);
     }
@@ -173,7 +176,11 @@ export async function postViaSession(
     const postUrl = rkey ? `https://bsky.app/profile/${session.handle}/post/${rkey}` : undefined;
     return { success: true, postUrl, uri: createData.uri, cid: createData.cid };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : String(e) };
+    return {
+      success: false,
+      uncertain: recordRequestInFlight || undefined,
+      error: e instanceof Error ? e.message : String(e),
+    };
   }
 }
 

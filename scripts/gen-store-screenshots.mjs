@@ -20,7 +20,7 @@ const EXT_ID = 'dophemlpjldcejjdjefpjbgngodopkfe';
 mkdirSync('docs/screenshots', { recursive: true });
 
 // 該当 locale の messages.json を読み込んで popup の i18n を上書き
-const messagesPath = `public/_locales/${LANG}/messages.json`;
+const messagesPath = `locales/${LANG}/messages.json`;
 const messages = JSON.parse(readFileSync(messagesPath, 'utf8'));
 
 const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222', protocolTimeout: 60000 });

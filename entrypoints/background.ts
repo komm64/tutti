@@ -36,16 +36,17 @@ import {
   runPollCycle as runInteractionPollCycle,
 } from '../src/utils/interaction-notify';
 import { fetchOverridesFrom } from '../src/utils/selector-overrides';
-import { splitText } from '../src/utils/split';
+import { splitTextForPlatform } from '../src/utils/platform-text';
 import { letterboxToSquare } from '../src/utils/image-letterbox';
 import { getApiCredentials } from '../src/utils/api-credentials';
 import { postViaApi as postBlueskyApi, postViaSession as postBlueskyViaSession, type BlueskyReplyTarget } from '../src/api/bluesky';
 import { isVerifySupported } from '../src/utils/post-verify';
 import { runVerify } from '../src/background/verify-dispatcher';
-import { openOrFocusTab, notifyResults, clearBadge, updateProgressBadge, closeTabSafely } from '../src/background/tab-management';
+import { openOrFocusTab, notifyResults, clearBadge, updateProgressBadge, closeTabSafely, waitForTabComplete } from '../src/background/tab-management';
 import { postViaApi as postMastodonApi } from '../src/api/mastodon';
 import { postViaApi as postMisskeyApi } from '../src/api/misskey';
 import type { ApiPostResult } from '../src/api/types';
+import { t } from '../src/utils/i18n';
 
 const CHUNK_INTERVAL_MS = 2000;
 
@@ -97,6 +98,7 @@ interface PostingState {
   finishedAt?: number;
 }
 let postingStateInMemory: PostingState | null = null;
+const userActionNotificationTabs = new Map<string, number>();
 
 /**
  * v0.5.0: displayMode に応じて action click 動作を切替える。
@@ -288,8 +290,16 @@ export default defineBackground(() => {
     })();
   });
 
-  // 通知 click → post URL を open + 通知 dismiss
+  // 通知 click → captcha 等の操作待ちなら対象 tab を前面化。
+  // interaction 通知なら post URL を open + 通知 dismiss。
   browser.notifications.onClicked.addListener((notificationId: string) => {
+    const tabId = userActionNotificationTabs.get(notificationId);
+    if (tabId !== undefined) {
+      userActionNotificationTabs.delete(notificationId);
+      void focusTabForUserAction(tabId);
+      void browser.notifications.clear(notificationId);
+      return;
+    }
     void handleInteractionNotificationClick(notificationId).catch((e) => {
       log.warn('notification click handler failed', e);
     });
@@ -336,8 +346,16 @@ export default defineBackground(() => {
     }
   });
 
-  browser.runtime.onMessage.addListener((rawMsg, _sender, sendResponse) => {
+  browser.runtime.onMessage.addListener((rawMsg, sender, sendResponse) => {
     const msg = rawMsg as Message;
+
+    if (msg.type === 'USER_ACTION_REQUIRED') {
+      const tabId = sender.tab?.id;
+      if (typeof tabId === 'number') {
+        void notifyUserActionRequired(msg.platform, msg.reason, tabId);
+      }
+      return;
+    }
 
     if (msg.type === 'CURRENT_USER') {
       void setLastSeenUser(msg.platform, msg.username);
@@ -431,7 +449,7 @@ export default defineBackground(() => {
             // content script の materialize で「missing data」assert に
             // つながる前にここで explicit error を返して原因切り分け可能にする。
             log.warn(`GET_BINARY_CHUNK: dataRef=${msg.dataRef} は 0-byte (書き込み失敗の疑い)`);
-            sendResponse({ error: `IDB に 0-byte の binary (dataRef=${msg.dataRef})` });
+            sendResponse({ error: t('runtimeIdbZeroByte', msg.dataRef) });
             return;
           }
           const start = Math.max(0, msg.offset);
@@ -488,6 +506,40 @@ export default defineBackground(() => {
   });
 });
 
+async function focusTabForUserAction(tabId: number): Promise<void> {
+  try {
+    const tab = await browser.tabs.get(tabId);
+    await browser.tabs.update(tabId, { active: true });
+    if (typeof tab.windowId === 'number') {
+      await browser.windows.update(tab.windowId, { focused: true });
+    }
+  } catch (e) {
+    log.warn(`focus user-action tab failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
+async function notifyUserActionRequired(
+  platform: PlatformId,
+  reason: 'captcha' | 'confirmation',
+  tabId: number,
+): Promise<void> {
+  await focusTabForUserAction(tabId);
+  const notificationId = `tutti-user-action:${platform}:${reason}:${Date.now()}`;
+  userActionNotificationTabs.set(notificationId, tabId);
+  const getUrl = browser.runtime.getURL as (path: string) => string;
+  try {
+    await browser.notifications.create(notificationId, {
+      type: 'basic',
+      iconUrl: getUrl('icon/128.png'),
+      title: t('userActionRequiredNotifyTitle'),
+      message: t(reason === 'captcha' ? 'userActionRequiredCaptcha' : 'userActionRequiredConfirmation', platform),
+      requireInteraction: true,
+    });
+  } catch (e) {
+    log.warn(`user-action notification failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
 async function handleDiagnoseRequest(): Promise<DiagnosticsReport> {
   const tabs = await browser.tabs.query({});
   const platformResults: DiagnosePlatformResult[] = [];
@@ -540,8 +592,8 @@ async function handleDiagnoseRequest(): Promise<DiagnosticsReport> {
     // v0.4.88: results に url / error が入るようになったので diagnostics 経路では redact
     // url / error は PII を含み得る (post id / handle) ので public Issue に流さない
     results: Object.fromEntries(
-      Object.entries(h.results).map(([k, v]) => [k, { success: v?.success ?? false }]),
-    ) as Partial<Record<PlatformId, { success: boolean; url?: string; error?: string }>>,
+      Object.entries(h.results).map(([k, v]) => [k, { success: v?.success ?? false, uncertain: v?.uncertain ?? false }]),
+    ) as Partial<Record<PlatformId, { success: boolean; uncertain?: boolean; url?: string; error?: string }>>,
     hasMedia: h.hasMedia,
     timestamp: h.timestamp,
   }));
@@ -572,7 +624,7 @@ interface DiagnosticsReport {
     id: string;
     textPreview: string;
     platforms: PlatformId[];
-    results: Partial<Record<PlatformId, { success: boolean; url?: string; error?: string }>>;
+    results: Partial<Record<PlatformId, { success: boolean; uncertain?: boolean; url?: string; error?: string }>>;
     hasMedia: boolean;
     timestamp: number;
   }>;
@@ -645,7 +697,7 @@ async function handlePostRequest(
 
   notifyResults(results);
   // v0.5.5: schema v1 用の metadata 計算 → addToPostHistory に渡す
-  void recordHistoryEntry(text, results, adjustedImages);
+  await recordHistoryEntry(text, results, adjustedImages);
   // v0.5.7: 成功 SNS の compose / share タブを cleanup (Tutti が新規 open したものに限る)
   void cleanupOpenedTabs(results);
   // IndexedDB binary-transfer の cleanup (元 dataRef + 圧縮結果 dataRef 両方)
@@ -716,7 +768,7 @@ async function cleanupOpenedTabs(results: PostResultMessage[]): Promise<void> {
  * v0.5.5: 履歴 entry を schema v1 で保存。
  * - 本文 + 各メディア digest から bodyHash 計算
  * - 各 SNS 結果 URL から postId 抽出
- * - Settings.historyKeepMedia=ON なら IndexedDB に media を保存 (7 日間 retention)
+ * - IndexedDB に media を保存 (7 日間 retention)
  *
  * すべて 「投稿は終わっている」 段階の post-hoc 処理。 失敗しても投稿には
  * 影響しないので catch して swallow する (履歴は best-effort 機能)。
@@ -749,22 +801,19 @@ async function recordHistoryEntry(
       if (pid) postIds[r.platform] = pid;
     }
 
-    // Settings.historyKeepMedia=ON 時のみ、 媒体実体を IndexedDB に保存。
+    // 媒体実体を IndexedDB に保存。
     // 保存 ID は `${entryId}-${index}` 形式 (entryId は addToPostHistory が決める)。
     // ここでは「保存するつもりの index 列」 を準備して、 entryId が確定したら参照を作る。
-    const settings = await getSettings().catch(() => null);
-    const keepMedia = settings?.historyKeepMedia === true;
-
     // entry を先に作って ID を得る → そこから media key 列を構築
     const entryId = await addToPostHistory(text, results, hasMedia, {
       bodyHash,
       postIds,
-      mediaRefs: keepMedia && adjustedImages && adjustedImages.length > 0
+      mediaRefs: adjustedImages && adjustedImages.length > 0
         ? adjustedImages.map((_, i) => `pending-${i}`) // 後で書き換える placeholder
         : undefined,
     });
 
-    if (keepMedia && adjustedImages && adjustedImages.length > 0) {
+    if (adjustedImages && adjustedImages.length > 0) {
       const mediaIds: string[] = [];
       for (let i = 0; i < adjustedImages.length; i += 1) {
         const img = adjustedImages[i];
@@ -782,10 +831,9 @@ async function recordHistoryEntry(
           // 個別 attach の保存失敗は無視 (history 自体は既に保存済)
         }
       }
-      // 実際に保存できた id 列で entry を update (placeholder からの差し替え)
-      if (mediaIds.length > 0) {
-        await updateHistoryMediaRefs(entryId, mediaIds);
-      }
+      // 実際に保存できた id 列で entry を update (placeholder からの差し替え)。
+      // 全件失敗時も placeholder を消し、存在しない媒体を履歴 UI が探し続けないようにする。
+      await updateHistoryMediaRefs(entryId, mediaIds);
     }
   } catch {
     // 履歴記録は best-effort。 失敗しても表に出さない (= 投稿は既に成功)
@@ -796,7 +844,11 @@ async function recordHistoryEntry(
 async function updateHistoryMediaRefs(entryId: string, mediaIds: string[]): Promise<void> {
   const stored = await browser.storage.local.get('postHistory');
   const arr = (stored['postHistory'] as Array<{ id: string; mediaRefs?: string[] }> | undefined) ?? [];
-  const updated = arr.map((e) => (e.id === entryId ? { ...e, mediaRefs: mediaIds } : e));
+  const updated = arr.map((e) => (
+    e.id === entryId
+      ? { ...e, mediaRefs: mediaIds.length > 0 ? mediaIds : undefined }
+      : e
+  ));
   await browser.storage.local.set({ postHistory: updated });
 }
 
@@ -909,7 +961,7 @@ async function maybeCompressVideoForBudget(
   let inputRefOwned = false;
   if (!inputRef) {
     if (!video.data) {
-      throw new Error('動画 attachment に data も dataRef もありません (popup pack 漏れ?)');
+      throw new Error(t('runtimeVideoAttachmentMissing'));
     }
     const { base64ToUint8Array } = await import('../src/utils/base64');
     inputRef = await putBinary(base64ToUint8Array(video.data));
@@ -941,7 +993,7 @@ async function maybeCompressVideoForBudget(
     // 圧縮失敗は explicit に user に見せる
     const detail = err instanceof Error ? err.message : String(err);
     log.error(`P16: 圧縮失敗 — ${detail}`);
-    throw new Error(`動画の自動圧縮に失敗: ${detail}`);
+    throw new Error(t('runtimeVideoCompressionFailed', detail));
   } finally {
     if (inputRefOwned && inputRef) await deleteBinary(inputRef).catch(() => {});
   }
@@ -960,7 +1012,7 @@ const offscreenApi: OffscreenApi | undefined = (
 let offscreenReady: Promise<void> | null = null;
 async function ensureOffscreen(): Promise<void> {
   if (offscreenReady) return offscreenReady;
-  if (!offscreenApi) throw new Error('chrome.offscreen API が利用できません');
+  if (!offscreenApi) throw new Error(t('runtimeOffscreenUnavailable'));
   offscreenReady = (async () => {
     const exists = offscreenApi.hasDocument ? await offscreenApi.hasDocument() : false;
     if (exists) return;
@@ -998,7 +1050,7 @@ async function runOffscreenCompress(req: {
       trimToSeconds: req.trimToSeconds,
     })) as { type: string; outputRef?: string; outputBytes?: number; error?: string } | undefined;
     if (!res || res.type === 'CONVERSION_ERROR' || !res.outputRef) {
-      throw new Error(res?.error ?? '変換が応答しません');
+      throw new Error(res?.error ?? t('runtimeConversionNoResponse'));
     }
     return { outputRef: res.outputRef, outputBytes: res.outputBytes ?? 0 };
   } finally {
@@ -1024,7 +1076,7 @@ async function postToPlatform(
       type: 'POST_RESULT',
       platform,
       success: false,
-      error: '未対応のプラットフォームです',
+      error: t('runtimeUnsupportedPlatform'),
     };
   }
 
@@ -1039,7 +1091,7 @@ async function postToPlatform(
         type: 'POST_RESULT',
         platform,
         success: false,
-        error: `${requiredKind === 'longVideo' ? '長尺動画' : '短動画'}に未対応`,
+        error: t(requiredKind === 'longVideo' ? 'runtimeLongVideoUnsupported' : 'runtimeShortVideoUnsupported'),
       };
     }
     // P17: cache > probe > override > default の有効値で check
@@ -1052,7 +1104,7 @@ async function postToPlatform(
       if (effective.maxDurationS > 0 && durationS > effective.maxDurationS) {
         return {
           type: 'POST_RESULT', platform, success: false,
-          error: `尺が長すぎます(上限 ${effective.maxDurationS}s、実際 ${Math.round(durationS)}s)`,
+          error: t('runtimeVideoDurationExceeded', effective.maxDurationS, Math.round(durationS)),
         };
       }
       if (effective.maxBytes > 0 && bytes > effective.maxBytes) {
@@ -1060,7 +1112,7 @@ async function postToPlatform(
         const actualMB = Math.round(bytes / 1024 / 1024);
         return {
           type: 'POST_RESULT', platform, success: false,
-          error: `ファイルサイズが大きすぎます(上限 ${limitMB}MB、実際 ${actualMB}MB)`,
+          error: t('runtimeFileSizeExceeded', limitMB, actualMB),
         };
       }
     }
@@ -1091,30 +1143,36 @@ async function postToPlatform(
     }
   }
 
-  const chunks = splitText(text, adapter.charLimit);
+  const chunks = splitTextForPlatform(adapter.id, text, adapter.charLimit);
 
-  // v0.4.94: X / Bluesky multi-chunk は **inline thread compose** で送る
-  // (preview / autoPost 両方)。 SNS UI 側の 「+」 button で chunk を追加する
-  // 流れで、 user は全 chunk を 1 つの compose 画面で視覚的に確認できる。
+  // v0.4.94: X / Bluesky multi-chunk は **inline thread compose** で送る。
+  // SNS UI 側の 「+」 button で chunk を追加する流れで、 user は全 chunk を
+  // 1 つの compose 画面で視覚的に確認できる。
   // (v0.4.93 は chunks[0] だけ preview する妥協で 「全然動いてない」 と user に
   // 映る欠陥があった)
   //
-  // autoPost ON で X / Bluesky は inline thread → 一括 Post (1 click で thread 連結
-  // 投稿される)。 失敗時は当該 SNS の compose modal が残るので user が直接修正可。
-  if ((adapter.id === 'x' || adapter.id === 'bluesky') && chunks.length > 1) {
+  // X の現行 Web UI は inline thread の Post click で全 chunk を送らず、先頭または
+  // 末尾 1 件だけ投稿することがある。X autoPost は下の URL 確認付き reply chain
+  // を使い、preview のみ inline compose を維持する。
+  const { autoPost } = await getSettings();
+  const useInlineThread =
+    adapter.id === 'bluesky' ||
+    (adapter.id === 'x' && !autoPost);
+  if (useInlineThread && chunks.length > 1) {
     return await postSingleChunkInlineThread(adapter, chunks, images);
   }
 
   // 旧 Bluesky reply chain (autoPost ON で ATProto API 経由) は v0.4.94 で
   // inline thread compose に統合済。 必要なら postBlueskyThread() は残ってる。
 
-  // chunks > 1 (X / Bluesky 以外) は reply chain (thread 連結) で post する (v0.4.67〜)。
+  // chunks > 1 は reply chain (thread 連結) で post する (v0.4.67〜)。
   // 各 SNS で chunk i+1 を chunk i への reply として post する path を用意:
   //   X: chunk 0 を /home の inline compose で post → URL capture →
   //      tweet_id 抽出 → chunk 1 を /intent/post?in_reply_to=<id>
   //      で post → 繰り返し
   //   他 SNS: 当面 generic loop (別 post として連投)。 後続 PR で reply chain 化。
   let prevPostUrl: string | undefined;
+  let allConfirmed = true;
   for (let i = 0; i < chunks.length; i++) {
     if (i > 0) await sleep(CHUNK_INTERVAL_MS);
     const chunkImages = i === 0 ? images : undefined;
@@ -1140,27 +1198,44 @@ async function postToPlatform(
       } else {
         result = await postSingleChunk(adapter, chunks[i]!, chunkImages, undefined, overrideUrl, cw, visibility);
       }
+      if (!result.success) {
+        return {
+          ...result,
+          error: chunks.length > 1
+            ? t('runtimeChunkContext', i + 1, chunks.length, result.error ?? t('runtimePostUncertain'))
+            : result.error,
+        };
+      }
       if (result.url) prevPostUrl = result.url;
+      if (!result.confirmed && !result.url) allConfirmed = false;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       return {
         type: 'POST_RESULT',
         platform,
         success: false,
-        error: chunks.length > 1 ? `${i + 1}/${chunks.length} パート目で失敗: ${msg}` : msg,
+        error: chunks.length > 1 ? t('runtimeChunkFailed', i + 1, chunks.length, msg) : msg,
       };
     }
   }
 
   // 最後 chunk の URL を返す (popup で thread の先頭/末尾どちらに飛ぶかは UI で決める)
-  const finalResult: PostResultMessage = { type: 'POST_RESULT', platform, success: true, url: prevPostUrl };
+  const finalResult: PostResultMessage = {
+    type: 'POST_RESULT',
+    platform,
+    success: true,
+    confirmed: allConfirmed,
+    url: prevPostUrl,
+  };
 
   // post 後 verify (v0.4.75〜): 本文 / 画像 / tag が SNS 側で実際に書き込まれたか確認。
   // verify は best-effort、 失敗しても投稿自体の成否には影響しない。
   if (prevPostUrl && isVerifySupported(platform)) {
     const expectation = {
-      text,
-      hasImages: !!(images && images.length > 0),
+      // multi-chunk の prevPostUrl は末尾 post を指す。全文ではなく末尾 chunk と
+      // 比較しないと、正常な thread を caption-mismatch と誤判定する。
+      text: chunks.length > 1 ? chunks[chunks.length - 1]! : text,
+      hasImages: !!images?.some((image) => image.type.startsWith('image/')),
       // expectedTags は per-SNS で extractHashtags すべきだが、 ここでは未指定で OK
       // (current verify は本文 + image 主体、 専用 tag field の verify は将来 phase)
     };
@@ -1342,7 +1417,7 @@ async function postBlueskyThread(
   if (!autoPost) {
     // preview モードで thread を「動作確認」 する path は当面サポートしない
     // (API 経由なので preview 概念に意味が無い)。 generic loop に流す。
-    throw new Error('Bluesky thread は autoPost ON 限定 (preview 不可)');
+    throw new Error(t('runtimeBlueskyThreadAutoPostOnly'));
   }
 
   // session を取得
@@ -1363,14 +1438,14 @@ async function postBlueskyThread(
   } else {
     // localStorage 経由: bsky.app タブを開いて content script に session を取らせる
     const { tab } = await openOrFocusTab('https://bsky.app/', adapter.matchUrl, false);
-    if (typeof tab.id !== 'number') throw new Error('bsky.app タブを開けません');
+    if (typeof tab.id !== 'number') throw new Error(t('runtimeBlueskyTabOpenFailed'));
     // content script の準備を待つ
     await sleep(2000);
     const resp = await browser.tabs.sendMessage(tab.id, { type: 'GET_BLUESKY_SESSION' }) as
       | { type: 'BLUESKY_SESSION_RESULT'; accessJwt: string; did: string; handle: string; pdsHost?: string }
       | null;
     if (!resp || resp.type !== 'BLUESKY_SESSION_RESULT') {
-      throw new Error('Bluesky: bsky.app の localStorage から session を取得できませんでした (ログイン済みか確認)');
+      throw new Error(t('runtimeBlueskySessionMissing'));
     }
     session = { accessJwt: resp.accessJwt, did: resp.did, handle: resp.handle, pdsHost: resp.pdsHost };
   }
@@ -1387,7 +1462,7 @@ async function postBlueskyThread(
     } : undefined;
     const result = await postBlueskyViaSession(session, { text: chunks[i]!, images: chunkImages }, replyTarget);
     if (!result.success) {
-      throw new Error(`Bluesky ${i + 1}/${chunks.length}: ${result.error ?? '不明'}`);
+      throw new Error(`Bluesky ${i + 1}/${chunks.length}: ${result.error ?? t('runtimeUnknown')}`);
     }
     if (result.uri && result.cid) {
       if (!rootRef) rootRef = { uri: result.uri, cid: result.cid };
@@ -1397,7 +1472,7 @@ async function postBlueskyThread(
     log.info(`Bluesky thread ${i + 1}/${chunks.length} ✓ ${result.postUrl ?? ''}`);
   }
 
-  return { type: 'POST_RESULT', platform: 'bluesky', success: true, url: lastUrl };
+  return { type: 'POST_RESULT', platform: 'bluesky', success: true, confirmed: true, url: lastUrl };
 }
 
 // runVerify + verifyViaDomTab は src/background/verify-dispatcher.ts に移設 (v0.4.80)。
@@ -1468,9 +1543,12 @@ async function postSingleChunk(
       // 設定無し → DOM path に fallthrough
     } else if (apiResult.success) {
       log.info(`${adapter.id} via API ✓ ${apiResult.postUrl ?? ''}`);
-      return { type: 'POST_RESULT', platform: adapter.id, success: true, url: apiResult.postUrl };
+      return { type: 'POST_RESULT', platform: adapter.id, success: true, confirmed: true, url: apiResult.postUrl };
+    } else if (apiResult.uncertain) {
+      log.warn(`${adapter.id} via API: post result uncertain — ${apiResult.error ?? t('runtimeUnknownError')}`);
+      return unconfirmedPostResult(adapter.id);
     } else {
-      throw new Error(`API: ${apiResult.error ?? '不明なエラー'}`);
+      throw new Error(`API: ${apiResult.error ?? t('runtimeUnknownError')}`);
     }
   }
 
@@ -1489,7 +1567,7 @@ async function postSingleChunk(
     active,
   );
   if (typeof tab.id !== 'number') {
-    throw new Error('SNS タブを開けませんでした');
+    throw new Error(t('runtimeSnsTabOpenFailed'));
   }
   if (wasCreated) recordOpenedTab(adapter.id, tab.id);
 
@@ -1510,10 +1588,7 @@ async function postSingleChunk(
   };
   let response: PostResultMessage | undefined;
   try {
-    response = (await browser.tabs.sendMessage(
-      tab.id,
-      message,
-    )) as PostResultMessage | undefined;
+    response = await sendPostMessageWhenReady(tab.id, message);
   } catch (err) {
     // SNS の compose form 送信完了直後に tab が navigation / reload する SNS
     // (Mastodon の /share?text=… 等) では、content script が sendResponse する
@@ -1524,26 +1599,91 @@ async function postSingleChunk(
     // 特定エラーは success として扱う (Tutti は楽観的に成功扱い、UI 上で確認)。
     // tutti-issues#14 (mastodon)
     const msg = err instanceof Error ? err.message : String(err);
-    if (msg.includes('asynchronous response') || msg.includes('message channel closed')) {
-      log.warn(`${adapter.id}: post 後の channel closed を成功扱い — ${msg.slice(0, 80)}`);
+    if (
+      msg.includes('asynchronous response') ||
+      msg.includes('message channel closed') ||
+      msg.includes('back/forward cache')
+    ) {
+      log.warn(`${adapter.id}: post 後に channel closed — ${msg.slice(0, 80)}`);
       // v0.5.8〜 channel closed でも post URL を後付けで取りに行く (Mastodon 等の navigation 系)
-      const capturedUrl = await capturePostUrlFromTab(adapter.id, tab.id, text).catch(() => undefined);
-      return { type: 'POST_RESULT', platform: adapter.id, success: true, url: capturedUrl };
+      const capturedUrl = await capturePostUrlFromTab(adapter.id, tab.id, text, expectedUser).catch((e) => {
+        log.warn(`${adapter.id}: post URL capture failed: ${e instanceof Error ? e.message : String(e)}`);
+        return undefined;
+      });
+      return capturedUrl
+        ? { type: 'POST_RESULT', platform: adapter.id, success: true, confirmed: true, url: capturedUrl }
+        : unconfirmedPostResult(adapter.id);
     }
     throw err;
   }
 
   if (!response) {
-    throw new Error('SNS ページが応答しません(タブを再読み込みしてください)');
+    throw new Error(t('runtimeSnsPageNoResponse'));
   }
-  if (!response.success) throw new Error(response.error ?? '投稿に失敗しました');
+  if (!response.success) {
+    if (response.uncertain) return response;
+    throw new Error(response.error ?? t('runtimePostFailed'));
+  }
   // v0.5.8〜 response に url が無い場合 (content script が channel closed 寸前に
   // 戻った等) も bg 側で URL を後付け fetch する
   if (!response.url) {
-    const capturedUrl = await capturePostUrlFromTab(adapter.id, tab.id, text).catch(() => undefined);
+    const capturedUrl = await capturePostUrlFromTab(adapter.id, tab.id, text, expectedUser).catch((e) => {
+      log.warn(`${adapter.id}: post URL capture failed: ${e instanceof Error ? e.message : String(e)}`);
+      return undefined;
+    });
     if (capturedUrl) response = { ...response, url: capturedUrl };
   }
-  return response;
+  if (dryRun) return { ...response, confirmed: true };
+  if (response.url) return { ...response, confirmed: true };
+  if (response.confirmed && adapter.id !== 'threads') return response;
+  return unconfirmedPostResult(adapter.id);
+}
+
+/**
+ * tab complete の直後は content script の listener 登録が数百 ms 遅れる場合がある。
+ * 固定待機を長く取らず、receiver 不在の間だけ短く retry する。
+ * listener が request を受け取った後の失敗は再送しないため、二重投稿を防げる。
+ */
+async function sendPostMessageWhenReady(
+  tabId: number,
+  message: PostToPlatformMessage,
+): Promise<PostResultMessage | undefined> {
+  let deadline = Date.now() + 2500;
+  let reloaded = false;
+  while (true) {
+    try {
+      return (await browser.tabs.sendMessage(tabId, message)) as PostResultMessage | undefined;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      const receiverMissing =
+        msg.includes('Receiving end does not exist') ||
+        msg.includes('Could not establish connection');
+      if (!receiverMissing) throw e;
+      if (Date.now() >= deadline) {
+        if (reloaded) throw e;
+        // After an extension reload, an existing same-URL tab can keep the old
+        // document without reinjecting content scripts. A missing receiver
+        // proves that the post request was not consumed, so one reload is safe.
+        reloaded = true;
+        await browser.tabs.reload(tabId);
+        await waitForTabComplete(tabId);
+        await sleep(100);
+        deadline = Date.now() + 2500;
+        continue;
+      }
+      await sleep(100);
+    }
+  }
+}
+
+function unconfirmedPostResult(platform: PlatformId): PostResultMessage {
+  return {
+    type: 'POST_RESULT',
+    platform,
+    success: false,
+    uncertain: true,
+    error: t('runtimePostUncertain'),
+  };
 }
 
 /**
@@ -1557,21 +1697,103 @@ async function capturePostUrlFromTab(
   platform: PlatformId,
   tabId: number,
   text: string,
+  expectedUser?: string,
+  frameRetry = 0,
 ): Promise<string | undefined> {
-  if (platform !== 'mastodon' && platform !== 'misskey' && platform !== 'bluesky') {
+  if (
+    platform !== 'mastodon' &&
+    platform !== 'misskey' &&
+    platform !== 'bluesky' &&
+    platform !== 'threads' &&
+    platform !== 'tumblr' &&
+    platform !== 'x' &&
+    platform !== 'pixiv' &&
+    platform !== 'deviantart' &&
+    platform !== 'instagram' &&
+    platform !== 'tiktok' &&
+    platform !== 'youtube'
+  ) {
     return undefined;
   }
   const dbg = (m: string): void => {
     appendLog({ ts: Date.now(), level: 'INFO', context: 'background', message: `[capturePostUrl ${platform}] ${m}` });
   };
   dbg(`start (tabId=${tabId}, text="${text.slice(0, 30)}...")`);
+  if (platform === 'threads' && expectedUser) {
+    const renderedUrl = await captureRenderedProfilePostUrl(platform, tabId, text, dbg, expectedUser);
+    if (renderedUrl) return renderedUrl;
+  }
   try {
+    if (platform === 'tumblr') {
+      await sleep(1000);
+    }
+    if (platform === 'youtube') {
+      dbg('reload Studio dashboard before latest Short lookup');
+      await browser.tabs.reload(tabId);
+      await waitForTabComplete(tabId);
+      await sleep(1000);
+    }
     const target = text.replace(/\s+/g, ' ').trim().slice(0, 60);
     const results = await browser.scripting.executeScript({
       target: { tabId },
-      func: async (platform: string, target: string) => {
+      func: async (platform: string, target: string, expectedUser?: string) => {
         const trace: string[] = [];
         async function tryFetch(): Promise<{ url?: string; trace: string[] }> {
+          if (
+            platform === 'deviantart' &&
+            /^\/[^/]+\/art\/[^/?#]+/.test(location.pathname)
+          ) {
+            return { url: location.href, trace };
+          }
+          if (
+            platform === 'pixiv' &&
+            /\/artworks\/\d+/.test(location.pathname)
+          ) {
+            return { url: location.href, trace };
+          }
+          if (platform === 'instagram') {
+            for (let i = 0; i < 20; i++) {
+              const link = document.querySelector<HTMLAnchorElement>('a[href*="/p/"], a[href*="/reel/"]');
+              if (link) return { url: link.href, trace };
+              await new Promise((resolve) => setTimeout(resolve, 500));
+            }
+          }
+          if (platform === 'tiktok') {
+            for (let i = 0; i < 20; i++) {
+              const link = document.querySelector<HTMLAnchorElement>('a[href*="/video/"]');
+              if (link && /\/@[^/]+\/video\/\d+/.test(link.href)) return { url: link.href, trace };
+              await new Promise((resolve) => setTimeout(resolve, 500));
+            }
+          }
+          if (platform === 'youtube') {
+            for (let i = 0; i < 120; i++) {
+              const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href*="/video/"]'));
+              const body = (document.body?.innerText ?? '').replace(/\s+/g, ' ');
+              const id = body.includes(`Latest YouTube Short performance ${target}`)
+                ? links[0]?.href.match(/\/video\/([\w-]+)/)?.[1]
+                : undefined;
+              if (id) return { url: `https://www.youtube.com/watch?v=${id}`, trace };
+              await new Promise((resolve) => setTimeout(resolve, 500));
+            }
+          }
+          if (platform === 'x') {
+            for (let i = 0; i < 20; i++) {
+              let captured: { id?: string; capturedAt?: number } | undefined;
+              try {
+                captured = JSON.parse(localStorage.getItem('tutti:x-latest-post') ?? 'null') as typeof captured;
+              } catch { /* ignore */ }
+              const fresh = captured?.id && captured.capturedAt && Date.now() - captured.capturedAt < 60_000;
+              if (fresh && captured?.id) {
+                const avatar = document.querySelector<HTMLElement>(
+                  '[data-testid="SideNav_AccountSwitcher_Button"] [data-testid^="UserAvatar-Container-"]',
+                );
+                const fromAvatar = avatar?.getAttribute('data-testid')?.match(/^UserAvatar-Container-(.+)$/)?.[1];
+                const handle = expectedUser?.replace(/^@/, '') || fromAvatar;
+                if (handle) return { url: `https://x.com/${handle}/status/${captured.id}`, trace };
+              }
+              await new Promise((resolve) => setTimeout(resolve, 500));
+            }
+          }
           if (platform === 'mastodon') {
             // Mastodon Web は cookie auth でなく、 initial-state script に access_token を埋め込む
             const initScript = document.querySelector<HTMLScriptElement>('script#initial-state');
@@ -1670,7 +1892,7 @@ async function capturePostUrlFromTab(
         }
         return await tryFetch();
       },
-      args: [platform, target],
+      args: [platform, target, expectedUser],
       world: 'MAIN',
     });
     dbg(`scripting result count=${results?.length}`);
@@ -1682,9 +1904,145 @@ async function capturePostUrlFromTab(
       dbg(`URL captured: ${r.url}`);
       return r.url;
     }
+    if (platform === 'x' || platform === 'threads' || platform === 'tumblr' || platform === 'pixiv' || platform === 'instagram') {
+      const renderedUrl = await captureRenderedProfilePostUrl(platform, tabId, text, dbg, expectedUser);
+      if (renderedUrl) return renderedUrl;
+    }
     dbg(`URL not found`);
   } catch (e) {
-    dbg(`exception: ${e instanceof Error ? e.message : String(e)}`);
+    const message = e instanceof Error ? e.message : String(e);
+    dbg(`exception: ${message}`);
+    if (/Frame with ID/i.test(message) && /was removed/i.test(message) && frameRetry < 2) {
+      await sleep(1000);
+      dbg(`retry after frame replacement (${frameRetry + 1}/2)`);
+      return capturePostUrlFromTab(platform, tabId, text, expectedUser, frameRetry + 1);
+    }
+  }
+  return undefined;
+}
+
+async function captureRenderedProfilePostUrl(
+  platform: 'x' | 'threads' | 'tumblr' | 'pixiv' | 'instagram',
+  sourceTabId: number,
+  text: string,
+  dbg: (message: string) => void,
+  expectedUser?: string,
+): Promise<string | undefined> {
+  const expectedThreadsUser = platform === 'threads' ? expectedUser?.replace(/^@/, '') : undefined;
+  const expectedXUser = platform === 'x' ? expectedUser?.replace(/^@/, '') : undefined;
+  const profileResults = expectedThreadsUser || expectedXUser ? undefined : await browser.scripting.executeScript({
+    target: { tabId: sourceTabId },
+    func: (platformName: string) => {
+      if (platformName === 'threads') {
+        const hrefs = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href^="/@"]'))
+          .map((anchor) => anchor.getAttribute('href'))
+          .filter((href): href is string => !!href && /^\/@[^/?#]+$/.test(href));
+        const profileHref = hrefs.find((href) => {
+          const anchors = Array.from(document.querySelectorAll<HTMLAnchorElement>(`a[href="${href}"]`));
+          return anchors.some((anchor) => /profile|プロフィール/i.test(anchor.textContent ?? ''));
+        }) ?? hrefs[0];
+        return profileHref ? new URL(profileHref, location.origin).href : undefined;
+      }
+      if (platformName === 'x') {
+        const avatar = document.querySelector<HTMLElement>(
+          '[data-testid="SideNav_AccountSwitcher_Button"] [data-testid^="UserAvatar-Container-"]',
+        );
+        const fromAvatar = avatar?.getAttribute('data-testid')?.match(/^UserAvatar-Container-(.+)$/)?.[1];
+        if (fromAvatar) return `${location.origin}/${encodeURIComponent(fromAvatar)}`;
+        const reserved = new Set(['home', 'explore', 'notifications', 'messages', 'i', 'compose', 'settings', 'search']);
+        const rootHref = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href^="/"]'))
+          .map((anchor) => anchor.getAttribute('href'))
+          .find((href) => {
+            const handle = href?.match(/^\/([^/?#]+)$/)?.[1];
+            return !!handle && !reserved.has(handle);
+          });
+        return rootHref ? new URL(rootHref, location.origin).href : undefined;
+      }
+      if (platformName === 'pixiv') {
+        if (/\/users\/\d+/.test(location.pathname)) return location.href;
+        const profileHref = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href*="/users/"]'))
+          .map((anchor) => anchor.getAttribute('href'))
+          .find((href) => !!href && /\/users\/\d+(?:[/?#]|$)/.test(href) && !/\/following|\/followers/.test(href));
+        return profileHref ? new URL(profileHref, location.origin).href : undefined;
+      }
+      if (platformName === 'instagram') {
+        const profileHref = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href^="/"]'))
+          .find((anchor) => {
+            const href = anchor.getAttribute('href') ?? '';
+            const label = `${anchor.getAttribute('aria-label') ?? ''} ${anchor.textContent ?? ''}`;
+            return /^\/[\w._]+\/$/.test(href) && /profile|プロフィール/i.test(label);
+          })
+          ?.getAttribute('href');
+        return profileHref ? new URL(profileHref, location.origin).href : undefined;
+      }
+
+      const blogButton = Array.from(document.querySelectorAll<HTMLElement>('[aria-label]'))
+        .find((el) => /current selection is|現在の選択/i.test(el.getAttribute('aria-label') ?? ''));
+      const blogName = blogButton?.textContent?.trim();
+      return blogName ? `${location.origin}/blog/${encodeURIComponent(blogName)}` : undefined;
+    },
+    args: [platform],
+    world: 'MAIN',
+  });
+  const profileUrl = expectedThreadsUser
+    ? `https://www.threads.com/@${encodeURIComponent(expectedThreadsUser)}`
+    : expectedXUser
+      ? `https://x.com/${encodeURIComponent(expectedXUser)}`
+    : profileResults?.[0]?.result;
+  if (typeof profileUrl !== 'string') {
+    dbg(`rendered profile URL not detected`);
+    return undefined;
+  }
+
+  dbg(`rendered profile scrape: ${profileUrl}`);
+  const tab = await browser.tabs.create({ url: profileUrl, active: false });
+  if (typeof tab.id !== 'number') return undefined;
+  try {
+    if (platform !== 'instagram') {
+      await waitForTabComplete(tab.id);
+    }
+    const target = text.replace(/\s+/g, ' ').trim().slice(0, platform === 'pixiv' ? 30 : 60);
+    const results = await browser.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: async (platformName: string, targetText: string) => {
+        const normalize = (value: string): string => value.replace(/\s+/g, ' ').trim();
+        const deadline = Date.now() + 12_000;
+        while (Date.now() < deadline) {
+          const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href]'))
+            .filter((anchor) => {
+              const href = anchor.href;
+              return platformName === 'threads'
+                ? /\/@[^/]+\/post\/[\w-]+/.test(href)
+                : platformName === 'x'
+                  ? /\/[^/]+\/status\/\d+/.test(href)
+                : platformName === 'tumblr'
+                  ? /tumblr\.com\/[^/]+\/\d+(?:\/|$)/.test(href)
+                  : platformName === 'pixiv'
+                    ? /pixiv\.net\/(?:[a-z]+\/)?artworks\/\d+/.test(href)
+                    : /instagram\.com\/p\/[\w-]+/.test(href);
+            });
+          if (platformName === 'instagram' && links[0]) return links[0].href;
+          for (const link of links) {
+            let ancestor: HTMLElement | null = link;
+            for (let depth = 0; ancestor && depth < 10; depth += 1, ancestor = ancestor.parentElement) {
+              if (normalize(ancestor.innerText).includes(targetText)) return link.href;
+            }
+          }
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+        return undefined;
+      },
+      args: [platform, target],
+      world: 'MAIN',
+    });
+    const url = results?.[0]?.result;
+    if (typeof url === 'string') {
+      dbg(`URL captured via rendered profile: ${url}`);
+      return url;
+    }
+    dbg(`rendered profile did not contain matching post`);
+  } finally {
+    await closeTabSafely(tab.id);
   }
   return undefined;
 }

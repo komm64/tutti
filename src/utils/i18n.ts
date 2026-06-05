@@ -8,7 +8,8 @@
  *
  * 解決策: 自前の t() wrapper を介して全 UI translation を取る。
  * - `Settings.uiLanguage === 'auto'` → 標準の chrome.i18n.getMessage を使う
- * - それ以外 → 指定 locale の messages.json を fetch + memory cache、 そこから lookup。
+ * - それ以外 → canonical BCP 47 tag を Chrome `_locales` dir 名へ adapter 変換し、
+ *   messages.json を fetch + memory cache、 そこから lookup。
  *   key が無ければ 'en' (default_locale) に fallback、 さらに無ければ key 文字列。
  *
  * 全 svelte / TS file は `import { t } from '~/utils/i18n'` で参照する。
@@ -21,8 +22,11 @@
  * `chrome.* ?? browser.*` の二段にする (v0.5.4〜)。
  */
 
+import localeConfig from '../../config/locales.json';
+
 type MessageEntry = { message: string; placeholders?: Record<string, { content: string }> };
 type LocaleMessages = Record<string, MessageEntry>;
+type LocaleConfigEntry = { code: string; nativeName: string; englishName: string; chromeLocale?: string };
 
 type WebExtGlobals = {
   chrome?: {
@@ -53,13 +57,29 @@ const cache = new Map<string, LocaleMessages>();
 let currentLocale = 'auto';
 let initialized = false;
 
+const canonicalLocaleConfig: LocaleConfigEntry[] = localeConfig;
+const TUTTI_LOCALE_CODES = new Set(canonicalLocaleConfig.map(({ code }) => code));
+
+/** Tutti accepts canonical BCP 47 tags only. */
+export function resolveTuttiLocale(locale?: string): string {
+  return locale === 'auto' || (locale !== undefined && TUTTI_LOCALE_CODES.has(locale))
+    ? locale
+    : 'auto';
+}
+
+/** Chrome extension `_locales` directory 名は platform 制約に合わせて境界で変換する。 */
+export function toChromeLocaleDir(locale: string): string {
+  return canonicalLocaleConfig.find(({ code }) => code === locale)?.chromeLocale ?? locale;
+}
+
 async function loadLocale(locale: string): Promise<LocaleMessages> {
   const cached = cache.get(locale);
   if (cached) return cached;
   try {
     const api = webExt();
-    const url = api?.runtime?.getURL?.(`_locales/${locale}/messages.json`)
-      ?? `/_locales/${locale}/messages.json`;
+    const dir = toChromeLocaleDir(locale);
+    const url = api?.runtime?.getURL?.(`_locales/${dir}/messages.json`)
+      ?? `/_locales/${dir}/messages.json`;
     const res = await fetch(url);
     if (!res.ok) {
       cache.set(locale, {});
@@ -85,7 +105,7 @@ export async function initI18n(): Promise<void> {
     const api = webExt();
     const stored = await api?.storage?.sync?.get?.('settings');
     const settings = stored?.['settings'] as { uiLanguage?: string } | undefined;
-    currentLocale = settings?.uiLanguage ?? 'auto';
+    currentLocale = resolveTuttiLocale(settings?.uiLanguage);
   } catch {
     currentLocale = 'auto';
   }
@@ -97,7 +117,7 @@ export async function initI18n(): Promise<void> {
   webExt()?.storage?.onChanged?.addListener?.((changes, area) => {
     if (area !== 'sync' || !changes['settings']) return;
     const newSettings = changes['settings'].newValue as { uiLanguage?: string } | undefined;
-    const next = newSettings?.uiLanguage ?? 'auto';
+    const next = resolveTuttiLocale(newSettings?.uiLanguage);
     if (next !== currentLocale) {
       currentLocale = next;
       if (next !== 'auto') void Promise.all([loadLocale(next), loadLocale('en')]);
@@ -142,35 +162,5 @@ export function t(key: string, ...subs: (string | number)[]): string {
  */
 export const TUTTI_LOCALES: Array<{ code: string; nativeName: string; englishName: string }> = [
   { code: 'auto', nativeName: 'Auto', englishName: 'Auto (browser default)' },
-  { code: 'en', nativeName: 'English', englishName: 'English' },
-  { code: 'zh_CN', nativeName: '简体中文', englishName: 'Simplified Chinese' },
-  { code: 'es', nativeName: 'Español', englishName: 'Spanish (Spain)' },
-  { code: 'es_419', nativeName: 'Español (Latinoamérica)', englishName: 'Spanish (Latin America)' },
-  { code: 'pt_BR', nativeName: 'Português (Brasil)', englishName: 'Portuguese (Brazil)' },
-  { code: 'ru', nativeName: 'Русский', englishName: 'Russian' },
-  { code: 'de', nativeName: 'Deutsch', englishName: 'German' },
-  { code: 'fr', nativeName: 'Français', englishName: 'French' },
-  { code: 'pl', nativeName: 'Polski', englishName: 'Polish' },
-  { code: 'ja', nativeName: '日本語', englishName: 'Japanese' },
-  { code: 'tr', nativeName: 'Türkçe', englishName: 'Turkish' },
-  { code: 'it', nativeName: 'Italiano', englishName: 'Italian' },
-  { code: 'ko', nativeName: '한국어', englishName: 'Korean' },
-  { code: 'zh_TW', nativeName: '繁體中文', englishName: 'Traditional Chinese' },
-  { code: 'cs', nativeName: 'Čeština', englishName: 'Czech' },
-  { code: 'uk', nativeName: 'Українська', englishName: 'Ukrainian' },
-  { code: 'hu', nativeName: 'Magyar', englishName: 'Hungarian' },
-  { code: 'th', nativeName: 'ไทย', englishName: 'Thai' },
-  { code: 'vi', nativeName: 'Tiếng Việt', englishName: 'Vietnamese' },
-  { code: 'pt_PT', nativeName: 'Português (Portugal)', englishName: 'Portuguese (Portugal)' },
-  { code: 'nl', nativeName: 'Nederlands', englishName: 'Dutch' },
-  { code: 'sv', nativeName: 'Svenska', englishName: 'Swedish' },
-  { code: 'ar', nativeName: 'العربية', englishName: 'Arabic' },
-  { code: 'id', nativeName: 'Bahasa Indonesia', englishName: 'Indonesian' },
-  { code: 'fi', nativeName: 'Suomi', englishName: 'Finnish' },
-  { code: 'el', nativeName: 'Ελληνικά', englishName: 'Greek' },
-  { code: 'bg', nativeName: 'Български', englishName: 'Bulgarian' },
-  { code: 'no', nativeName: 'Norsk', englishName: 'Norwegian' },
-  { code: 'ro', nativeName: 'Română', englishName: 'Romanian' },
-  { code: 'da', nativeName: 'Dansk', englishName: 'Danish' },
-  { code: 'eo', nativeName: 'Esperanto', englishName: 'Esperanto' },
+  ...canonicalLocaleConfig,
 ];

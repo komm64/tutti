@@ -1,8 +1,9 @@
 import { log } from '../src/utils/logger';
 import type { ImageAttachment, PostResultMessage } from '../src/messages';
 import { THREADS_SELECTORS, threadsAdapter } from '../src/adapters/threads';
-import { findClickableByText } from '../src/utils/dom';
+import { findClickableByText, sleep } from '../src/utils/dom';
 import { executePostFlow } from '../src/utils/post-flow';
+import { clickElementInMainWorld } from '../src/utils/image';
 import { waitForPostUrl } from '../src/utils/url-capture';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
@@ -173,7 +174,22 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     images,
     postButtonTimeoutMs: 12000,
     dryRun,
+    clickPostButton: () => clickElementInMainWorld(
+      '[role="dialog"] [role="button"], [role="dialog"] button',
+      ['Post', '投稿', '投稿する', 'Post now'],
+    ),
   });
+  if (!dryRun) {
+    await sleep(30_000);
+    const draftStillOpen = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"], [role="alertdialog"]'))
+      .some((dialog) => (dialog.textContent ?? '').includes(text));
+    if (draftStillOpen) {
+      await clickElementInMainWorld(
+        '[role="dialog"] [role="button"], [role="dialog"] button',
+        ['Post', '投稿', '投稿する', 'Post now'],
+      );
+    }
+  }
 
   // dryRun でなければ post URL を捕捉 (= 本当に landing したことの証跡)。
   // Threads は post 直後に /@<user>/post/<id> へ redirect する… のが期待だが、
@@ -181,17 +197,30 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
   // いるケースが報告された)。 URL を取れた時は付与、 取れなかった時は url=undefined
   // のまま success=true を返す。 verify は post-verify framework が timeline scrape で補完。
   let url: string | undefined;
+  let confirmed = !!dryRun;
   if (!dryRun) {
-    const captured = await waitForPostUrl([
-      /^https:\/\/(?:www\.)?threads\.(?:com|net)\/@[^/]+\/post\/[\w-]+/,
-    ], 20000);
-    if (captured) url = captured;
+    let captured: string | null = null;
+    const deadline = Date.now() + 20_000;
+    while (Date.now() < deadline) {
+      captured = await waitForPostUrl([
+        /^https:\/\/(?:www\.)?threads\.(?:com|net)\/@[^/]+\/post\/[\w-]+/,
+      ], 250, 100);
+      if (captured || !document.querySelector(sel.textarea)) break;
+      await sleep(100);
+    }
+    if (captured) {
+      url = captured;
+      confirmed = true;
+    } else if (!document.querySelector(sel.textarea)) {
+      confirmed = true;
+    }
   }
 
   return {
     type: 'POST_RESULT',
     platform: 'threads',
     success: true,
+    confirmed,
     url,
   };
 }
@@ -202,6 +231,12 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
  *   2. テキスト内容 "Post"/"投稿"/"投稿する" の完全一致(複数あれば最後)
  */
 function findThreadsPostButton(): HTMLElement | null {
+  const dialogs = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"], [role="alertdialog"]'));
+  for (const dialog of dialogs) {
+    const scoped = Array.from(dialog.querySelectorAll<HTMLElement>('button, [role="button"]'))
+      .find((el) => /^(Post|投稿|投稿する|Post now)$/.test((el.textContent ?? '').trim()));
+    if (scoped) return scoped;
+  }
   for (const sel of [
     '[aria-label="Post"]',
     '[aria-label="投稿"]',

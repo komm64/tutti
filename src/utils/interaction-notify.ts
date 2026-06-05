@@ -61,16 +61,11 @@ export async function syncWatchedPostsFromHistory(): Promise<void> {
   await setInteractionSnapshots(snapshots);
 }
 
-/** SNS の host pattern を満たす open tab を 1 つ探す。 無ければ null */
-async function findOpenTabForPlatform(platform: PlatformId): Promise<{ id?: number } | null> {
-  const patterns: Partial<Record<PlatformId, string>> = {
-    mastodon: 'https://*.social/*',
-    misskey: 'https://misskey.io/*',
-  };
-  const url = patterns[platform];
-  if (!url) return null;
+/** Snapshot URL と同じ host の open tab を探す。custom instance でも動く。 */
+async function findOpenTabForHost(host: string): Promise<{ id?: number } | null> {
+  if (!/^[a-z0-9.-]+(?::\d+)?$/i.test(host)) return null;
   try {
-    const tabs = await browser.tabs.query({ url });
+    const tabs = await browser.tabs.query({ url: `https://${host}/*` });
     return tabs[0] ?? null;
   } catch {
     return null;
@@ -85,11 +80,11 @@ async function pollOne(platform: PlatformId, id: string, snap: InteractionSnapsh
   if (target?.bluesky) {
     counts = await pollBluesky(target.bluesky.handle, target.bluesky.tid);
   } else if (target?.mastodon) {
-    const tab = await findOpenTabForPlatform('mastodon');
+    const tab = await findOpenTabForHost(target.mastodon.instanceHost);
     if (tab?.id == null) return null; // tab 不要、 次の cycle で
     counts = await pollMastodon(tab.id, target.mastodon.statusId);
   } else if (target?.misskey) {
-    const tab = await findOpenTabForPlatform('misskey');
+    const tab = await findOpenTabForHost(target.misskey.instanceHost);
     if (tab?.id == null) return null;
     counts = await pollMisskey(tab.id, target.misskey.noteId);
   }

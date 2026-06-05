@@ -1,5 +1,7 @@
 import type { LogLevel, PlatformId, PostResultMessage } from './messages';
 import { clearDraftMedia, getDraftMedia, saveDraftMedia } from './utils/draft-media-store';
+import { deleteMediaRefs } from './utils/history-media';
+import { resolveTuttiLocale } from './utils/i18n';
 
 // ── 設定 (chrome.storage.sync) ──────────────────────────────────────────────
 
@@ -73,7 +75,7 @@ export interface Settings {
    * Tutti UI 言語 (v0.5.2〜)。 'auto' は Chrome の browser locale に従う、
    * それ以外は明示指定。 Settings 画面で切替可能。 user が browser を English に
    * してるが Tutti は Japanese で使いたい、 等の override 用途。
-   * 値は Chrome の locale code: 'en', 'ja', 'zh_CN', 'es', 等。
+   * 値は canonical BCP 47 tag: 'en', 'ja', 'zh-Hans', 'es-ES', 等。
    */
   uiLanguage: string;
   /**
@@ -95,13 +97,6 @@ export interface Settings {
    * 選ぶまで動作変わらず (= 既存 UX 破壊しない)。
    */
   displayMode: 'auto' | 'popup' | 'sidepanel' | 'floating';
-  /**
-   * 履歴 entry に添付メディア (画像 / 動画) を保存するか (v0.5.5〜)。
-   * - `false` (default): メディアは保存しない。 履歴は text + 結果メタデータのみ。
-   * - `true`: IndexedDB に media を 7 日間保存。 「失敗 SNS だけ再送」 を popup
-   *   から push できるようになる。 storage 容量を喰うので opt-in。
-   */
-  historyKeepMedia: boolean;
   /**
    * v0.5.10〜 投稿後のインタラクション通知。
    * - `false` (default): 通知しない (旧挙動)
@@ -138,7 +133,6 @@ const DEFAULT_SETTINGS: Settings = {
   // v0.5.6〜 新規 install は 'auto' で起動 (capability 検出して sidepanel/floating/popup を選ぶ)
   displayMode: 'auto',
   uiLanguage: 'auto',
-  historyKeepMedia: false,
   // v0.5.10〜 interaction 通知は opt-in (デフォルト OFF)。 「Tutti が勝手に
   // 通知を出す」 は user surprise なので Settings で明示 ON にした人だけ。
   notifyInteractions: false,
@@ -152,12 +146,24 @@ export async function getSettings(): Promise<Settings> {
   // 時は autoPost=false から始まる)。dryRun を読み流すだけ。
   const { dryRun: _ignored, ...rest } = raw;
   void _ignored;
-  return { ...DEFAULT_SETTINGS, ...rest };
+  return {
+    ...DEFAULT_SETTINGS,
+    ...rest,
+    uiLanguage: resolveTuttiLocale(rest.uiLanguage),
+  };
 }
 
 export async function saveSettings(settings: Partial<Settings>): Promise<void> {
   const current = await getSettings();
-  await browser.storage.sync.set({ settings: { ...current, ...settings } });
+  await browser.storage.sync.set({
+    settings: {
+      ...current,
+      ...settings,
+      ...(settings.uiLanguage !== undefined
+        ? { uiLanguage: resolveTuttiLocale(settings.uiLanguage) }
+        : {}),
+    },
+  });
 }
 
 // ── 下書き (chrome.storage.session) ─────────────────────────────────────────
@@ -313,6 +319,7 @@ export async function setLastSeenUser(
  * Per-SNS の投稿結果メタ。 result detail の蓄積場所 (popup の再送 / リンク跳び用)。
  *
  * - `success`: 投稿が SNS 側で landing したか
+ * - `confirmed`: URL または SNS 固有 UI で landing を確認できたか
  * - `url`: post URL (= 「本当に landing した」 証跡。 失敗時は無し)
  * - `error`: 失敗時の文字列メッセージ
  * - `postId`: url から抽出した SNS 固有 ID (v0.5.5〜)。 status check API
@@ -320,6 +327,8 @@ export async function setLastSeenUser(
  */
 export interface HistoryPlatformResult {
   success: boolean;
+  confirmed?: boolean;
+  uncertain?: boolean;
   url?: string;
   error?: string;
   postId?: string;
@@ -346,8 +355,8 @@ export interface HistoryEntry {
   results: Partial<Record<PlatformId, HistoryPlatformResult>>;
   hasMedia: boolean;
   /**
-   * v1: Settings.historyKeepMedia=ON の時に IndexedDB に保存した media の
-   * ID 列。 形式 `${entry.id}-${index}`、 値 7 日後に自動削除。
+   * v1: IndexedDB に保存した media の ID 列。
+   * 形式 `${entry.id}-${index}`、 値 7 日後に自動削除。
    */
   mediaRefs?: string[];
   timestamp: number;
@@ -379,14 +388,18 @@ function migrateHistoryEntry(raw: unknown): HistoryEntry {
 }
 
 export async function clearPostHistory(): Promise<void> {
+  const history = await getPostHistory();
   await browser.storage.local.remove(HISTORY_KEY);
+  await deleteMediaRefs(history.flatMap((entry) => entry.mediaRefs ?? []));
 }
 
 /** v0.5.9: 個別 entry を削除 (History tab の 🗑 ボタンから)。 */
 export async function removeHistoryEntry(id: string): Promise<void> {
   const history = await getPostHistory();
+  const removed = history.find((e) => e.id === id);
   const next = history.filter((e) => e.id !== id);
   await browser.storage.local.set({ [HISTORY_KEY]: next });
+  await deleteMediaRefs(removed?.mediaRefs);
 }
 
 /**
@@ -449,7 +462,7 @@ export async function addToPostHistory(
     bodyHash?: string;
     /** v1: 各 SNS の URL から抽出した post ID (post-id.ts 経由)。 */
     postIds?: Partial<Record<PlatformId, string>>;
-    /** v1: Settings.historyKeepMedia=ON 時のみ。 IndexedDB 保存済 media の id 列。 */
+    /** v1: IndexedDB に保存済みの media ID 列。 */
     mediaRefs?: string[];
   } = {},
 ): Promise<string> {
@@ -468,6 +481,8 @@ export async function addToPostHistory(
         r.platform,
         {
           success: r.success,
+          confirmed: r.confirmed,
+          uncertain: r.uncertain,
           url: r.url,
           error: r.error,
           postId: opts.postIds?.[r.platform],
@@ -480,8 +495,14 @@ export async function addToPostHistory(
   };
 
   const history = await getPostHistory();
+  const next = [entry, ...history].slice(0, MAX_HISTORY);
   await browser.storage.local.set({
-    [HISTORY_KEY]: [entry, ...history].slice(0, MAX_HISTORY),
+    [HISTORY_KEY]: next,
   });
+  const keptIds = new Set(next.map((item) => item.id));
+  const droppedRefs = history
+    .filter((item) => !keptIds.has(item.id))
+    .flatMap((item) => item.mediaRefs ?? []);
+  await deleteMediaRefs(droppedRefs);
   return id;
 }

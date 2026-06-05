@@ -13,6 +13,7 @@ import { sleep } from '../src/utils/dom';
 import { waitForPostUrl } from '../src/utils/url-capture';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
+import { t } from '../src/utils/i18n';
 
 /**
  * Pixiv の logged-in user を header の自分の作品リンクから検出する。
@@ -98,7 +99,7 @@ async function runPost(
 ): Promise<PostResultMessage> {
   log.info(`Pixiv runPost: dryRun=${dryRun} images=${images?.length ?? 0} textLen=${text.length}`);
   if (!images || images.length === 0) {
-    throw new Error('Pixiv は画像が必須です(本文のみ投稿は不可)');
+    throw new Error(t('runtimePixivImageRequired'));
   }
 
   const sel = await resolveSelectors('pixiv', PIXIV_SELECTORS);
@@ -157,7 +158,7 @@ async function runPost(
           pixivVisibility === 'r18g' ? sel.visibilityR18g :
           sel.visibilityAllAges;
         const r = document.querySelector<HTMLInputElement>(sel2);
-        if (!r) throw new Error(`Pixiv: Visible to (x_restrict=${pixivVisibility}) radio が見つかりません`);
+        if (!r) throw new Error(t('runtimePixivVisibilityMissing', pixivVisibility));
         r.click();
       },
       settleMs: 200,
@@ -170,7 +171,7 @@ async function runPost(
         const { pixivAiType } = await getSettings();
         const sel2 = pixivAiType === 'aiGenerated' ? sel.aiTypeYes : sel.aiTypeNo;
         const r = document.querySelector<HTMLInputElement>(sel2);
-        if (!r) throw new Error(`Pixiv: AI-generated work (ai_type=${pixivAiType}) radio が見つかりません`);
+        if (!r) throw new Error(t('runtimePixivAiTypeMissing', pixivAiType));
         r.click();
       },
       settleMs: 200,
@@ -181,7 +182,7 @@ async function runPost(
       name: 'set-adult-flag',
       action: async () => {
         const r = document.querySelector<HTMLInputElement>(sel.sexualNo);
-        if (!r) throw new Error('Pixiv: Adult content (sexual) radio が見つかりません');
+        if (!r) throw new Error(t('runtimePixivAdultRadioMissing'));
         r.click();
       },
       settleMs: 200,
@@ -225,19 +226,24 @@ async function runPost(
           ].join(';');
           document.body.appendChild(banner);
         }
-        banner.textContent = '⚠ Tutti: Pixiv のセキュリティチェックを完了してください。 完了次第、 自動で投稿します。 / Please complete Pixiv security check; posting will resume automatically.';
+        banner.textContent = t('runtimePixivSecurityPrompt', 'Pixiv');
+        void browser.runtime.sendMessage({
+          type: 'USER_ACTION_REQUIRED',
+          platform: 'pixiv',
+          reason: 'captcha',
+        }).catch(() => { /* background unavailable: in-page banner remains */ });
 
         const deadline = Date.now() + 5 * 60 * 1000;
         while (Date.now() < deadline) {
           await new Promise((r) => setTimeout(r, 1000));
           if (!isPostDisabled()) {
-            banner.textContent = '✓ Security check OK、 投稿継続中... / Posting...';
+            banner.textContent = t('runtimePixivSecurityResuming');
             setTimeout(() => banner.remove(), 2000);
             return;
           }
         }
-        banner.textContent = '✗ Tutti: Security check が 5 分以内に完了されませんでした';
-        throw new Error('Pixiv: Security check が 5 分以内に完了しませんでした (user 待機 timeout)');
+        banner.textContent = t('runtimePixivSecurityTimeout');
+        throw new Error(t('runtimePixivSecurityTimeout'));
       },
       settleMs: 100,
     },
@@ -272,16 +278,13 @@ async function runPost(
       // 全 required field が valid になるまで時間がかかる (画像 upload 完了 + radio
       // click の React 反映を含めて 5〜10s)。8s default だと足りないので 15s に
       timeoutMs: 15000,
-      // submit 後の navigation 待ち。Pixiv は投稿成功で /users/<id> や /artworks/<id> へ遷移
-      afterClickDelayMs: 3000,
+      // URL capture 側が navigation を polling するので、固定 sleep は最小限にする。
+      afterClickDelayMs: 500,
     },
     dryRun,
   });
 
-  // dry-run 時に念のため compose ページの state を 0.5s 安定させる
-  await sleep(500);
-
-  // dryRun でなければ Pixiv が /artworks/<id> もしくは /users/<id> に redirect
+  // dryRun でなければ Pixiv が /artworks/<id> に redirect
   // するのを待つ (= 「本当の完了」)。timeout なら error 扱い。
   let url: string | undefined;
   if (!dryRun) {
@@ -289,9 +292,12 @@ async function runPost(
     const captured = await waitForPostUrl([
       /^https:\/\/(?:www\.)?pixiv\.net\/[a-z]+\/artworks\/\d+/,
       /^https:\/\/(?:www\.)?pixiv\.net\/artworks\/\d+/,
-      /^https:\/\/(?:www\.)?pixiv\.net\/[a-z]+\/users\/\d+/,
-      /^https:\/\/(?:www\.)?pixiv\.net\/users\/\d+/,
-    ], 30000);
+    ], 30000, 250, [
+      // 現行 Pixiv は作品詳細ではなく self profile に戻る場合がある。
+      // この時点で background の rendered-profile URL 回収へ渡せるので、
+      // 作品詳細 URL を 30 秒待ち続けない。
+      /^https:\/\/(?:www\.)?pixiv\.net\/(?:[a-z]+\/)?users\/\d+/,
+    ]);
     if (captured) url = captured;
   }
 

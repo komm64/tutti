@@ -30,6 +30,8 @@
  */
 import { findClickableByText, sleep, waitForElement } from './dom';
 import { maybeConfirmDialog } from './post-flow';
+import { t } from './i18n';
+import { markPostSubmissionStarted } from './post-submission-state';
 
 /**
  * wizard の 1 ページ分。`action` で input を埋め、`advance` で次へ進む。
@@ -71,6 +73,8 @@ export interface AdvanceSpec {
 export interface FinalizeSpec extends AdvanceSpec {
   /** 押下後に出る確認ダイアログ (例: "Discard changes?") を auto-confirm する場合 */
   confirmDialogButtonTexts?: string[];
+  /** 確認ダイアログが遅れて出る SNS 向けの初期待機猶予。 */
+  confirmDialogGraceMs?: number;
   /** click 後の処理猶予 (default 1500ms) */
   afterClickDelayMs?: number;
 }
@@ -107,7 +111,7 @@ export interface MultiStepFlowOptions {
 export async function executeMultiStepFlow(options: MultiStepFlowOptions): Promise<void> {
   const { steps, finalize, dryRun = false } = options;
   if (steps.length === 0) {
-    throw new Error('executeMultiStepFlow: steps が空です');
+    throw new Error('executeMultiStepFlow: steps must not be empty');
   }
 
   for (const step of steps) {
@@ -115,7 +119,7 @@ export async function executeMultiStepFlow(options: MultiStepFlowOptions): Promi
       await step.action();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      throw new Error(`step "${step.name}" の action 失敗: ${msg}`);
+      throw new Error(t('runtimeStepActionFailed', step.name, msg));
     }
     await sleep(step.settleMs ?? 300);
 
@@ -129,7 +133,7 @@ export async function executeMultiStepFlow(options: MultiStepFlowOptions): Promi
       const seen = dumpVisibleDialogButtons();
       const seenHint = seen ? ` [visible buttons: ${seen}]` : '';
       throw new Error(
-        `step "${step.name}" の次へ進むボタンが見つかりませんでした(SNS UI が更新された可能性)${seenHint}`,
+        t('runtimeStepAdvanceMissing', step.name, seenHint),
       );
     }
     advanceBtn.click();
@@ -141,7 +145,7 @@ export async function executeMultiStepFlow(options: MultiStepFlowOptions): Promi
       );
       if (!next) {
         throw new Error(
-          `step "${step.name}" の次画面 DOM (${step.awaitNextDom.selector}) が出現しませんでした`,
+          t('runtimeStepNextDomMissing', step.name, step.awaitNextDom.selector),
         );
       }
     } else {
@@ -151,7 +155,7 @@ export async function executeMultiStepFlow(options: MultiStepFlowOptions): Promi
 
   const finalizeBtn = await waitForStepButton(finalize, finalize.timeoutMs ?? 8000);
   if (!finalizeBtn) {
-    throw new Error('最終投稿ボタンが見つかりませんでした(SNS UI が更新された可能性)');
+    throw new Error(t('runtimeFinalPostButtonMissing'));
   }
 
   if (dryRun) {
@@ -162,13 +166,14 @@ export async function executeMultiStepFlow(options: MultiStepFlowOptions): Promi
     return;
   }
 
+  markPostSubmissionStarted();
   finalizeBtn.click();
 
   if (finalize.confirmDialogButtonTexts && finalize.confirmDialogButtonTexts.length > 0) {
-    await maybeConfirmDialog(finalize.confirmDialogButtonTexts);
+    await maybeConfirmDialog(finalize.confirmDialogButtonTexts, finalize.confirmDialogGraceMs);
   }
 
-  await sleep(finalize.afterClickDelayMs ?? 1500);
+  await sleep(finalize.afterClickDelayMs ?? 250);
 }
 
 /**
@@ -230,4 +235,3 @@ export async function waitForStepButton(
   }
   return null;
 }
-

@@ -4,6 +4,7 @@ node_modules/
 # WXT build artifacts
 .output/
 .wxt/
+public/_locales/
 
 # Logs
 *.log

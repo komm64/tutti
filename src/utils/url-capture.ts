@@ -21,12 +21,16 @@ export async function waitForPostUrl(
   patterns: RegExp[],
   timeoutMs = 15000,
   pollMs = 250,
+  stopPatterns: RegExp[] = [],
 ): Promise<string | null> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     const href = location.href;
     for (const p of patterns) {
       if (p.test(href)) return href;
+    }
+    for (const p of stopPatterns) {
+      if (p.test(href)) return null;
     }
     await new Promise((r) => setTimeout(r, pollMs));
   }

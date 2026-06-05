@@ -5,9 +5,9 @@ import { executeMultiStepFlow, type Step } from '../src/utils/step-runner';
 import { injectImages, injectTagList, injectTextIntoElement } from '../src/utils/image';
 import { sleep, waitForElement } from '../src/utils/dom';
 import { extractHashtags } from '../src/utils/hashtags';
-import { waitForPostUrl } from '../src/utils/url-capture';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
+import { t } from '../src/utils/i18n';
 
 /**
  * YouTube logged-in user 検出 (v0.4.98 改善)。
@@ -93,7 +93,7 @@ async function runPost(
   log.info(`YouTube runPost: dryRun=${dryRun} media=${images?.length ?? 0}`);
   const video = images?.find((m) => m.type.startsWith('video/'));
   if (!video) {
-    throw new Error('YouTube は動画必須です (Shorts 用 mp4 等)');
+    throw new Error(t('runtimeYouTubeVideoRequired'));
   }
   const sel = await resolveSelectors('youtube', YOUTUBE_SELECTORS);
   const title = buildYouTubeTitle(text);
@@ -105,14 +105,20 @@ async function runPost(
       name: 'open-upload-modal',
       action: async () => {
         if (document.querySelector(sel.fileInput)) return;
+        await waitForElement<HTMLElement>(
+          '#upload-button, #upload-icon, [aria-label="Upload videos"], [aria-label="動画をアップロード"]',
+          15000,
+        );
         // 直接 Upload videos ボタンを探す
         const uploadBtn =
           document.querySelector<HTMLElement>('#upload-button') ??
+          document.querySelector<HTMLElement>('#upload-icon') ??
           document.querySelector<HTMLElement>('[aria-label="Upload videos"]') ??
+          document.querySelector<HTMLElement>('[aria-label="動画をアップロード"]') ??
           Array.from(document.querySelectorAll<HTMLElement>('button, ytcp-button, [role="button"]'))
             .find((b) => /^Upload videos$|^動画をアップロード$/.test((b.textContent ?? '').trim()));
         if (!uploadBtn) {
-          throw new Error('YouTube: Upload videos ボタンが見つかりません (Studio にいるか確認、チャンネル未作成?)');
+          throw new Error(t('runtimeYouTubeUploadButtonMissing'));
         }
         uploadBtn.click();
         await waitForElement<HTMLElement>(sel.fileInput, 10000);
@@ -143,7 +149,7 @@ async function runPost(
           await sleep(1000);
         }
         if (textboxes.length < 1) {
-          throw new Error('YouTube: title 入力欄が出現しませんでした (upload 失敗 / channel 未作成?)');
+          throw new Error(t('runtimeYouTubeTitleMissing'));
         }
         const titleEl = textboxes[0]!;
         // unique selector を生成して inject-helper に渡す
@@ -226,7 +232,7 @@ async function runPost(
       action: async () => {
         const radio = document.querySelector<HTMLElement>(sel.notMadeForKidsRadio);
         if (!radio) {
-          throw new Error('YouTube: "Made for Kids" の No radio が見つかりません');
+          throw new Error(t('runtimeYouTubeKidsRadioMissing'));
         }
         radio.click();
       },
@@ -291,7 +297,7 @@ async function runPost(
           await sleep(500);
         }
         if (!publicRadio) {
-          throw new Error('YouTube: Public visibility radio が見つかりません');
+          throw new Error(t('runtimeYouTubePublicRadioMissing'));
         }
         publicRadio.click();
       },
@@ -319,27 +325,23 @@ async function runPost(
         'Publish', 'Publish anyway', 'Continue', 'Got it',
         '公開', 'このまま公開', '続行', '了解',
       ],
+      // YouTube の server-side checks dialog は遅れて出ることがある。
+      // 通常 SNS より長く待ち、確認を取りこぼさない。
+      confirmDialogGraceMs: 8000,
       timeoutMs: 30000,
-      afterClickDelayMs: 5000,
+      afterClickDelayMs: 250,
     },
     dryRun,
   });
-
-  await sleep(500);
 
   // dryRun でなければ Studio が channel content listing もしくは個別 video
   // URL に navigate するのを待つ (= 「本当の完了」)。
   let url: string | undefined;
   if (!dryRun) {
-    const captured = await waitForPostUrl([
-      /^https:\/\/studio\.youtube\.com\/channel\/[^/]+\/videos/,
-      /^https:\/\/studio\.youtube\.com\/video\/[\w-]+\/edit/,
-      /^https:\/\/(?:www\.)?youtube\.com\/(?:watch\?v=|shorts\/)[\w-]+/,
-    ], 90000);
-    if (!captured) {
-      throw new Error('YouTube: 投稿後 listing / video URL に navigate されませんでした');
-    }
-    url = captured;
+    const captured = await waitForYouTubePostUrlOrCompletion();
+    // Studio の一部 UI variant は publish 完了後も dashboard に留まる。
+    // background が dashboard の Latest Short link から公開 URL を補完する。
+    if (captured) url = captured;
   }
 
   return {
@@ -348,4 +350,26 @@ async function runPost(
     success: true,
     url,
   };
+}
+
+/**
+ * Publish 後の Studio wizard が閉じるまで待つ。
+ * Studio 内 URL は公開 URL ではないため、wizard 終了後に background が
+ * dashboard の Latest Short から watch URL を補完する。
+ */
+async function waitForYouTubePostUrlOrCompletion(timeoutMs = 30_000): Promise<string | null> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const href = location.href;
+    if (/^https:\/\/(?:www\.)?youtube\.com\/(?:watch\?v=|shorts\/)[\w-]+/.test(href)) {
+      return href;
+    }
+    const dialog = document.querySelector(
+      'ytcp-uploads-dialog, ytcp-video-upload-dialog, ytcp-dialog, ' +
+      'tp-yt-paper-dialog[opened], [role="dialog"]',
+    );
+    if (!dialog) return null;
+    await sleep(250);
+  }
+  return null;
 }

@@ -34,7 +34,7 @@
     type HistoryEntry,
     type LastSeenUsers,
   } from '../../src/storage';
-  import { splitText } from '../../src/utils/split';
+  import { measureTextForPlatform, splitTextForPlatform } from '../../src/utils/platform-text';
   import { redactPII } from '../../src/utils/redact';
   import { formatRelTime, formatDuration, formatBytes } from '../../src/utils/formatters';
   import { classifyFailure, type FailureHintCta } from '../../src/utils/failure-hint';
@@ -149,7 +149,7 @@
       key = `error:${errorMessage}`;
       text = errorMessage;
     } else {
-      const failures = lastResults?.filter((r) => !r.success) ?? [];
+      const failures = lastResults?.filter((r) => !r.success && !r.uncertain) ?? [];
       if (failures.length > 0) {
         key = `failures:${failures.map((f) => `${f.platform}:${f.error ?? ''}`).join('|')}`;
         text = failures.map((f) => `${f.platform}: ${f.error ?? '(no detail)'}`).join('\n');
@@ -623,9 +623,9 @@
    * textarea に本文を流し込んで失敗した SNS を選択 → user に確認して投稿。
    * 媒体は user 側で再添付が必要。
    */
-  async function retryFromHistory(entry: { text?: string; textPreview: string; results: Partial<Record<PlatformId, { success: boolean; url?: string; error?: string }>>; }): Promise<void> {
-    const failedIds = (Object.entries(entry.results) as [PlatformId, { success: boolean }][])
-      .filter(([, r]) => !r.success)
+  async function retryFromHistory(entry: { text?: string; textPreview: string; results: Partial<Record<PlatformId, { success: boolean; uncertain?: boolean; url?: string; error?: string }>>; }): Promise<void> {
+    const failedIds = (Object.entries(entry.results) as [PlatformId, { success: boolean; uncertain?: boolean }][])
+      .filter(([, r]) => !r.success && !r.uncertain)
       .map(([id]) => id);
     if (failedIds.length === 0) return;
     // v0.5.9〜 v1 entry は text (full) を持つ。 v0 legacy は textPreview (80 char) のみ
@@ -644,7 +644,12 @@
       void browser.tabs.create({ url: cta.url, active: true });
     } else if (cta.kind === 'retry') {
       expandedFailure = null;
-      await submitPostFor([p], /* isRetry */ true);
+      const safeIds = await filterAlreadyLandedPlatforms([p]);
+      if (safeIds.length > 0) {
+        await submitPostFor(safeIds, /* isRetry */ true);
+      } else {
+        errorMessage = t('retryDedupSkippedHint');
+      }
     } else if (cta.kind === 'report') {
       const result = lastResults?.find((r) => r.platform === p);
       const errorText = result?.error ?? t('platformFailedShort', p);
@@ -685,7 +690,7 @@
     selectedIds.reduce((sum, id) => {
       const p = platforms.find((pp) => pp.id === id);
       if (!p) return sum;
-      return sum + (text.length > p.limit ? splitText(text, p.limit).length : 1);
+      return sum + splitTextForPlatform(p.id, text, p.limit).length;
     }, 0),
   );
   const videoCompatibility = $derived(
@@ -883,6 +888,22 @@
 
   async function handlePost() {
     if (!canPost) return;
+    const uncertainSelected = new Set(
+      (lastResults ?? []).filter((r) => r.uncertain).map((r) => r.platform),
+    );
+    if (selectedIds.some((id) => uncertainSelected.has(id))) {
+      // 成否未確定の SNS を本文を残したまま通常投稿すると重複し得る。
+      // 外部 SNS を確認するまで同一 popup session からの再送を止める。
+      errorMessage = t('runtimePostUncertain');
+      return;
+    }
+    const safeIds = await filterRecentlyUncertainPlatforms(selectedIds);
+    if (safeIds.length !== selectedIds.length) {
+      // extension 再起動後も履歴に uncertain が残る。同一本文を通常投稿として
+      // 送り直す経路も止め、SNS 側で landing を確認してもらう。
+      errorMessage = t('runtimePostUncertain');
+      return;
+    }
     await submitPostFor(selectedIds, /* isRetry */ false);
   }
 
@@ -898,7 +919,7 @@
    */
   async function handleRetryFailed() {
     if (!lastResults || posting) return;
-    const failedIds = lastResults.filter((r) => !r.success).map((r) => r.platform);
+    const failedIds = lastResults.filter((r) => !r.success && !r.uncertain).map((r) => r.platform);
     if (failedIds.length === 0) return;
 
     // 同一 bodyHash で直近 10 分以内に成功してる platform を retry 対象から外す
@@ -937,6 +958,17 @@
    * 候補から除外。 戻り値: 真の retry が必要な platform 列。
    */
   async function filterAlreadyLandedPlatforms(candidates: PlatformId[]): Promise<PlatformId[]> {
+    return filterRecentPlatforms(candidates, (r) => r.success === true);
+  }
+
+  async function filterRecentlyUncertainPlatforms(candidates: PlatformId[]): Promise<PlatformId[]> {
+    return filterRecentPlatforms(candidates, (r) => r.uncertain === true);
+  }
+
+  async function filterRecentPlatforms(
+    candidates: PlatformId[],
+    matches: (result: { success: boolean; uncertain?: boolean }) => boolean,
+  ): Promise<PlatformId[]> {
     try {
       const { getPostHistory } = await import('../../src/storage');
       const { computeBodyHash, sha256Hex } = await import('../../src/utils/body-hash');
@@ -966,7 +998,7 @@
           if (!e.timestamp || e.timestamp < tenMinAgo) return false;
           if (e.bodyHash !== currentHash) return false;
           const r = e.results?.[p];
-          return r && r.success === true;
+          return !!r && matches(r);
         });
         if (!landed) safe.push(p);
       }
@@ -1282,9 +1314,9 @@
   {/if}
 
   {#snippet snsRow(p: PlatformOption)}
-    {@const remaining = p.limit - text.length}
+    {@const remaining = p.limit - measureTextForPlatform(p.id, text)}
     {@const over = remaining < 0}
-    {@const parts = over && p.available ? splitText(text, p.limit).length : 1}
+    {@const parts = over && p.available ? splitTextForPlatform(p.id, text, p.limit).length : 1}
     {@const videoErr = videoCompatibility[p.id]}
     {@const imageErr = imageCompatibility[p.id]}
     {@const mediaErr = videoErr || imageErr}
@@ -1301,8 +1333,10 @@
       class:bg-blue-50={isPending}
       class:border-green-400={result?.success}
       class:bg-green-50={result?.success}
-      class:border-red-400={result && !result.success}
-      class:bg-red-50={(result && !result.success) || (!!mediaErr && p.available && selected[p.id] && !posting)}
+      class:border-amber-400={result?.uncertain}
+      class:bg-amber-50={result?.uncertain}
+      class:border-red-400={result && !result.success && !result.uncertain}
+      class:bg-red-50={(result && !result.success && !result.uncertain) || (!!mediaErr && p.available && selected[p.id] && !posting)}
       class:border-orange-400={over && p.available && selected[p.id] && !mediaErr && kindOk && !posting}
       class:bg-orange-50={over && p.available && selected[p.id] && !mediaErr && kindOk && !posting && !result && !isPending}
       class:border-red-300={!!mediaErr && p.available && selected[p.id] && !posting}
@@ -1321,18 +1355,20 @@
         {:else if !posting && !result && p.available}
           <!-- v0.4.84: unsigned 行は ↗ link 化。 click で SNS の login/home を新 tab で開く。
                <label> の checkbox toggle と競合しないよう preventDefault + stopPropagation。 -->
-          <a
-            href="#"
+          <button
+            type="button"
             onclick={(e) => { e.preventDefault(); e.stopPropagation(); openLoginUrl(p.id); }}
-            class="text-[10px] text-blue-500 hover:text-blue-700 hover:underline leading-tight"
+            class="text-left text-[10px] text-blue-500 hover:text-blue-700 hover:underline leading-tight"
             title={t('openLoginTooltip')}
-          >{t('userUnconfirmed')} ↗</a>
+          >{t('userUnconfirmed')} ↗</button>
         {:else if isPending}
           <span class="text-[10px] text-blue-600 leading-tight">{autoPost ? t('progressPosting') : t('progressPreviewing')}</span>
         {:else if isQueued}
           <span class="text-[10px] text-gray-400 leading-tight">{t('progressQueued')}</span>
         {:else if result?.success}
           <span class="text-[10px] text-green-700 leading-tight">{autoPost ? t('progressDone') : t('progressDryRunOk')}</span>
+        {:else if result?.uncertain}
+          <span class="text-[10px] text-amber-700 leading-tight truncate" title={result.error}>{t('progressUncertain')}</span>
         {:else if result && !result.success}
           <span class="text-[10px] text-red-700 leading-tight truncate" title={result.error}>{result.error?.slice(0, 40) ?? t('failedShort')}</span>
         {/if}
@@ -1357,6 +1393,8 @@
         >{hasVerifyError ? '⚠↗' : hasVerifyWarn ? '✓⚠' : '✓↗'}</a>
       {:else if result?.success}
         <span class="text-green-600 shrink-0">✓</span>
+      {:else if result?.uncertain}
+        <span class="text-amber-600 shrink-0" title={result.error}>? ⓘ</span>
       {:else if result && !result.success}
         <!-- v0.4.86: ✗ click で failure hint card を toggle -->
         <button
@@ -1538,8 +1576,8 @@
     </div>
   {/if}
   <!-- 失敗した SNS がある場合: 再送ボタン + Report ボタンを並べる(全体 errorMessage と並列) -->
-  {#if !posting && lastResults?.some((r) => !r.success)}
-    {@const failures = lastResults.filter((r) => !r.success)}
+  {#if !posting && lastResults?.some((r) => !r.success && !r.uncertain)}
+    {@const failures = lastResults.filter((r) => !r.success && !r.uncertain)}
     <div class="mt-2 flex items-center gap-3 text-xs text-red-700">
       <button
         onclick={handleRetryFailed}
@@ -1635,12 +1673,13 @@
     {:else}
       <ul class="space-y-1.5 max-h-56 overflow-y-auto pr-1">
         {#each history as entry}
-          {@const hasFailures = Object.values(entry.results).some((r) => r && !r.success)}
+          {@const hasFailures = Object.values(entry.results).some((r) => r && !r.success && !r.uncertain)}
+          {@const hasUncertain = Object.values(entry.results).some((r) => r?.uncertain)}
           {@const successCount = Object.values(entry.results).filter((r) => r?.success).length}
           {@const totalCount = entry.platforms.length}
           <li class="text-xs border border-gray-200 rounded p-2">
             <div class="flex items-center gap-1.5 mb-1 text-[11px]">
-              <span class="font-medium {hasFailures ? 'text-red-700' : 'text-green-700'}">
+              <span class="font-medium {hasFailures ? 'text-red-700' : hasUncertain ? 'text-amber-700' : 'text-green-700'}">
                 {successCount}/{totalCount}
               </span>
               {#if entry.hasMedia}
@@ -1658,6 +1697,8 @@
                   {:else}
                     <span class="text-green-600" title={pid}>✓{pid.slice(0, 2)}</span>
                   {/if}
+                {:else if r?.uncertain}
+                  <span class="text-amber-600" title={`${pid}: ${r.error ?? ''}`}>?{pid.slice(0, 2)}</span>
                 {:else if r}
                   <span class="text-red-600" title={`${pid}: ${r.error ?? ''}`}>✗{pid.slice(0, 2)}</span>
                 {:else}

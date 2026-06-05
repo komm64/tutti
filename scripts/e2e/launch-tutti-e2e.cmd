@@ -1,0 +1,2 @@
+@echo off
+start "" "C:\Users\komm64\AppData\Local\ms-playwright\chromium-1217\chrome-win64\chrome.exe" --remote-debugging-port=9222 --user-data-dir=C:\Users\komm64\.tutti-e2e-chrome --disable-extensions-except=C:\Users\komm64\Projects\tutti-codex-verify-20260601\.output\chrome-mv3 --load-extension=C:\Users\komm64\Projects\tutti-codex-verify-20260601\.output\chrome-mv3 --no-first-run --no-default-browser-check chrome-extension://klmldcimakkjhlbckpkobjdbpnldkikn/sidepanel.html

@@ -51,6 +51,7 @@ export async function postViaApi(
   creds: MastodonCredentials,
   input: ApiPostInput,
 ): Promise<ApiPostResult> {
+  let statusRequestInFlight = false;
   try {
     const mediaIds: string[] = [];
     for (const m of input.images ?? []) {
@@ -67,6 +68,7 @@ export async function postViaApi(
     if (input.cw) body['spoiler_text'] = input.cw;
     if (input.visibility) body['visibility'] = input.visibility;
 
+    statusRequestInFlight = true;
     const res = await fetch(`${creds.instance}/api/v1/statuses`, {
       method: 'POST',
       headers: {
@@ -77,13 +79,18 @@ export async function postViaApi(
       body: JSON.stringify(body),
     });
     if (!res.ok) {
+      statusRequestInFlight = false;
       const detail = await res.text().catch(() => '');
       throw new Error(`statuses ${res.status}: ${detail.slice(0, 200)}`);
     }
     const data = (await res.json()) as { url?: string };
     return { success: true, postUrl: data.url };
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : String(e) };
+    return {
+      success: false,
+      uncertain: statusRequestInFlight || undefined,
+      error: e instanceof Error ? e.message : String(e),
+    };
   }
 }
 

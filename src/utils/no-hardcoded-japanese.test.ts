@@ -39,6 +39,17 @@ function listSvelteFiles(dir: string): string[] {
   return out;
 }
 
+function listTsFiles(dir: string): string[] {
+  const out: string[] = [];
+  for (const name of readdirSync(dir)) {
+    const path = join(dir, name);
+    const s = statSync(path);
+    if (s.isDirectory()) out.push(...listTsFiles(path));
+    else if (name.endsWith('.ts')) out.push(path);
+  }
+  return out;
+}
+
 function stripComments(line: string): string {
   // Strip inline /* ... */ blocks (single-line only).
   let s = line.replace(/\/\*[\s\S]*?\*\//g, '');
@@ -93,7 +104,7 @@ describe('UI svelte files: no hardcoded Japanese text', () => {
             .join('\n');
           throw new Error(
             `Hardcoded Japanese in UI svelte file. Move the text into ` +
-            `public/_locales/{en,ja}/messages.json and use t('key'):\n${msg}`,
+            `locales/{en,ja}/messages.json and use t('key'):\n${msg}`,
           );
         }
         expect(offenders).toEqual([]);
@@ -103,11 +114,11 @@ describe('UI svelte files: no hardcoded Japanese text', () => {
 });
 
 describe('messages.json invariants', () => {
-  const en = JSON.parse(readFileSync('public/_locales/en/messages.json', 'utf8')) as Record<string, unknown>;
+  const en = JSON.parse(readFileSync('locales/en/messages.json', 'utf8')) as Record<string, unknown>;
   const enKeys = new Set(Object.keys(en));
 
   it('ja is fully translated (= same key set as en)', () => {
-    const ja = JSON.parse(readFileSync('public/_locales/ja/messages.json', 'utf8')) as Record<string, unknown>;
+    const ja = JSON.parse(readFileSync('locales/ja/messages.json', 'utf8')) as Record<string, unknown>;
     const jaKeys = new Set(Object.keys(ja));
     const enOnly = [...enKeys].filter((k) => !jaKeys.has(k));
     const jaOnly = [...jaKeys].filter((k) => !enKeys.has(k));
@@ -125,12 +136,12 @@ describe('messages.json invariants', () => {
   // 31 言語対応 (v0.5.2〜): 他 locale は partial 翻訳 OK (en に fallback)。
   // ただし 「en に無い key を持つ」 のは禁止 (typo / stale key の事故防止)。
   it('every non-en locale has only keys that exist in en (no orphan keys)', () => {
-    const locales = readdirSync('public/_locales')
-      .filter((d) => d !== 'en' && statSync(join('public/_locales', d)).isDirectory());
+    const locales = readdirSync('locales')
+      .filter((d) => d !== 'en' && statSync(join('locales', d)).isDirectory());
     const errors: string[] = [];
     for (const loc of locales) {
       try {
-        const data = JSON.parse(readFileSync(`public/_locales/${loc}/messages.json`, 'utf8')) as Record<string, unknown>;
+        const data = JSON.parse(readFileSync(`locales/${loc}/messages.json`, 'utf8')) as Record<string, unknown>;
         const orphan = Object.keys(data).filter((k) => !enKeys.has(k));
         if (orphan.length > 0) {
           errors.push(`  ${loc}: orphan keys (not in en): ${orphan.join(', ')}`);
@@ -141,5 +152,40 @@ describe('messages.json invariants', () => {
     }
     if (errors.length > 0) throw new Error(`locale orphan keys:\n${errors.join('\n')}`);
     expect(errors).toEqual([]);
+  });
+
+  it('every locale translates user-action messages used outside the Tutti UI pages', () => {
+    const required = [
+      'runtimePixivSecurityPrompt',
+      'runtimePixivSecurityResuming',
+      'runtimePixivSecurityTimeout',
+      'userActionRequiredNotifyTitle',
+      'userActionRequiredCaptcha',
+    ];
+    const errors: string[] = [];
+    for (const loc of readdirSync('locales')) {
+      const path = join('locales', loc, 'messages.json');
+      if (!statSync(join('locales', loc)).isDirectory()) continue;
+      const data = JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>;
+      const missing = required.filter((key) => !data[key]);
+      if (missing.length > 0) errors.push(`  ${loc}: missing ${missing.join(', ')}`);
+    }
+    if (errors.length > 0) throw new Error(`locale required keys:\n${errors.join('\n')}`);
+    expect(errors).toEqual([]);
+  });
+});
+
+describe('runtime errors: no hardcoded Japanese text', () => {
+  it('routes user-visible TS errors through i18n', () => {
+    const offenders: string[] = [];
+    const runtimeLiteral = /(?:throw new Error\([^\n]*|error:\s*[^\n]*|\.textContent\s*=\s*[^\n]*|^\s*\?\s*`[^`]*)[぀-ゟ゠-ヿ一-鿿]/;
+    for (const file of [...listTsFiles('entrypoints'), ...listTsFiles('src')]) {
+      if (file.endsWith('no-hardcoded-japanese.test.ts')) continue;
+      const lines = readFileSync(file, 'utf8').split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        if (runtimeLiteral.test(lines[i]!)) offenders.push(`${file}:${i + 1}: ${lines[i]!.trim()}`);
+      }
+    }
+    expect(offenders).toEqual([]);
   });
 });

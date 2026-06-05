@@ -8,6 +8,7 @@ import { extractHashtags } from '../src/utils/hashtags';
 import { waitForPostUrl } from '../src/utils/url-capture';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
+import { t } from '../src/utils/i18n';
 
 /**
  * DeviantArt のログイン中ユーザー検出。
@@ -59,7 +60,7 @@ async function runPost(
   dryRun?: boolean,
 ): Promise<PostResultMessage> {
   if (!images || images.length === 0) {
-    throw new Error('DeviantArt は画像が必須です');
+    throw new Error(t('runtimeDeviantArtImageRequired'));
   }
   if (images.length > 1) {
     log.warn(`DA は 1 deviation = 1 image。${images.length} 枚から最初の 1 枚のみ使用`);
@@ -91,7 +92,7 @@ async function runPost(
       action: async () => {
         const titleEl = await waitForElement<HTMLInputElement>(sel.titleInput, 30000);
         if (!titleEl) {
-          throw new Error('DA: title input が出現しませんでした(upload 失敗 / DA UI 変更の可能性)');
+          throw new Error(t('runtimeDeviantArtTitleMissing'));
         }
         await injectTextIntoElement(title, sel.titleInput);
       },
@@ -187,12 +188,10 @@ async function runPost(
         return submits.length > 0 ? submits[submits.length - 1]! : null;
       },
       texts: ['Submit', '送信', 'Publish'],
-      afterClickDelayMs: 2000,
+      afterClickDelayMs: 250,
     },
     dryRun,
   });
-
-  await sleep(500);
 
   // dryRun でなければ DA が /<user>/art/<title>-<id> へ redirect するのを待つ
   let url: string | undefined;

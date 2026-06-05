@@ -45,11 +45,17 @@ export async function runVerify(
     cleanGenericDescription;
   const judgeImg = platform === 'instagram' ? judgeInstagramImage : undefined;
   const r1 = await verifyViaOg(postUrl, expected, { cleanDescription: cleaner, judgeImage: judgeImg });
-  if (r1.verified) return r1;
+  const needsDomFallback =
+    !r1.verified ||
+    r1.issues.some((issue) => issue.severity === 'error') ||
+    ((platform === 'x' || platform === 'tiktok') && r1.issues.length > 0);
+  if (!needsDomFallback) return r1;
 
-  // server-side fetch が失敗 (login wall / HTTP err) → DOM fallback
-  log.info(`${platform}: og fetch 失敗、 DOM verify に fallback`);
-  return await verifyViaDomTab(postUrl, expected, cleaner, judgeImg);
+  // server-side fetch が失敗、 または public HTML が本文を省略した場合は DOM fallback。
+  // X は未ログイン HTML を HTTP 200 で返すため、 verified=true でも caption-missing
+  // になることがある。
+  log.info(`${platform}: og fetch 不十分、 DOM verify に fallback`);
+  return await verifyViaDomTab(platform, postUrl, expected, cleaner, judgeImg);
 }
 
 /**
@@ -57,6 +63,7 @@ export async function runVerify(
  * tab は active=false で開いて user の作業を邪魔しない。 verify 完了後に close。
  */
 async function verifyViaDomTab(
+  platform: PlatformId,
   postUrl: string,
   expected: VerifyExpectation,
   cleaner: (s: string) => string,
@@ -72,21 +79,30 @@ async function verifyViaDomTab(
     const tabId = verifyTab.id;
     const deadline = Date.now() + 15000;
     let resp: { type?: string; ogDescription?: string; ogImage?: string; bodyExcerpt?: string } | undefined;
+    let latestResult: VerifyResult | undefined;
     while (Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, 700));
       try {
         resp = await browser.tabs.sendMessage(tabId, { type: 'VERIFY_POST_DOM' }) as typeof resp;
-        if (resp?.type === 'VERIFY_POST_DOM_RESULT') break;
+        if (resp?.type !== 'VERIFY_POST_DOM_RESULT') continue;
+        const desc = resp.ogDescription ?? '';
+        const img = resp.ogImage ?? '';
+        // public OG が一部だけ残る SNS がある。DOM fallback では body も結合し、
+        // hydration 後の実本文を比較対象に含める。
+        const text = [cleaner(desc), resp.bodyExcerpt ?? ''].filter(Boolean).join('\n');
+        const hasImages = judgeImg ? judgeImg(img) : !!img;
+        latestResult = buildVerifyResult(expected, { text, hasImages });
+        const hasHardIssue = latestResult.issues.some((issue) => issue.severity === 'error');
+        if (!hasHardIssue && (platform !== 'x' || latestResult.issues.length === 0)) {
+          return latestResult;
+        }
       } catch { /* content script not ready yet */ }
     }
+    if (latestResult) return latestResult;
     if (!resp || resp.type !== 'VERIFY_POST_DOM_RESULT') {
       return { verified: false, issues: [{ kind: 'verify-error', message: 'verify tab content script 未応答', severity: 'warn' }] };
     }
-    const desc = resp.ogDescription ?? '';
-    const img = resp.ogImage ?? '';
-    const text = cleaner(desc) || (resp.bodyExcerpt ?? '');
-    const hasImages = judgeImg ? judgeImg(img) : !!img;
-    return buildVerifyResult(expected, { text, hasImages });
+    return { verified: false, issues: [{ kind: 'verify-error', message: 'verify tab DOM 取得失敗', severity: 'warn' }] };
   } catch (e) {
     return { verified: false, issues: [{ kind: 'verify-error', message: `verify tab 例外: ${e instanceof Error ? e.message : String(e)}`, severity: 'warn' }] };
   } finally {

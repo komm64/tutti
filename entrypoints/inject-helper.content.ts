@@ -63,13 +63,15 @@ interface InjectRequest {
    * 'tag-list' = Pixiv の tag input のような「value 入力 → Enter で確定 →
    *           input がクリア → 次の値」を繰り返す UI。tags[] を順次入れる
    */
-  mode: 'input' | 'drop' | 'text' | 'tag-list';
+  mode: 'input' | 'drop' | 'text' | 'tag-list' | 'click' | 'x-post-url';
   selector: string;
   files: InjectFileSpec[];
   /** mode === 'text' 専用: 挿入するテキスト */
   text?: string;
   /** mode === 'tag-list' 専用: 順次 commit する tag 列 */
   tags?: string[];
+  /** mode === 'click' 専用: 候補が複数ある場合に許可する完全一致テキスト */
+  texts?: string[];
   /** アップロード完了待ちのタイムアウト(ms)。省略時 30000 */
   uploadTimeoutMs?: number;
 }
@@ -86,6 +88,7 @@ interface InjectResponse {
   uploadCount?: number;
   /** アップロード待機がタイムアウトしたか */
   uploadTimedOut?: boolean;
+  url?: string;
 }
 
 interface UploadTracker {
@@ -105,6 +108,8 @@ declare global {
      * 投稿後 (or 失敗時) に IG 側が clear する責任。
      */
     __tuttiIgPendingCaption?: string;
+    __tuttiXPostCaptureInstalled?: boolean;
+    __tuttiXLatestPostId?: { id: string; capturedAt: number };
   }
 }
 
@@ -216,6 +221,59 @@ export default defineContentScript({
       }
     }
 
+    function installXPostCaptureHook() {
+      if (!/^(?:x|twitter)\.com$/.test(location.host) || window.__tuttiXPostCaptureInstalled) return;
+      window.__tuttiXPostCaptureInstalled = true;
+      const captureRestId = (body: unknown): void => {
+        const findRestId = (value: unknown, depth = 0): string | undefined => {
+          if (!value || typeof value !== 'object' || depth > 12) return undefined;
+          const obj = value as Record<string, unknown>;
+          if (typeof obj.rest_id === 'string' && /^\d+$/.test(obj.rest_id)) return obj.rest_id;
+          for (const child of Object.values(obj)) {
+            const found = findRestId(child, depth + 1);
+            if (found) return found;
+          }
+          return undefined;
+        };
+        const id = findRestId(body);
+        if (!id) return;
+        const captured = { id, capturedAt: Date.now() };
+        window.__tuttiXLatestPostId = captured;
+        try {
+          localStorage.setItem('tutti:x-latest-post', JSON.stringify(captured));
+        } catch { /* in-memory capture remains available */ }
+      };
+      const origFetch = window.fetch.bind(window);
+      window.fetch = async function(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+        const response = await origFetch(input as RequestInfo, init);
+        try {
+          const url = typeof input === 'string' ? input : (input instanceof URL ? input.toString() : input.url);
+          if (/\/CreateTweet\b/i.test(url)) {
+            void response.clone().json().then(captureRestId).catch(() => {});
+          }
+        } catch { /* capture is best-effort */ }
+        return response;
+      };
+      const OrigXHR = window.XMLHttpRequest;
+      const origOpen = OrigXHR.prototype.open;
+      const urls = new WeakMap<XMLHttpRequest, string>();
+      OrigXHR.prototype.open = function(this: XMLHttpRequest, method: string, url: string | URL, ...rest: unknown[]) {
+        const value = typeof url === 'string' ? url : url.toString();
+        urls.set(this, value);
+        // @ts-expect-error rest spread
+        return origOpen.call(this, method, value, ...rest);
+      };
+      const origSend = OrigXHR.prototype.send;
+      OrigXHR.prototype.send = function(this: XMLHttpRequest, body?: Document | XMLHttpRequestBodyInit | null) {
+        if (/\/CreateTweet\b/i.test(urls.get(this) ?? '')) {
+          this.addEventListener('load', () => {
+            try { captureRestId(JSON.parse(this.responseText)); } catch { /* best-effort */ }
+          }, { once: true });
+        }
+        return origSend.call(this, body as Document | XMLHttpRequestBodyInit | null);
+      };
+    }
+
     function sleep(ms: number): Promise<void> {
       return new Promise((r) => setTimeout(r, ms));
     }
@@ -303,7 +361,7 @@ export default defineContentScript({
         source: RES_TAG,
         id: req.id,
         ok: !wait.timedOut,
-        error: wait.timedOut ? 'アップロード完了待ちでタイムアウトしました' : undefined,
+        error: wait.timedOut ? 'Timed out while waiting for the upload to finish' : undefined,
         fileCount: input.files?.length ?? 0,
         uploadCount: wait.uploadCount,
         uploadTimedOut: wait.timedOut,
@@ -476,8 +534,41 @@ export default defineContentScript({
             }));
             await new Promise((r) => setTimeout(r, 800));
           }
+        } else if (
+          el.matches('.public-DraftEditor-content') ||
+          !!el.closest('.DraftEditor-root')
+        ) {
+          // Draft.js (TikTok Studio): upload 後に filename 由来の初期 caption
+          // が入る variant がある。DOM だけ消して paste すると controlled
+          // state 側の旧値へ追記されるため、editor selection を全置換する。
+          const sel = window.getSelection();
+          el.focus();
+          if (sel) {
+            sel.removeAllRanges();
+            const range = document.createRange();
+            range.selectNodeContents(el);
+            sel.addRange(range);
+          }
+          try {
+            document.execCommand('delete', false);
+          } catch { /* fallback below verifies the DOM */ }
+          const dt = new DataTransfer();
+          dt.setData('text/plain', text);
+          el.dispatchEvent(new ClipboardEvent('paste', {
+            bubbles: true,
+            cancelable: true,
+            clipboardData: dt,
+          }));
+          try {
+            document.execCommand('insertText', false, text);
+          } catch { /* fallback below verifies the DOM */ }
+          el.dispatchEvent(new InputEvent('input', {
+            bubbles: true, data: text, inputType: 'insertText',
+          }));
+          el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: text.slice(-1) || 'a' }));
+          await new Promise((r) => setTimeout(r, 800));
         } else {
-          // 非 Lexical (Draft.js / TipTap / ProseMirror): paste event 経由
+          // 非 Lexical (TipTap / ProseMirror 等): paste event 経由
           const existing = (el.textContent ?? '').trim();
           if (existing.length > 0) {
             const sel = window.getSelection();
@@ -567,7 +658,7 @@ export default defineContentScript({
         source: RES_TAG,
         id: req.id,
         ok: !wait.timedOut,
-        error: wait.timedOut ? 'アップロード完了待ちでタイムアウトしました' : undefined,
+        error: wait.timedOut ? 'Timed out while waiting for the upload to finish' : undefined,
         fileCount: built.dt.files.length,
         droppedOn: target.tagName,
         uploadCount: wait.uploadCount,
@@ -593,7 +684,7 @@ export default defineContentScript({
           source: RES_TAG,
           id: req.id,
           ok: false,
-          error: 'tag-list mode は <input> / <textarea> 要素にしか対応していません',
+          error: 'tag-list mode only supports <input> and <textarea> elements',
         };
       }
       const tags = req.tags ?? [];
@@ -651,6 +742,35 @@ export default defineContentScript({
       };
     }
 
+    async function clickElement(req: InjectRequest): Promise<InjectResponse> {
+      const texts = req.texts ?? [];
+      for (const part of req.selector.split(',').map((s) => s.trim()).filter(Boolean)) {
+        for (const el of document.querySelectorAll<HTMLElement>(part)) {
+          if (texts.length > 0 && !texts.includes((el.textContent ?? '').trim())) continue;
+          if (el.getAttribute('aria-disabled') === 'true' || (el as HTMLButtonElement).disabled) continue;
+          console.log(`[Tutti inject-helper] click target matched "${part}"`);
+          el.click();
+          return { source: RES_TAG, id: req.id, ok: true };
+        }
+      }
+      return { source: RES_TAG, id: req.id, ok: false, error: 'click target not found' };
+    }
+
+    async function readLatestXPostUrl(req: InjectRequest): Promise<InjectResponse> {
+      let captured = window.__tuttiXLatestPostId;
+      try {
+        captured ??= JSON.parse(localStorage.getItem('tutti:x-latest-post') ?? 'null') as typeof captured;
+      } catch { /* ignore malformed or unavailable storage */ }
+      const handle = req.text?.replace(/^@/, '');
+      const fresh = captured && Date.now() - captured.capturedAt < 60_000;
+      return {
+        source: RES_TAG,
+        id: req.id,
+        ok: true,
+        url: fresh && handle && captured ? `https://x.com/${handle}/status/${captured.id}` : undefined,
+      };
+    }
+
     /** 条件が true になるまでポーリングで待つ。timeoutMs を超えたら false 返す */
     async function waitFor(predicate: () => boolean, timeoutMs: number): Promise<boolean> {
       const deadline = Date.now() + timeoutMs;
@@ -664,9 +784,12 @@ export default defineContentScript({
     async function handle(req: InjectRequest): Promise<InjectResponse> {
       try {
         installUploadHook();
+        installXPostCaptureHook();
         if (req.mode === 'text') return await injectText(req);
         if (req.mode === 'drop') return await injectViaDrop(req);
         if (req.mode === 'tag-list') return await injectTagList(req);
+        if (req.mode === 'click') return await clickElement(req);
+        if (req.mode === 'x-post-url') return await readLatestXPostUrl(req);
         return await injectIntoInput(req);
       } catch (e) {
         return {
@@ -681,6 +804,7 @@ export default defineContentScript({
     // 起動直後に hook をインストール(早ければ早いほど取りこぼしが少ない)
     installUploadHook();
     installIgCaptionFetchHook();
+    installXPostCaptureHook();
 
     window.addEventListener('message', (ev) => {
       if (ev.source !== window) return;
@@ -690,7 +814,9 @@ export default defineContentScript({
       const mode: InjectRequest['mode'] =
         data.mode === 'drop' ? 'drop' :
         data.mode === 'text' ? 'text' :
-        data.mode === 'tag-list' ? 'tag-list' : 'input';
+        data.mode === 'tag-list' ? 'tag-list' :
+        data.mode === 'click' ? 'click' :
+        data.mode === 'x-post-url' ? 'x-post-url' : 'input';
       const req: InjectRequest = {
         source: REQ_TAG,
         id: data.id,
@@ -699,6 +825,7 @@ export default defineContentScript({
         files: data.files,
         text: typeof data.text === 'string' ? data.text : undefined,
         tags: Array.isArray(data.tags) ? data.tags.filter((t): t is string => typeof t === 'string') : undefined,
+        texts: Array.isArray(data.texts) ? data.texts.filter((t): t is string => typeof t === 'string') : undefined,
         uploadTimeoutMs: typeof data.uploadTimeoutMs === 'number' ? data.uploadTimeoutMs : undefined,
       };
       void handle(req).then((res) => {

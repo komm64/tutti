@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tutti — 支援</title>
+<style>
+  :root {
+    --fg: #1f2937;
+    --muted: #6b7280;
+    --brand: #0d9488;
+    --bg: #ffffff;
+    --line: #e5e7eb;
+    --accent-bg: #f0fdfa;
+  }
+  html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", "Noto Sans CJK JP", "Noto Sans CJK SC", "Noto Sans CJK TC", "Noto Sans CJK KR", "Noto Sans Thai", "Noto Sans Arabic", "Noto Sans Devanagari", sans-serif; color: var(--fg); }
+  body { max-width: 720px; margin: 0 auto; padding: 2rem 1.5rem 4rem; line-height: 1.7; }
+  header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
+  h1 { font-size: 1.75rem; margin: 0; }
+  .tagline { color: var(--muted); margin: 0.25rem 0 1.5rem; }
+  .icon { width: 48px; height: 48px; border-radius: 8px; background: var(--brand); display: grid; place-items: center; color: white; font-weight: 700; font-size: 1.25rem; flex-shrink: 0; }
+  nav { font-size: 0.9rem; color: var(--muted); margin-bottom: 2rem; }
+  nav a { color: var(--brand); text-decoration: none; margin-right: 1rem; }
+  nav a:hover { text-decoration: underline; }
+  h2 { font-size: 1.2rem; margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--line); }
+  h3 { font-size: 1rem; margin-top: 1.5rem; }
+  ul, ol { padding-left: 1.5rem; }
+  code { background: #f3f4f6; padding: 0.1em 0.4em; border-radius: 4px; font-size: 0.9em; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-weight: 600; }
+  .callout {
+    background: var(--accent-bg);
+    border-left: 3px solid var(--brand);
+    padding: 0.75rem 1rem;
+    margin: 1rem 0;
+    border-radius: 4px;
+  }
+  .callout p { margin: 0.25rem 0; }
+  a { color: var(--brand); }
+  .lang-switch { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--line); font-size: 0.85rem; color: var(--muted); }
+  .lang-switch a { color: var(--brand); text-decoration: none; margin-right: 0.75rem; display: inline-block; margin-bottom: 0.25rem; }
+  .lang-switch a.current { color: var(--fg); font-weight: 600; }
+  footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<header>
+  <div class="icon">T</div>
+  <div>
+    <h1>Tutti — 支援</h1>
+    <p class="tagline">支援資源與 FAQ</p>
+  </div>
+</header>
+
+<nav>
+  <a href="./index.zh-Hant.html">首頁</a>
+  <a href="https://github.com/komm64/tutti">GitHub</a>
+  <a href="./privacy.zh-Hant.html">隱私權政策</a>
+</nav>
+
+<h2>需要協助嗎?</h2>
+
+<h3>1. 發布失敗 / 行為異常</h3>
+<p>請使用 <strong>popup 中的「診斷」→「回報」按鈕</strong>。這是正規管道。回報經過 redact (使用者名稱、URL、電子郵件) 後轉送至我們的私有 issue tracker,在那裡會自動建立 selector 修復 PR,數日內以熱修復形式推送至全體使用者。</p>
+
+<div class="callout">
+<p><strong>為什麼使用產品內的回報按鈕?</strong></p>
+<p>popup 的回報流程會自動附上最終發布狀態、redacted DOM 快照及選擇器稽核結果 — 這正是快速修復 selector 失效所需的內容。個人識別資訊在傳送前經多層 redact。</p>
+</div>
+
+<h3>2. 一般問題 / 功能請求</h3>
+<p>請寄信至 <a href="mailto:contact@komm64.com">contact@komm64.com</a>。這是私有管道,可安全分享螢幕截圖 / 個人使用者名稱。</p>
+
+<h3>3. 安裝 / 帳號問題</h3>
+<p>Tutti <strong>重複使用您各個社群網路的現有瀏覽器登入</strong>。無需單獨的 Tutti 帳號或登入步驟。只要您在同一個 Chrome 設定檔中已登入某個社群網路,Tutti 即可從該處發布。</p>
+
+<h2>FAQ</h2>
+
+<h3>Q. 我的發布失敗了。</h3>
+<p>通常表示某個社群網路更改了其 DOM。請使用 popup 中的 <strong>診斷 → 回報</strong>。選擇器熱修復通常會在數日內透過 <code>selectors.json</code> 自動更新發布 (無需更新擴充功能)。</p>
+
+<h3>Q. Tutti 記不住我的登入。</h3>
+<p>Tutti 依賴網路的一般瀏覽器登入。請先在 Chrome 中登入每個網路,然後 Tutti 才能代您發布。無痕模式無法運作,因為該處沒有網路的工作階段。</p>
+
+<h3>Q. 各網路的字元上限不同 — 這有問題嗎?</h3>
+<p>沒有問題。超過某網路字元上限的長文會自動拆分為連續推文 (在 X 上為真正的回覆鏈;其他網路為連續發布)。在上限以內的發布則原樣送出。</p>
+
+<h3>Q. 系統提示我的圖片 / 影片過大。</h3>
+<p>圖片透過 Canvas 自動調整大小以符合各網路的大小上限。影片在超過網路上限時透過 ffmpeg.wasm 自動壓縮。若壓縮後仍無法符合,您將看到錯誤 — 請先透過該網路的原生應用程式確認檔案能上傳。</p>
+
+<h3>Q. Tutti 能看到我的發布內容嗎?</h3>
+<p>不能。發布內容絕不會經過任何第三方伺服器。Tutti 直接注入各網路的 Web 發布頁面。詳情請參閱我們的<a href="./privacy.html">隱私權政策</a>。唯一例外是您按下產品內回報按鈕時,這會將 redacted 錯誤資訊傳送至我們的私有 issue tracker。</p>
+
+<h3>Q. 我可以捐款嗎?</h3>
+<p>暫時還不行 — 我們正在準備低壓力的支援管道。最大的持續成本是跟進每個社群網路的 UI 變更;未來的 Ko-fi 流程將用於資助這種維護。</p>
+
+<div class="lang-switch"><a href="./support.eo.html">undefined</a><a href="./support.html">undefined</a><a href="./support.zh-Hans.html">undefined</a><a href="./support.ru.html">undefined</a><a href="./support.es-ES.html">undefined</a><a href="./support.pt-BR.html">undefined</a><a href="./support.de.html">undefined</a><a href="./support.ko.html">undefined</a><a href="./support.ja.html">undefined</a><a href="./support.fr.html">undefined</a><a href="./support.pl.html">undefined</a><a href="./support.zh-Hant.html" class="current">undefined</a><a href="./support.tr.html">undefined</a><a href="./support.th.html">undefined</a><a href="./support.es-419.html">undefined</a><a href="./support.uk.html">undefined</a><a href="./support.it.html">undefined</a><a href="./support.cs.html">undefined</a><a href="./support.hu.html">undefined</a><a href="./support.sv.html">undefined</a><a href="./support.nl.html">undefined</a><a href="./support.vi.html">undefined</a><a href="./support.id.html">undefined</a><a href="./support.ro.html">undefined</a><a href="./support.el.html">undefined</a><a href="./support.pt-PT.html">undefined</a><a href="./support.ar.html">undefined</a><a href="./support.fi.html">undefined</a><a href="./support.bg.html">undefined</a><a href="./support.no.html">undefined</a><a href="./support.da.html">undefined</a></div>
+
+<footer>
+  Tutti 是由 <a href="https://github.com/komm64">komm64</a> 開發的 Chrome 擴充功能。聯絡方式: <a href="mailto:contact@komm64.com">contact@komm64.com</a>
+</footer>
+
+</body>
+</html>

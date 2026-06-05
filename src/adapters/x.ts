@@ -6,17 +6,11 @@ export const xAdapter: PlatformAdapter = {
   charLimit: 280,
   matchUrl: (url) => /^https:\/\/(x|twitter)\.com\//.test(url),
   /**
-   * X はホーム画面の inline compose ("What's happening?") を使う。
-   * 旧: thread mode (chunks>1) は `/compose/post` modal を介して 1 compose に
-   *     複数 textbox を連結する実装だったが、 X UI 変更で Add post button が
-   *     navigation 引き起こすようになり完全失敗 (v0.4.65 user 報告)。
-   * v0.4.66〜: thread chaining は捨てて、 chunks > 1 は generic chunks loop で
-   *     各 chunk を別 tweet として post (background.ts 側で処理)。 ここは
-   *     単 chunk 用の inline compose URL に戻る。
-   * /intent/post URL prefill は home の draft state と共有して漏れる現象が
-   * 出るので使わない (prefillsViaUrl=false で DOM inject)。
+   * X は `/compose/post` の modal compose を使う。ホームの inline compose は
+   * 画面幅やタイムライン状態で描画されないことがあるため、実投稿の入口として
+   * 安定しない。
    */
-  getComposeUrl: () => 'https://x.com/home',
+  getComposeUrl: () => 'https://x.com/compose/post',
   getLoginUrl: () => 'https://x.com/',
   prefillsViaUrl: false,
   videoConstraints: {
@@ -35,12 +29,12 @@ export const xAdapter: PlatformAdapter = {
 };
 
 export const X_SELECTORS = {
-  /** ホーム画面の inline compose の textarea */
-  textarea: '[data-testid="tweetTextarea_0"][role="textbox"]',
+  /** modal compose を優先し、背後の home compose に誤注入しない */
+  textarea: '[role="dialog"] [data-testid="tweetTextarea_0"][role="textbox"], [role="dialog"] [data-testid="tweetTextarea_0"][contenteditable="true"], [data-testid="tweetTextarea_0"][role="textbox"], [data-testid="tweetTextarea_0"][contenteditable="true"]',
   /** ホーム画面の inline compose の Post ボタン */
   postButtonInline: '[data-testid="tweetButtonInline"]',
   /** modal compose の Post ボタン (fallback) */
   postButton: '[data-testid="tweetButton"]',
   /** 画像添付の hidden file input */
-  fileInput: 'main input[data-testid="fileInput"], input[data-testid="fileInput"]',
+  fileInput: '[role="dialog"] input[data-testid="fileInput"], main input[data-testid="fileInput"], input[data-testid="fileInput"]',
 } as const;

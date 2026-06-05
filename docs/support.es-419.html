@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="es-419">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tutti — Soporte</title>
+<style>
+  :root {
+    --fg: #1f2937;
+    --muted: #6b7280;
+    --brand: #0d9488;
+    --bg: #ffffff;
+    --line: #e5e7eb;
+    --accent-bg: #f0fdfa;
+  }
+  html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", "Noto Sans CJK JP", "Noto Sans CJK SC", "Noto Sans CJK TC", "Noto Sans CJK KR", "Noto Sans Thai", "Noto Sans Arabic", "Noto Sans Devanagari", sans-serif; color: var(--fg); }
+  body { max-width: 720px; margin: 0 auto; padding: 2rem 1.5rem 4rem; line-height: 1.7; }
+  header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
+  h1 { font-size: 1.75rem; margin: 0; }
+  .tagline { color: var(--muted); margin: 0.25rem 0 1.5rem; }
+  .icon { width: 48px; height: 48px; border-radius: 8px; background: var(--brand); display: grid; place-items: center; color: white; font-weight: 700; font-size: 1.25rem; flex-shrink: 0; }
+  nav { font-size: 0.9rem; color: var(--muted); margin-bottom: 2rem; }
+  nav a { color: var(--brand); text-decoration: none; margin-right: 1rem; }
+  nav a:hover { text-decoration: underline; }
+  h2 { font-size: 1.2rem; margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--line); }
+  h3 { font-size: 1rem; margin-top: 1.5rem; }
+  ul, ol { padding-left: 1.5rem; }
+  code { background: #f3f4f6; padding: 0.1em 0.4em; border-radius: 4px; font-size: 0.9em; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-weight: 600; }
+  .callout {
+    background: var(--accent-bg);
+    border-left: 3px solid var(--brand);
+    padding: 0.75rem 1rem;
+    margin: 1rem 0;
+    border-radius: 4px;
+  }
+  .callout p { margin: 0.25rem 0; }
+  a { color: var(--brand); }
+  .lang-switch { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--line); font-size: 0.85rem; color: var(--muted); }
+  .lang-switch a { color: var(--brand); text-decoration: none; margin-right: 0.75rem; display: inline-block; margin-bottom: 0.25rem; }
+  .lang-switch a.current { color: var(--fg); font-weight: 600; }
+  footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.85rem; }
+</style>
+</head>
+<body>
+<header>
+  <div class="icon">T</div>
+  <div>
+    <h1>Tutti — Soporte</h1>
+    <p class="tagline">Recursos de soporte y preguntas frecuentes</p>
+  </div>
+</header>
+
+<nav>
+  <a href="./index.es-419.html">Inicio</a>
+  <a href="https://github.com/komm64/tutti">GitHub</a>
+  <a href="./privacy.es-419.html">Política de privacidad</a>
+</nav>
+
+<h2>¿Necesitas ayuda?</h2>
+
+<h3>1. La publicación falló / algo se comporta raro</h3>
+<p>Usa el <strong>botón &ldquo;Diagnosticar&rdquo; → &ldquo;Reportar&rdquo; dentro del popup</strong>. Este es el canal oficial. El reporte se redacta (handles, URLs, correos) y se reenvía a nuestro rastreador privado de incidencias, donde se abre automáticamente un PR de corrección de selectores y se distribuye como hot-fix a todos los usuarios en pocos días.</p>
+
+<div class="callout">
+<p><strong>¿Por qué usar el botón de reporte dentro del producto?</strong></p>
+<p>El flujo de reporte del popup adjunta automáticamente el estado final de redacción, una instantánea DOM redactada y los resultados de auditoría de selectores — exactamente lo necesario para corregir rápidamente los selectores rotos. La PII se elimina a través de múltiples capas antes del envío.</p>
+</div>
+
+<h3>2. Preguntas generales / solicitudes de funciones</h3>
+<p>Escríbenos a <a href="mailto:contact@komm64.com">contact@komm64.com</a>. Este es un canal privado, seguro para compartir capturas de pantalla / handles personales.</p>
+
+<h3>3. Preguntas de instalación / cuenta</h3>
+<p>Tutti <strong>reutiliza tus inicios de sesión existentes del navegador</strong> para cada red social. No hay cuenta de Tutti separada ni paso de inicio de sesión. Una vez que hayas iniciado sesión en una red social en el mismo perfil de Chrome, Tutti puede publicar desde ahí.</p>
+
+<h2>Preguntas frecuentes</h2>
+
+<h3>P. Mi publicación falló.</h3>
+<p>Esto normalmente significa que una red social cambió su DOM. Usa <strong>Diagnosticar → Reportar</strong> en el popup. Un hot-fix de selector normalmente se envía en pocos días vía la actualización automática de <code>selectors.json</code> (no se requiere actualización de la extensión).</p>
+
+<h3>P. Tutti no recuerda mi inicio de sesión.</h3>
+<p>Tutti depende del inicio de sesión normal de la red en el navegador. Inicia sesión en cada red en Chrome primero y luego Tutti puede publicar en tu nombre. El modo incógnito no funciona porque las sesiones de la red no están ahí.</p>
+
+<h3>P. Los límites de caracteres difieren por red — ¿es un problema?</h3>
+<p>No. Las publicaciones largas que exceden el límite de caracteres de una red se dividen automáticamente en un hilo de continuación (en X, una cadena de respuestas apropiada; en otras redes, publicaciones secuenciales). Las publicaciones dentro del límite pasan tal cual.</p>
+
+<h3>P. Me dicen que mi imagen / video es demasiado grande.</h3>
+<p>Las imágenes se redimensionan automáticamente vía Canvas para ajustarse al límite de tamaño de cada red. Los videos se comprimen automáticamente con ffmpeg.wasm cuando superan el límite de una red. Si ni siquiera la compresión encaja, verás un error — verifica primero que el archivo se sube vía la app nativa de la red.</p>
+
+<h3>P. ¿Ve Tutti el contenido de mi publicación?</h3>
+<p>No. El contenido de las publicaciones nunca pasa por un servidor de terceros. Tutti inyecta directamente en la página web de redacción de cada red. Consulta nuestra <a href="./privacy.html">Política de privacidad</a> para más detalles. La única excepción es cuando presionas el botón de reporte dentro del producto, que envía información de error redactada a nuestro rastreador privado de incidencias.</p>
+
+<h3>P. ¿Puedo donar?</h3>
+<p>Todavía no — estamos trabajando en un canal de apoyo sin presión. El costo continuo más grande es mantenernos al día con los cambios de UI de cada red social; los futuros flujos de Ko-fi financiarán ese mantenimiento.</p>
+
+<div class="lang-switch"><a href="./support.eo.html">undefined</a><a href="./support.html">undefined</a><a href="./support.zh-Hans.html">undefined</a><a href="./support.ru.html">undefined</a><a href="./support.es-ES.html">undefined</a><a href="./support.pt-BR.html">undefined</a><a href="./support.de.html">undefined</a><a href="./support.ko.html">undefined</a><a href="./support.ja.html">undefined</a><a href="./support.fr.html">undefined</a><a href="./support.pl.html">undefined</a><a href="./support.zh-Hant.html">undefined</a><a href="./support.tr.html">undefined</a><a href="./support.th.html">undefined</a><a href="./support.es-419.html" class="current">undefined</a><a href="./support.uk.html">undefined</a><a href="./support.it.html">undefined</a><a href="./support.cs.html">undefined</a><a href="./support.hu.html">undefined</a><a href="./support.sv.html">undefined</a><a href="./support.nl.html">undefined</a><a href="./support.vi.html">undefined</a><a href="./support.id.html">undefined</a><a href="./support.ro.html">undefined</a><a href="./support.el.html">undefined</a><a href="./support.pt-PT.html">undefined</a><a href="./support.ar.html">undefined</a><a href="./support.fi.html">undefined</a><a href="./support.bg.html">undefined</a><a href="./support.no.html">undefined</a><a href="./support.da.html">undefined</a></div>
+
+<footer>
+  Tutti es una extensión de Chrome de <a href="https://github.com/komm64">komm64</a>. Contacto: <a href="mailto:contact@komm64.com">contact@komm64.com</a>
+</footer>
+
+</body>
+</html>

@@ -22,7 +22,7 @@ export async function resizeImage(
 
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('canvas 2d context が利用できません');
+  if (!ctx) throw new Error('canvas 2d context is unavailable');
 
   let scale = 1;
   let resultBlob: Blob | null = null;
@@ -43,7 +43,7 @@ export async function resizeImage(
   }
 
   bitmap.close();
-  if (!resultBlob) throw new Error('リサイズに失敗しました');
+  if (!resultBlob) throw new Error('Image resize failed');
   return arrayBufferToBase64(await resultBlob.arrayBuffer());
 }
 
@@ -71,7 +71,7 @@ export async function resizeImageInSW(
     const h = Math.max(1, Math.floor(bitmap.height * scale));
     const canvas = new OffscreenCanvas(w, h);
     const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('OffscreenCanvas 2d context が利用できません');
+    if (!ctx) throw new Error('OffscreenCanvas 2d context is unavailable');
     ctx.drawImage(bitmap, 0, 0, w, h);
     resultBlob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.85 });
     if (resultBlob.size <= maxBytes) break;
@@ -79,6 +79,6 @@ export async function resizeImageInSW(
   }
 
   bitmap.close();
-  if (!resultBlob) throw new Error('リサイズに失敗しました');
+  if (!resultBlob) throw new Error('Image resize failed');
   return arrayBufferToBase64(await resultBlob.arrayBuffer());
 }

@@ -5,7 +5,9 @@ import { executePostFlow } from '../src/utils/post-flow';
 import { sleep, waitForElement } from '../src/utils/dom';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
-import { dropImages, injectTextIntoElement } from '../src/utils/image';
+import { clickElementInMainWorld, dropImages, injectTextIntoElement } from '../src/utils/image';
+import { t } from '../src/utils/i18n';
+import { markPostSubmissionStarted } from '../src/utils/post-submission-state';
 
 function detectBlueskyUser(): string | null {
   // 戦略 1: localStorage を総当たりで探索(キー名はバージョン依存)
@@ -100,7 +102,7 @@ async function executeBlueskyInlineThread(
 ): Promise<void> {
   // 最初の textarea の wait (compose modal のロード待ち)
   const textarea0 = await waitForElement<HTMLElement>(sel.textarea, 8000);
-  if (!textarea0) throw new Error('Bluesky: 最初の textarea が見つかりません');
+  if (!textarea0) throw new Error(t('runtimeBlueskyFirstTextareaMissing'));
 
   // /intent/compose?text= で chunk 0 は通常 prefill 済み。再注入すると TipTap が
   // 既存本文へ追記して重複するため、空または不一致の場合だけ補完する。
@@ -121,7 +123,7 @@ async function executeBlueskyInlineThread(
   for (let i = 1; i < chunks.length; i++) {
     const addBtn = findBlueskyAddPostButton();
     if (!addBtn) {
-      throw new Error(`Bluesky: chunk ${i + 1}/${chunks.length} の「ポストを追加 (+)」 button が見つかりません (chunk ${i} の text が反映されてない可能性)`);
+      throw new Error(t('runtimeBlueskyAddButtonMissing', i + 1, chunks.length, i));
     }
     addBtn.click();
 
@@ -137,7 +139,7 @@ async function executeBlueskyInlineThread(
     }
     if (!target) {
       const got = document.querySelectorAll(BLUESKY_EDITOR_SELECTOR).length;
-      throw new Error(`Bluesky: chunk ${i + 1}/${chunks.length} の textarea が 5s 以内に出現しませんでした (要 ${i + 1} 個、 実 ${got} 個)`);
+      throw new Error(t('runtimeBlueskyTextareaTimeout', i + 1, chunks.length, i + 1, got));
     }
     const marker = `tutti-bsky-chunk-${i}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     target.setAttribute('data-tutti-marker', marker);
@@ -166,7 +168,7 @@ async function executeBlueskyInlineThread(
     if (postBtn) break;
     await sleep(300);
   }
-  if (!postBtn) throw new Error('Bluesky: Publish ボタンが見つかりません');
+  if (!postBtn) throw new Error(t('runtimeBlueskyPublishButtonMissing'));
 
   if (dryRun) {
     const orig = postBtn.style.outline;
@@ -174,6 +176,7 @@ async function executeBlueskyInlineThread(
     setTimeout(() => { postBtn!.style.outline = orig; }, 5000);
     return;
   }
+  markPostSubmissionStarted();
   postBtn.click();
 
   // modal close 待ち (Bluesky の post 完了 verify)
@@ -186,7 +189,7 @@ async function executeBlueskyInlineThread(
     await sleep(300);
   }
   if (stillOpen()) {
-    throw new Error('Bluesky: thread 投稿後に compose modal が閉じませんでした');
+    throw new Error(t('runtimeBlueskyThreadModalOpen'));
   }
 }
 
@@ -267,6 +270,7 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
       text,
       images,
       dryRun,
+      clickPostButton: () => clickElementInMainWorld('[data-testid="composerPublishBtn"]'),
     });
   }
 
@@ -280,15 +284,25 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     const stillOpen = () =>
       document.querySelector('[data-testid="composer"]') ||
       document.querySelector(BLUESKY_EDITOR_SELECTOR);
-    const deadline = Date.now() + 30_000;
-    while (Date.now() < deadline) {
+    const normalDeadline = Date.now() + 10_000;
+    while (Date.now() < normalDeadline) {
       if (!stillOpen()) break;
       await sleep(300);
     }
     if (stillOpen()) {
-      throw new Error(
-        'Bluesky: Publish click 後に compose modal が閉じませんでした (画像 upload 失敗 / サイズ超過 / その他エラーの可能性)',
-      );
+      void browser.runtime.sendMessage({
+        type: 'USER_ACTION_REQUIRED',
+        platform: 'bluesky',
+        reason: 'confirmation',
+      }).catch(() => { /* background unavailable: compose remains visible */ });
+    }
+    const deadline = Date.now() + 5 * 60_000;
+    while (Date.now() < deadline) {
+      if (!stillOpen()) break;
+      await sleep(1000);
+    }
+    if (stillOpen()) {
+      throw new Error(t('runtimeBlueskyConfirmationTimeout'));
     }
     log.info('Bluesky: post 完了 verify (modal closed)');
   }
@@ -305,6 +319,7 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     type: 'POST_RESULT',
     platform: 'bluesky',
     success: true,
+    confirmed: true,
     url,
   };
 }

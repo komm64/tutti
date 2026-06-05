@@ -1,0 +1,473 @@
+{
+  "appName": {
+    "message": "Tutti",
+    "description": "Extension name displayed in store and browser."
+  },
+  "appDescription": {
+    "message": "クロスポストの面倒を全部肩代わりする Chrome 拡張",
+    "description": "Extension description for the store listing."
+  },
+  "appTagline": {
+    "message": "クロスポストの面倒を全部肩代わり"
+  },
+  "headerHistory": { "message": "履歴" },
+  "headerSettings": { "message": "設定" },
+  "textareaPlaceholder": { "message": "投稿内容を入力..." },
+  "addMedia": { "message": "メディアを追加" },
+  "dropMedia": { "message": "ここにファイルをドロップ" },
+  "posting": { "message": "投稿中..." },
+  "previewing": { "message": "プレビュー中..." },
+  "postButtonShort": {
+    "message": "$N$ SNS に投稿",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "postButtonLong": {
+    "message": "$N$ SNS に投稿 ($M$ 件)",
+    "placeholders": {
+      "N": { "content": "$1" },
+      "M": { "content": "$2" }
+    }
+  },
+  "errorPrefix": { "message": "エラー: " },
+  "runtimeXOwnHandleMissing": { "message": "X: own handle 未検出のため post URL を capture できません" },
+  "runtimeXPostUrlTimeout": { "message": "X: 投稿後の tweet URL を 30s 以内に取得できませんでした (timeline 更新失敗?)" },
+  "runtimeXFirstTextareaMissing": { "message": "X: 最初の textarea が見つかりません" },
+  "runtimeXAddButtonMissing": {
+    "message": "X: chunk $CURRENT$/$TOTAL$ の「ポストを追加 (+)」 button が見つかりません (chunk $PREVIOUS$ の text が反映されてない可能性)",
+    "placeholders": {
+      "CURRENT": { "content": "$1" },
+      "TOTAL": { "content": "$2" },
+      "PREVIOUS": { "content": "$3" }
+    }
+  },
+  "runtimeXTextareaTimeout": {
+    "message": "X: chunk $CURRENT$/$TOTAL$ の textarea が 5s 以内に出現しませんでした (要 $EXPECTED$ 個、 実 $FOUND$ 個)",
+    "placeholders": {
+      "CURRENT": { "content": "$1" },
+      "TOTAL": { "content": "$2" },
+      "EXPECTED": { "content": "$3" },
+      "FOUND": { "content": "$4" }
+    }
+  },
+  "runtimeXPostAllButtonMissing": { "message": "X: 全ポスト送信ボタンが見つかりません" },
+  "runtimeAccountMismatch": {
+    "message": "$PLATFORM$: 想定していたアカウント ($EXPECTED$) と現在のアカウント ($CURRENT$) が違います。タブで元のアカウントに戻すか、Tutti を開き直して新しいアカウントを確認してください。",
+    "placeholders": {
+      "PLATFORM": { "content": "$1" },
+      "EXPECTED": { "content": "$2" },
+      "CURRENT": { "content": "$3" }
+    }
+  },
+  "runtimeComposeInputMissing": { "message": "投稿入力欄が見つかりませんでした。ログイン済みか確認してください" },
+  "runtimeImageUnsupported": { "message": "このプラットフォームは画像添付に未対応です" },
+  "runtimePostButtonMissing": { "message": "投稿ボタンが見つかりませんでした。SNS の UI が更新された可能性があります(Tutti の更新が必要)" },
+  "runtimePostButtonDisabled": { "message": "まだ投稿できる状態になっていません(文字数オーバー / メディア処理中 / 未ログインの可能性)" },
+  "runtimeExistingSnsTabUnavailable": { "message": "既存の SNS タブを操作できませんでした" },
+  "runtimeSnsTabOpenFailed": { "message": "SNS タブを開けませんでした" },
+  "runtimeSnsPageLoadTimeout": { "message": "SNS ページの読み込みがタイムアウトしました(回線か SNS の状態を確認)" },
+  "runtimePostUncertain": { "message": "投稿操作は実行しましたが、投稿後の確認を取得できませんでした。重複投稿を避けるため、再送前に SNS 側を確認してください。" },
+  "runtimeBlueskyFirstTextareaMissing": { "message": "Bluesky: 最初の textarea が見つかりません" },
+  "runtimeBlueskyAddButtonMissing": { "message": "Bluesky: chunk $CURRENT$/$TOTAL$ の「ポストを追加 (+)」button が見つかりません (chunk $PREVIOUS$ の text が反映されていない可能性)", "placeholders": { "CURRENT": { "content": "$1" }, "TOTAL": { "content": "$2" }, "PREVIOUS": { "content": "$3" } } },
+  "runtimeBlueskyTextareaTimeout": { "message": "Bluesky: chunk $CURRENT$/$TOTAL$ の textarea が 5 秒以内に出現しませんでした (要 $EXPECTED$ 個、実 $FOUND$ 個)", "placeholders": { "CURRENT": { "content": "$1" }, "TOTAL": { "content": "$2" }, "EXPECTED": { "content": "$3" }, "FOUND": { "content": "$4" } } },
+  "runtimeBlueskyPublishButtonMissing": { "message": "Bluesky: Publish ボタンが見つかりません" },
+  "runtimeBlueskyThreadModalOpen": { "message": "Bluesky: thread 投稿後に compose modal が閉じませんでした" },
+  "runtimeInstagramMediaRequired": { "message": "Instagram は画像または動画が必須です。本文のみの投稿には対応していません。" },
+  "runtimeInstagramCreateTriggerMissing": { "message": "Instagram: sidebar の Create / New post が見つかりません" },
+  "runtimeInstagramCreateDialogMissing": { "message": "Instagram: Create new post dialog が出現しませんでした (file input 不在)" },
+  "runtimeInstagramFileInputMissing": { "message": "Instagram: dialog 内に file input が出現しませんでした" },
+  "runtimeInstagramErrorDialog": { "message": "Instagram: エラー dialog を検出しました - $DETAIL$", "placeholders": { "DETAIL": { "content": "$1" } } },
+  "runtimeDeviantArtImageRequired": { "message": "DeviantArt は画像が必須です。" },
+  "runtimeDeviantArtTitleMissing": { "message": "DeviantArt: title input が出現しませんでした (upload 失敗または UI 変更の可能性)" },
+  "runtimeTikTokVideoRequired": { "message": "TikTok は動画が必須です。画像のみの Web upload には対応していません。" },
+  "runtimeTikTokCaptionMissing": { "message": "TikTok: caption editor が出現しませんでした (動画 upload 失敗の可能性)" },
+  "runtimeYouTubeVideoRequired": { "message": "YouTube は動画が必須です (Shorts 用 MP4 など)" },
+  "runtimeYouTubeUploadButtonMissing": { "message": "YouTube: Upload videos ボタンが見つかりません。Studio とチャンネル作成状態を確認してください。" },
+  "runtimeYouTubeTitleMissing": { "message": "YouTube: title 入力欄が出現しませんでした (upload 失敗またはチャンネル未作成の可能性)" },
+  "runtimeYouTubeKidsRadioMissing": { "message": "YouTube: Made for Kids の No radio が見つかりません" },
+  "runtimeYouTubePublicRadioMissing": { "message": "YouTube: Public visibility radio が見つかりません" },
+  "runtimeYouTubePostUrlMissing": { "message": "YouTube: 投稿後に listing または video URL へ移動しませんでした" },
+  "runtimePixivImageRequired": { "message": "Pixiv は画像が必須です。本文のみの投稿には対応していません。" },
+  "runtimePixivVisibilityMissing": { "message": "Pixiv: Visible to option が見つかりません (x_restrict=$VALUE$)", "placeholders": { "VALUE": { "content": "$1" } } },
+  "runtimePixivAiTypeMissing": { "message": "Pixiv: AI-generated work option が見つかりません (ai_type=$VALUE$)", "placeholders": { "VALUE": { "content": "$1" } } },
+  "runtimePixivAdultRadioMissing": { "message": "Pixiv: Adult content (sexual) radio が見つかりません" },
+  "runtimePixivSecurityPrompt": { "message": "Tutti: $PLATFORM$ のセキュリティチェックを完了してください。完了次第、自動で投稿します。", "placeholders": { "PLATFORM": { "content": "$1" } } },
+  "runtimePixivSecurityResuming": { "message": "セキュリティチェック完了。投稿を続行します..." },
+  "runtimePixivSecurityTimeout": { "message": "Pixiv: Security check が 5 分以内に完了しませんでした" },
+  "userActionRequiredNotifyTitle": { "message": "Tutti: 操作が必要です" },
+  "userActionRequiredCaptcha": { "message": "$PLATFORM$ のタブで CAPTCHA を完了してください。完了次第、自動で投稿を再開します。", "placeholders": { "PLATFORM": { "content": "$1" } } },
+  "userActionRequiredConfirmation": { "message": "$PLATFORM$ のタブで確認操作を完了してください。完了次第、自動で投稿を再開します。", "placeholders": { "PLATFORM": { "content": "$1" } } },
+  "runtimeBlueskyConfirmationTimeout": { "message": "Bluesky: 5 分以内に確認操作が完了しませんでした" },
+  "runtimeStepActionFailed": { "message": "step \"$STEP$\" の action に失敗しました: $DETAIL$", "placeholders": { "STEP": { "content": "$1" }, "DETAIL": { "content": "$2" } } },
+  "runtimeStepAdvanceMissing": { "message": "step \"$STEP$\" の次へ進むボタンが見つかりませんでした。SNS UI が更新された可能性があります。$HINT$", "placeholders": { "STEP": { "content": "$1" }, "HINT": { "content": "$2" } } },
+  "runtimeStepNextDomMissing": { "message": "step \"$STEP$\" の次画面 DOM ($SELECTOR$) が出現しませんでした", "placeholders": { "STEP": { "content": "$1" }, "SELECTOR": { "content": "$2" } } },
+  "runtimeFinalPostButtonMissing": { "message": "最終投稿ボタンが見つかりませんでした。SNS UI が更新された可能性があります。" },
+  "runtimeImageAttachFailed": { "message": "画像添付に失敗しました。SNS UI が変わった可能性があります。" },
+  "runtimeTextInjectFailed": { "message": "本文の挿入に失敗しました。SNS UI が変わった可能性があります。" },
+  "runtimeTagInjectFailed": { "message": "tag list の注入に失敗しました。" },
+  "runtimeSelectorUrlHttpsRequired": { "message": "URL は https:// から始まる必要があります" },
+  "runtimeSelectorJsonObjectRequired": { "message": "JSON はオブジェクト形式が必要です" },
+  "runtimeIdbZeroByte": { "message": "IndexedDB に 0-byte の binary があります (dataRef=$REF$)", "placeholders": { "REF": { "content": "$1" } } },
+  "runtimeVideoAttachmentMissing": { "message": "動画 attachment に data も dataRef もありません" },
+  "runtimeVideoCompressionFailed": { "message": "動画の自動圧縮に失敗しました: $DETAIL$", "placeholders": { "DETAIL": { "content": "$1" } } },
+  "runtimeOffscreenUnavailable": { "message": "chrome.offscreen API が利用できません" },
+  "runtimeConversionNoResponse": { "message": "変換処理が応答しません" },
+  "runtimeUnsupportedPlatform": { "message": "未対応のプラットフォームです" },
+  "runtimeLongVideoUnsupported": { "message": "長尺動画に未対応です" },
+  "runtimeShortVideoUnsupported": { "message": "短動画に未対応です" },
+  "runtimeVideoDurationExceeded": { "message": "尺が長すぎます (上限 $LIMIT$s、実際 $ACTUAL$s)", "placeholders": { "LIMIT": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
+  "runtimeFileSizeExceeded": { "message": "ファイルサイズが大きすぎます (上限 $LIMIT$MB、実際 $ACTUAL$MB)", "placeholders": { "LIMIT": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
+  "runtimeChunkFailed": { "message": "$CURRENT$/$TOTAL$ パート目で失敗: $DETAIL$", "placeholders": { "CURRENT": { "content": "$1" }, "TOTAL": { "content": "$2" }, "DETAIL": { "content": "$3" } } },
+  "runtimeChunkContext": { "message": "$CURRENT$/$TOTAL$ パート目: $DETAIL$", "placeholders": { "CURRENT": { "content": "$1" }, "TOTAL": { "content": "$2" }, "DETAIL": { "content": "$3" } } },
+  "runtimeBlueskyThreadAutoPostOnly": { "message": "Bluesky thread は自動投稿 ON 限定です。preview は利用できません。" },
+  "runtimeBlueskyTabOpenFailed": { "message": "bsky.app タブを開けませんでした" },
+  "runtimeBlueskySessionMissing": { "message": "Bluesky: bsky.app の localStorage から session を取得できませんでした。ログイン状態を確認してください。" },
+  "runtimeUnknown": { "message": "不明" },
+  "runtimeUnknownError": { "message": "不明なエラー" },
+  "runtimeSnsPageNoResponse": { "message": "SNS ページが応答しません。タブを再読み込みしてください。" },
+  "runtimePostFailed": { "message": "投稿に失敗しました。" },
+  "failureReasonLogin": { "message": "ログインが必要かもしれません" },
+  "failureGuidanceLogin": { "message": "$PLATFORM$ のページで sign-in 状態を確認してください。別タブで開いてログインし、Tutti popup を開き直して再送してください。", "placeholders": { "PLATFORM": { "content": "$1" } } },
+  "failureReasonAccountMismatch": { "message": "アカウントが切り替わっていました" },
+  "failureGuidanceAccountMismatch": { "message": "$PLATFORM$ のタブで元のアカウントに戻すか、popup を開き直して新しいアカウントを確認してから再送してください。", "placeholders": { "PLATFORM": { "content": "$1" } } },
+  "failureReasonCaptcha": { "message": "画像認証 (captcha) が表示されています" },
+  "failureGuidanceCaptcha": { "message": "$PLATFORM$ のタブで captcha を完了してから再送してください。自動突破はできません。", "placeholders": { "PLATFORM": { "content": "$1" } } },
+  "failureReasonMediaLimit": { "message": "メディアが SNS の上限を超えています" },
+  "failureGuidanceMediaLimit": { "message": "画像は Tutti が自動 resize しますが、動画 / 動画尺は超過すると拒否されます。Settings の「動画の自動整形」を見直すか、該当 SNS だけ選択を外して再送してください。" },
+  "failureReasonTimeout": { "message": "タイムアウト or ネットワーク不調" },
+  "failureGuidanceTimeout": { "message": "SNS 側の応答が遅れています。数秒待ってから再送してください。繰り返すなら回線 / SNS の状態を確認してください。" },
+  "failureReasonDuplicate": { "message": "重複 or rate-limit の可能性" },
+  "failureGuidanceDuplicate": { "message": "同じ本文を最近投稿していませんか? SNS 側で重複検知された可能性があります。少し時間を置いて再送するか、本文を変えてください。" },
+  "failureReasonSelector": { "message": "SNS の UI が変更された可能性" },
+  "failureGuidanceSelector": { "message": "Tutti が想定している投稿フォームの構造を見つけられませんでした。この問題を報告すると UI 対応を更新できます。" },
+  "failureReasonUnknown": { "message": "原因不明のエラー" },
+  "failureNoDetails": { "message": "詳細無し" },
+  "failureCtaOpenSns": { "message": "$PLATFORM$ を開く ↗", "placeholders": { "PLATFORM": { "content": "$1" } } },
+  "failureCtaRetry": { "message": "もう一度試す" },
+  "failureCtaRetryAfterAccount": { "message": "アカウント確認後、再送" },
+  "failureCtaRetryAfterCaptcha": { "message": "captcha 完了後、再送" },
+  "failureCtaWaitFiveMinutes": { "message": "5 分待って再送" },
+  "progressUncertain": { "message": "SNS 側で要確認" },
+  "historyStatusUncertain": { "message": "要確認" },
+  "completionNotifyTitle": { "message": "Tutti の投稿処理が完了しました" },
+  "completionNotifySucceeded": { "message": "$N$ 件確認済み", "placeholders": { "N": { "content": "$1" } } },
+  "completionNotifyUncertain": { "message": "$N$ 件要確認", "placeholders": { "N": { "content": "$1" } } },
+  "completionNotifyFailed": { "message": "$N$ 件失敗", "placeholders": { "N": { "content": "$1" } } },
+  "historyEmpty": { "message": "履歴はまだありません" },
+  "clearAll": { "message": "すべて削除" },
+  "confirmClearHistory": { "message": "投稿履歴をすべて削除しますか?" },
+  "userUnconfirmed": { "message": "未確認" },
+  "snsUnsignedSection": { "message": "未ログイン / 未確認" },
+  "splitParts": {
+    "message": "$N$ posts",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+
+  "optionsTitle": { "message": "Tutti 設定" },
+  "optionsSubtitle": { "message": "クロスポスト拡張の設定" },
+  "optionsLoading": { "message": "読み込み中..." },
+  "instanceUrl": { "message": "インスタンス URL" },
+  "instanceHint": { "message": "(末尾スラッシュなし)" },
+  "save": { "message": "保存" },
+  "saved": { "message": "✓ 保存しました" },
+  "mastodonHint": {
+    "message": "mastodon.social 以外のインスタンスを使っている場合に変更してください。保存時にそのインスタンスへのアクセス権限を Chrome に求めます。"
+  },
+  "misskeyHint": {
+    "message": "misskey.io 以外のインスタンスを使う場合に変更してください。"
+  },
+  "alertNeedHttps": { "message": "https:// から始まる URL を入力してください" },
+  "alertPermissionDenied": { "message": "アクセス権限が拒否されました。設定を保存できません。" },
+  "dryRunTitle": { "message": "Dry run モード(検証用)" },
+  "dryRunHint": { "message": "ON にすると compose 画面まで進めて post button を見つけたところで停止します(クリックしません)。selector の検証用。本番投稿はしません。" },
+
+  "autoPostLabel": { "message": "自動投稿" },
+  "autoPostOn": { "message": "ON" },
+  "autoPostOff": { "message": "OFF" },
+  "autoPostFunctionDesc": { "message": "投稿ボタンを押すと各 SNS にそのまま投稿します(OFF だと検証だけして投稿はしません)。" },
+  "autoPostStateOn": { "message": "▶ 押した瞬間に実投稿します。" },
+  "autoPostStateOff": { "message": "▶ プレビュー中。各 SNS の compose を準備して、Post 直前で止めます(投稿はしません)。" },
+
+  "progressTitle": { "message": "投稿進捗" },
+  "progressPosting": { "message": "投稿中..." },
+  "progressPreviewing": { "message": "プレビュー中..." },
+  "progressQueued": { "message": "順番待ち" },
+  "progressDone": { "message": "投稿完了" },
+  "progressDryRunOk": { "message": "プレビュー OK" },
+
+  "postButtonDryRunShort": {
+    "message": "$N$ SNS をプレビュー",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "postButtonDryRunLong": {
+    "message": "$N$ SNS をプレビュー ($M$ 件)",
+    "placeholders": {
+      "N": { "content": "$1" },
+      "M": { "content": "$2" }
+    }
+  },
+
+  "diagnosticsButton": { "message": "診断" },
+  "diagnosticsHint": { "message": "SNS が動かない時、この出力を Issue にコピペで貼ってください。" },
+  "diagnosticsCopy": { "message": "コピー" },
+  "diagnosticsCopied": { "message": "コピー済み" },
+  "diagnosticsRunning": { "message": "診断中..." },
+  "diagnosticsClose": { "message": "閉じる" },
+
+  "selectorUpdateTitle": { "message": "Selector の自動更新(SNS UI 変更対応)" },
+  "selectorUpdateUrl": { "message": "Selector JSON URL" },
+  "selectorUpdateHint": { "message": "SNS の UI が変わって Tutti が動かなくなった時、ここに置かれた JSON で selector を上書きできます。Tutti プロジェクトが配布する JSON、または自分で書いたものを設定してください(空欄なら何もしません)。" },
+  "selectorUpdateFetch": { "message": "今すぐ取得" },
+  "selectorUpdateFetching": { "message": "取得中..." },
+  "selectorUpdateFetchedAt": { "message": "最終取得" },
+  "selectorUpdateActive": { "message": "件 override 中" },
+
+  "logsTitle": { "message": "ログ(障害報告用)" },
+  "logLevelLabel": { "message": "ログレベル" },
+  "logLevelHint": { "message": "Beta 中は INFO 推奨。動作不審の時にこの設定で出力されたログを「ダウンロード」して GitHub Issue に添付してください。" },
+  "logLevelOffDesc": { "message": "ログを残さない" },
+  "logLevelErrorDesc": { "message": "エラーのみ" },
+  "logLevelWarnDesc": { "message": "警告以上" },
+  "logLevelInfoDesc": { "message": "状態変化を含む(推奨)" },
+  "logLevelDebugDesc": { "message": "詳細(障害切り分け時のみ)" },
+  "logsDownload": { "message": "ログをダウンロード" },
+  "logsClear": { "message": "ログをクリア" },
+  "logsCount": { "message": "件保存中" },
+  "logsDownloaded": {
+    "message": "$N$ 件のログをダウンロードしました",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "logsClearConfirm": { "message": "保存されたログをすべて削除しますか?" },
+  "logsCleared": { "message": "ログをクリアしました" },
+
+  "overrideFetched": {
+    "message": "$N$ 件の selector override を取得しました",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "overrideNeverFetched": { "message": "(未取得)" },
+
+  "apiSectionTitle": { "message": "API 連携" },
+  "apiSectionAdvancedBadge": { "message": "(上級者向け)" },
+  "apiSectionHint": { "message": "鍵を設定すると SNS タブを開かず API 直送になります (高速 / 安定 / selector breakage 無関係)。 鍵は拡張ローカルにのみ保存され、 Tutti サーバには送信されません。 鍵未設定の SNS は従来通りタブを開いて投稿します。" },
+  "apiBlueskyMakePassword": { "message": "App Password を作成 ↗" },
+  "apiMastodonMakeApp": { "message": "アプリを作成 ↗" },
+  "apiMisskeyMakeToken": { "message": "トークンを発行 ↗" },
+  "apiTestSave": { "message": "テスト & 保存" },
+  "apiClear": { "message": "解除" },
+  "apiTesting": { "message": "テスト中..." },
+  "apiBskyMissing": { "message": "Identifier と App Password 両方必要" },
+  "apiInstanceTokenMissing": { "message": "インスタンス URL と access token 両方必要" },
+  "apiHostPermissionDenied": { "message": "host permission が拒否されました" },
+  "apiConnected": {
+    "message": "接続成功 ($USER$)、 保存しました",
+    "placeholders": { "USER": { "content": "$1" } }
+  },
+  "apiConnectError": { "message": "接続失敗" },
+  "apiCleared": { "message": "解除しました (DOM path に戻ります)" },
+
+  "backgroundNoResponse": { "message": "background から応答がありませんでした" },
+  "failedShort": { "message": "失敗" },
+  "betaBadgeTooltip": { "message": "このバージョンは Beta です。 不具合は popup ヘッダの「診断」ボタンから出力をコピーして GitHub Issue へ。" },
+  "retryFailedButton": {
+    "message": "失敗だけ再送 ($N$)",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "retryFailedTooltip": {
+    "message": "失敗した $N$ 件をもう一度送信",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "retryDedupSkippedHint": { "message": "すでに投稿が完了している可能性が高いので再送を skip しました (直近 10 分の履歴に同一内容の成功 entry あり)。" },
+  "reportDeduped": {
+    "message": "同じエラーは既に $N$h 前に報告済みです (24h cooldown)。",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "reportEmailNote": { "message": "本文は clipboard にコピー済です。 メールに貼り付けて送信してください。 (Full report copied to clipboard, please paste into the email body.)" },
+  "openLoginTooltip": { "message": "この SNS のページを新 tab で開く (ログインすると Tutti がアカウントを検出します)" },
+  "failureHintTooltip": { "message": "失敗の原因と対処を表示" },
+  "failureHintClose": { "message": "閉じる" },
+
+  "altPlaceholder": { "message": "alt テキスト (a11y、 任意)" },
+  "altTooltip": { "message": "画像の説明文 (Bluesky / Mastodon の API path で送信、 スクリーンリーダー向け)" },
+  "advancedTitle": { "message": "詳細オプション (Mastodon / Misskey)" },
+  "cwLabel": { "message": "Content Warning / spoiler" },
+  "cwPlaceholder": { "message": "例: ネタバレ、 食事、 R-18 など" },
+  "visibilityLabel": { "message": "公開範囲" },
+  "visibilityPublic": { "message": "公開 (public)" },
+  "visibilityUnlisted": { "message": "未収載 (Mastodon: unlisted / Misskey: home)" },
+  "visibilityPrivate": { "message": "フォロワー限定 (Mastodon: private / Misskey: followers)" },
+  "visibilityDirect": { "message": "ダイレクト (Mastodon: direct / Misskey: specified)" },
+  "advancedHint": { "message": "API path 経由で投稿する Mastodon / Misskey にだけ適用されます (API キー未設定 SNS には反映されません)。" },
+
+  "openPopupShortcut": { "message": "Tutti popup を開く" },
+  "moveUpTooltip": { "message": "1 つ上へ移動" },
+  "moveDownTooltip": { "message": "1 つ下へ移動" },
+  "trimVideoButton": {
+    "message": "$N$ 秒に切り詰めて投稿",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "trimVideoTooltip": {
+    "message": "選択中の SNS の最短尺 ($N$ 秒) に動画を切り詰めて投稿します (元動画は変更しません)",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "trimVideoSet": {
+    "message": "✂ $N$ 秒に切り詰めて投稿します",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "trimVideoCancel": { "message": "(取消)" },
+
+  "presetSave": { "message": "プリセット保存" },
+  "presetSaveTooltip": { "message": "現在の SNS 選択を名前付きで保存" },
+  "presetSavePrompt": { "message": "プリセット名 (例: 音楽用)" },
+  "presetRemoveTooltip": { "message": "このプリセットを削除" },
+  "presetRemoveConfirm": { "message": "このプリセットを削除しますか?" },
+
+  "historySearchPlaceholder": { "message": "本文を検索…" },
+  "historyFilterAll": { "message": "全て" },
+  "historyFilterFailed": { "message": "失敗あり" },
+  "historyFilterSuccess": { "message": "全成功" },
+  "historyNoMatch": { "message": "(該当なし)" },
+  "historyRetryFailed": { "message": "失敗 SNS だけ復元" },
+  "historyRetryFailedTooltip": { "message": "本文を textarea に戻して失敗した SNS にチェック (media は再添付が必要)" },
+
+  "pixivTitle": { "message": "Pixiv 投稿 default" },
+  "pixivVisibilityLabel": { "message": "Visible to (x_restrict)" },
+  "pixivVisibilityGeneralDesc": { "message": "全年齢 (クロスポスト標準)" },
+  "pixivVisibilityR18Desc": { "message": "成人向け (R-18 投稿者向け)" },
+  "pixivVisibilityR18gDesc": { "message": "成人向け / グロ (R-18G 投稿者向け)" },
+  "pixivAiTypeLabel": { "message": "AI 生成かどうか (ai_type)" },
+  "pixivAiTypeNoDesc": { "message": "AI 不使用 (default)" },
+  "pixivAiTypeYesDesc": { "message": "AI 使用 (AI artist 向け)" },
+  "pixivHint": { "message": "default は 'general' + 'notAiGenerated' (クロスポスト標準)。 R-18 投稿者 / AI artist は切替えてください。 個別投稿で手動上書きしたい場合は Pixiv の compose 画面で投稿前に切替えればその投稿だけに反映されます。" },
+
+  "videoTitle": { "message": "動画の自動整形" },
+  "autoLetterboxLabel": { "message": "横長動画を 9:16 縦に自動 letterbox する (TikTok / YouTube Shorts / IG Reels 向け)" },
+  "autoLetterboxHint": { "message": "ON: 横長動画 + 縦動画 SNS 選択時に 1080×1920 にぼかし背景で letterbox する (SNS 側の黒帯より見栄えが良い)。 OFF: そのまま送信 (SNS 側で自動 crop or letterbox される)。 注: ON にすると同じ 9:16 動画が選択中の全 SNS に行くので、 横長 SNS (X / Bluesky 等) にも縦動画が表示される tradeoff。" },
+
+  "historyTitle": { "message": "投稿履歴" },
+  "historyKeepMediaLabel": { "message": "履歴に添付メディアを保持する (7 日間)" },
+  "historyKeepMediaHint": { "message": "OFF (default): 履歴はテキスト + 各 SNS の結果メタデータのみ記録。 ローカルストレージは小さく保たれる。 ON: 添付画像 / 動画を 7 日間 IndexedDB に保存。 「失敗 SNS だけ再送」 が後から履歴 UI からできる。 投稿ごとにストレージ使用量が増えるので、 再送機能を使わないなら OFF のままで OK。" },
+
+  "autoOpenTitle": { "message": "投稿後の自動オープン" },
+  "autoOpenLabel": { "message": "投稿成功後の挙動" },
+  "autoOpenNeverDesc": { "message": "自動オープンしない (従来挙動)" },
+  "autoOpenOnIssueDesc": { "message": "verify エラー検知時のみ自動オープン (推奨)" },
+  "autoOpenAlwaysDesc": { "message": "全 投稿成功で post ページを自動オープン" },
+  "autoOpenHint": { "message": "投稿後に caption / 画像が SNS 側で消える silent failure を即時確認したい場合は 'on-issue' か 'always' を選択。 複数 SNS に投稿すると 'always' は多数のタブが開く点に注意。" },
+
+  "errorReportButton": { "message": "この問題を報告" },
+  "errorReportHint": { "message": "GitHub Issues に最近のログを添えて報告ページを開きます。" },
+
+  "errorDialogTitle": { "message": "エラーが発生しました" },
+  "errorDialogBody": { "message": "「報告する」を押すと、最近のログを添えて GitHub Issues に Issue を作成します。投稿内容や個人情報は送信されません。" },
+  "errorDialogReport": { "message": "報告する" },
+  "errorDialogDismiss": { "message": "閉じる" },
+  "errorDialogSubmitting": { "message": "送信中..." },
+  "errorDialogReported": { "message": "✓ 報告ありがとうございます。Issue を作成しました:" },
+  "errorDialogReportFailed": { "message": "報告の送信に失敗しました" },
+  "errorDialogClose": { "message": "閉じる" },
+  "errorDialogOpenGitHub": { "message": "メールで送る" },
+
+  "constraintAdapterMissing": { "message": "アダプタ未実装" },
+  "constraintVideoUnsupported": { "message": "動画投稿に未対応" },
+  "constraintVideoTooLong": {
+    "message": "尺が長すぎます(上限 $MAX$s、実際 $ACTUAL$s)",
+    "placeholders": {
+      "MAX": { "content": "$1" },
+      "ACTUAL": { "content": "$2" }
+    }
+  },
+  "constraintVideoTooLarge": {
+    "message": "ファイルサイズが大きすぎます(上限 $MAX$MB、実際 $ACTUAL$MB)",
+    "placeholders": {
+      "MAX": { "content": "$1" },
+      "ACTUAL": { "content": "$2" }
+    }
+  },
+  "constraintTooManyImages": {
+    "message": "画像が多すぎます(上限 $MAX$ 枚)",
+    "placeholders": {
+      "MAX": { "content": "$1" }
+    }
+  },
+  "constraintImageTooLarge": {
+    "message": "$N$枚目が大きすぎます(上限 $MAX$MB、実際 $ACTUAL$MB)",
+    "placeholders": {
+      "N": { "content": "$1" },
+      "MAX": { "content": "$2" },
+      "ACTUAL": { "content": "$3" }
+    }
+  },
+  "displayModeTitle": { "message": "Tutti の表示方式" },
+  "displayModeAutoOption": { "message": "auto — Tutti におまかせ (sidepanel → floating → popup の順、 ブラウザ capability で fallback)" },
+  "displayModePopupOption": { "message": "popup — Chrome 標準 (アイコン下に出る、 tab focus で閉じる)" },
+  "displayModeSidepanelOption": { "message": "sidepanel — 画面右に dock (Chrome 114+、 閉じるまで残る)" },
+  "displayModeFloatingOption": { "message": "floating — 独立した小窓 (位置自由、 multi-monitor 対応)" },
+  "displayModeHint": { "message": "投稿中に Tutti が勝手に閉じる問題は sidepanel / floating で解消されます。 設定変更後、 拡張アイコンを次に click したときから新しい方式で開きます。 auto は最近の Chrome では sidepanel に着地します。" },
+  "historyStatusPartial": { "message": "部分成功" },
+  "historyStatusSuccess": { "message": "成功" },
+  "historyUrlNotCaptured": { "message": "(URL 未取得)" },
+  "historyNotAttempted": { "message": "未試行" },
+  "compressionLoading": { "message": "圧縮ツール読み込み中…" },
+  "compressionRunning": {
+    "message": "動画を圧縮中… $PCT$%",
+    "placeholders": { "PCT": { "content": "$1" } }
+  },
+  "compressionEtaMin": {
+    "message": "残り約 $N$ 分",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "compressionEtaSec": {
+    "message": "残り $N$ 秒",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "reportAlreadySubmitted": { "message": "既に報告済みです" },
+  "reportClipboardOverflow": { "message": "(... clipboard に full body あり、 paste してください)" },
+  "platformFailedShort": {
+    "message": "$P$: 失敗 (詳細無し)",
+    "placeholders": { "P": { "content": "$1" } }
+  },
+  "uiLanguageTitle": { "message": "Tutti UI 言語" },
+  "uiLanguageAuto": { "message": "自動 (ブラウザ既定)" },
+  "uiLanguageHint": { "message": "Tutti 自身の UI 表示言語をブラウザのロケールから上書きします。 popup / side panel / オプション画面にのみ影響し、 各 SNS 側には影響しません。" },
+
+  "historyHasMedia": { "message": "メディア添付あり" },
+  "historyViewAll": { "message": "全部見る →" },
+  "historyEntriesUnit": { "message": "件" },
+  "historyExport": { "message": "JSON 書き出し" },
+  "historyCopy": { "message": "本文コピー" },
+  "historyCopied": { "message": "コピーしました!" },
+  "historyDelete": { "message": "削除" },
+  "historyRepostAll": { "message": "全部再投稿" },
+  "historyDeleteConfirm": { "message": "この履歴 entry を削除しますか?" },
+  "historyClearAllConfirm": { "message": "履歴をすべて削除しますか? 元に戻せません。" },
+  "historyRepostConfirm": {
+    "message": "この本文を $N$ 件の SNS に再投稿しますか?",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "historyRepostAllOk": { "message": "全 SNS への再投稿に成功しました。" },
+  "historyRepostFailed": {
+    "message": "一部の再投稿が失敗しました: $P$",
+    "placeholders": { "P": { "content": "$1" } }
+  },
+  "failedShort": { "message": "失敗" },
+
+  "notifyInteractionsLabel": { "message": "投稿にリプライ・いいね・リポストが付いたら通知" },
+  "notifyInteractionsHint": { "message": "投稿後 24 時間以内の Bluesky / Mastodon / Misskey の投稿を 5-60 分間隔で polling (時間が経つほど間隔を伸ばす)。 新着があれば OS 通知を出します。 v0.5.10 では公式 API が安定している 3 SNS のみ対象、 他 SNS は将来追加予定です。" },
+  "interactionNotifyTitle": {
+    "message": "$P$ に新しい反応",
+    "placeholders": { "P": { "content": "$1" } }
+  },
+  "interactionLike": {
+    "message": "$N$ ❤",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "interactionReply": {
+    "message": "$N$ 💬",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "interactionRepost": {
+    "message": "$N$ 🔁",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+
+  "appBrandLinkTooltip": { "message": "Tutti のホームページを開く (komm64.github.io/tutti)" }
+}

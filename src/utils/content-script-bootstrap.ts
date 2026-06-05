@@ -32,6 +32,8 @@ import type { ImageAttachment, Message, PlatformId, PostResultMessage } from '..
 import { initLogLevelFromSettings, log } from './logger';
 import { buildDiagnosis } from './diagnose';
 import { detectAndReportUser } from './user-detect';
+import { t } from './i18n';
+import { hasPostSubmissionStarted, resetPostSubmissionState } from './post-submission-state';
 
 export interface BootstrapOptions<S extends Record<string, string>> {
   /** 'x' / 'bluesky' / etc */
@@ -104,6 +106,7 @@ export function bootstrapContentScript<S extends Record<string, string>>(
     if (msg.type !== 'POST_TO_PLATFORM' || msg.platform !== platform) return;
 
     void (async () => {
+      resetPostSubmissionState();
       try {
         // v0.4.83: multi-account 誤爆 guard。 popup が想定していた user
         // (msg.expectedUser) と post 直前の active user を比較し、 別 account に
@@ -117,7 +120,7 @@ export function bootstrapContentScript<S extends Record<string, string>>(
               type: 'POST_RESULT',
               platform,
               success: false,
-              error: `${platform}: 想定していたアカウント (${msg.expectedUser}) と現在のアカウント (${current}) が違います。 タブで元のアカウントに戻すか、 popup を開き直して新しいアカウントを確認してください。`,
+              error: t('runtimeAccountMismatch', platform, msg.expectedUser, current),
             } satisfies PostResultMessage);
             return;
           }
@@ -130,6 +133,7 @@ export function bootstrapContentScript<S extends Record<string, string>>(
           type: 'POST_RESULT',
           platform,
           success: false,
+          uncertain: hasPostSubmissionStarted() || undefined,
           error: message,
         } satisfies PostResultMessage);
       }

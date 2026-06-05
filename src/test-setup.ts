@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const messages = JSON.parse(
-  readFileSync(resolve(__dirname, '..', 'public', '_locales', 'ja', 'messages.json'), 'utf-8'),
+  readFileSync(resolve(__dirname, '..', 'locales', 'ja', 'messages.json'), 'utf-8'),
 ) as Record<string, { message: string; placeholders?: Record<string, { content?: string }> }>;
 
 function getMessage(key: string, subs: string[] = []): string {

@@ -6,6 +6,7 @@ import { injectImages, injectTextIntoElement } from '../src/utils/image';
 import { sleep, waitForElement } from '../src/utils/dom';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
+import { t } from '../src/utils/i18n';
 
 /**
  * Instagram のログイン中ユーザー名検出。
@@ -71,9 +72,10 @@ async function runPost(
   dryRun?: boolean,
 ): Promise<PostResultMessage> {
   if (!images || images.length === 0) {
-    throw new Error('Instagram は画像 / 動画が必須です(text のみ投稿は不可)');
+    throw new Error(t('runtimeInstagramMediaRequired'));
   }
 
+  const postingUser = dryRun ? null : detectInstagramUser();
   const sel = await resolveSelectors('instagram', INSTAGRAM_SELECTORS);
 
   // IG は "Turn on Notifications" / "Save Your Login Info?" / "Cookie Banner" 等の
@@ -110,7 +112,7 @@ async function runPost(
         }
         const trigger = findCreateTrigger();
         if (!trigger) {
-          throw new Error('IG: sidebar の "Create" / "New post" trigger が見つかりません');
+          throw new Error(t('runtimeInstagramCreateTriggerMissing'));
         }
         trigger.click();
         // v0.4.60: Create click 後、variant 判別 — 一部アカウント (Personal でも)
@@ -134,7 +136,7 @@ async function runPost(
         // action 内で待つ必要がある
         const fi = await waitForElement<HTMLInputElement>(sel.fileInput, 10000);
         if (!fi) {
-          throw new Error('IG: "Create new post" dialog が出現しませんでした (file input 不在)');
+          throw new Error(t('runtimeInstagramCreateDialogMissing'));
         }
       },
       settleMs: 300,
@@ -146,7 +148,7 @@ async function runPost(
         // file input が出るまで待ち
         const fi = await waitForElement<HTMLInputElement>(sel.fileInput, 8000);
         if (!fi) {
-          throw new Error('IG: file input が dialog 内に出現しませんでした');
+          throw new Error(t('runtimeInstagramFileInputMissing'));
         }
         await injectImages(images, sel.fileInput);
         // v0.4.61: Crop dialog が mount された直後に Original aspect ratio を選んで、
@@ -238,7 +240,7 @@ async function runPost(
     finalize: {
       // Share ボタン (dialog 内、最後の wizard 画面のみ)
       finder: () => findDialogButtonByText(['Share', '共有', 'Post']),
-      afterClickDelayMs: 3000,
+      afterClickDelayMs: 250,
     },
     dryRun,
   });
@@ -246,12 +248,14 @@ async function runPost(
   // dry-run は finalize click をスキップしてるので verify も skip
   if (!dryRun) {
     await verifyInstagramPosted();
+    if (postingUser) location.assign(`/${postingUser}/`);
   }
 
   return {
     type: 'POST_RESULT',
     platform: 'instagram',
     success: true,
+    confirmed: true,
   };
 }
 
@@ -452,7 +456,7 @@ function checkForIgErrorDialog(): void {
     const text = (dialog.textContent ?? '').slice(0, 500);
     for (const kw of ERROR_KEYWORDS) {
       if (text.includes(kw)) {
-        throw new Error(`IG: エラー dialog 検出 — ${text.slice(0, 200)}`);
+        throw new Error(t('runtimeInstagramErrorDialog', text.slice(0, 200)));
       }
     }
   }
@@ -528,4 +532,3 @@ function findDialogButtonByText(texts: string[]): HTMLElement | null {
   }
   return lastMatch;
 }
-

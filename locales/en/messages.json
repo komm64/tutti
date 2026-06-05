@@ -1,0 +1,473 @@
+{
+  "appName": {
+    "message": "Tutti",
+    "description": "Extension name displayed in store and browser."
+  },
+  "appDescription": {
+    "message": "A Chrome extension that takes the hassle out of cross-posting to multiple social networks.",
+    "description": "Extension description for the store listing."
+  },
+  "appTagline": {
+    "message": "All cross-posting hassle, handled."
+  },
+  "headerHistory": { "message": "History" },
+  "headerSettings": { "message": "Settings" },
+  "textareaPlaceholder": { "message": "Write your post..." },
+  "addMedia": { "message": "Add media" },
+  "dropMedia": { "message": "Drop files here" },
+  "posting": { "message": "Posting..." },
+  "previewing": { "message": "Previewing..." },
+  "postButtonShort": {
+    "message": "Post to $N$ network",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "postButtonLong": {
+    "message": "Post to $N$ networks ($M$ posts)",
+    "placeholders": {
+      "N": { "content": "$1" },
+      "M": { "content": "$2" }
+    }
+  },
+  "errorPrefix": { "message": "Error: " },
+  "runtimeXOwnHandleMissing": { "message": "X: cannot capture the post URL because your account handle could not be detected" },
+  "runtimeXPostUrlTimeout": { "message": "X: could not capture the post URL within 30 seconds (timeline refresh failed?)" },
+  "runtimeXFirstTextareaMissing": { "message": "X: initial text area not found" },
+  "runtimeXAddButtonMissing": {
+    "message": "X: Add post (+) button not found for chunk $CURRENT$/$TOTAL$ (chunk $PREVIOUS$ text may not have been applied)",
+    "placeholders": {
+      "CURRENT": { "content": "$1" },
+      "TOTAL": { "content": "$2" },
+      "PREVIOUS": { "content": "$3" }
+    }
+  },
+  "runtimeXTextareaTimeout": {
+    "message": "X: text area for chunk $CURRENT$/$TOTAL$ did not appear within 5 seconds (expected $EXPECTED$, found $FOUND$)",
+    "placeholders": {
+      "CURRENT": { "content": "$1" },
+      "TOTAL": { "content": "$2" },
+      "EXPECTED": { "content": "$3" },
+      "FOUND": { "content": "$4" }
+    }
+  },
+  "runtimeXPostAllButtonMissing": { "message": "X: Post all button not found" },
+  "runtimeAccountMismatch": {
+    "message": "$PLATFORM$: expected account ($EXPECTED$) does not match the current account ($CURRENT$). Switch the tab back to the expected account, or reopen Tutti to confirm the new account.",
+    "placeholders": {
+      "PLATFORM": { "content": "$1" },
+      "EXPECTED": { "content": "$2" },
+      "CURRENT": { "content": "$3" }
+    }
+  },
+  "runtimeComposeInputMissing": { "message": "Post editor not found. Confirm that you are signed in." },
+  "runtimeImageUnsupported": { "message": "This platform does not support image attachments." },
+  "runtimePostButtonMissing": { "message": "Post button not found. The social network UI may have changed and Tutti may need an update." },
+  "runtimePostButtonDisabled": { "message": "The post is not ready to submit yet (possible causes: text limit exceeded, media still processing, or signed out)." },
+  "runtimeExistingSnsTabUnavailable": { "message": "Could not operate the existing social network tab." },
+  "runtimeSnsTabOpenFailed": { "message": "Could not open the social network tab." },
+  "runtimeSnsPageLoadTimeout": { "message": "The social network page timed out while loading. Check your connection and the social network status." },
+  "runtimePostUncertain": { "message": "Tutti submitted the post action but could not confirm the resulting post. Check the social network before retrying to avoid a duplicate." },
+  "runtimeBlueskyFirstTextareaMissing": { "message": "Bluesky: initial text area not found" },
+  "runtimeBlueskyAddButtonMissing": { "message": "Bluesky: Add post (+) button not found for chunk $CURRENT$/$TOTAL$ (chunk $PREVIOUS$ text may not have been applied)", "placeholders": { "CURRENT": { "content": "$1" }, "TOTAL": { "content": "$2" }, "PREVIOUS": { "content": "$3" } } },
+  "runtimeBlueskyTextareaTimeout": { "message": "Bluesky: text area for chunk $CURRENT$/$TOTAL$ did not appear within 5 seconds (expected $EXPECTED$, found $FOUND$)", "placeholders": { "CURRENT": { "content": "$1" }, "TOTAL": { "content": "$2" }, "EXPECTED": { "content": "$3" }, "FOUND": { "content": "$4" } } },
+  "runtimeBlueskyPublishButtonMissing": { "message": "Bluesky: Publish button not found" },
+  "runtimeBlueskyThreadModalOpen": { "message": "Bluesky: compose modal did not close after submitting the thread" },
+  "runtimeInstagramMediaRequired": { "message": "Instagram requires an image or video. Text-only posts are not supported." },
+  "runtimeInstagramCreateTriggerMissing": { "message": "Instagram: Create / New post trigger not found in the sidebar" },
+  "runtimeInstagramCreateDialogMissing": { "message": "Instagram: Create new post dialog did not appear (file input missing)" },
+  "runtimeInstagramFileInputMissing": { "message": "Instagram: file input did not appear inside the dialog" },
+  "runtimeInstagramErrorDialog": { "message": "Instagram: error dialog detected - $DETAIL$", "placeholders": { "DETAIL": { "content": "$1" } } },
+  "runtimeDeviantArtImageRequired": { "message": "DeviantArt requires an image." },
+  "runtimeDeviantArtTitleMissing": { "message": "DeviantArt: title input did not appear (upload failed or the UI changed)" },
+  "runtimeTikTokVideoRequired": { "message": "TikTok requires a video. Image-only web uploads are not supported." },
+  "runtimeTikTokCaptionMissing": { "message": "TikTok: caption editor did not appear (video upload may have failed)" },
+  "runtimeYouTubeVideoRequired": { "message": "YouTube requires a video, such as an MP4 for Shorts." },
+  "runtimeYouTubeUploadButtonMissing": { "message": "YouTube: Upload videos button not found. Confirm that Studio is open and the channel exists." },
+  "runtimeYouTubeTitleMissing": { "message": "YouTube: title input did not appear (upload failed or the channel is missing)" },
+  "runtimeYouTubeKidsRadioMissing": { "message": "YouTube: No, it's not made for kids option not found" },
+  "runtimeYouTubePublicRadioMissing": { "message": "YouTube: Public visibility option not found" },
+  "runtimeYouTubePostUrlMissing": { "message": "YouTube: did not navigate to a listing or video URL after publishing" },
+  "runtimePixivImageRequired": { "message": "Pixiv requires an image. Text-only posts are not supported." },
+  "runtimePixivVisibilityMissing": { "message": "Pixiv: Visible to option not found (x_restrict=$VALUE$)", "placeholders": { "VALUE": { "content": "$1" } } },
+  "runtimePixivAiTypeMissing": { "message": "Pixiv: AI-generated work option not found (ai_type=$VALUE$)", "placeholders": { "VALUE": { "content": "$1" } } },
+  "runtimePixivAdultRadioMissing": { "message": "Pixiv: Adult content (sexual) option not found" },
+  "runtimePixivSecurityPrompt": { "message": "Tutti: Please complete the security check in the $PLATFORM$ tab. Posting will resume automatically.", "placeholders": { "PLATFORM": { "content": "$1" } } },
+  "runtimePixivSecurityResuming": { "message": "Security check complete. Posting..." },
+  "runtimePixivSecurityTimeout": { "message": "Pixiv: security check was not completed within 5 minutes" },
+  "userActionRequiredNotifyTitle": { "message": "Tutti needs your input" },
+  "userActionRequiredCaptcha": { "message": "Complete the CAPTCHA in the $PLATFORM$ tab. Posting will resume automatically.", "placeholders": { "PLATFORM": { "content": "$1" } } },
+  "userActionRequiredConfirmation": { "message": "Complete the confirmation in the $PLATFORM$ tab. Posting will resume automatically.", "placeholders": { "PLATFORM": { "content": "$1" } } },
+  "runtimeBlueskyConfirmationTimeout": { "message": "Bluesky: confirmation was not completed within 5 minutes" },
+  "runtimeStepActionFailed": { "message": "Step \"$STEP$\" action failed: $DETAIL$", "placeholders": { "STEP": { "content": "$1" }, "DETAIL": { "content": "$2" } } },
+  "runtimeStepAdvanceMissing": { "message": "Step \"$STEP$\": next button not found. The social network UI may have changed.$HINT$", "placeholders": { "STEP": { "content": "$1" }, "HINT": { "content": "$2" } } },
+  "runtimeStepNextDomMissing": { "message": "Step \"$STEP$\": next screen did not appear ($SELECTOR$)", "placeholders": { "STEP": { "content": "$1" }, "SELECTOR": { "content": "$2" } } },
+  "runtimeFinalPostButtonMissing": { "message": "Final post button not found. The social network UI may have changed." },
+  "runtimeImageAttachFailed": { "message": "Image attachment failed. The social network UI may have changed." },
+  "runtimeTextInjectFailed": { "message": "Text insertion failed. The social network UI may have changed." },
+  "runtimeTagInjectFailed": { "message": "Tag insertion failed." },
+  "runtimeSelectorUrlHttpsRequired": { "message": "The URL must start with https://" },
+  "runtimeSelectorJsonObjectRequired": { "message": "The JSON value must be an object." },
+  "runtimeIdbZeroByte": { "message": "IndexedDB contains a 0-byte binary value (dataRef=$REF$)", "placeholders": { "REF": { "content": "$1" } } },
+  "runtimeVideoAttachmentMissing": { "message": "The video attachment has neither data nor dataRef." },
+  "runtimeVideoCompressionFailed": { "message": "Automatic video compression failed: $DETAIL$", "placeholders": { "DETAIL": { "content": "$1" } } },
+  "runtimeOffscreenUnavailable": { "message": "The chrome.offscreen API is unavailable." },
+  "runtimeConversionNoResponse": { "message": "The conversion process did not respond." },
+  "runtimeUnsupportedPlatform": { "message": "Unsupported platform." },
+  "runtimeLongVideoUnsupported": { "message": "Long videos are not supported." },
+  "runtimeShortVideoUnsupported": { "message": "Short videos are not supported." },
+  "runtimeVideoDurationExceeded": { "message": "The video is too long (limit $LIMIT$s, actual $ACTUAL$s).", "placeholders": { "LIMIT": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
+  "runtimeFileSizeExceeded": { "message": "The file is too large (limit $LIMIT$MB, actual $ACTUAL$MB).", "placeholders": { "LIMIT": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
+  "runtimeChunkFailed": { "message": "Part $CURRENT$/$TOTAL$ failed: $DETAIL$", "placeholders": { "CURRENT": { "content": "$1" }, "TOTAL": { "content": "$2" }, "DETAIL": { "content": "$3" } } },
+  "runtimeChunkContext": { "message": "Part $CURRENT$/$TOTAL$: $DETAIL$", "placeholders": { "CURRENT": { "content": "$1" }, "TOTAL": { "content": "$2" }, "DETAIL": { "content": "$3" } } },
+  "runtimeBlueskyThreadAutoPostOnly": { "message": "Bluesky threads require automatic posting. Preview is unavailable." },
+  "runtimeBlueskyTabOpenFailed": { "message": "Could not open the bsky.app tab." },
+  "runtimeBlueskySessionMissing": { "message": "Bluesky: could not read the session from bsky.app localStorage. Confirm that you are signed in." },
+  "runtimeUnknown": { "message": "unknown" },
+  "runtimeUnknownError": { "message": "unknown error" },
+  "runtimeSnsPageNoResponse": { "message": "The social network page did not respond. Reload the tab and try again." },
+  "runtimePostFailed": { "message": "Posting failed." },
+  "failureReasonLogin": { "message": "You may need to sign in" },
+  "failureGuidanceLogin": { "message": "Confirm that you are signed in on $PLATFORM$. Open the site in another tab, sign in, reopen the Tutti popup, and retry.", "placeholders": { "PLATFORM": { "content": "$1" } } },
+  "failureReasonAccountMismatch": { "message": "The active account changed" },
+  "failureGuidanceAccountMismatch": { "message": "Switch the $PLATFORM$ tab back to the original account, or reopen the popup to confirm the new account before retrying.", "placeholders": { "PLATFORM": { "content": "$1" } } },
+  "failureReasonCaptcha": { "message": "A CAPTCHA is waiting for you" },
+  "failureGuidanceCaptcha": { "message": "Complete the CAPTCHA in the $PLATFORM$ tab, then retry. Tutti cannot bypass it automatically.", "placeholders": { "PLATFORM": { "content": "$1" } } },
+  "failureReasonMediaLimit": { "message": "The media exceeds this social network's limit" },
+  "failureGuidanceMediaLimit": { "message": "Tutti automatically resizes images, but oversized or overly long videos are rejected. Review the video formatting setting or retry without this social network." },
+  "failureReasonTimeout": { "message": "The request timed out or the network is unstable" },
+  "failureGuidanceTimeout": { "message": "The social network is responding slowly. Wait a few seconds and retry. If it continues, check your connection and the social network status." },
+  "failureReasonDuplicate": { "message": "This may be a duplicate post or a rate limit" },
+  "failureGuidanceDuplicate": { "message": "The social network may have rejected a recent duplicate. Wait before retrying, or change the post text." },
+  "failureReasonSelector": { "message": "The social network UI may have changed" },
+  "failureGuidanceSelector": { "message": "Tutti could not find the expected post form. Report this issue so the UI integration can be updated." },
+  "failureReasonUnknown": { "message": "Unknown error" },
+  "failureNoDetails": { "message": "No details available" },
+  "failureCtaOpenSns": { "message": "Open $PLATFORM$ ↗", "placeholders": { "PLATFORM": { "content": "$1" } } },
+  "failureCtaRetry": { "message": "Retry" },
+  "failureCtaRetryAfterAccount": { "message": "Retry after checking the account" },
+  "failureCtaRetryAfterCaptcha": { "message": "Retry after completing the CAPTCHA" },
+  "failureCtaWaitFiveMinutes": { "message": "Wait 5 minutes and retry" },
+  "progressUncertain": { "message": "Needs confirmation on the social network" },
+  "historyStatusUncertain": { "message": "needs confirmation" },
+  "completionNotifyTitle": { "message": "Tutti posting finished" },
+  "completionNotifySucceeded": { "message": "$N$ confirmed", "placeholders": { "N": { "content": "$1" } } },
+  "completionNotifyUncertain": { "message": "$N$ need confirmation", "placeholders": { "N": { "content": "$1" } } },
+  "completionNotifyFailed": { "message": "$N$ failed", "placeholders": { "N": { "content": "$1" } } },
+  "historyEmpty": { "message": "No posts yet" },
+  "clearAll": { "message": "Clear all" },
+  "confirmClearHistory": { "message": "Delete all post history?" },
+  "userUnconfirmed": { "message": "unknown" },
+  "snsUnsignedSection": { "message": "Not signed in / unknown" },
+  "splitParts": {
+    "message": "$N$ posts",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+
+  "optionsTitle": { "message": "Tutti Settings" },
+  "optionsSubtitle": { "message": "Cross-post extension preferences" },
+  "optionsLoading": { "message": "Loading..." },
+  "instanceUrl": { "message": "Instance URL" },
+  "instanceHint": { "message": "(no trailing slash)" },
+  "save": { "message": "Save" },
+  "saved": { "message": "✓ Saved" },
+  "mastodonHint": {
+    "message": "Change this if you use a Mastodon instance other than mastodon.social. You will be prompted for access permission on save."
+  },
+  "misskeyHint": {
+    "message": "Change this if you use a Misskey instance other than misskey.io."
+  },
+  "alertNeedHttps": { "message": "Please enter a URL starting with https://" },
+  "alertPermissionDenied": { "message": "Permission denied. Settings not saved." },
+  "dryRunTitle": { "message": "Dry run mode (testing)" },
+  "dryRunHint": { "message": "When enabled, Tutti will fill the compose form and locate the post button, but will not click it. Useful for verifying selectors without actually posting." },
+
+  "autoPostLabel": { "message": "Auto-post" },
+  "autoPostOn": { "message": "ON" },
+  "autoPostOff": { "message": "OFF" },
+  "autoPostFunctionDesc": { "message": "Submits posts to each network when you click Post (OFF runs a preview without actually posting)." },
+  "autoPostStateOn": { "message": "▶ Will post for real when you press Post." },
+  "autoPostStateOff": { "message": "▶ Preview mode. Opens each network's compose and stops just before Post (no actual post)." },
+
+  "progressTitle": { "message": "Progress" },
+  "progressPosting": { "message": "Posting..." },
+  "progressPreviewing": { "message": "Previewing..." },
+  "progressQueued": { "message": "Queued" },
+  "progressDone": { "message": "Posted" },
+  "progressDryRunOk": { "message": "Preview OK" },
+
+  "postButtonDryRunShort": {
+    "message": "Preview on $N$ network",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "postButtonDryRunLong": {
+    "message": "Preview on $N$ networks ($M$ posts)",
+    "placeholders": {
+      "N": { "content": "$1" },
+      "M": { "content": "$2" }
+    }
+  },
+
+  "diagnosticsButton": { "message": "Diagnose" },
+  "diagnosticsHint": { "message": "If a network isn't working, paste this output into a GitHub issue." },
+  "diagnosticsCopy": { "message": "Copy" },
+  "diagnosticsCopied": { "message": "Copied" },
+  "diagnosticsRunning": { "message": "Diagnosing..." },
+  "diagnosticsClose": { "message": "Close" },
+
+  "selectorUpdateTitle": { "message": "Selector auto-update (SNS UI changes)" },
+  "selectorUpdateUrl": { "message": "Selector JSON URL" },
+  "selectorUpdateHint": { "message": "When a network's UI changes and Tutti breaks, a JSON file at this URL can override selectors without an extension update. Use the JSON Tutti distributes, or write your own (leave blank to do nothing)." },
+  "selectorUpdateFetch": { "message": "Fetch now" },
+  "selectorUpdateFetching": { "message": "Fetching..." },
+  "selectorUpdateFetchedAt": { "message": "Last fetched" },
+  "selectorUpdateActive": { "message": "active overrides" },
+
+  "logsTitle": { "message": "Logs (for issue reports)" },
+  "logLevelLabel": { "message": "Log level" },
+  "logLevelHint": { "message": "INFO is recommended during Beta. If something misbehaves, download the captured logs and attach them to a GitHub issue." },
+  "logLevelOffDesc": { "message": "no logs" },
+  "logLevelErrorDesc": { "message": "errors only" },
+  "logLevelWarnDesc": { "message": "warnings and above" },
+  "logLevelInfoDesc": { "message": "state changes (recommended)" },
+  "logLevelDebugDesc": { "message": "verbose (debugging only)" },
+  "logsDownload": { "message": "Download logs" },
+  "logsClear": { "message": "Clear logs" },
+  "logsCount": { "message": "entries stored" },
+  "logsDownloaded": {
+    "message": "Downloaded $N$ log entries",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "logsClearConfirm": { "message": "Delete all saved log entries?" },
+  "logsCleared": { "message": "Logs cleared" },
+
+  "overrideFetched": {
+    "message": "Fetched $N$ selector overrides",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "overrideNeverFetched": { "message": "(never fetched)" },
+
+  "apiSectionTitle": { "message": "API integration" },
+  "apiSectionAdvancedBadge": { "message": "(advanced)" },
+  "apiSectionHint": { "message": "When credentials are set, posts go through the official API instead of opening a tab (faster, more stable, immune to selector breakage). Credentials are stored locally in the extension and never sent to a Tutti server. Networks without credentials still use the tab-based flow." },
+  "apiBlueskyMakePassword": { "message": "Create App Password ↗" },
+  "apiMastodonMakeApp": { "message": "Create application ↗" },
+  "apiMisskeyMakeToken": { "message": "Issue token ↗" },
+  "apiTestSave": { "message": "Test & save" },
+  "apiClear": { "message": "Clear" },
+  "apiTesting": { "message": "Testing..." },
+  "apiBskyMissing": { "message": "Both identifier and App Password are required" },
+  "apiInstanceTokenMissing": { "message": "Both instance URL and access token are required" },
+  "apiHostPermissionDenied": { "message": "Host permission denied" },
+  "apiConnected": {
+    "message": "Connected ($USER$), saved",
+    "placeholders": { "USER": { "content": "$1" } }
+  },
+  "apiConnectError": { "message": "Connection failed" },
+  "apiCleared": { "message": "Cleared (returning to tab-based flow)" },
+
+  "backgroundNoResponse": { "message": "No response from background" },
+  "failedShort": { "message": "Failed" },
+  "betaBadgeTooltip": { "message": "This version is Beta. If something breaks, copy the output from the popup header's Diagnose button into a GitHub issue." },
+  "retryFailedButton": {
+    "message": "Retry failed ($N$)",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "retryFailedTooltip": {
+    "message": "Re-send the $N$ failed posts",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "retryDedupSkippedHint": { "message": "Likely already posted — skipped re-send (a successful entry for the same content was found in the last 10 minutes of history)." },
+  "reportDeduped": {
+    "message": "Same error already reported $N$h ago (24h cooldown).",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "reportEmailNote": { "message": "Full report copied to clipboard. Paste into the email body and send." },
+  "openLoginTooltip": { "message": "Open this network in a new tab (Tutti will detect your account once you sign in)" },
+  "failureHintTooltip": { "message": "Show why this failed and how to fix it" },
+  "failureHintClose": { "message": "Close" },
+
+  "altPlaceholder": { "message": "alt text (a11y, optional)" },
+  "altTooltip": { "message": "Image description for screen readers (sent via Bluesky / Mastodon API path)" },
+  "advancedTitle": { "message": "Advanced options (Mastodon / Misskey)" },
+  "cwLabel": { "message": "Content Warning / spoiler" },
+  "cwPlaceholder": { "message": "e.g. spoilers, food, NSFW" },
+  "visibilityLabel": { "message": "Visibility" },
+  "visibilityPublic": { "message": "Public" },
+  "visibilityUnlisted": { "message": "Unlisted (Mastodon) / Home (Misskey)" },
+  "visibilityPrivate": { "message": "Followers only (Mastodon: private / Misskey: followers)" },
+  "visibilityDirect": { "message": "Direct (Mastodon: direct / Misskey: specified)" },
+  "advancedHint": { "message": "Applies only to Mastodon / Misskey posts made through the API path (networks without an API key configured ignore these fields)." },
+
+  "openPopupShortcut": { "message": "Open Tutti popup" },
+  "moveUpTooltip": { "message": "Move up" },
+  "moveDownTooltip": { "message": "Move down" },
+  "trimVideoButton": {
+    "message": "Trim to $N$s and post",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "trimVideoTooltip": {
+    "message": "Trim the video to $N$ seconds (shortest cap among selected networks) before posting. The original file is not modified.",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "trimVideoSet": {
+    "message": "✂ Will trim to $N$s before posting",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "trimVideoCancel": { "message": "(cancel)" },
+
+  "presetSave": { "message": "Save preset" },
+  "presetSaveTooltip": { "message": "Save the current network selection with a name" },
+  "presetSavePrompt": { "message": "Preset name (e.g. Music posts)" },
+  "presetRemoveTooltip": { "message": "Delete this preset" },
+  "presetRemoveConfirm": { "message": "Delete this preset?" },
+
+  "historySearchPlaceholder": { "message": "Search posts…" },
+  "historyFilterAll": { "message": "All" },
+  "historyFilterFailed": { "message": "Has failures" },
+  "historyFilterSuccess": { "message": "All succeeded" },
+  "historyNoMatch": { "message": "(no matches)" },
+  "historyRetryFailed": { "message": "Restore failed networks" },
+  "historyRetryFailedTooltip": { "message": "Restore the text to the editor and check the failed networks (media must be re-attached)" },
+
+  "pixivTitle": { "message": "Pixiv post defaults" },
+  "pixivVisibilityLabel": { "message": "Visible to (x_restrict)" },
+  "pixivVisibilityGeneralDesc": { "message": "All ages (cross-post default)" },
+  "pixivVisibilityR18Desc": { "message": "R-18 (mature content)" },
+  "pixivVisibilityR18gDesc": { "message": "R-18G (mature + gore)" },
+  "pixivAiTypeLabel": { "message": "AI-generated work (ai_type)" },
+  "pixivAiTypeNoDesc": { "message": "Not AI (default)" },
+  "pixivAiTypeYesDesc": { "message": "AI generated (for AI artists)" },
+  "pixivHint": { "message": "Default is 'general' + 'notAiGenerated' (cross-post standard). R-18 publishers / AI artists should adjust. For per-post override, switch the radios on Pixiv's compose screen before clicking Tutti's Post button — that overrides for that post only." },
+
+  "videoTitle": { "message": "Video auto-formatting" },
+  "autoLetterboxLabel": { "message": "Auto-letterbox landscape videos to 9:16 vertical (for TikTok / YouTube Shorts / IG Reels)" },
+  "autoLetterboxHint": { "message": "ON: when a vertical SNS is selected, landscape videos are letterboxed to 1080×1920 with a blurred background (looks better than the platform's default black bars). OFF: pass through as-is (platforms auto-crop or letterbox). Note: when ON, the same 9:16 video is sent to all selected platforms — landscape SNS (X / Bluesky etc.) will also receive the vertical variant." },
+
+  "historyTitle": { "message": "Post history" },
+  "historyKeepMediaLabel": { "message": "Keep attached media in history (7-day retention)" },
+  "historyKeepMediaHint": { "message": "OFF (default): history records only text + per-platform result metadata. Local storage stays small. ON: attached images / videos are kept for 7 days in IndexedDB so you can resend a failed-only subset from history later. Storage usage grows with each post — turn off if you don't need resend." },
+
+  "autoOpenTitle": { "message": "Auto-open after posting" },
+  "autoOpenLabel": { "message": "When to open the post URL" },
+  "autoOpenNeverDesc": { "message": "Don't open automatically (legacy behavior)" },
+  "autoOpenOnIssueDesc": { "message": "Open only when verify detects an issue (recommended)" },
+  "autoOpenAlwaysDesc": { "message": "Open the post page for every successful post" },
+  "autoOpenHint": { "message": "Choose 'on-issue' or 'always' to immediately spot silent failures (e.g. caption stripped, image missing). Note: 'always' opens one tab per platform — busy with multi-SNS posts." },
+
+  "errorReportButton": { "message": "Report this issue" },
+  "errorReportHint": { "message": "Opens GitHub Issues with recent logs prefilled." },
+
+  "errorDialogTitle": { "message": "Something went wrong" },
+  "errorDialogBody": { "message": "Click \"Report\" and Tutti will open a GitHub issue with recent logs. Your post content and personal info are never sent." },
+  "errorDialogReport": { "message": "Report" },
+  "errorDialogDismiss": { "message": "Dismiss" },
+  "errorDialogSubmitting": { "message": "Submitting..." },
+  "errorDialogReported": { "message": "✓ Thanks. Issue created:" },
+  "errorDialogReportFailed": { "message": "Failed to submit report" },
+  "errorDialogClose": { "message": "Close" },
+  "errorDialogOpenGitHub": { "message": "Send by email" },
+
+  "constraintAdapterMissing": { "message": "Adapter not implemented" },
+  "constraintVideoUnsupported": { "message": "Videos not supported" },
+  "constraintVideoTooLong": {
+    "message": "Video too long (max $MAX$s, actual $ACTUAL$s)",
+    "placeholders": {
+      "MAX": { "content": "$1" },
+      "ACTUAL": { "content": "$2" }
+    }
+  },
+  "constraintVideoTooLarge": {
+    "message": "Video file too large (max $MAX$ MB, actual $ACTUAL$ MB)",
+    "placeholders": {
+      "MAX": { "content": "$1" },
+      "ACTUAL": { "content": "$2" }
+    }
+  },
+  "constraintTooManyImages": {
+    "message": "Too many images (max $MAX$)",
+    "placeholders": {
+      "MAX": { "content": "$1" }
+    }
+  },
+  "constraintImageTooLarge": {
+    "message": "Image $N$ too large (max $MAX$ MB, actual $ACTUAL$ MB)",
+    "placeholders": {
+      "N": { "content": "$1" },
+      "MAX": { "content": "$2" },
+      "ACTUAL": { "content": "$3" }
+    }
+  },
+  "displayModeTitle": { "message": "Display mode" },
+  "displayModeAutoOption": { "message": "auto — let Tutti pick (sidepanel → floating → popup, fallback by browser capability)" },
+  "displayModePopupOption": { "message": "popup — Chrome default (drops down under the icon; closes on tab focus change)" },
+  "displayModeSidepanelOption": { "message": "sidepanel — docked on the right (Chrome 114+; stays open until you close it)" },
+  "displayModeFloatingOption": { "message": "floating — independent window (movable, multi-monitor friendly)" },
+  "displayModeHint": { "message": "sidepanel / floating solve the issue where Tutti closes mid-post. After saving, the new mode applies the next time you click the extension icon. auto resolves to sidepanel on modern Chrome." },
+  "historyStatusPartial": { "message": "partial" },
+  "historyStatusSuccess": { "message": "success" },
+  "historyUrlNotCaptured": { "message": "(URL not captured)" },
+  "historyNotAttempted": { "message": "not attempted" },
+  "compressionLoading": { "message": "Loading compression tool..." },
+  "compressionRunning": {
+    "message": "Compressing video... $PCT$%",
+    "placeholders": { "PCT": { "content": "$1" } }
+  },
+  "compressionEtaMin": {
+    "message": "~$N$ min remaining",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "compressionEtaSec": {
+    "message": "$N$s remaining",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "reportAlreadySubmitted": { "message": "Already reported" },
+  "reportClipboardOverflow": { "message": "(... full body is on the clipboard, paste it here)" },
+  "platformFailedShort": {
+    "message": "$P$: failed (no details)",
+    "placeholders": { "P": { "content": "$1" } }
+  },
+  "uiLanguageTitle": { "message": "Tutti UI language" },
+  "uiLanguageAuto": { "message": "Auto (browser default)" },
+  "uiLanguageHint": { "message": "Override your browser's locale for Tutti's own UI. Affects the popup, side panel, and options page only; doesn't affect the social networks themselves." },
+
+  "historyHasMedia": { "message": "Has attached media" },
+  "historyViewAll": { "message": "View all →" },
+  "historyEntriesUnit": { "message": "entries" },
+  "historyExport": { "message": "Export JSON" },
+  "historyCopy": { "message": "Copy text" },
+  "historyCopied": { "message": "Copied!" },
+  "historyDelete": { "message": "Delete" },
+  "historyRepostAll": { "message": "Repost all" },
+  "historyDeleteConfirm": { "message": "Delete this history entry?" },
+  "historyClearAllConfirm": { "message": "Clear all post history? This cannot be undone." },
+  "historyRepostConfirm": {
+    "message": "Repost this text to $N$ network(s)?",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "historyRepostAllOk": { "message": "All reposts succeeded." },
+  "historyRepostFailed": {
+    "message": "Some reposts failed: $P$",
+    "placeholders": { "P": { "content": "$1" } }
+  },
+  "failedShort": { "message": "failed" },
+
+  "notifyInteractionsLabel": { "message": "Notify me when my posts get replies, likes, or reposts" },
+  "notifyInteractionsHint": { "message": "Polls Bluesky, Mastodon, and Misskey every 5–60 minutes for the first 24 hours after you post (intervals stretch as posts age). OS notifications fire on new interactions. Only the 3 platforms with stable public APIs are supported in v0.5.10 — other networks may be added later." },
+  "interactionNotifyTitle": {
+    "message": "New activity on $P$",
+    "placeholders": { "P": { "content": "$1" } }
+  },
+  "interactionLike": {
+    "message": "$N$ ❤",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "interactionReply": {
+    "message": "$N$ 💬",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+  "interactionRepost": {
+    "message": "$N$ 🔁",
+    "placeholders": { "N": { "content": "$1" } }
+  },
+
+  "appBrandLinkTooltip": { "message": "Open the Tutti home page (komm64.github.io/tutti)" }
+}

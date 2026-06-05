@@ -5,6 +5,8 @@ import {
   waitForElement,
 } from './dom';
 import { dropImages, injectImages, injectTextIntoElement } from './image';
+import { t } from './i18n';
+import { markPostSubmissionStarted } from './post-submission-state';
 
 export interface PostFlowOptions {
   /** URL pre-fill 方式なら true、DOM injection が必要なら false */
@@ -30,6 +32,8 @@ export interface PostFlowOptions {
   images?: ImageAttachment[];
   /** 投稿ボタン待機タイムアウト(ms) */
   postButtonTimeoutMs?: number;
+  /** SPA の compose editor 描画待機タイムアウト(ms) */
+  composeInputTimeoutMs?: number;
   /** 投稿後に処理が走る猶予(ms) */
   afterClickDelayMs?: number;
   /**
@@ -38,6 +42,8 @@ export interface PostFlowOptions {
    * 探索するので、本体の "Post" 等とは衝突しない。
    */
   confirmDialogButtonTexts?: string[];
+  /** 確認ダイアログが出始めるまで待つ猶予。遅れて出る SNS のみ長くする。 */
+  confirmDialogGraceMs?: number;
   /**
    * text 注入 + image attach 後、 post button click 直前に呼ばれる hook (v0.4.72〜)。
    * tags chip 入力など、 各 SNS 固有の追加 step に使う。 throw すると executePostFlow 全体が失敗。
@@ -45,6 +51,8 @@ export interface PostFlowOptions {
   beforeSubmit?: () => Promise<void>;
   /** dry-run: post button まで見つけるが click はしない */
   dryRun?: boolean;
+  /** framework が MAIN world の click のみ受理する場合の submit hook */
+  clickPostButton?: () => Promise<void>;
 }
 
 /**
@@ -64,22 +72,25 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
     text,
     images,
     postButtonTimeoutMs = 8000,
-    afterClickDelayMs = 1500,
+    composeInputTimeoutMs = 8000,
+    afterClickDelayMs = 250,
     confirmDialogButtonTexts,
+    confirmDialogGraceMs,
     beforeSubmit,
     dryRun = false,
+    clickPostButton,
   } = options;
   if (!postButtonSelector && !postButtonTexts?.length && !postButtonFinder) {
-    throw new Error('postButtonSelector / postButtonTexts / postButtonFinder のいずれかが必要');
+    throw new Error('postButtonSelector, postButtonTexts, or postButtonFinder is required');
   }
 
   if (!prefillsViaUrl) {
     if (!textareaSelector) {
-      throw new Error('DOM injection 方式には textareaSelector が必要');
+      throw new Error('textareaSelector is required for DOM injection');
     }
-    const textarea = await waitForElement<HTMLElement>(textareaSelector, 8000);
+    const textarea = await waitForElement<HTMLElement>(textareaSelector, composeInputTimeoutMs);
     if (!textarea) {
-      throw new Error('投稿入力欄が見つかりませんでした。ログイン済みか確認してください');
+      throw new Error(t('runtimeComposeInputMissing'));
     }
     // 本文がある場合のみ MAIN world 経由でテキスト挿入。空文字 inject は
     // (一部 framework で) editor の placeholder structure を壊すリスクが
@@ -96,7 +107,7 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
     } else if (fileInputSelector) {
       await injectImages(images, fileInputSelector);
     } else {
-      throw new Error('このプラットフォームは画像添付に未対応です');
+      throw new Error(t('runtimeImageUnsupported'));
     }
   }
 
@@ -155,11 +166,11 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
   if (!button) {
     if (!lastFound) {
       throw new Error(
-        '投稿ボタンが見つかりませんでした。SNS の UI が更新された可能性があります(Tutti の更新が必要)',
+        t('runtimePostButtonMissing'),
       );
     }
     throw new Error(
-      'まだ投稿できる状態になっていません(文字数オーバー / メディア処理中 / 未ログインの可能性)',
+      t('runtimePostButtonDisabled'),
     );
   }
 
@@ -172,10 +183,12 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
     return;
   }
 
-  button.click();
+  markPostSubmissionStarted();
+  if (clickPostButton) await clickPostButton();
+  else button.click();
 
   if (confirmDialogButtonTexts && confirmDialogButtonTexts.length > 0) {
-    await maybeConfirmDialog(confirmDialogButtonTexts);
+    await maybeConfirmDialog(confirmDialogButtonTexts, confirmDialogGraceMs);
   }
 
   await sleep(afterClickDelayMs);
@@ -189,7 +202,7 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
  *
  * step-runner.ts の finalize からも再利用するため export してある。
  */
-export async function maybeConfirmDialog(texts: string[]): Promise<void> {
+export async function maybeConfirmDialog(texts: string[], graceMs = 800): Promise<void> {
   const DIALOG_SELECTORS = [
     '[role="dialog"]',
     '[role="alertdialog"]',
@@ -198,7 +211,8 @@ export async function maybeConfirmDialog(texts: string[]): Promise<void> {
     'ytcp-dialog', // YouTube Studio custom dialog (role="dialog" も付くが念のため)
     'tp-yt-paper-dialog', // YouTube Studio polymer dialog
   ];
-  const deadline = Date.now() + 8000;
+  const start = Date.now();
+  const deadline = start + 8000;
   let lastSeenDialog: HTMLElement | null = null;
   let lastSeenButtonTexts: string[] = [];
   while (Date.now() < deadline) {
@@ -218,6 +232,9 @@ export async function maybeConfirmDialog(texts: string[]): Promise<void> {
         }
       }
     }
+    // 通常ケースでは確認 dialog は出ない。短い grace 後に先へ進み、
+    // dialog を一度でも見た場合だけ disabled → enabled の変化を最大 8s 待つ。
+    if (!lastSeenDialog && Date.now() - start >= graceMs) return;
     await sleep(150);
   }
   // dialog が居て texts が全部空振りした場合: auto-triage の手掛かりとして

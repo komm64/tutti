@@ -7,9 +7,10 @@
  */
 
 import { log } from '../utils/logger';
+import { t } from '../utils/i18n';
 
 /** 既存 / 新規どちらでも、 tab 内 content script の準備が整うまでの猶予 */
-const READY_DELAY_MS = 800;
+const READY_DELAY_MS = 100;
 /** waitForTabComplete の上限 */
 const TAB_LOAD_TIMEOUT_MS = 15000;
 
@@ -34,33 +35,43 @@ export async function openOrFocusTab(
   );
 
   if (existing && typeof existing.id === 'number') {
+    if (existing.url === composeUrl) {
+      if (active) {
+        await browser.tabs.update(existing.id, { active: true });
+        if (typeof existing.windowId === 'number') {
+          await browser.windows.update(existing.windowId, { focused: true });
+        }
+      }
+      await sleep(READY_DELAY_MS);
+      return { tab: existing, wasCreated: false };
+    }
     // v0.4.70: 既存タブが既に target URL と同じ場合 (SPA 内部 navigation 等) は
     // tabs.update が 'loading'→'complete' を再発火させないことがあり、
     // waitForTabComplete が listener 起動前に complete event を取り逃して 15s
     // タイムアウトする race を引き起こしていた (tutti-issues#16)。
     // listener を先に install してから tabs.update する + 既に complete なら
     // 即時 resolve する dual-strategy で解消。
-    const waitPromise = waitForTabComplete(existing.id);
     const updated = await browser.tabs.update(existing.id, {
       url: composeUrl,
       active,
     });
     if (!updated) {
-      throw new Error('既存の SNS タブを操作できませんでした');
+      throw new Error(t('runtimeExistingSnsTabUnavailable'));
     }
     if (active && typeof existing.windowId === 'number') {
       await browser.windows.update(existing.windowId, { focused: true });
     }
-    await waitPromise;
+    await waitForTabUrlReady(existing.id, composeUrl);
+    const readyTab = await browser.tabs.get(existing.id);
     await sleep(READY_DELAY_MS);
-    return { tab: updated, wasCreated: false };
+    return { tab: readyTab, wasCreated: false };
   }
 
   // 新規タブ作成は create + waitForTabComplete の順で OK
   // (create 時点では tab は loading state 確定で event が必ず来る)
   const created = await browser.tabs.create({ url: composeUrl, active });
   if (typeof created.id !== 'number') {
-    throw new Error('SNS タブを開けませんでした');
+    throw new Error(t('runtimeSnsTabOpenFailed'));
   }
   await waitForTabComplete(created.id);
   await sleep(READY_DELAY_MS);
@@ -101,7 +112,7 @@ export function waitForTabComplete(tabId: number): Promise<void> {
     };
 
     const timer = setTimeout(() => {
-      finish(new Error('SNS ページの読み込みがタイムアウトしました(回線か SNS の状態を確認)'));
+      finish(new Error(t('runtimeSnsPageLoadTimeout')));
     }, TAB_LOAD_TIMEOUT_MS);
 
     const listener = (
@@ -120,6 +131,50 @@ export function waitForTabComplete(tabId: number): Promise<void> {
       browser.tabs.get(tabId).then((t) => {
         if (t.status === 'complete') finish();
       }).catch(() => { /* ignore (tab gone, listener / timer 側で handle) */ });
+      // Heavy SPA can keep chrome.tabs status at "loading" after the compose
+      // document is usable. Selector-specific readiness is checked by each
+      // content script, so release this generic gate once the DOM exists.
+      void browser.scripting.executeScript({
+        target: { tabId },
+        func: () => document.readyState !== 'loading' && !!document.body,
+      }).then((results) => {
+        if (results[0]?.result === true) finish();
+      }).catch(() => { /* ignore (restricted URL / tab not ready yet) */ });
+    }, 250);
+  });
+}
+
+function waitForTabUrlReady(tabId: number, expectedUrl: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const startedAt = Date.now();
+    const timer = setInterval(() => {
+      browser.tabs.get(tabId).then((tab) => {
+        const currentUrl = tab.url ?? tab.pendingUrl ?? '';
+        if (!currentUrl.startsWith(expectedUrl)) {
+          if (Date.now() - startedAt >= TAB_LOAD_TIMEOUT_MS) {
+            clearInterval(timer);
+            reject(new Error(t('runtimeSnsPageLoadTimeout')));
+          }
+          return;
+        }
+        void browser.scripting.executeScript({
+          target: { tabId },
+          func: () => document.readyState !== 'loading' && !!document.body,
+        }).then((results) => {
+          if (results[0]?.result === true) {
+            clearInterval(timer);
+            resolve();
+          }
+        }).catch(() => {
+          if (Date.now() - startedAt >= TAB_LOAD_TIMEOUT_MS) {
+            clearInterval(timer);
+            reject(new Error(t('runtimeSnsPageLoadTimeout')));
+          }
+        });
+      }).catch((e) => {
+        clearInterval(timer);
+        reject(e instanceof Error ? e : new Error(String(e)));
+      });
     }, 250);
   });
 }
@@ -144,14 +199,27 @@ export function updateProgressBadge(done: number, total: number): void {
  * (旧 5s 自動消去だと user が popup を再 open するまでに結果通知が消えていた)。
  * v0.4.97: 完了通知 (chrome.notifications) も同時に出す。 黙って終わらない。
  */
-export function notifyResults(results: { platform: string; success: boolean; error?: string }[]): void {
-  const succeeded = results.filter((r) => r.success);
-  const failed = results.filter((r) => !r.success);
+export function summarizeResults(results: { success: boolean; uncertain?: boolean }[]): {
+  succeeded: number;
+  uncertain: number;
+  failed: number;
+} {
+  return {
+    succeeded: results.filter((r) => r.success).length,
+    uncertain: results.filter((r) => r.uncertain).length,
+    failed: results.filter((r) => !r.success && !r.uncertain).length,
+  };
+}
 
-  if (failed.length === 0 && succeeded.length > 0) {
+export function notifyResults(results: { platform: string; success: boolean; uncertain?: boolean; error?: string }[]): void {
+  const succeeded = results.filter((r) => r.success);
+  const uncertain = results.filter((r) => r.uncertain);
+  const failed = results.filter((r) => !r.success && !r.uncertain);
+
+  if (failed.length === 0 && uncertain.length === 0 && succeeded.length > 0) {
     void browser.action.setBadgeText({ text: 'OK' });
     void browser.action.setBadgeBackgroundColor({ color: '#10b981' });
-  } else if (succeeded.length === 0) {
+  } else if (failed.length > 0 && succeeded.length === 0 && uncertain.length === 0) {
     void browser.action.setBadgeText({ text: 'NG' });
     void browser.action.setBadgeBackgroundColor({ color: '#ef4444' });
   } else {
@@ -161,27 +229,29 @@ export function notifyResults(results: { platform: string; success: boolean; err
     void browser.action.setBadgeBackgroundColor({ color: '#f59e0b' });
   }
 
-  // OS 完了通知は v0.4.99 で一旦 revert (CWS Privacy Practice 更新要件で
-  // 別 release で対応)。 badge + popup の lastResults / GET_BG_STATE で
-  // 「黙って終わらない」 要件は満たせている (popup を開けば結果が見える)。
+  const parts = [
+    t('completionNotifySucceeded', succeeded.length),
+    uncertain.length > 0 ? t('completionNotifyUncertain', uncertain.length) : '',
+    failed.length > 0 ? t('completionNotifyFailed', failed.length) : '',
+  ].filter(Boolean);
+  const getUrl = browser.runtime.getURL as (path: string) => string;
+  void browser.notifications.create(`tutti-completion:${Date.now()}`, {
+    type: 'basic',
+    iconUrl: getUrl('icon/128.png'),
+    title: t('completionNotifyTitle'),
+    message: parts.join(' / '),
+  }).catch((e) => log.warn(`completion notification failed: ${e instanceof Error ? e.message : String(e)}`));
 
   for (const r of results) {
     if (r.success) {
       log.info(`✓ ${r.platform}`);
+    } else if (r.uncertain) {
+      log.warn(`? ${r.platform}: ${r.error ?? '(no detail)'}`);
     } else {
       log.error(`✗ ${r.platform}: ${r.error ?? '(no detail)'}`);
     }
   }
 }
-
-const PLATFORM_LABELS: Record<string, string> = {
-  x: 'X', bluesky: 'Bluesky', threads: 'Threads', mastodon: 'Mastodon',
-  misskey: 'Misskey', tumblr: 'Tumblr', pixiv: 'Pixiv', deviantart: 'DeviantArt',
-  instagram: 'Instagram', tiktok: 'TikTok', youtube: 'YouTube',
-};
-
-// showCompletionNotification は v0.4.99 で revert (CWS Privacy Practice 要件
-// で notifications permission を一旦削除)。 後続 release で復活予定。
 
 export function clearBadge(): void {
   void browser.action.setBadgeText({ text: '' });

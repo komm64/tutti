@@ -1,30 +1,66 @@
 <script lang="ts">
   import type { PlatformId, PostRequestMessage, PostResultMessage } from '../../src/messages';
   import { clearPostHistory, getPostHistory, removeHistoryEntry, type HistoryEntry } from '../../src/storage';
+  import { arrayBufferToBase64 } from '../../src/utils/base64';
   import { formatRelTime } from '../../src/utils/formatters';
+  import { getMedia } from '../../src/utils/history-media';
   import { t } from '../../src/utils/i18n';
 
+  interface TimelineMedia {
+    name: string;
+    type: string;
+    url: string;
+    blob: Blob;
+  }
+
   let history = $state<HistoryEntry[]>([]);
+  let mediaByEntry = $state<Record<string, TimelineMedia[]>>({});
   let search = $state('');
   let filter = $state<'all' | 'failed' | 'success'>('all');
   let copied = $state<string | null>(null);
   let busy = $state(false);
+  let objectUrls: string[] = [];
+  let loadGeneration = 0;
 
   async function load(): Promise<void> {
-    history = await getPostHistory();
+    const generation = ++loadGeneration;
+    const nextHistory = await getPostHistory();
+    const nextMedia = Object.fromEntries(
+      await Promise.all(nextHistory.map(async (entry) => {
+        const blobs = await Promise.all((entry.mediaRefs ?? []).map((ref) => getMedia(ref).catch(() => null)));
+        return [entry.id, blobs.flatMap((blob, index) => {
+          if (!blob) return [];
+          const url = URL.createObjectURL(blob);
+          return [{ name: `tutti-history-${entry.id}-${index}`, type: blob.type, url, blob }];
+        })] as const;
+      })),
+    );
+    if (generation !== loadGeneration) {
+      for (const media of Object.values(nextMedia).flat()) URL.revokeObjectURL(media.url);
+      return;
+    }
+    for (const url of objectUrls) URL.revokeObjectURL(url);
+    objectUrls = Object.values(nextMedia).flat().map((media) => media.url);
+    history = nextHistory;
+    mediaByEntry = nextMedia;
   }
 
   void load();
 
   // storage.local の postHistory が他 context で更新されたら追随
-  chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'local' && changes['postHistory']) {
-      void load();
-    }
+  $effect(() => {
+    const listener = (changes: Record<string, unknown>, area: string): void => {
+      if (area === 'local' && changes['postHistory']) void load();
+    };
+    chrome.storage.onChanged.addListener(listener as Parameters<typeof chrome.storage.onChanged.addListener>[0]);
+    return () => {
+      chrome.storage.onChanged.removeListener(listener as Parameters<typeof chrome.storage.onChanged.removeListener>[0]);
+      for (const url of objectUrls) URL.revokeObjectURL(url);
+    };
   });
 
   const filtered = $derived(history.filter((e) => {
-    if (filter === 'failed' && !Object.values(e.results).some((r) => r && !r.success)) return false;
+    if (filter === 'failed' && !Object.values(e.results).some((r) => r && !r.success && !r.uncertain)) return false;
     if (filter === 'success' && Object.values(e.results).some((r) => r && !r.success)) return false;
     const q = search.trim().toLowerCase();
     if (q && !(e.text ?? e.textPreview).toLowerCase().includes(q)) return false;
@@ -78,8 +114,8 @@
    */
   async function handleRepost(entry: HistoryEntry, mode: 'failed' | 'all'): Promise<void> {
     const targets: PlatformId[] = mode === 'failed'
-      ? (Object.entries(entry.results) as [PlatformId, { success: boolean }][])
-        .filter(([, r]) => !r.success)
+      ? (Object.entries(entry.results) as [PlatformId, { success: boolean; uncertain?: boolean }][])
+        .filter(([, r]) => !r.success && !r.uncertain)
         .map(([id]) => id)
       : entry.platforms;
     if (targets.length === 0) return;
@@ -87,7 +123,18 @@
     busy = true;
     try {
       const text = entry.text ?? entry.textPreview;
-      const req: PostRequestMessage = { type: 'POST_REQUEST', text, platforms: targets };
+      const images = await Promise.all((mediaByEntry[entry.id] ?? []).map(async (media) => ({
+        name: media.name,
+        type: media.type,
+        bytes: media.blob.size,
+        data: arrayBufferToBase64(await media.blob.arrayBuffer()),
+      })));
+      const req: PostRequestMessage = {
+        type: 'POST_REQUEST',
+        text,
+        platforms: targets,
+        images: images.length > 0 ? images : undefined,
+      };
       const res = await chrome.runtime.sendMessage(req);
       const results = (res as { results?: PostResultMessage[] }).results ?? [];
       const fails = results.filter((r) => !r.success);
@@ -160,14 +207,16 @@
     {:else}
       <ul class="space-y-3">
         {#each filtered as entry (entry.id)}
-          {@const hasFailures = Object.values(entry.results).some((r) => r && !r.success)}
+          {@const hasFailures = Object.values(entry.results).some((r) => r && !r.success && !r.uncertain)}
+          {@const hasUncertain = Object.values(entry.results).some((r) => r?.uncertain)}
           {@const successCount = Object.values(entry.results).filter((r) => r?.success).length}
           {@const totalCount = entry.platforms.length}
           {@const fullText = entry.text ?? entry.textPreview}
+          {@const canRepost = !entry.hasMedia || (mediaByEntry[entry.id] ?? []).length > 0}
           <li class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
             <div class="flex items-center gap-3 mb-2 text-xs text-gray-500">
-              <span class="font-medium {hasFailures ? 'text-red-700' : 'text-green-700'}">
-                {successCount}/{totalCount} {hasFailures ? t('historyStatusPartial') : t('historyStatusSuccess')}
+              <span class="font-medium {hasFailures ? 'text-red-700' : hasUncertain ? 'text-amber-700' : 'text-green-700'}">
+                {successCount}/{totalCount} {hasFailures ? t('historyStatusPartial') : hasUncertain ? t('historyStatusUncertain') : t('historyStatusSuccess')}
               </span>
               {#if entry.hasMedia}
                 <span title={t('historyHasMedia')}>📎</span>
@@ -176,6 +225,19 @@
             </div>
 
             <p class="text-sm text-gray-800 mb-3 break-words whitespace-pre-wrap">{fullText}</p>
+
+            {#if (mediaByEntry[entry.id] ?? []).length > 0}
+              <div class="grid grid-cols-2 gap-2 mb-3">
+                {#each mediaByEntry[entry.id] ?? [] as media}
+                  {#if media.type.startsWith('video/')}
+                    <!-- svelte-ignore a11y_media_has_caption History renders user-authored uploads; Tutti has no caption track to attach. -->
+                    <video src={media.url} controls preload="metadata" class="w-full max-h-96 rounded bg-black"></video>
+                  {:else}
+                    <img src={media.url} alt="" loading="lazy" class="w-full max-h-96 object-contain rounded bg-gray-100" />
+                  {/if}
+                {/each}
+              </div>
+            {/if}
 
             <ul class="space-y-1 mb-3">
               {#each entry.platforms as pid}
@@ -195,6 +257,10 @@
                     {:else}
                       <span class="text-gray-400 italic">{t('historyUrlNotCaptured')}</span>
                     {/if}
+                  {:else if r?.uncertain}
+                    <span class="shrink-0 w-5 text-amber-600 font-bold">?</span>
+                    <span class="shrink-0 w-20 font-medium text-gray-700">{pid}</span>
+                    <span class="text-amber-700 break-words flex-1 min-w-0">{r.error ?? t('progressUncertain')}</span>
                   {:else if r}
                     <span class="shrink-0 w-5 text-red-600 font-bold">✗</span>
                     <span class="shrink-0 w-20 font-medium text-gray-700">{pid}</span>
@@ -216,13 +282,13 @@
               {#if hasFailures}
                 <button
                   onclick={() => handleRepost(entry, 'failed')}
-                  disabled={busy}
+                  disabled={busy || !canRepost}
                   class="px-2.5 py-1 text-xs text-red-700 hover:bg-red-50 rounded disabled:opacity-40"
                 >🔁 {t('historyRetryFailed')}</button>
               {/if}
               <button
                 onclick={() => handleRepost(entry, 'all')}
-                disabled={busy}
+                disabled={busy || !canRepost}
                 class="px-2.5 py-1 text-xs text-blue-700 hover:bg-blue-50 rounded disabled:opacity-40"
               >🔁 {t('historyRepostAll')}</button>
               <button

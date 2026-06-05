@@ -2,8 +2,8 @@ import { log } from '../src/utils/logger';
 import type { ImageAttachment, PostResultMessage } from '../src/messages';
 import { TUMBLR_SELECTORS, tumblrAdapter } from '../src/adapters/tumblr';
 import { executePostFlow } from '../src/utils/post-flow';
-import { waitForElement } from '../src/utils/dom';
-import { injectTagList } from '../src/utils/image';
+import { sleep, waitForElement } from '../src/utils/dom';
+import { injectTagList, injectTextIntoElement } from '../src/utils/image';
 import { extractHashtags } from '../src/utils/hashtags';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
@@ -297,6 +297,7 @@ export default defineContentScript({
 
 async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolean): Promise<PostResultMessage> {
   const sel = await resolveSelectors('tumblr', TUMBLR_SELECTORS);
+  const postingUser = dryRun ? null : await detectTumblrUser();
 
   // v0.4.72: 本文から #hashtag を抽出して Tumblr の tags chip 入力に commit。
   // Tumblr は tags driven な culture (発見性の主役) なので、 user 入力の
@@ -316,6 +317,13 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     images,
     postButtonTimeoutMs: 10000,
     beforeSubmit: async () => {
+      // Gutenberg editor は画像 block 追加時に本文 block を re-mount することがある。
+      // drop 前に注入した本文が消えていたら submit 直前に戻す。
+      const body = document.querySelector<HTMLElement>(sel.textarea);
+      if (text && !(body?.textContent ?? '').includes(text.slice(0, 30))) {
+        await injectTextIntoElement(text, sel.textarea);
+        await sleep(300);
+      }
       // tags input は dialog 下部、 lazy-mount される変種もあるので軽く待機
       const tagEl = await waitForElement<HTMLInputElement>(sel.tagInput, 3000);
       if (!tagEl) {
@@ -332,11 +340,60 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     dryRun,
   });
 
+  let confirmed = !!dryRun;
+  let url: string | undefined;
+  if (!dryRun) {
+    const deadline = Date.now() + 15_000;
+    while (Date.now() < deadline) {
+      if (!document.querySelector(sel.textarea)) {
+        confirmed = true;
+        log.info('Tumblr: post confirmed (composer closed)');
+        break;
+      }
+      await sleep(300);
+    }
+    if (!confirmed) log.warn('Tumblr: composer did not close after Post click');
+    if (confirmed && postingUser) {
+      url = await fetchTumblrRecentPostUrl(postingUser.slice(1), text);
+    }
+  }
+
   return {
     type: 'POST_RESULT',
     platform: 'tumblr',
     success: true,
+    confirmed,
+    url,
   };
+}
+
+async function fetchTumblrRecentPostUrl(blogName: string, text: string): Promise<string | undefined> {
+  const target = text.replace(/\s+/g, ' ').trim().slice(0, 60);
+  try {
+    const response = await fetch(`/blog/${encodeURIComponent(blogName)}`, { credentials: 'include' });
+    if (!response.ok) return undefined;
+    const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+    const links = Array.from(doc.querySelectorAll<HTMLAnchorElement>('a[href]'))
+      .filter((link) => new RegExp(`^/${escapeRegExp(blogName)}/\\d+(?:/|$)`).test(link.getAttribute('href') ?? ''));
+    for (const link of links) {
+      let ancestor: HTMLElement | null = link;
+      for (let depth = 0; ancestor && depth < 10; depth += 1, ancestor = ancestor.parentElement) {
+        const body = (ancestor.textContent ?? '').replace(/\s+/g, ' ').trim();
+        if (body.includes(target)) {
+          const url = new URL(link.getAttribute('href')!, location.origin).href;
+          log.info(`Tumblr: URL captured via profile HTML: ${url}`);
+          return url;
+        }
+      }
+    }
+  } catch (e) {
+    log.warn(`Tumblr: profile URL capture failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  return undefined;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /**

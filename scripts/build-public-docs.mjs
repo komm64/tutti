@@ -5,46 +5,12 @@
 import { readFile, writeFile, readdir } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { TUTTI_LOCALES as LOCALES } from './locale-config.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 const STRINGS_DIR = join(ROOT, 'docs', '_strings');
 const OUT_DIR = join(ROOT, 'docs');
-
-// Native names from src/utils/i18n.ts TUTTI_LOCALES (without 'auto').
-const LOCALES = [
-  { code: 'en', native: 'English' },
-  { code: 'ja', native: '日本語' },
-  { code: 'zh_CN', native: '简体中文' },
-  { code: 'zh_TW', native: '繁體中文' },
-  { code: 'ko', native: '한국어' },
-  { code: 'es', native: 'Español' },
-  { code: 'es_419', native: 'Español (Latinoamérica)' },
-  { code: 'pt_BR', native: 'Português (Brasil)' },
-  { code: 'pt_PT', native: 'Português (Portugal)' },
-  { code: 'ru', native: 'Русский' },
-  { code: 'de', native: 'Deutsch' },
-  { code: 'fr', native: 'Français' },
-  { code: 'pl', native: 'Polski' },
-  { code: 'tr', native: 'Türkçe' },
-  { code: 'it', native: 'Italiano' },
-  { code: 'cs', native: 'Čeština' },
-  { code: 'uk', native: 'Українська' },
-  { code: 'hu', native: 'Magyar' },
-  { code: 'th', native: 'ไทย' },
-  { code: 'vi', native: 'Tiếng Việt' },
-  { code: 'nl', native: 'Nederlands' },
-  { code: 'sv', native: 'Svenska' },
-  { code: 'ar', native: 'العربية' },
-  { code: 'id', native: 'Bahasa Indonesia' },
-  { code: 'fi', native: 'Suomi' },
-  { code: 'el', native: 'Ελληνικά' },
-  { code: 'bg', native: 'Български' },
-  { code: 'no', native: 'Norsk' },
-  { code: 'ro', native: 'Română' },
-  { code: 'da', native: 'Dansk' },
-  { code: 'eo', native: 'Esperanto' },
-];
 
 const RTL = new Set(['ar']);
 

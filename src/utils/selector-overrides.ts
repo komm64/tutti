@@ -11,6 +11,7 @@
  * ```
  */
 import type { PlatformId } from '../messages';
+import { t } from './i18n';
 
 export type SelectorOverrides = Partial<Record<PlatformId, Record<string, string>>>;
 
@@ -68,14 +69,14 @@ export async function resolveSelectors<T extends Record<string, string>>(
  */
 export async function fetchOverridesFrom(url: string): Promise<{ ok: boolean; error?: string; count?: number }> {
   if (!url || !/^https:\/\//.test(url)) {
-    return { ok: false, error: 'URL は https:// から始まる必要があります' };
+    return { ok: false, error: t('runtimeSelectorUrlHttpsRequired') };
   }
   try {
     const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
     const data = (await res.json()) as unknown;
     if (typeof data !== 'object' || data === null || Array.isArray(data)) {
-      return { ok: false, error: 'JSON はオブジェクト形式が必要です' };
+      return { ok: false, error: t('runtimeSelectorJsonObjectRequired') };
     }
     // 簡易バリデーション: 各 platform のオブジェクトの値はすべて string。
     // `_` プレフィックスの key (`_meta`, `_videoConstraints`) は selector ではなく

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Static integrity check for all _locales/<code>/messages.json.
-// - Same key set across all locales (matches en)
+// Static integrity check for canonical BCP 47 sources in locales/<code>/messages.json.
+// - No locale-specific keys absent from en (partial locales fall back to en)
 // - No empty values
 // - No CJK (hiragana/katakana/han) leakage in non-CJK locales
 // - Placeholder $NAME$ usage matches en
@@ -9,16 +9,17 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { TUTTI_LOCALES } from './locale-config.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const LOC_DIR = join(__dirname, '..', 'public', '_locales');
+const LOC_DIR = join(__dirname, '..', 'locales');
 
 const NON_CJK_LOCALES = new Set([
-  'en', 'es', 'es_419', 'pt_BR', 'pt_PT', 'ru', 'de', 'fr', 'pl', 'tr', 'it',
+  'en', 'es-ES', 'es-419', 'pt-BR', 'pt-PT', 'ru', 'de', 'fr', 'pl', 'tr', 'it',
   'cs', 'uk', 'hu', 'th', 'vi', 'nl', 'sv', 'ar', 'id', 'fi', 'el', 'bg',
   'no', 'ro', 'da', 'eo',
 ]);
-const CJK_LOCALES = new Set(['ja', 'zh_CN', 'zh_TW', 'ko']);
+const CJK_LOCALES = new Set(['ja', 'zh-Hans', 'zh-Hant', 'ko']);
 
 const HIRA_KATA = /[぀-ゟ゠-ヿ]/;     // ja-only scripts
 const JP_KANJI_CHARS = ['設定', '投稿', '画像', '動画', '日本語', '表示', '言語']; // common JP UI words
@@ -38,6 +39,10 @@ const issues = [];
 async function main() {
   const codes = (await readdir(LOC_DIR)).sort();
   console.log(`Found ${codes.length} locales:`, codes.join(', '));
+  const expectedCodes = TUTTI_LOCALES.map(({ code }) => code).sort();
+  if (JSON.stringify(codes) !== JSON.stringify(expectedCodes)) {
+    issues.push(`locale directories differ from config/locales.json: expected=${expectedCodes.join(',')} actual=${codes.join(',')}`);
+  }
 
   const enData = await loadLocale('en');
   const enKeys = Object.keys(enData).sort();
@@ -47,10 +52,8 @@ async function main() {
     const keys = Object.keys(data).sort();
     const isCjk = CJK_LOCALES.has(code);
 
-    // Key parity vs en
-    const missing = enKeys.filter((k) => !keys.includes(k));
+    // Partial translations are allowed: Chrome falls back to en.
     const extra = keys.filter((k) => !enKeys.includes(k));
-    if (missing.length) issues.push(`[${code}] missing keys vs en: ${missing.slice(0, 5).join(', ')}${missing.length > 5 ? ` (+${missing.length - 5})` : ''}`);
     if (extra.length) issues.push(`[${code}] extra keys vs en: ${extra.slice(0, 5).join(', ')}${extra.length > 5 ? ` (+${extra.length - 5})` : ''}`);
 
     // Per-key checks

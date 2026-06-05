@@ -21,6 +21,8 @@ export interface ApiPostInput {
 
 export interface ApiPostResult {
   success: boolean;
+  /** POST request dispatch 後に応答を確定できなかった。重複防止のため再送しない。 */
+  uncertain?: boolean;
   /** 失敗時のメッセージ (popup error toast に出る) */
   error?: string;
   /** 成功時の post URL (popup の post history 用) */
