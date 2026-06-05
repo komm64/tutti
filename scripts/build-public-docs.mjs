@@ -59,6 +59,14 @@ const CSS = `
     padding: 0.75rem 1rem; margin: 1rem 0; border-radius: 4px; }
   .callout p { margin: 0.25rem 0; }
   a { color: var(--brand); }
+  .cws-btn {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    background: var(--brand); color: #fff; font-weight: 600;
+    padding: 0.65rem 1.25rem; border-radius: 8px; text-decoration: none;
+    font-size: 1rem; margin: 1.25rem 0 0.5rem; transition: opacity 0.15s;
+  }
+  .cws-btn:hover { opacity: 0.88; color: #fff; }
+  .cws-btn svg { width: 20px; height: 20px; flex-shrink: 0; }
   footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--line);
     color: var(--muted); font-size: 0.85rem; }
 `;
@@ -87,8 +95,12 @@ function detectLang(){
 var _l=detectLang();document.getElementById('lang').value=_l;render(_l);
 `;
 
+const CWS_URL = 'https://chromewebstore.google.com/detail/mcjfgdcffjfhkcepfpnifcpknlddmbpe';
+const CHROME_ICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zm0 2c1.93 0 3.72.6 5.2 1.62L12 12 6.8 5.62A7.96 7.96 0 0 1 12 4zM4 12a8 8 0 0 1 2.07-5.34L12 14.5l5.93-7.84A8 8 0 1 1 4 12z"/></svg>';
+
 // Render function for index.html (uses string concat, no template literals)
 const INDEX_RENDER = `
+var CWS_URL='${CWS_URL}';
 function render(code){
   var t=T[code]||T['en'],c=t.common,i=t.index;
   document.title=i.title;
@@ -96,10 +108,13 @@ function render(code){
   document.documentElement.dir=code==='ar'?'rtl':'';
   document.getElementById('tagline').textContent=i.headerTagline;
   document.getElementById('nav').innerHTML=
+    '<a href="'+CWS_URL+'" target="_blank" rel="noopener">Chrome Web Store</a>'+
     '<a href="https://github.com/komm64/tutti">'+c.navGitHub+'</a>'+
     '<a href="./support.html">'+c.navSupport+'</a>'+
     '<a href="./privacy.html">'+c.navPrivacy+'</a>';
   document.getElementById('content').innerHTML=
+    '<a class="cws-btn" href="'+CWS_URL+'" target="_blank" rel="noopener">'+
+    '${CHROME_ICON} Add to Chrome — Free</a>'+
     '<h2>'+i.h2Overview+'</h2><p>'+i.overviewBody+'</p>'+
     '<h2>'+i.h2PrivacySummary+'</h2>'+
     '<p>'+i.privacySummaryBody+'</p>'+
