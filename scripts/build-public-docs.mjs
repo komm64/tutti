@@ -206,6 +206,8 @@ function buildHtml(renderFn, T) {
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Tutti</title>
+<link rel="icon" type="image/png" sizes="32x32" href="./icon-32.png" />
+<link rel="icon" type="image/png" sizes="128x128" href="./icon-128.png" />
 <style>${CSS}</style>
 </head>
 <body>
