@@ -151,6 +151,18 @@ export const cleanXDescription: DescriptionCleaner = (desc) => {
 };
 
 /**
+ * X / Twitter: og:image の判定。
+ * - 空: 未認証 HTML や処理中は og:image が省略されることがある → 判定不能 → true (false positive 防止)
+ * - pbs.twimg.com/media/... → ツイートのメディア画像 → true
+ * - pbs.twimg.com/profile_images/... → プロフィール画像のみ (= メディアなし) → false
+ * この judge は expected.hasImages=true のときのみ呼ばれる。
+ */
+export const judgeXImage: ImageJudge = (ogImage) => {
+  if (!ogImage) return true; // 判定不能なので false positive を出さない
+  return /pbs\.twimg\.com\/media\//i.test(ogImage);
+};
+
+/**
  * YouTube: og:description は description text の冒頭 (snippet)。
  */
 export const cleanYouTubeDescription: DescriptionCleaner = (desc) => desc;

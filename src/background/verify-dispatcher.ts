@@ -23,6 +23,7 @@ import {
   cleanYouTubeDescription,
   cleanGenericDescription,
   judgeInstagramImage,
+  judgeXImage,
 } from '../utils/post-verify-og';
 import { buildVerifyResult, type VerifyExpectation, type VerifyResult } from '../utils/post-verify';
 import { log } from '../utils/logger';
@@ -43,7 +44,10 @@ export async function runVerify(
     platform === 'x' ? cleanXDescription :
     platform === 'youtube' ? cleanYouTubeDescription :
     cleanGenericDescription;
-  const judgeImg = platform === 'instagram' ? judgeInstagramImage : undefined;
+  const judgeImg =
+    platform === 'instagram' ? judgeInstagramImage :
+    platform === 'x' ? judgeXImage :
+    undefined;
   const r1 = await verifyViaOg(postUrl, expected, { cleanDescription: cleaner, judgeImage: judgeImg });
   const needsDomFallback =
     !r1.verified ||
