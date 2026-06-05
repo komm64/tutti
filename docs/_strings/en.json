@@ -87,6 +87,6 @@
     "q5": "Q. Does Tutti see my post content?",
     "a5": "No. Post content never passes through a third-party server. Tutti injects directly into each network's web compose page. See our <a href=\"./privacy.html\">Privacy Policy</a> for details. The only exception is when you press the in-product Report button, which sends redacted error information to our private issue tracker.",
     "q6": "Q. Can I donate?",
-    "a6": "Not yet — we're working on a low-pressure support channel. The biggest ongoing cost is keeping up with each social network's UI changes; future Ko-fi flows will fund that maintenance."
+    "a6": "Yes! The biggest ongoing cost is keeping up with each social network's UI changes. Any support is appreciated:"
   }
 }

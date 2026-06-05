@@ -67,6 +67,12 @@ const CSS = `
   }
   .cws-btn:hover { opacity: 0.88; color: #fff; }
   .cws-btn svg { width: 20px; height: 20px; flex-shrink: 0; }
+  .donate-links { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 0.75rem; }
+  .donate-btn { display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.5rem 1rem;
+    border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 0.9rem; }
+  .donate-btn:hover { opacity: 0.85; }
+  .donate-btn.kofi { background: #29abe0; color: #fff; }
+  .donate-btn.kofi:hover { color: #fff; }
   footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--line);
     color: var(--muted); font-size: 0.85rem; }
 `;
@@ -96,6 +102,7 @@ var _l=detectLang();document.getElementById('lang').value=_l;render(_l);
 `;
 
 const CWS_URL = 'https://chromewebstore.google.com/detail/mcjfgdcffjfhkcepfpnifcpknlddmbpe';
+const KOFI_URL = 'https://ko-fi.com/komm64';
 const CHROME_ICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zm0 2c1.93 0 3.72.6 5.2 1.62L12 12 6.8 5.62A7.96 7.96 0 0 1 12 4zM4 12a8 8 0 0 1 2.07-5.34L12 14.5l5.93-7.84A8 8 0 1 1 4 12z"/></svg>';
 
 // Render function for index.html (uses string concat, no template literals)
@@ -193,7 +200,10 @@ function render(code){
     '<h3>'+u.q3+'</h3><p>'+u.a3+'</p>'+
     '<h3>'+u.q4+'</h3><p>'+u.a4+'</p>'+
     '<h3>'+u.q5+'</h3><p>'+u.a5+'</p>'+
-    '<h3>'+u.q6+'</h3><p>'+u.a6+'</p>';
+    '<h3>'+u.q6+'</h3><p>'+u.a6+'</p>'+
+    '<div class="donate-links">'+
+    '<a class="donate-btn kofi" href="${KOFI_URL}" target="_blank" rel="noopener">☕ Ko-fi</a>'+
+    '</div>';
   document.getElementById('footer').innerHTML=c.footerContact;
 }
 `;
