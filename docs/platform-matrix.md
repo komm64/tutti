@@ -105,8 +105,9 @@ Every DOM-driven network honors **`docs/selectors.json` overrides**:
 
 1. SNS UI changes and selectors stop matching.
 2. User sends a diagnostics-attached issue via the popup's Report button.
-3. `auto-triage.yml` (GitHub Action) hands off to Claude, which proposes a
-   PR patching both `src/adapters/<network>.ts` and `docs/selectors.json`.
+3. `auto-triage.yml` in the private `komm64/tutti-issues` repo hands off to
+   Codex, which proposes a public PR patching both
+   `src/adapters/<network>.ts` and `docs/selectors.json`.
 4. Human review → merge → GitHub Pages publish.
 5. Reaches every user whose `Settings.selectorOverrideUrl` is enabled,
    within minutes.

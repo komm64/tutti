@@ -161,3 +161,21 @@ If you're standing this up from zero:
 
 Then turn on auto-triage gating: auto-triage PRs only merge if both the API
 E2E and the relevant DOM smoke jobs pass on that PR.
+
+## 4. Auto-triage (private issue repo -> public selector PR)
+
+User reports are filed into the private `komm64/tutti-issues` repository, not
+this public repository. That workflow uses `openai/codex-action@v1` to analyze
+the private diagnostic payload, edit a checkout of public `komm64/tutti`, and
+then create a public selector PR from a trusted shell step.
+
+Required secrets on `komm64/tutti-issues`:
+
+| Secret | Purpose |
+|---|---|
+| `OPENAI_API_KEY` | Used by `openai/codex-action@v1` to run Codex in CI. |
+| `TUTTI_PUBLIC_REPO_PAT` | Fine-grained PAT for `komm64/tutti` with Contents: Write and Pull requests: Write. |
+
+Keep the report workflow in the private repo. Do not move it back into
+`komm64/tutti`; even redacted DOM snapshots should not pass through public
+issues or public workflow logs.
