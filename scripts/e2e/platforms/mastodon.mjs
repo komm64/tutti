@@ -22,7 +22,7 @@ export async function run({ ctx, debug }) {
   await page.goto(COMPOSE_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
   await page.waitForTimeout(2000);
 
-  const auth = await ensureLoggedIn(page, COMPOSE_TEXTAREA, 'mastodon');
+  const auth = await ensureMastodonComposeReady(page);
   if (!auth.ok) return auth;
 
   const sendResult = await sendPostMessage(ctx, {
@@ -34,4 +34,16 @@ export async function run({ ctx, debug }) {
     return { ok: false, error: `POST failed: ${JSON.stringify(sendResult)}` };
   }
   return { ok: true, note: `posted: "${text.slice(0, 30)}..." (cleanup skipped)` };
+}
+
+async function ensureMastodonComposeReady(page) {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const auth = await ensureLoggedIn(page, COMPOSE_TEXTAREA, 'mastodon', 45000);
+    if (auth.ok) return auth;
+    if (attempt < 3) {
+      await page.goto(COMPOSE_URL, { waitUntil: 'domcontentloaded', timeout: 45000 }).catch(() => {});
+      await page.waitForTimeout(2000);
+    }
+  }
+  return { ok: false, error: 'not logged in (mastodon — compose textarea did not appear after retries)' };
 }

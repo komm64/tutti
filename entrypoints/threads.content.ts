@@ -1,7 +1,7 @@
 import { log } from '../src/utils/logger';
 import type { ImageAttachment, PostResultMessage } from '../src/messages';
 import { THREADS_SELECTORS, threadsAdapter } from '../src/adapters/threads';
-import { findClickableByText, sleep } from '../src/utils/dom';
+import { findClickableByText, sleep, waitForCondition } from '../src/utils/dom';
 import { executePostFlow } from '../src/utils/post-flow';
 import { clickElementInMainWorld } from '../src/utils/image';
 import { waitForPostUrl } from '../src/utils/url-capture';
@@ -180,10 +180,11 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     ),
   });
   if (!dryRun) {
-    await sleep(30_000);
-    const draftStillOpen = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"], [role="alertdialog"]'))
-      .some((dialog) => (dialog.textContent ?? '').includes(text));
-    if (draftStillOpen) {
+    const closed = await waitForCondition<boolean>(
+      () => isThreadsDraftOpen(text, sel.textarea) ? null : true,
+      { timeoutMs: 30_000, intervalMs: 500 },
+    );
+    if (!closed && isThreadsDraftOpen(text, sel.textarea)) {
       await clickElementInMainWorld(
         '[role="dialog"] [role="button"], [role="dialog"] button',
         ['Post', '投稿', '投稿する', 'Post now'],
@@ -246,4 +247,12 @@ function findThreadsPostButton(): HTMLElement | null {
     if (el) return el;
   }
   return findClickableByText(['Post', '投稿', '投稿する', 'Post now']);
+}
+
+function isThreadsDraftOpen(text: string, textareaSelector: string): boolean {
+  const dialogs = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"], [role="alertdialog"]'));
+  if (text.trim()) {
+    return dialogs.some((dialog) => (dialog.textContent ?? '').includes(text));
+  }
+  return dialogs.some((dialog) => !!dialog.querySelector(textareaSelector));
 }

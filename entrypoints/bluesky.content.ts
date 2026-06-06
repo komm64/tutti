@@ -2,7 +2,7 @@ import { log } from '../src/utils/logger';
 import type { ImageAttachment, PostResultMessage } from '../src/messages';
 import { BLUESKY_EDITOR_SELECTOR, BLUESKY_SELECTORS, blueskyAdapter } from '../src/adapters/bluesky';
 import { executePostFlow } from '../src/utils/post-flow';
-import { sleep, waitForElement } from '../src/utils/dom';
+import { sleep, waitForCondition, waitForElement } from '../src/utils/dom';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
 import { clickElementInMainWorld, dropImages, injectTextIntoElement } from '../src/utils/image';
@@ -127,16 +127,7 @@ async function executeBlueskyInlineThread(
     }
     addBtn.click();
 
-    let target: HTMLElement | undefined;
-    const deadline = Date.now() + 5000;
-    while (Date.now() < deadline) {
-      const tas = Array.from(document.querySelectorAll<HTMLElement>(BLUESKY_EDITOR_SELECTOR));
-      if (tas.length > i) {
-        target = tas[i];
-        break;
-      }
-      await sleep(150);
-    }
+    const target = await waitForBlueskyThreadTextarea(i, 5000);
     if (!target) {
       const got = document.querySelectorAll(BLUESKY_EDITOR_SELECTOR).length;
       throw new Error(t('runtimeBlueskyTextareaTimeout', i + 1, chunks.length, i + 1, got));
@@ -161,13 +152,7 @@ async function executeBlueskyInlineThread(
     }
     return null;
   };
-  const deadline = Date.now() + 30000;
-  let postBtn: HTMLElement | null = null;
-  while (Date.now() < deadline) {
-    postBtn = findButton();
-    if (postBtn) break;
-    await sleep(300);
-  }
+  const postBtn = await waitForCondition<HTMLElement>(findButton, { timeoutMs: 30000, intervalMs: 300 });
   if (!postBtn) throw new Error(t('runtimeBlueskyPublishButtonMissing'));
 
   if (dryRun) {
@@ -183,12 +168,11 @@ async function executeBlueskyInlineThread(
   const stillOpen = () =>
     document.querySelector('[data-testid="composer"]') ||
     document.querySelector(BLUESKY_EDITOR_SELECTOR);
-  const closeDeadline = Date.now() + 30_000;
-  while (Date.now() < closeDeadline) {
-    if (!stillOpen()) break;
-    await sleep(300);
-  }
-  if (stillOpen()) {
+  const closed = await waitForCondition<boolean>(() => stillOpen() ? null : true, {
+    timeoutMs: 30_000,
+    intervalMs: 300,
+  });
+  if (!closed) {
     throw new Error(t('runtimeBlueskyThreadModalOpen'));
   }
 }
@@ -203,6 +187,22 @@ function findBlueskyAddPostButton(): HTMLElement | null {
     if (ariaPatterns.some((p) => p.test(aria)) && !(el as HTMLButtonElement).disabled) return el;
   }
   return null;
+}
+
+function waitForBlueskyThreadTextarea(index: number, timeoutMs: number): Promise<HTMLElement | null> {
+  return waitForCondition<HTMLElement>(
+    () => Array.from(document.querySelectorAll<HTMLElement>(BLUESKY_EDITOR_SELECTOR))[index],
+    {
+      timeoutMs,
+      intervalMs: 150,
+      observerInit: {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        characterData: true,
+      },
+    },
+  );
 }
 
 function readBlueskySession(): { accessJwt: string; did: string; handle: string; pdsHost?: string } | null {
@@ -284,24 +284,22 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     const stillOpen = () =>
       document.querySelector('[data-testid="composer"]') ||
       document.querySelector(BLUESKY_EDITOR_SELECTOR);
-    const normalDeadline = Date.now() + 10_000;
-    while (Date.now() < normalDeadline) {
-      if (!stillOpen()) break;
-      await sleep(300);
-    }
-    if (stillOpen()) {
+    const closedQuickly = await waitForCondition<boolean>(() => stillOpen() ? null : true, {
+      timeoutMs: 10_000,
+      intervalMs: 300,
+    });
+    if (!closedQuickly) {
       void browser.runtime.sendMessage({
         type: 'USER_ACTION_REQUIRED',
         platform: 'bluesky',
         reason: 'confirmation',
       }).catch(() => { /* background unavailable: compose remains visible */ });
     }
-    const deadline = Date.now() + 5 * 60_000;
-    while (Date.now() < deadline) {
-      if (!stillOpen()) break;
-      await sleep(1000);
-    }
-    if (stillOpen()) {
+    const closedEventually = closedQuickly || await waitForCondition<boolean>(() => stillOpen() ? null : true, {
+      timeoutMs: 5 * 60_000,
+      intervalMs: 1000,
+    });
+    if (!closedEventually) {
       throw new Error(t('runtimeBlueskyConfirmationTimeout'));
     }
     log.info('Bluesky: post 完了 verify (modal closed)');

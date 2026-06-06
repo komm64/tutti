@@ -3,7 +3,7 @@ import type { ImageAttachment, PostResultMessage } from '../src/messages';
 import { INSTAGRAM_SELECTORS } from '../src/adapters/instagram';
 import { executeMultiStepFlow, type Step } from '../src/utils/step-runner';
 import { injectImages, injectTextIntoElement } from '../src/utils/image';
-import { sleep, waitForElement } from '../src/utils/dom';
+import { sleep, waitForCondition, waitForElement } from '../src/utils/dom';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
 import { t } from '../src/utils/i18n';
@@ -121,8 +121,11 @@ async function runPost(
         // ren.fujimoto.89 では popover 出ずに直接 dialog だが、別アカウントでは
         // popover 経由になる。short wait のあと file input が直接見えれば直接
         // variant、見えなければ popover の "Post" を選ぶ。
-        await sleep(800);
-        if (!document.querySelector(sel.fileInput)) {
+        const directFileInput = await waitForCondition<HTMLInputElement>(
+          () => document.querySelector<HTMLInputElement>(sel.fileInput),
+          { timeoutMs: 800, intervalMs: 100 },
+        );
+        if (!directFileInput) {
           const postItem = findCreateSubmenuItem(['Post', '投稿', 'Publicación', 'Publication']);
           if (postItem) {
             log.info('IG: popover variant detected, clicking "Post" submenu item');
@@ -155,7 +158,6 @@ async function runPost(
         // 横長/縦長の写真が IG default の 1:1 で左右 (or 上下) 見切れるのを回避。
         // 失敗は warn のみで続行 (IG が許す範囲外なら IG 側で勝手に fit させる、
         // ユーザー報告は: 2026-05-17 横長で左右見切れ)。
-        await sleep(800); // Crop dialog 内部 render 待ち
         await selectOriginalCrop();
       },
       settleMs: 200,
@@ -265,16 +267,20 @@ async function runPost(
  * 失敗は warn のみで続行 (= 既存挙動 = 1:1 default)。
  */
 async function selectOriginalCrop(): Promise<void> {
-  const cropBtn = findCropAspectButton();
+  const cropBtn = await waitForCondition<HTMLElement>(findCropAspectButton, {
+    timeoutMs: 800,
+    intervalMs: 100,
+  });
   if (!cropBtn) {
     log.warn('IG: "Select crop" button が Crop dialog に見つかりません (UI 変更?)、default 1:1 で続行');
     return;
   }
   cropBtn.click();
-  await sleep(400);
-  const originalItem = findCropOption([
-    'Original', 'オリジナル', '元のサイズ', '元の比率', 'Original ratio',
-  ]);
+  const originalTexts = ['Original', 'オリジナル', '元のサイズ', '元の比率', 'Original ratio'];
+  const originalItem = await waitForCondition<HTMLElement>(
+    () => findCropOption(originalTexts),
+    { timeoutMs: 1200, intervalMs: 100 },
+  );
   if (!originalItem) {
     log.warn('IG: Crop popover に "Original" 系の選択肢が無い、default 1:1 で続行');
     cropBtn.click(); // popover を閉じる (toggle)
@@ -334,16 +340,15 @@ async function waitForCaptionPopulated(
 ): Promise<boolean> {
   const snippet = text.slice(0, Math.min(20, text.length)).trim();
   if (!snippet) return true;
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
+  const populated = await waitForCondition<boolean>(() => {
     const editors = document.querySelectorAll<HTMLElement>(captionEditorSelector);
     for (const el of editors) {
       const visible = (el.innerText ?? el.textContent ?? '').trim();
       if (visible.includes(snippet)) return true;
     }
-    await sleep(150);
-  }
-  return false;
+    return null;
+  }, { timeoutMs, intervalMs: 150 });
+  return !!populated;
 }
 
 /**
@@ -355,20 +360,20 @@ async function waitForCaptionPopulated(
  * 失敗扱いにする(= step-runner が retry 候補に渡せる)。
  */
 async function waitForShareEnabled(timeoutMs: number): Promise<void> {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
+  const enabled = await waitForCondition<boolean>(() => {
     const share = findDialogButtonByText(['Share', '共有', 'Post']);
     if (share) {
       const ariaDisabled = share.getAttribute('aria-disabled');
       const elDisabled = (share as HTMLButtonElement).disabled;
       if (!elDisabled && ariaDisabled !== 'true') {
         log.info('IG: Share button enable を確認');
-        return;
+        return true;
       }
     }
     // share button 不在は wizard 中の他の step 表示の可能性もあるので polling 継続
-    await sleep(200);
-  }
+    return null;
+  }, { timeoutMs, intervalMs: 200 });
+  if (enabled) return;
   throw new Error(
     'IG: caption 入力後に Share button が enable になりませんでした (Lexical state 反映失敗の可能性)',
   );
@@ -388,20 +393,19 @@ async function waitForShareEnabled(timeoutMs: number): Promise<void> {
  */
 async function verifyInstagramPosted(timeoutMs = 30_000): Promise<void> {
   const ERROR_TEXT_RE = /error|failed|try again|too large|please try|エラー|失敗|もう一度/i;
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
+  const verified = await waitForCondition<boolean>(() => {
     const dialog = document.querySelector<HTMLElement>('[role="dialog"]');
     if (!dialog) {
       // dialog 消失 = post 確定。返却 OK
       log.info('IG: post verified (dialog closed)');
-      return;
+      return true;
     }
     // dialog はまだあるが、success 状態 ("Your post has been shared" 等) に
     // 切り替わっていれば OK
     const txt = (dialog.textContent ?? '').slice(0, 500);
     if (/shared|共有しました|posted/i.test(txt)) {
       log.info('IG: post verified (success message visible)');
-      return;
+      return true;
     }
     // エラー表示が出ている場合は即時 throw
     if (ERROR_TEXT_RE.test(txt)) {
@@ -409,8 +413,9 @@ async function verifyInstagramPosted(timeoutMs = 30_000): Promise<void> {
         `IG: Share 後の dialog にエラー表示が出ました — ${txt.slice(0, 200)}`,
       );
     }
-    await sleep(500);
-  }
+    return null;
+  }, { timeoutMs, intervalMs: 500 });
+  if (verified) return;
   throw new Error(
     `IG: Share click 後 ${timeoutMs / 1000}s 経っても dialog が閉じませんでした(投稿が完了してない可能性、UI が変わった疑い)`,
   );

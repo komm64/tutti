@@ -2,7 +2,7 @@ import { log } from '../src/utils/logger';
 import type { ImageAttachment, PostResultMessage } from '../src/messages';
 import { TUMBLR_SELECTORS, tumblrAdapter } from '../src/adapters/tumblr';
 import { executePostFlow } from '../src/utils/post-flow';
-import { sleep, waitForElement } from '../src/utils/dom';
+import { sleep, waitForCondition, waitForElement } from '../src/utils/dom';
 import { injectTagList, injectTextIntoElement } from '../src/utils/image';
 import { extractHashtags } from '../src/utils/hashtags';
 import { resolveSelectors } from '../src/utils/selector-overrides';
@@ -343,15 +343,11 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
   let confirmed = !!dryRun;
   let url: string | undefined;
   if (!dryRun) {
-    const deadline = Date.now() + 15_000;
-    while (Date.now() < deadline) {
-      if (!document.querySelector(sel.textarea)) {
-        confirmed = true;
-        log.info('Tumblr: post confirmed (composer closed)');
-        break;
-      }
-      await sleep(300);
-    }
+    confirmed = !!await waitForCondition<boolean>(
+      () => document.querySelector(sel.textarea) ? null : true,
+      { timeoutMs: 15_000, intervalMs: 300 },
+    );
+    if (confirmed) log.info('Tumblr: post confirmed (composer closed)');
     if (!confirmed) log.warn('Tumblr: composer did not close after Post click');
     if (confirmed && postingUser) {
       url = await fetchTumblrRecentPostUrl(postingUser.slice(1), text);

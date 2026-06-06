@@ -18,10 +18,10 @@ export function timestampedText(label) {
 
 /**
  * SPA は navigation 直後だと要素が未マウントのことが多い。
- * waitForSelector で 10s タイムアウト付き polling すれば、ログイン済みなのに
+ * waitForSelector で 30s タイムアウト付き polling すれば、ログイン済みなのに
  * 「未ログイン」と誤判定する事故を回避できる (実機 2026-05-13)。
  */
-export async function ensureLoggedIn(page, selector, label, timeoutMs = 10000) {
+export async function ensureLoggedIn(page, selector, label, timeoutMs = 30000) {
   const found = await page.waitForSelector(selector, { timeout: timeoutMs, state: 'attached' })
     .then(() => true)
     .catch(() => false);

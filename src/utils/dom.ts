@@ -6,30 +6,99 @@ export function waitForElement<T extends Element = HTMLElement>(
   selector: string,
   timeoutMs = 5000,
 ): Promise<T | null> {
-  return new Promise((resolve) => {
-    const existing = document.querySelector<T>(selector);
-    if (existing) return resolve(existing);
-
-    const observer = new MutationObserver(() => {
-      const found = document.querySelector<T>(selector);
-      if (found) {
-        observer.disconnect();
-        clearTimeout(timer);
-        resolve(found);
-      }
-    });
-
-    const timer = setTimeout(() => {
-      observer.disconnect();
-      resolve(null);
-    }, timeoutMs);
-
-    observer.observe(document.body, { childList: true, subtree: true });
-  });
+  return waitForCondition<T>(
+    () => document.querySelector<T>(selector),
+    {
+      timeoutMs,
+      root: document.body,
+      observerInit: {
+        childList: true,
+        subtree: true,
+        attributes: true,
+      },
+    },
+  );
 }
 
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export interface WaitForConditionOptions {
+  timeoutMs: number;
+  intervalMs?: number;
+  root?: ParentNode | null;
+  observerInit?: MutationObserverInit | false;
+}
+
+/**
+ * 条件が成立するまで待つ。DOM変化があれば即チェックし、DOM変化が起きない
+ * 状態変化(value/property/location等)も取りこぼさないよう短いintervalでも見る。
+ * timeoutMs は永久待ちを避けるための上限で、条件成立時は即resolveする。
+ */
+export function waitForCondition<T>(
+  predicate: () => T | null | undefined | false,
+  {
+    timeoutMs,
+    intervalMs = 150,
+    root = typeof document !== 'undefined' ? document.body : null,
+    observerInit = {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      characterData: true,
+    },
+  }: WaitForConditionOptions,
+): Promise<T | null> {
+  const existing = predicate();
+  if (existing) return Promise.resolve(existing);
+
+  return new Promise((resolve, reject) => {
+    let done = false;
+    let observer: MutationObserver | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let interval: ReturnType<typeof setInterval> | null = null;
+
+    const finish = (value: T | null): void => {
+      if (done) return;
+      done = true;
+      if (observer) observer.disconnect();
+      if (timer) clearTimeout(timer);
+      if (interval) clearInterval(interval);
+      resolve(value);
+    };
+    const fail = (err: unknown): void => {
+      if (done) return;
+      done = true;
+      if (observer) observer.disconnect();
+      if (timer) clearTimeout(timer);
+      if (interval) clearInterval(interval);
+      reject(err);
+    };
+
+    const check = (): void => {
+      if (done) return;
+      try {
+        const value = predicate();
+        if (value) finish(value);
+      } catch (err) {
+        fail(err);
+      }
+    };
+
+    if (
+      observerInit !== false &&
+      root &&
+      typeof MutationObserver !== 'undefined'
+    ) {
+      observer = new MutationObserver(check);
+      observer.observe(root, observerInit);
+    }
+
+    interval = setInterval(check, intervalMs);
+    timer = setTimeout(() => finish(null), timeoutMs);
+    check();
+  });
 }
 
 /**

@@ -3,7 +3,7 @@ import type { ImageAttachment, PostResultMessage } from '../src/messages';
 import { YOUTUBE_SELECTORS, buildYouTubeTitle } from '../src/adapters/youtube';
 import { executeMultiStepFlow, type Step } from '../src/utils/step-runner';
 import { injectImages, injectTagList, injectTextIntoElement } from '../src/utils/image';
-import { sleep, waitForElement } from '../src/utils/dom';
+import { waitForCondition, waitForElement } from '../src/utils/dom';
 import { extractHashtags } from '../src/utils/hashtags';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
@@ -141,13 +141,12 @@ async function runPost(
       action: async () => {
         // 60s 待機 (動画 upload + metadata mount 込み)
         let textboxes: HTMLElement[] = [];
-        for (let i = 0; i < 60; i++) {
+        await waitForCondition<boolean>(() => {
           textboxes = Array.from(document.querySelectorAll<HTMLElement>(
             'div[id="textbox"][contenteditable="true"]',
           ));
-          if (textboxes.length >= 2) break;
-          await sleep(1000);
-        }
+          return textboxes.length >= 2 ? true : null;
+        }, { timeoutMs: 60_000, intervalMs: 1000 });
         if (textboxes.length < 1) {
           throw new Error(t('runtimeYouTubeTitleMissing'));
         }
@@ -202,7 +201,6 @@ async function runPost(
             // "more" 系のときだけ click (展開済の "less" 状態だと click しない)
             if (/more|もっと/i.test(txt)) {
               showMore.click();
-              await sleep(700);
             }
           }
         } catch (e) {
@@ -286,16 +284,13 @@ async function runPost(
       name: 'set-public',
       action: async () => {
         // Public radio を待つ (Visibility step の DOM mount 待ち)
-        let publicRadio: HTMLElement | null = null;
-        for (let i = 0; i < 20; i++) {
-          publicRadio = document.querySelector<HTMLElement>(sel.publicVisibilityRadio);
-          if (publicRadio) break;
+        const publicRadio = await waitForCondition<HTMLElement>(() => {
+          const direct = document.querySelector<HTMLElement>(sel.publicVisibilityRadio);
+          if (direct) return direct;
           // text fallback: aria-label / textContent で "Public" / "公開" を探す
-          publicRadio = Array.from(document.querySelectorAll<HTMLElement>('tp-yt-paper-radio-button, [role="radio"]'))
+          return Array.from(document.querySelectorAll<HTMLElement>('tp-yt-paper-radio-button, [role="radio"]'))
             .find((r) => /^(Public|公開)$/.test((r.textContent ?? '').trim().split('\n')[0]?.trim() ?? '')) ?? null;
-          if (publicRadio) break;
-          await sleep(500);
-        }
+        }, { timeoutMs: 10_000, intervalMs: 500 });
         if (!publicRadio) {
           throw new Error(t('runtimeYouTubePublicRadioMissing'));
         }
@@ -358,8 +353,7 @@ async function runPost(
  * dashboard の Latest Short から watch URL を補完する。
  */
 async function waitForYouTubePostUrlOrCompletion(timeoutMs = 30_000): Promise<string | null> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
+  const captured = await waitForCondition<string | true>(() => {
     const href = location.href;
     if (/^https:\/\/(?:www\.)?youtube\.com\/(?:watch\?v=|shorts\/)[\w-]+/.test(href)) {
       return href;
@@ -368,8 +362,9 @@ async function waitForYouTubePostUrlOrCompletion(timeoutMs = 30_000): Promise<st
       'ytcp-uploads-dialog, ytcp-video-upload-dialog, ytcp-dialog, ' +
       'tp-yt-paper-dialog[opened], [role="dialog"]',
     );
-    if (!dialog) return null;
-    await sleep(250);
-  }
+    if (!dialog) return true;
+    return null;
+  }, { timeoutMs, intervalMs: 250 });
+  if (typeof captured === 'string') return captured;
   return null;
 }

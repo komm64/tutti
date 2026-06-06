@@ -449,7 +449,8 @@ export default defineContentScript({
             cur = cur.parentElement;
           }
 
-          if (editor && typeof editor.parseEditorState === 'function' && typeof editor.setEditorState === 'function') {
+          const shouldUseDirectLexicalState = /instagram\.com/.test(location.host);
+          if (shouldUseDirectLexicalState && editor && typeof editor.parseEditorState === 'function' && typeof editor.setEditorState === 'function') {
             try {
               console.log('[Tutti inject-helper] Lexical: using editor.setEditorState path');
               // Lexical の標準 state JSON 構造で新 state を組み立て
@@ -504,6 +505,8 @@ export default defineContentScript({
               console.warn('[Tutti inject-helper] Lexical setEditorState failed, falling back to events:', e);
               editor = null; // event-based fallback に流す
             }
+          } else {
+            editor = null; // X 等は framework event path の方が composer state と同期しやすい
           }
 
           if (!editor) {
@@ -559,9 +562,18 @@ export default defineContentScript({
             cancelable: true,
             clipboardData: dt,
           }));
-          try {
-            document.execCommand('insertText', false, text);
-          } catch { /* fallback below verifies the DOM */ }
+          const matchSnippet = text.slice(0, Math.min(16, text.length));
+          const visibleNow = (): string =>
+            (el as HTMLElement).innerText ?? el.textContent ?? '';
+          const pasted = await waitFor(
+            () => matchSnippet === '' || visibleNow().includes(matchSnippet),
+            600,
+          );
+          if (!pasted) {
+            try {
+              document.execCommand('insertText', false, text);
+            } catch { /* fallback below verifies the DOM */ }
+          }
           el.dispatchEvent(new InputEvent('input', {
             bubbles: true, data: text, inputType: 'insertText',
           }));
@@ -621,7 +633,10 @@ export default defineContentScript({
       } else {
         // innerText を優先 (Lexical 等が span ネストする場合に textContent より確実)
         const visible = (el.innerText ?? el.textContent ?? '').trim();
-        ok = visible.length > 0;
+        const expectedSnippet = text.slice(0, Math.min(20, text.length)).trim();
+        ok = expectedSnippet === '' ||
+          visible.includes(expectedSnippet) ||
+          visible.replace(/\s+/g, ' ').includes(expectedSnippet.replace(/\s+/g, ' '));
       }
       return {
         source: RES_TAG,
@@ -749,6 +764,23 @@ export default defineContentScript({
           if (texts.length > 0 && !texts.includes((el.textContent ?? '').trim())) continue;
           if (el.getAttribute('aria-disabled') === 'true' || (el as HTMLButtonElement).disabled) continue;
           console.log(`[Tutti inject-helper] click target matched "${part}"`);
+          if (
+            /^(x|twitter)\.com$/.test(location.hostname) &&
+            (el.getAttribute('data-testid') === 'addButton' || /add post/i.test(el.getAttribute('aria-label') ?? ''))
+          ) {
+            el.focus();
+            const init = {
+              bubbles: true,
+              cancelable: true,
+              composed: true,
+              key: 'Enter',
+              code: 'Enter',
+            };
+            el.dispatchEvent(new KeyboardEvent('keydown', init));
+            el.dispatchEvent(new KeyboardEvent('keypress', init));
+            el.dispatchEvent(new KeyboardEvent('keyup', init));
+            return { source: RES_TAG, id: req.id, ok: true };
+          }
           el.click();
           return { source: RES_TAG, id: req.id, ok: true };
         }

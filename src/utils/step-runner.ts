@@ -28,7 +28,7 @@
  *   - selector / texts / finder の優先順序は executePostFlow と同じ (finder > selector > texts)。
  *   - 単体テストは「dry-run で全 step が走り finalize は click されない」を最低限カバー。
  */
-import { findClickableByText, sleep, waitForElement } from './dom';
+import { findClickableByText, sleep, waitForCondition, waitForElement } from './dom';
 import { maybeConfirmDialog } from './post-flow';
 import { t } from './i18n';
 import { markPostSubmissionStarted } from './post-submission-state';
@@ -221,8 +221,7 @@ export async function waitForStepButton(
   opts: AdvanceSpec,
   timeoutMs = 8000,
 ): Promise<HTMLElement | null> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
+  return await waitForCondition<HTMLElement>(() => {
     const btn = findStepButton(opts);
     if (
       btn &&
@@ -231,7 +230,6 @@ export async function waitForStepButton(
     ) {
       return btn;
     }
-    await sleep(150);
-  }
-  return null;
+    return null;
+  }, { timeoutMs, intervalMs: 150 });
 }

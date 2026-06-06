@@ -4,7 +4,7 @@ import { X_SELECTORS, xAdapter } from '../src/adapters/x';
 import { executePostFlow } from '../src/utils/post-flow';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
-import { sleep, waitForElement } from '../src/utils/dom';
+import { sleep, waitForCondition } from '../src/utils/dom';
 import {
   clickElementInMainWorld,
   getLatestXPostUrlInMainWorld,
@@ -175,7 +175,7 @@ async function executeXInlineThread(
   dryRun: boolean | undefined,
 ): Promise<void> {
   // 最初の textarea が visible になるまで wait (compose UI のロード待ち)
-  const textarea0 = await waitForElement<HTMLElement>(sel.textarea, 8000);
+  const textarea0 = await waitForVisibleXElement(sel.textarea, 8000);
   if (!textarea0) throw new Error(t('runtimeXFirstTextareaMissing'));
 
   // v0.4.97: 画像 → text の順序が重要。 旧 (text→image) は X の Lexical が
@@ -190,7 +190,9 @@ async function executeXInlineThread(
   }
 
   // chunk 0 を retry 付きで inject
-  await injectTextWithRetry(chunks[0]!, sel.textarea, chunks[0]!);
+  const marker0 = `tutti-x-chunk-0-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+  textarea0.setAttribute('data-tutti-marker', marker0);
+  await injectTextWithRetry(chunks[0]!, `[data-tutti-marker="${marker0}"]`, chunks[0]!);
   const composeRoot = textarea0.closest('[role="dialog"]') ?? document;
 
   // 各 chunk を「+」 click → wait → inject の繰り返し。
@@ -308,33 +310,37 @@ function waitForXThreadTextarea(
   index: number,
   timeoutMs: number,
 ): Promise<HTMLElement | undefined> {
-  const existing = getXThreadTextareas(scope)[index];
-  if (existing) return Promise.resolve(existing);
-
-  return new Promise((resolve) => {
-    let done = false;
-    const finish = (target?: HTMLElement) => {
-      if (done) return;
-      done = true;
-      observer.disconnect();
-      clearTimeout(timer);
-      resolve(target);
-    };
-    const check = () => {
-      const target = getXThreadTextareas(scope)[index];
-      if (target) finish(target);
-    };
-    const observer = new MutationObserver(check);
-    const root = scope instanceof Document ? scope.body : scope;
-    observer.observe(root, {
+  return waitForCondition<HTMLElement>(
+    () => getXThreadTextareas(scope)[index],
+    {
+      timeoutMs,
+      intervalMs: 150,
+      root: scope instanceof Document ? scope.body : scope,
+      observerInit: {
       childList: true,
       subtree: true,
       attributes: true,
       attributeFilter: ['data-testid', 'contenteditable', 'role', 'aria-disabled', 'style', 'class'],
-    });
-    const timer = setTimeout(() => finish(), timeoutMs);
-    check();
-  });
+      },
+    },
+  ).then((el) => el ?? undefined);
+}
+
+function waitForVisibleXElement(selector: string, timeoutMs: number): Promise<HTMLElement | undefined> {
+  return waitForCondition<HTMLElement>(
+    () => Array.from(document.querySelectorAll<HTMLElement>(selector)).find(isVisible),
+    {
+      timeoutMs,
+      intervalMs: 150,
+      root: document.body,
+      observerInit: {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['data-testid', 'contenteditable', 'role', 'aria-disabled', 'style', 'class'],
+      },
+    },
+  ).then((el) => el ?? undefined);
 }
 
 async function clickElementMarkedInMainWorld(el: HTMLElement, prefix: string): Promise<void> {
@@ -363,15 +369,23 @@ function findXAddPostButton(scope: ParentNode = document): HTMLElement | null {
 }
 
 async function waitForXAddPostButton(scope: ParentNode, timeoutMs: number): Promise<HTMLElement | null> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
+  return await waitForCondition<HTMLElement>(() => {
     const scoped = findXAddPostButton(scope);
     if (scoped) return scoped;
     const fallback = findXAddPostButton(document);
     if (fallback) return fallback;
-    await sleep(200);
-  }
-  return null;
+    return null;
+  }, {
+    timeoutMs,
+    intervalMs: 200,
+    root: scope instanceof Document ? scope.body : scope,
+    observerInit: {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['data-testid', 'aria-label', 'aria-disabled', 'disabled', 'style', 'class'],
+    },
+  });
 }
 
 function describeButton(el: HTMLElement): string {

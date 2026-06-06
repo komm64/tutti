@@ -1,7 +1,7 @@
 import { log } from '../src/utils/logger';
 import type { ImageAttachment, PostResultMessage } from '../src/messages';
 import { MISSKEY_SELECTORS, misskeyAdapter } from '../src/adapters/misskey';
-import { sleep } from '../src/utils/dom';
+import { sleep, waitForCondition } from '../src/utils/dom';
 import { executePostFlow } from '../src/utils/post-flow';
 import { clickElementInMainWorld } from '../src/utils/image';
 import { resolveSelectors } from '../src/utils/selector-overrides';
@@ -82,11 +82,11 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     clickPostButton: () => clickElementInMainWorld('button, [role="button"]', ['投稿', 'ノート', 'Note', 'Post', 'Submit']),
   });
   if (!dryRun) {
-    await sleep(30_000);
-    const draftStillOpen = location.pathname === '/share' &&
-      Array.from(document.querySelectorAll<HTMLTextAreaElement>('textarea'))
-        .some((textarea) => textarea.value.includes(text));
-    if (draftStillOpen) {
+    const closed = await waitForCondition<boolean>(
+      () => isMisskeyDraftOpen(text) ? null : true,
+      { timeoutMs: 30_000, intervalMs: 500 },
+    );
+    if (!closed && isMisskeyDraftOpen(text)) {
       await clickElementInMainWorld('button, [role="button"]', ['投稿', 'ノート', 'Note', 'Post', 'Submit']);
     }
   }
@@ -159,4 +159,13 @@ async function fetchMisskeyRecentNoteUrl(text: string): Promise<string | undefin
     log.warn(`misskey URL capture failed: ${e instanceof Error ? e.message : String(e)}`);
   }
   return undefined;
+}
+
+function isMisskeyDraftOpen(text: string): boolean {
+  if (location.pathname !== '/share') return false;
+  const textareas = Array.from(document.querySelectorAll<HTMLTextAreaElement>('textarea'));
+  if (text.trim()) {
+    return textareas.some((textarea) => textarea.value.includes(text));
+  }
+  return textareas.length > 0;
 }

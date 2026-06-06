@@ -9,7 +9,7 @@ import {
 } from '../src/adapters/pixiv';
 import { executeMultiStepFlow, type Step } from '../src/utils/step-runner';
 import { injectImages, injectTagList, injectTextIntoElement } from '../src/utils/image';
-import { sleep } from '../src/utils/dom';
+import { waitForCondition } from '../src/utils/dom';
 import { waitForPostUrl } from '../src/utils/url-capture';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
@@ -233,14 +233,14 @@ async function runPost(
           reason: 'captcha',
         }).catch(() => { /* background unavailable: in-page banner remains */ });
 
-        const deadline = Date.now() + 5 * 60 * 1000;
-        while (Date.now() < deadline) {
-          await new Promise((r) => setTimeout(r, 1000));
-          if (!isPostDisabled()) {
-            banner.textContent = t('runtimePixivSecurityResuming');
-            setTimeout(() => banner.remove(), 2000);
-            return;
-          }
+        const resolved = await waitForCondition<boolean>(() => {
+          if (!isPostDisabled()) return true;
+          return null;
+        }, { timeoutMs: 5 * 60 * 1000, intervalMs: 1000 });
+        if (resolved) {
+          banner.textContent = t('runtimePixivSecurityResuming');
+          setTimeout(() => banner.remove(), 2000);
+          return;
         }
         banner.textContent = t('runtimePixivSecurityTimeout');
         throw new Error(t('runtimePixivSecurityTimeout'));

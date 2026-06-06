@@ -2,6 +2,10 @@ import type { PlatformId } from '../messages';
 import { splitText } from './split';
 
 const X_URL_RE = /https?:\/\/[^\s]+/giu;
+const GRAPHEME_SEGMENTER = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+const EXTENDED_PICTOGRAPHIC_RE = /\p{Extended_Pictographic}/u;
+const URL_PLACEHOLDER_START = 0xe000;
+const URL_PLACEHOLDER_END = 0xf8ff;
 const X_SINGLE_WEIGHT_RANGES: Array<[number, number]> = [
   [0, 4351],
   [8192, 8205],
@@ -37,8 +41,8 @@ export function measureXText(text: string): number {
 
 function measureXPlainText(text: string): number {
   let total = 0;
-  for (const grapheme of new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(text)) {
-    if (/\p{Extended_Pictographic}/u.test(grapheme.segment)) {
+  for (const grapheme of GRAPHEME_SEGMENTER.segment(text)) {
+    if (EXTENDED_PICTOGRAPHIC_RE.test(grapheme.segment)) {
       total += 2;
       continue;
     }
@@ -50,7 +54,7 @@ function measureXPlainText(text: string): number {
 }
 
 function measureGraphemes(text: string): number {
-  return Array.from(new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(text)).length;
+  return Array.from(GRAPHEME_SEGMENTER.segment(text)).length;
 }
 
 export function measureTextForPlatform(platform: PlatformId, text: string): number {
@@ -60,5 +64,55 @@ export function measureTextForPlatform(platform: PlatformId, text: string): numb
 }
 
 export function splitTextForPlatform(platform: PlatformId, text: string, limit: number): string[] {
+  if (platform === 'x') return splitXText(text, limit);
   return splitText(text, limit, (value) => measureTextForPlatform(platform, value));
+}
+
+function splitXText(text: string, limit: number): string[] {
+  const replacements: Array<{ placeholder: string; url: string }> = [];
+  let nextPlaceholder = URL_PLACEHOLDER_START;
+  const compressed = text.replace(X_URL_RE, (url) => {
+    while (nextPlaceholder <= URL_PLACEHOLDER_END) {
+      const placeholder = String.fromCodePoint(nextPlaceholder++);
+      if (text.includes(placeholder)) continue;
+      replacements.push({ placeholder, url });
+      return placeholder;
+    }
+    return url;
+  });
+
+  if (replacements.length === 0) {
+    return splitText(text, limit, measureXText);
+  }
+
+  const placeholderWeights = new Map(replacements.map(({ placeholder }) => [placeholder, 23]));
+  const chunks = splitText(compressed, limit, (value) => measureCompressedXText(value, placeholderWeights));
+  return chunks.map((chunk) => restoreUrlPlaceholders(chunk, replacements));
+}
+
+function measureCompressedXText(text: string, placeholderWeights: Map<string, number>): number {
+  let total = 0;
+  let plain = '';
+  for (const grapheme of GRAPHEME_SEGMENTER.segment(text)) {
+    const placeholderWeight = placeholderWeights.get(grapheme.segment);
+    if (placeholderWeight === undefined) {
+      plain += grapheme.segment;
+      continue;
+    }
+    total += measureXText(plain);
+    total += placeholderWeight;
+    plain = '';
+  }
+  return total + measureXText(plain);
+}
+
+function restoreUrlPlaceholders(
+  text: string,
+  replacements: Array<{ placeholder: string; url: string }>,
+): string {
+  let restored = text;
+  for (const { placeholder, url } of replacements) {
+    restored = restored.replaceAll(placeholder, url);
+  }
+  return restored;
 }

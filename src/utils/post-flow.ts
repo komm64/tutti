@@ -2,6 +2,7 @@ import type { ImageAttachment } from '../messages';
 import {
   findClickableByText,
   sleep,
+  waitForCondition,
   waitForElement,
 } from './dom';
 import { dropImages, injectImages, injectTextIntoElement } from './image';
@@ -149,20 +150,17 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
     ? postButtonTimeoutMs
     : (hasVideo ? Math.max(postButtonTimeoutMs, 120000) : postButtonTimeoutMs);
 
-  let button: HTMLElement | null = null;
   let lastFound: HTMLElement | null = null;
-  const findStart = Date.now();
-  while (Date.now() - findStart < effectiveTimeoutMs) {
+  const button = await waitForCondition<HTMLElement>(() => {
     const candidate = findButton();
     if (candidate) {
       lastFound = candidate;
       if (!isDisabled(candidate)) {
-        button = candidate;
-        break;
+        return candidate;
       }
     }
-    await sleep(300);
-  }
+    return null;
+  }, { timeoutMs: effectiveTimeoutMs, intervalMs: 300 });
   if (!button) {
     if (!lastFound) {
       throw new Error(
@@ -212,10 +210,9 @@ export async function maybeConfirmDialog(texts: string[], graceMs = 800): Promis
     'tp-yt-paper-dialog', // YouTube Studio polymer dialog
   ];
   const start = Date.now();
-  const deadline = start + 8000;
   let lastSeenDialog: HTMLElement | null = null;
   let lastSeenButtonTexts: string[] = [];
-  while (Date.now() < deadline) {
+  await waitForCondition<boolean>(() => {
     for (const sel of DIALOG_SELECTORS) {
       const dialog = document.querySelector<HTMLElement>(sel);
       if (!dialog) continue;
@@ -228,15 +225,15 @@ export async function maybeConfirmDialog(texts: string[], graceMs = 800): Promis
         if (target && !(target as HTMLButtonElement).disabled) {
           console.log(`[Tutti] confirm dialog: clicking "${wanted}"`);
           target.click();
-          return;
+          return true;
         }
       }
     }
     // 通常ケースでは確認 dialog は出ない。短い grace 後に先へ進み、
     // dialog を一度でも見た場合だけ disabled → enabled の変化を最大 8s 待つ。
-    if (!lastSeenDialog && Date.now() - start >= graceMs) return;
-    await sleep(150);
-  }
+    if (!lastSeenDialog && Date.now() - start >= graceMs) return true;
+    return null;
+  }, { timeoutMs: 8000, intervalMs: 150 });
   // dialog が居て texts が全部空振りした場合: auto-triage の手掛かりとして
   // 観測した button text を warn log に残す (CWS / users 側で再現したときに
   // diagnostics で button text が分かるようになる)
