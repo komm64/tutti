@@ -44,7 +44,7 @@
     "localUsers": "<strong>最后所见用户名</strong> (<code>chrome.storage.local</code>): 各 SNS 当前登录的用户名,显示在 popup 中以便您确认哪个账号将接收发布。仅设备本地。",
     "localHistory": "<strong>发布历史</strong> (<code>chrome.storage.local</code>): 最近 20 次发布: 文本的前 80 个字符、目标平台、每个平台的成功/失败状态、时间戳。仅设备本地。",
     "localCreds": "<strong>API 凭据</strong> (<code>chrome.storage.local</code>): 仅当您为 Bluesky / Mastodon / Misskey 明确启用官方 API 路径时存储: 您的 Bluesky app password 或 Mastodon / Misskey access token。<strong>仅设备本地;绝不通过 Chrome Sync 复制;绝不传输至任何开发者服务器。</strong> 可从设置向导中删除。",
-    "localSelectors": "<strong>选择器覆盖缓存</strong> (<code>chrome.storage.local</code>): 从您在设置中配置的 URL 获取的选择器热修复数据 (默认: Tutti 在 GitHub Pages 上的公共 <code>selectors.json</code>)。",
+    "localSelectors": "<strong>选择器覆盖缓存</strong> (<code>chrome.storage.local</code>): 从您在设置中配置的 URL 获取的选择器热修复数据 (default: <code>https://tutti.komm64.com/selectors.json</code>)。",
     "localVideoCap": "<strong>视频上传上限缓存</strong> (<code>chrome.storage.local</code>): 针对每账号视频上传上限 (例如 Bluesky) 的 API 探测结果。仅数值,不含凭据。",
     "localWipe": "卸载扩展或清除 Chrome 的扩展存储即可随时擦除以上所有数据。",
     "h2Perms": "3. 所用权限",

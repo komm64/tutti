@@ -8,7 +8,7 @@ Tutti, bir kez yazıp aynı gönderiyi tek tıklamayla tüm sosyal ağlarınıza
 
 **Gönderi içeriğiniz asla üçüncü taraf sunucuya dokunmaz.**
 
-🔒 [Gizlilik politikası](https://komm64.github.io/tutti/)
+🔒 [Gizlilik politikası](https://tutti.komm64.com/privacy.html)
 
 ## Özellikler
 
@@ -75,13 +75,13 @@ Yayınlandı (Unlisted): [Web Store'da Tutti](https://chromewebstore.google.com/
 
 ## Destek
 
-Sorular, hata raporları, özellik istekleri: **[komm64.github.io/tutti/support.html](https://komm64.github.io/tutti/support.html)**
+Sorular, hata raporları, özellik istekleri: **[tutti.komm64.com/support.html](https://tutti.komm64.com/support.html)**
 
 Veya **contact@komm64.com**'a e-posta gönderin.
 
 ## Gizlilik
 
-Gönderi metni, resimler ve video **tamamen tarayıcınızın içinde** işlenir — asla herhangi bir üçüncü taraf sunucuya gönderilmez. Ayrıntılar için [gizlilik politikası](https://komm64.github.io/tutti/)na bakın.
+Gönderi metni, resimler ve video **tamamen tarayıcınızın içinde** işlenir — asla herhangi bir üçüncü taraf sunucuya gönderilmez. Ayrıntılar için [gizlilik politikası](https://tutti.komm64.com/privacy.html)na bakın.
 
 ## Lisans
 

@@ -37,7 +37,7 @@ ${s.intro}
 
 **${s.noBackendBold}**
 
-🔒 [${s.privacyPolicyLink}](https://komm64.github.io/tutti/)
+🔒 [${s.privacyPolicyLink}](https://tutti.komm64.com/privacy.html)
 
 ## ${s.h2Features}
 

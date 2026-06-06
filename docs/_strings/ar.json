@@ -44,7 +44,7 @@
     "localUsers": "<strong>أسماء المستخدمين التي شوهدت مؤخرًا</strong> (<code>chrome.storage.local</code>): اسم المستخدم المسجل حاليًا على كل SNS، يُعرض في النافذة المنبثقة حتى تتمكن من تأكيد الحساب الذي سيتلقى المنشور. محلية فقط للجهاز.",
     "localHistory": "<strong>سجل المنشورات</strong> (<code>chrome.storage.local</code>): آخر 20 منشورًا: أول 80 حرفًا من النص، المنصات المستهدفة، النجاح/الفشل لكل منصة، والطابع الزمني. محلية فقط للجهاز.",
     "localCreds": "<strong>بيانات اعتماد API</strong> (<code>chrome.storage.local</code>): فقط إذا قمت بتمكين مسار API الرسمي صراحةً لـ Bluesky / Mastodon / Misskey: Bluesky app password أو رمز الوصول الخاص بـ Mastodon / Misskey. <strong>محلية فقط للجهاز؛ لا يتم نسخها أبدًا عبر Chrome Sync؛ لا يتم نقلها أبدًا إلى أي خادم مطور.</strong> يمكن إزالتها من معالج الإعدادات.",
-    "localSelectors": "<strong>ذاكرة التخزين المؤقت لتجاوز المحددات</strong> (<code>chrome.storage.local</code>): بيانات hot-fix للمحددات تم جلبها من عنوان URL الذي قمت بتكوينه في الإعدادات (افتراضيًا: <code>selectors.json</code> العام على GitHub Pages الخاص بـ Tutti).",
+    "localSelectors": "<strong>ذاكرة التخزين المؤقت لتجاوز المحددات</strong> (<code>chrome.storage.local</code>): بيانات hot-fix للمحددات تم جلبها من عنوان URL الذي قمت بتكوينه في الإعدادات (default: <code>https://tutti.komm64.com/selectors.json</code>).",
     "localVideoCap": "<strong>ذاكرة التخزين المؤقت لحد رفع الفيديو</strong> (<code>chrome.storage.local</code>): نتيجة استكشاف API لحدود رفع الفيديو لكل حساب (مثل Bluesky). القيم الرقمية فقط؛ بدون بيانات اعتماد.",
     "localWipe": "يمكن مسح كل هذا في أي وقت عن طريق إلغاء تثبيت الإضافة أو مسح تخزين الإضافات الخاص بـ Chrome.",
     "h2Perms": "3. الأذونات المستخدمة",

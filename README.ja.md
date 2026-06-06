@@ -10,7 +10,7 @@
 自動圧縮してから送信します。
 **投稿内容は第三者サーバーを一切経由しません。**
 
-🔒 [プライバシーポリシー](https://komm64.github.io/tutti/)
+🔒 [プライバシーポリシー](https://tutti.komm64.com/privacy.html)
 
 ![Tutti の概要](./docs/screenshots/01-overview-1280x800.png)
 
@@ -74,7 +74,7 @@ adapter 実装は済んでいるが実投稿の動作確認が浅いものを「
 
 ### Chrome Web Store
 
-審査中 (v0.4.57、2026-05 申請)。承認され次第ここに store URL を掲示します。
+公開済み (Unlisted): [Chrome Web Store の Tutti](https://chromewebstore.google.com/detail/tutti/mcjfgdcffjfhkcepfpnifcpknlddmbpe)
 
 ### 開発版
 
@@ -89,7 +89,7 @@ adapter 実装は済んでいるが実投稿の動作確認が浅いものを「
 
 投稿テキスト・画像・動画は**ユーザーのブラウザ内でのみ**処理され、
 第三者のサーバーには送信されません。
-詳細は[プライバシーポリシー](https://komm64.github.io/tutti/)。
+詳細は[プライバシーポリシー](https://tutti.komm64.com/privacy.html)。
 
 ## ライセンス
 
@@ -154,9 +154,11 @@ public/
   _locales/{ja,en}/messages.json - 翻訳
   ffmpeg/                        - ffmpeg.wasm core / wasm (postinstall でコピー)
 docs/
-  index.html                     - GitHub Pages 用プライバシーページ
+  index.html                     - 公開サイトのトップページ
+  privacy.html                   - プライバシーポリシーページ
+  support.html                   - サポート / FAQ ページ
   platform-matrix.md             - 11 ネットワークの SoT (制約・検証状態)
-  selectors.json                 - selector hot-fix の配信元 (GH Pages)
+  selectors.json                 - selector hot-fix の配信元
   store-listing.md               - Web Store 申請ドラフト
 scripts/
   e2e/                           - 実投稿 E2E (Playwright / puppeteer-core CDP attach)

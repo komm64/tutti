@@ -57,7 +57,7 @@ Tutti drives each network's web compose page using your existing browser session
 Currently supported networks: X, Bluesky, Threads, Mastodon, Misskey, Tumblr.
 
 Source code: https://github.com/komm64/tutti
-Privacy policy: https://komm64.github.io/tutti/
+Privacy policy: https://tutti.komm64.com/privacy.html
 ----- COPY UNTIL HERE -----
 
 
@@ -91,7 +91,7 @@ Tutti は各 SNS の Web 投稿ページを既存ログインのまま自動操�
 対応 SNS: X, Bluesky, Threads, Mastodon, Misskey, Tumblr。
 
 ソースコード: https://github.com/komm64/tutti
-プライバシーポリシー: https://komm64.github.io/tutti/
+プライバシーポリシー: https://tutti.komm64.com/privacy.html
 ----- COPY UNTIL HERE -----
 
 

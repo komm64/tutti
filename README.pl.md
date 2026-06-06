@@ -8,7 +8,7 @@ Tutti pozwala napisać raz i rozesłać ten sam post do wszystkich Twoich sieci 
 
 **Zawartość Twoich postów nigdy nie dotyka żadnego serwera trzeciej strony.**
 
-🔒 [Polityka prywatności](https://komm64.github.io/tutti/)
+🔒 [Polityka prywatności](https://tutti.komm64.com/privacy.html)
 
 ## Funkcje
 
@@ -75,13 +75,13 @@ Pobierz najnowszy zip z [Releases](https://github.com/komm64/tutti/releases), na
 
 ## Pomoc
 
-Pytania, zgłoszenia błędów, prośby o funkcje: **[komm64.github.io/tutti/support.html](https://komm64.github.io/tutti/support.html)**
+Pytania, zgłoszenia błędów, prośby o funkcje: **[tutti.komm64.com/support.html](https://tutti.komm64.com/support.html)**
 
 Lub wyślij e-mail na **contact@komm64.com**.
 
 ## Prywatność
 
-Tekst postów, obrazy i wideo są przetwarzane **całkowicie wewnątrz Twojej przeglądarki** — nigdy nie są wysyłane do żadnego serwera trzeciej strony. Zobacz [politykę prywatności](https://komm64.github.io/tutti/) po szczegóły.
+Tekst postów, obrazy i wideo są przetwarzane **całkowicie wewnątrz Twojej przeglądarki** — nigdy nie są wysyłane do żadnego serwera trzeciej strony. Zobacz [politykę prywatności](https://tutti.komm64.com/privacy.html) po szczegóły.
 
 ## Licencja
 

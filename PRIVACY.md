@@ -1,7 +1,7 @@
 # Tutti — Privacy Policy
 
 Japanese version: [PRIVACY.ja.md](./PRIVACY.ja.md)
-Web version: <https://komm64.github.io/tutti/privacy.html>
+Web version: <https://tutti.komm64.com/privacy.html>
 
 Last updated: 2026-05-23 (v0.5.0)
 
@@ -81,7 +81,7 @@ Nothing is transmitted off-device by Tutti.
   to any developer server.** Removable from the Settings wizard.
 - **Selector override cache** (`chrome.storage.local`): Selector hot-fix
   data fetched from the URL you configured in Settings (default: the public
-  `selectors.json` on Tutti's GitHub Pages).
+  `selectors.json` at <https://tutti.komm64.com/selectors.json>).
 - **Video upload limit cache** (`chrome.storage.local`): Result of API
   probes for per-account video upload caps (e.g., Bluesky). Numeric values
   only; no credentials.
@@ -115,4 +115,4 @@ each service's own terms of use.
 ## 6. Changes to this policy
 
 Updates to this policy are communicated by updating this file and the web
-version at <https://komm64.github.io/tutti/privacy.html>.
+version at <https://tutti.komm64.com/privacy.html>.

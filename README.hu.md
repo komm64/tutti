@@ -8,7 +8,7 @@ A Tutti lehetővé teszi, hogy egyszer írjon, és egyetlen kattintással ugyana
 
 **A bejegyzései tartalma soha nem érint harmadik fél szerverét.**
 
-🔒 [Adatvédelmi szabályzat](https://komm64.github.io/tutti/)
+🔒 [Adatvédelmi szabályzat](https://tutti.komm64.com/privacy.html)
 
 ## Funkciók
 
@@ -75,13 +75,13 @@ Töltse le a legújabb zip-et a [Releases](https://github.com/komm64/tutti/relea
 
 ## Támogatás
 
-Kérdések, hibajelentések, funkciókérések: **[komm64.github.io/tutti/support.html](https://komm64.github.io/tutti/support.html)**
+Kérdések, hibajelentések, funkciókérések: **[tutti.komm64.com/support.html](https://tutti.komm64.com/support.html)**
 
 Vagy küldjön e-mailt a **contact@komm64.com** címre.
 
 ## Adatvédelem
 
-A bejegyzés szövege, képei és videója **teljesen a böngészőjében** feldolgozódik — soha nem küldjük el harmadik fél szerverére. Részletekért lásd az [adatvédelmi szabályzatot](https://komm64.github.io/tutti/).
+A bejegyzés szövege, képei és videója **teljesen a böngészőjében** feldolgozódik — soha nem küldjük el harmadik fél szerverére. Részletekért lásd az [adatvédelmi szabályzatot](https://tutti.komm64.com/privacy.html).
 
 ## Licenc
 

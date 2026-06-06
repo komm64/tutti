@@ -44,7 +44,7 @@
     "localUsers": "<strong>마지막으로 확인된 사용자명</strong> (<code>chrome.storage.local</code>): 각 SNS의 현재 로그인된 사용자명. 어느 계정이 게시물을 받을지 확인할 수 있도록 popup에 표시됩니다. 기기 로컬만.",
     "localHistory": "<strong>게시 기록</strong> (<code>chrome.storage.local</code>): 최근 20개의 게시물: 텍스트의 처음 80자, 대상 플랫폼, 플랫폼별 성공/실패 상태, 타임스탬프. 기기 로컬만.",
     "localCreds": "<strong>API 자격 증명</strong> (<code>chrome.storage.local</code>): Bluesky / Mastodon / Misskey의 공식 API 경로를 명시적으로 활성화한 경우에만 저장: 귀하의 Bluesky app password 또는 Mastodon / Misskey access token. <strong>기기 로컬만; Chrome Sync로 복제되지 않음; 어떠한 개발자 서버에도 전송되지 않음.</strong> 설정 마법사에서 제거할 수 있습니다.",
-    "localSelectors": "<strong>선택자 오버라이드 캐시</strong> (<code>chrome.storage.local</code>): 설정에서 구성한 URL에서 가져온 선택자 핫픽스 데이터 (기본값: Tutti의 GitHub Pages에 있는 공개 <code>selectors.json</code>).",
+    "localSelectors": "<strong>선택자 오버라이드 캐시</strong> (<code>chrome.storage.local</code>): 설정에서 구성한 URL에서 가져온 선택자 핫픽스 데이터 (default: <code>https://tutti.komm64.com/selectors.json</code>).",
     "localVideoCap": "<strong>동영상 업로드 한도 캐시</strong> (<code>chrome.storage.local</code>): 계정별 동영상 업로드 한도 (예: Bluesky)에 대한 API 프로브 결과. 숫자 값만; 자격 증명 없음.",
     "localWipe": "확장 프로그램을 제거하거나 Chrome의 확장 프로그램 저장소를 지우면 언제든지 모두 완전히 삭제할 수 있습니다.",
     "h2Perms": "3. 사용 권한",

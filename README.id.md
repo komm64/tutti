@@ -8,7 +8,7 @@ Tutti memungkinkan Anda menulis sekali dan menyiarkan postingan yang sama ke sem
 
 **Konten postingan Anda tidak pernah menyentuh server pihak ketiga mana pun.**
 
-🔒 [Kebijakan privasi](https://komm64.github.io/tutti/)
+🔒 [Kebijakan privasi](https://tutti.komm64.com/privacy.html)
 
 ## Fitur
 
@@ -75,13 +75,13 @@ Unduh zip terbaru dari [Releases](https://github.com/komm64/tutti/releases), kem
 
 ## Dukungan
 
-Pertanyaan, laporan bug, permintaan fitur: **[komm64.github.io/tutti/support.html](https://komm64.github.io/tutti/support.html)**
+Pertanyaan, laporan bug, permintaan fitur: **[tutti.komm64.com/support.html](https://tutti.komm64.com/support.html)**
 
 Atau email **contact@komm64.com**.
 
 ## Privasi
 
-Teks postingan, gambar, dan video diproses **sepenuhnya di dalam browser Anda** — tidak pernah dikirim ke server pihak ketiga mana pun. Lihat [kebijakan privasi](https://komm64.github.io/tutti/) untuk detail.
+Teks postingan, gambar, dan video diproses **sepenuhnya di dalam browser Anda** — tidak pernah dikirim ke server pihak ketiga mana pun. Lihat [kebijakan privasi](https://tutti.komm64.com/privacy.html) untuk detail.
 
 ## Lisensi
 

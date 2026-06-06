@@ -113,7 +113,7 @@ const DEFAULT_SETTINGS: Settings = {
   mastodonInstance: 'https://mastodon.social',
   misskeyInstance: 'https://misskey.io',
   autoPost: false,
-  // hot-fix endpoint: GitHub Pages で配信される `selectors.json`。
+  // hot-fix endpoint: public site で配信される `selectors.json`。
   // 各 SNS の UI 変更で selector が壊れたとき、拡張更新を待たず自動 PR
   // (auto-triage.yml) のマージで全ユーザーに反映される。
   // 自分の運用 (selectorOverrideUrl 空・自社相当) ではない一般ユーザーは

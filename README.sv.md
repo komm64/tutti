@@ -8,7 +8,7 @@ Tutti låter dig skriva en gång och sända samma inlägg till alla dina sociala
 
 **Ditt inläggsinnehåll rör aldrig någon tredjepartsserver.**
 
-🔒 [Integritetspolicy](https://komm64.github.io/tutti/)
+🔒 [Integritetspolicy](https://tutti.komm64.com/privacy.html)
 
 ## Funktioner
 
@@ -75,13 +75,13 @@ Ladda ner senaste zip-filen från [Releases](https://github.com/komm64/tutti/rel
 
 ## Support
 
-Frågor, buggrapporter, funktionsförfrågningar: **[komm64.github.io/tutti/support.html](https://komm64.github.io/tutti/support.html)**
+Frågor, buggrapporter, funktionsförfrågningar: **[tutti.komm64.com/support.html](https://tutti.komm64.com/support.html)**
 
 Eller mejla **contact@komm64.com**.
 
 ## Integritet
 
-Inläggstext, bilder och video bearbetas **helt inom din webbläsare** — de skickas aldrig till någon tredjepartsserver. Se [integritetspolicyn](https://komm64.github.io/tutti/) för detaljer.
+Inläggstext, bilder och video bearbetas **helt inom din webbläsare** — de skickas aldrig till någon tredjepartsserver. Se [integritetspolicyn](https://tutti.komm64.com/privacy.html) för detaljer.
 
 ## Licens
 

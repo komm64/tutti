@@ -56,8 +56,8 @@ recommending to the broader audience. Track here, not in scattered TODOs.
 ## Documentation
 
 - [x] README in English (`README.md`) + JP (`README.ja.md`)
-- [x] Support page in English (`docs/support.html`) + JP (`docs/support.ja.html`)
-- [x] Privacy page (`docs/index.html`)
+- [x] Support page (`docs/support.html`)
+- [x] Privacy page (`docs/privacy.html`)
 - [x] `docs/platform-matrix.md` reflects current SNS status / limits
 - [x] CHANGELOG.md covers v0.4.x bump history
 - [ ] User-visible feature list in store listing matches reality (post-verify,

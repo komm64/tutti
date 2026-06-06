@@ -8,7 +8,7 @@ Tutti vám umožní napsat jednou a rozeslat stejný příspěvek do všech vaš
 
 **Obsah vašich příspěvků se nikdy nedotkne žádného serveru třetí strany.**
 
-🔒 [Zásady ochrany soukromí](https://komm64.github.io/tutti/)
+🔒 [Zásady ochrany soukromí](https://tutti.komm64.com/privacy.html)
 
 ## Funkce
 
@@ -75,13 +75,13 @@ Stáhněte nejnovější zip z [Releases](https://github.com/komm64/tutti/releas
 
 ## Podpora
 
-Dotazy, hlášení chyb, požadavky na funkce: **[komm64.github.io/tutti/support.html](https://komm64.github.io/tutti/support.html)**
+Dotazy, hlášení chyb, požadavky na funkce: **[tutti.komm64.com/support.html](https://tutti.komm64.com/support.html)**
 
 Nebo pište na **contact@komm64.com**.
 
 ## Soukromí
 
-Text příspěvků, obrázky a video jsou zpracovávány **zcela uvnitř vašeho prohlížeče** — nikdy nejsou odesílány na žádný server třetí strany. Podrobnosti viz [zásady ochrany soukromí](https://komm64.github.io/tutti/).
+Text příspěvků, obrázky a video jsou zpracovávány **zcela uvnitř vašeho prohlížeče** — nikdy nejsou odesílány na žádný server třetí strany. Podrobnosti viz [zásady ochrany soukromí](https://tutti.komm64.com/privacy.html).
 
 ## Licence
 

@@ -44,7 +44,7 @@
     "localUsers": "<strong>ชื่อผู้ใช้ที่เห็นล่าสุด</strong> (<code>chrome.storage.local</code>): ชื่อผู้ใช้ที่เข้าสู่ระบบปัจจุบันในแต่ละ SNS แสดงใน popup เพื่อให้คุณยืนยันว่าบัญชีใดจะรับโพสต์ เฉพาะในอุปกรณ์เท่านั้น",
     "localHistory": "<strong>ประวัติโพสต์</strong> (<code>chrome.storage.local</code>): 20 โพสต์ล่าสุด: 80 อักขระแรกของข้อความ, แพลตฟอร์มเป้าหมาย, สำเร็จ/ล้มเหลวตามแพลตฟอร์ม, และตราเวลา เฉพาะในอุปกรณ์เท่านั้น",
     "localCreds": "<strong>ข้อมูลรับรอง API</strong> (<code>chrome.storage.local</code>): เฉพาะเมื่อคุณเปิดใช้งานเส้นทาง API อย่างเป็นทางการสำหรับ Bluesky / Mastodon / Misskey อย่างชัดเจน: Bluesky app password ของคุณ หรือโทเค็นการเข้าถึง Mastodon / Misskey <strong>เฉพาะในอุปกรณ์เท่านั้น; ไม่เคยจำลองผ่าน Chrome Sync; ไม่เคยส่งไปยังเซิร์ฟเวอร์ผู้พัฒนาใด ๆ</strong> สามารถลบได้จากตัวช่วยตั้งค่า",
-    "localSelectors": "<strong>แคชการแทนที่ตัวเลือก</strong> (<code>chrome.storage.local</code>): ข้อมูล hot-fix ตัวเลือกที่ดึงจาก URL ที่คุณกำหนดในการตั้งค่า (ค่าเริ่มต้น: <code>selectors.json</code> สาธารณะบน GitHub Pages ของ Tutti)",
+    "localSelectors": "<strong>แคชการแทนที่ตัวเลือก</strong> (<code>chrome.storage.local</code>): ข้อมูล hot-fix ตัวเลือกที่ดึงจาก URL ที่คุณกำหนดในการตั้งค่า (default: <code>https://tutti.komm64.com/selectors.json</code>)",
     "localVideoCap": "<strong>แคชขีดจำกัดการอัปโหลดวิดีโอ</strong> (<code>chrome.storage.local</code>): ผลลัพธ์ของการตรวจสอบ API สำหรับขีดจำกัดการอัปโหลดวิดีโอต่อบัญชี (เช่น Bluesky) เฉพาะค่าตัวเลข; ไม่มีข้อมูลรับรอง",
     "localWipe": "สิ่งเหล่านี้ทั้งหมดสามารถลบได้ตลอดเวลาโดยการถอนการติดตั้งส่วนขยายหรือล้างพื้นที่จัดเก็บข้อมูลส่วนขยายของ Chrome",
     "h2Perms": "3. การอนุญาตที่ใช้",

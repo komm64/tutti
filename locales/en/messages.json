@@ -469,7 +469,7 @@
     "placeholders": { "N": { "content": "$1" } }
   },
 
-  "appBrandLinkTooltip": { "message": "Open the Tutti home page (komm64.github.io/tutti)" },
+  "appBrandLinkTooltip": { "message": "Open the Tutti home page (tutti.komm64.com)" },
 
   "verifyIssueCaptionMissing": { "message": "Post text was not found in the published page (possible silent strip by the social network)" },
   "verifyIssueCaptionMismatch": {

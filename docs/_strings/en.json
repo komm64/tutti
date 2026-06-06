@@ -44,7 +44,7 @@
     "localUsers": "<strong>Last seen usernames</strong> (<code>chrome.storage.local</code>): The currently-logged-in username on each SNS, displayed in the popup so you can confirm which account will receive the post. Device-local only.",
     "localHistory": "<strong>Post history</strong> (<code>chrome.storage.local</code>): The last 20 posts: first 80 characters of text, target platforms, success/failure per platform, and timestamp. Device-local only.",
     "localCreds": "<strong>API credentials</strong> (<code>chrome.storage.local</code>): Only if you explicitly enabled the official-API path for Bluesky / Mastodon / Misskey: your Bluesky app password or Mastodon / Misskey access token. <strong>Device-local only; never replicated via Chrome Sync; never transmitted to any developer server.</strong> Removable from the Settings wizard.",
-    "localSelectors": "<strong>Selector override cache</strong> (<code>chrome.storage.local</code>): Selector hot-fix data fetched from the URL you configured in Settings (default: the public <code>selectors.json</code> on Tutti's GitHub Pages).",
+    "localSelectors": "<strong>Selector override cache</strong> (<code>chrome.storage.local</code>): Selector hot-fix data fetched from the URL you configured in Settings (default: <code>https://tutti.komm64.com/selectors.json</code>).",
     "localVideoCap": "<strong>Video upload limit cache</strong> (<code>chrome.storage.local</code>): Result of API probes for per-account video upload caps (e.g., Bluesky). Numeric values only; no credentials.",
     "localWipe": "All of this can be wiped at any time by uninstalling the extension or clearing Chrome's extension storage.",
     "h2Perms": "3. Permissions used",

@@ -1,7 +1,7 @@
 # Tutti プライバシーポリシー
 
 English version: [PRIVACY.md](./PRIVACY.md)
-Web 版: <https://komm64.github.io/tutti/privacy.ja.html>
+Web 版: <https://tutti.komm64.com/privacy.html>
 
 最終更新日: 2026-05-08 (v0.4.35 — 報告経路を private repo に移行)
 

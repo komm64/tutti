@@ -13,7 +13,7 @@ duration / size, and oversized clips are transcoded on the fly with
 
 **Your post content never touches any third-party server.**
 
-🔒 [Privacy Policy](https://komm64.github.io/tutti/)
+🔒 [Privacy Policy](https://tutti.komm64.com/privacy.html)
 
 ![Tutti overview](./docs/screenshots/01-overview-en-1280x800.png)
 
@@ -93,7 +93,7 @@ Download the latest zip from [Releases](https://github.com/komm64/tutti/releases
 ## Support
 
 Questions, bug reports, feature requests:
-**[komm64.github.io/tutti/support.html](https://komm64.github.io/tutti/support.html)**
+**[tutti.komm64.com/support.html](https://tutti.komm64.com/support.html)**
 
 Or email **contact@komm64.com**.
 
@@ -101,7 +101,7 @@ Or email **contact@komm64.com**.
 
 Post text, images, and video are processed **entirely inside your
 browser** — they are never sent to any third-party server.
-See the [privacy policy](https://komm64.github.io/tutti/) for details.
+See the [privacy policy](https://tutti.komm64.com/privacy.html) for details.
 
 ## License
 
@@ -167,11 +167,11 @@ public/
   ffmpeg/                        - ffmpeg.wasm core / wasm (copied by postinstall)
 locales/{ja,en}/messages.json    - canonical BCP 47 translation sources
 docs/
-  index.html                     - GitHub Pages privacy policy page
-  support.html                   - support / FAQ page (English)
-  support.ja.html                - support / FAQ page (Japanese)
+  index.html                     - public landing page
+  privacy.html                   - privacy policy page
+  support.html                   - support / FAQ page
   platform-matrix.md             - source of truth for the 11 networks (limits + verification)
-  selectors.json                 - selector hot-fix feed (served via GH Pages)
+  selectors.json                 - selector hot-fix feed
   store-listing.md               - Web Store submission draft
 scripts/
   e2e/                           - real-post E2E (Playwright / puppeteer-core CDP attach)

@@ -8,7 +8,7 @@ O Tutti permite escrever uma vez e transmitir a mesma publicação para todas as
 
 **O conteúdo das suas publicações nunca toca em qualquer servidor de terceiros.**
 
-🔒 [Política de Privacidade](https://komm64.github.io/tutti/)
+🔒 [Política de Privacidade](https://tutti.komm64.com/privacy.html)
 
 ## Funcionalidades
 
@@ -75,13 +75,13 @@ Transfira o zip mais recente em [Releases](https://github.com/komm64/tutti/relea
 
 ## Apoio
 
-Perguntas, relatórios de bugs, pedidos de funcionalidade: **[komm64.github.io/tutti/support.html](https://komm64.github.io/tutti/support.html)**
+Perguntas, relatórios de bugs, pedidos de funcionalidade: **[tutti.komm64.com/support.html](https://tutti.komm64.com/support.html)**
 
 Ou envie e-mail para **contact@komm64.com**.
 
 ## Privacidade
 
-Texto, imagens e vídeo das publicações são processados **inteiramente dentro do seu navegador** — nunca são enviados para qualquer servidor de terceiros. Veja a [política de privacidade](https://komm64.github.io/tutti/) para detalhes.
+Texto, imagens e vídeo das publicações são processados **inteiramente dentro do seu navegador** — nunca são enviados para qualquer servidor de terceiros. Veja a [política de privacidade](https://tutti.komm64.com/privacy.html) para detalhes.
 
 ## Licença
 

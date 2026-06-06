@@ -469,7 +469,7 @@
     "placeholders": { "N": { "content": "$1" } }
   },
 
-  "appBrandLinkTooltip": { "message": "Tutti のホームページを開く (komm64.github.io/tutti)" },
+  "appBrandLinkTooltip": { "message": "Tutti のホームページを開く (tutti.komm64.com)" },
 
   "verifyIssueCaptionMissing": { "message": "投稿本文が公開ページで見つかりませんでした (SNS 側でサイレントに削除された可能性)" },
   "verifyIssueCaptionMismatch": {

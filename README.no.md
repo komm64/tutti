@@ -8,7 +8,7 @@ Tutti lar deg skrive én gang og kringkaste det samme innlegget til alle dine so
 
 **Innleggsinnholdet ditt berører aldri noen tredjepartsserver.**
 
-🔒 [Personvernerklæring](https://komm64.github.io/tutti/)
+🔒 [Personvernerklæring](https://tutti.komm64.com/privacy.html)
 
 ## Funksjoner
 
@@ -75,13 +75,13 @@ Last ned siste zip fra [Releases](https://github.com/komm64/tutti/releases), så
 
 ## Støtte
 
-Spørsmål, feilrapporter, funksjonsforespørsler: **[komm64.github.io/tutti/support.html](https://komm64.github.io/tutti/support.html)**
+Spørsmål, feilrapporter, funksjonsforespørsler: **[tutti.komm64.com/support.html](https://tutti.komm64.com/support.html)**
 
 Eller send e-post til **contact@komm64.com**.
 
 ## Personvern
 
-Innleggstekst, bilder og video behandles **fullstendig inne i nettleseren din** — de sendes aldri til noen tredjepartsserver. Se [personvernerklæringen](https://komm64.github.io/tutti/) for detaljer.
+Innleggstekst, bilder og video behandles **fullstendig inne i nettleseren din** — de sendes aldri til noen tredjepartsserver. Se [personvernerklæringen](https://tutti.komm64.com/privacy.html) for detaljer.
 
 ## Lisens
 

@@ -8,7 +8,7 @@ Tutti permesas vin skribi unufoje kaj dissendi la saman afiŝon al ĉiuj viaj so
 
 **La enhavo de viaj afiŝoj neniam tuŝas ian triapartan servilon.**
 
-🔒 [Politiko pri privateco](https://komm64.github.io/tutti/)
+🔒 [Politiko pri privateco](https://tutti.komm64.com/privacy.html)
 
 ## Funkcioj
 
@@ -75,13 +75,13 @@ Elŝutu la plej novan zip-on de [Releases](https://github.com/komm64/tutti/relea
 
 ## Subteno
 
-Demandoj, eraroraportoj, funkcio-petoj: **[komm64.github.io/tutti/support.html](https://komm64.github.io/tutti/support.html)**
+Demandoj, eraroraportoj, funkcio-petoj: **[tutti.komm64.com/support.html](https://tutti.komm64.com/support.html)**
 
 Aŭ retpoŝtu **contact@komm64.com**.
 
 ## Privateco
 
-Afiŝa teksto, bildoj kaj video estas prilaborataj **tute ene de via retumilo** — ili neniam estas senditaj al iu ajn triaparta servilo. Vidu la [politikon pri privateco](https://komm64.github.io/tutti/) por detaloj.
+Afiŝa teksto, bildoj kaj video estas prilaborataj **tute ene de via retumilo** — ili neniam estas senditaj al iu ajn triaparta servilo. Vidu la [politikon pri privateco](https://tutti.komm64.com/privacy.html) por detaloj.
 
 ## Permesilo
 

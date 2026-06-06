@@ -6,6 +6,7 @@ export default defineConfig({
   manifest: {
     name: '__MSG_appName__',
     description: '__MSG_appDescription__',
+    homepage_url: 'https://tutti.komm64.com/',
     default_locale: 'en',
     // v0.5.8〜 scripting: post 後 URL を bg から tab 内 fetch で取得するため。
     //   Mastodon /share → /home navigation 後でも cookie 認証で API 叩ける。

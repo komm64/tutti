@@ -8,7 +8,7 @@ Met Tutti schrijft u één keer en verzendt u dezelfde post met één klik naar 
 
 **Uw berichtinhoud raakt nooit een server van derden.**
 
-🔒 [Privacybeleid](https://komm64.github.io/tutti/)
+🔒 [Privacybeleid](https://tutti.komm64.com/privacy.html)
 
 ## Functies
 
@@ -75,13 +75,13 @@ Download de nieuwste zip van [Releases](https://github.com/komm64/tutti/releases
 
 ## Ondersteuning
 
-Vragen, bugmeldingen, functieverzoeken: **[komm64.github.io/tutti/support.html](https://komm64.github.io/tutti/support.html)**
+Vragen, bugmeldingen, functieverzoeken: **[tutti.komm64.com/support.html](https://tutti.komm64.com/support.html)**
 
 Of mail naar **contact@komm64.com**.
 
 ## Privacy
 
-Posttekst, afbeeldingen en video worden **volledig binnen uw browser** verwerkt — ze worden nooit naar een server van derden gestuurd. Zie het [privacybeleid](https://komm64.github.io/tutti/) voor details.
+Posttekst, afbeeldingen en video worden **volledig binnen uw browser** verwerkt — ze worden nooit naar een server van derden gestuurd. Zie het [privacybeleid](https://tutti.komm64.com/privacy.html) voor details.
 
 ## Licentie
 

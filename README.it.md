@@ -8,7 +8,7 @@ Tutti ti permette di scrivere una volta e trasmettere lo stesso post a tutti i t
 
 **Il contenuto dei tuoi post non tocca mai alcun server di terze parti.**
 
-🔒 [Informativa sulla privacy](https://komm64.github.io/tutti/)
+🔒 [Informativa sulla privacy](https://tutti.komm64.com/privacy.html)
 
 ## Funzionalità
 
@@ -75,13 +75,13 @@ Scarica l'ultimo zip da [Releases](https://github.com/komm64/tutti/releases), po
 
 ## Supporto
 
-Domande, segnalazioni di bug, richieste di funzionalità: **[komm64.github.io/tutti/support.html](https://komm64.github.io/tutti/support.html)**
+Domande, segnalazioni di bug, richieste di funzionalità: **[tutti.komm64.com/support.html](https://tutti.komm64.com/support.html)**
 
 O invia un'email a **contact@komm64.com**.
 
 ## Privacy
 
-Il testo, le immagini e il video dei post sono elaborati **interamente all'interno del tuo browser** — non vengono mai inviati a nessun server di terze parti. Vedi la [informativa sulla privacy](https://komm64.github.io/tutti/) per i dettagli.
+Il testo, le immagini e il video dei post sono elaborati **interamente all'interno del tuo browser** — non vengono mai inviati a nessun server di terze parti. Vedi la [informativa sulla privacy](https://tutti.komm64.com/privacy.html) per i dettagli.
 
 ## Licenza
 

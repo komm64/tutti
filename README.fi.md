@@ -8,7 +8,7 @@ Tutti antaa sinun kirjoittaa kerran ja lähettää saman julkaisun kaikkiin sosi
 
 **Julkaisusisältösi ei koskaan koske mihinkään kolmannen osapuolen palvelimeen.**
 
-🔒 [Tietosuojakäytäntö](https://komm64.github.io/tutti/)
+🔒 [Tietosuojakäytäntö](https://tutti.komm64.com/privacy.html)
 
 ## Ominaisuudet
 
@@ -75,13 +75,13 @@ Lataa uusin zip osoitteesta [Releases](https://github.com/komm64/tutti/releases)
 
 ## Tuki
 
-Kysymykset, virheilmoitukset, ominaisuuspyynnöt: **[komm64.github.io/tutti/support.html](https://komm64.github.io/tutti/support.html)**
+Kysymykset, virheilmoitukset, ominaisuuspyynnöt: **[tutti.komm64.com/support.html](https://tutti.komm64.com/support.html)**
 
 Tai lähetä sähköpostia osoitteeseen **contact@komm64.com**.
 
 ## Tietosuoja
 
-Julkaisuteksti, kuvat ja video käsitellään **kokonaan selaimesi sisällä** — niitä ei koskaan lähetetä mihinkään kolmannen osapuolen palvelimeen. Katso lisätietoja [tietosuojakäytännöstä](https://komm64.github.io/tutti/).
+Julkaisuteksti, kuvat ja video käsitellään **kokonaan selaimesi sisällä** — niitä ei koskaan lähetetä mihinkään kolmannen osapuolen palvelimeen. Katso lisätietoja [tietosuojakäytännöstä](https://tutti.komm64.com/privacy.html).
 
 ## Lisenssi
 

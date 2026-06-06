@@ -44,7 +44,7 @@
     "localUsers": "<strong>ログイン中アカウント名</strong> (<code>chrome.storage.local</code>): 各 SNS の現在ログイン中ユーザー名。どのアカウントに投稿されるかを popup で確認できるよう表示されます。デバイスローカルのみ。",
     "localHistory": "<strong>投稿履歴</strong> (<code>chrome.storage.local</code>): 直近 20 件の投稿。先頭 80 文字・対象プラットフォーム・プラットフォーム別の成否・タイムスタンプを記録。デバイスローカルのみ。",
     "localCreds": "<strong>API credentials</strong> (<code>chrome.storage.local</code>): Bluesky / Mastodon / Misskey の公式 API 経路を明示的に有効にした場合のみ保存される、Bluesky app password または Mastodon / Misskey の access token。<strong>デバイスローカル限定。Chrome Sync には載らず、開発者サーバーにも送信されません。</strong> Settings の wizard から個別削除可能。",
-    "localSelectors": "<strong>Selector override キャッシュ</strong> (<code>chrome.storage.local</code>): Settings で指定された URL から取得した selector hot-fix データ (default は Tutti GitHub Pages の公式 <code>selectors.json</code>)。",
+    "localSelectors": "<strong>Selector override キャッシュ</strong> (<code>chrome.storage.local</code>): Settings で指定された URL から取得した selector hot-fix データ (default: <code>https://tutti.komm64.com/selectors.json</code>)。",
     "localVideoCap": "<strong>動画 upload 上限キャッシュ</strong> (<code>chrome.storage.local</code>): Bluesky 等の動画 upload 上限を API probe した結果。数値のみ、認証情報を含みません。",
     "localWipe": "拡張のアンインストール、または Chrome の拡張ストレージクリアでいつでもすべて完全削除できます。",
     "h2Perms": "3. 必要な権限",

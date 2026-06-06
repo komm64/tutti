@@ -269,9 +269,9 @@
 
 <div class="max-w-lg mx-auto p-6 text-gray-900">
   <h1 class="text-xl font-bold mb-1">
-    <!-- v0.5.12〜 brand mark を home link 化 ([[komm64_tutti_pages]] への動線) -->
+    <!-- v0.5.12〜 brand mark を home link 化 (public site への動線) -->
     <a
-      href="https://komm64.github.io/tutti/"
+      href="https://tutti.komm64.com/"
       target="_blank"
       rel="noopener noreferrer"
       class="hover:text-blue-600 transition-colors"

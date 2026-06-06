@@ -1163,7 +1163,7 @@
       <h1 class="text-lg font-bold">
         <!-- v0.5.12〜 brand mark を home link 化。 hover で trust signal、 default は地味に。 -->
         <a
-          href="https://komm64.github.io/tutti/"
+          href="https://tutti.komm64.com/"
           target="_blank"
           rel="noopener noreferrer"
           class="hover:text-blue-600 transition-colors"

@@ -8,7 +8,7 @@ Tutti lader dig skrive én gang og sende det samme opslag til alle dine sociale 
 
 **Dit opslagsindhold rører aldrig nogen tredjepartsserver.**
 
-🔒 [Privatlivspolitik](https://komm64.github.io/tutti/)
+🔒 [Privatlivspolitik](https://tutti.komm64.com/privacy.html)
 
 ## Funktioner
 
@@ -75,13 +75,13 @@ Download den nyeste zip fra [Releases](https://github.com/komm64/tutti/releases)
 
 ## Support
 
-Spørgsmål, fejlrapporter, funktionsanmodninger: **[komm64.github.io/tutti/support.html](https://komm64.github.io/tutti/support.html)**
+Spørgsmål, fejlrapporter, funktionsanmodninger: **[tutti.komm64.com/support.html](https://tutti.komm64.com/support.html)**
 
 Eller mail til **contact@komm64.com**.
 
 ## Privatliv
 
-Opslagstekst, billeder og video behandles **helt inden i din browser** — de sendes aldrig til nogen tredjepartsserver. Se [privatlivspolitikken](https://komm64.github.io/tutti/) for detaljer.
+Opslagstekst, billeder og video behandles **helt inden i din browser** — de sendes aldrig til nogen tredjepartsserver. Se [privatlivspolitikken](https://tutti.komm64.com/privacy.html) for detaljer.
 
 ## Licens
 

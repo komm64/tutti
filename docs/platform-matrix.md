@@ -108,7 +108,7 @@ Every DOM-driven network honors **`docs/selectors.json` overrides**:
 3. `auto-triage.yml` in the private `komm64/tutti-issues` repo hands off to
    Codex, which proposes a public PR patching both
    `src/adapters/<network>.ts` and `docs/selectors.json`.
-4. Human review → merge → GitHub Pages publish.
+4. Human review → merge → public site publish.
 5. Reaches every user whose `Settings.selectorOverrideUrl` is enabled,
    within minutes.
 

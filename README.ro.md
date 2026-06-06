@@ -8,7 +8,7 @@ Tutti îți permite să scrii o dată și să transmiți aceeași postare către
 
 **Conținutul postărilor tale nu atinge niciodată vreun server terț.**
 
-🔒 [Politica de confidențialitate](https://komm64.github.io/tutti/)
+🔒 [Politica de confidențialitate](https://tutti.komm64.com/privacy.html)
 
 ## Funcții
 
@@ -75,13 +75,13 @@ Descarcă cel mai recent zip de la [Releases](https://github.com/komm64/tutti/re
 
 ## Asistență
 
-Întrebări, rapoarte de erori, solicitări de funcționalitate: **[komm64.github.io/tutti/support.html](https://komm64.github.io/tutti/support.html)**
+Întrebări, rapoarte de erori, solicitări de funcționalitate: **[tutti.komm64.com/support.html](https://tutti.komm64.com/support.html)**
 
 Sau trimite e-mail la **contact@komm64.com**.
 
 ## Confidențialitate
 
-Textul postării, imaginile și videoul sunt procesate **integral în interiorul browserului tău** — niciodată nu sunt trimise vreunui server terț. Vezi [politica de confidențialitate](https://komm64.github.io/tutti/) pentru detalii.
+Textul postării, imaginile și videoul sunt procesate **integral în interiorul browserului tău** — niciodată nu sunt trimise vreunui server terț. Vezi [politica de confidențialitate](https://tutti.komm64.com/privacy.html) pentru detalii.
 
 ## Licență
 

@@ -8,7 +8,7 @@ Tutti lässt Sie einmal schreiben und denselben Beitrag mit einem einzigen Klick
 
 **Ihre Beitragsinhalte berühren niemals einen Drittserver.**
 
-🔒 [Datenschutzerklärung](https://komm64.github.io/tutti/)
+🔒 [Datenschutzerklärung](https://tutti.komm64.com/privacy.html)
 
 ## Funktionen
 
@@ -75,13 +75,13 @@ Laden Sie die neueste Zip-Datei von [Releases](https://github.com/komm64/tutti/r
 
 ## Support
 
-Fragen, Bug-Berichte, Funktionsanfragen: **[komm64.github.io/tutti/support.html](https://komm64.github.io/tutti/support.html)**
+Fragen, Bug-Berichte, Funktionsanfragen: **[tutti.komm64.com/support.html](https://tutti.komm64.com/support.html)**
 
 Oder per E-Mail an **contact@komm64.com**.
 
 ## Datenschutz
 
-Beitragstext, Bilder und Video werden **vollständig in Ihrem Browser** verarbeitet — sie werden niemals an einen Drittserver gesendet. Siehe [Datenschutzerklärung](https://komm64.github.io/tutti/) für Details.
+Beitragstext, Bilder und Video werden **vollständig in Ihrem Browser** verarbeitet — sie werden niemals an einen Drittserver gesendet. Siehe [Datenschutzerklärung](https://tutti.komm64.com/privacy.html) für Details.
 
 ## Lizenz
 

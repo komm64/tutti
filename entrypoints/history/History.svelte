@@ -160,7 +160,7 @@
       <div>
         <!-- v0.5.12〜 brand mark を home link 化 (タイトル H1 とは別、 上に小さく) -->
         <a
-          href="https://komm64.github.io/tutti/"
+          href="https://tutti.komm64.com/"
           target="_blank"
           rel="noopener noreferrer"
           class="text-xs text-gray-400 hover:text-blue-600 transition-colors"
