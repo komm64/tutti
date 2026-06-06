@@ -105,6 +105,10 @@ var _l=detectLang();document.getElementById('lang').value=_l;render(_l);
 
 const CWS_URL = 'https://chromewebstore.google.com/detail/mcjfgdcffjfhkcepfpnifcpknlddmbpe';
 const KOFI_URL = 'https://ko-fi.com/komm64';
+const SITE_URL = 'https://tutti.komm64.com';
+const OG_IMAGE_URL = `${SITE_URL}/screenshots/01-overview-en-1280x800.png`;
+const SOCIAL_TITLE = 'Tutti - Cross-post from one popup';
+const SOCIAL_DESCRIPTION = 'A local-first Chrome extension for cross-posting to multiple social networks using your existing browser logins.';
 const CHROME_ICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20A10 10 0 0 0 12 2zm0 2c1.93 0 3.72.6 5.2 1.62L12 12 6.8 5.62A7.96 7.96 0 0 1 12 4zM4 12a8 8 0 0 1 2.07-5.34L12 14.5l5.93-7.84A8 8 0 1 1 4 12z"/></svg>';
 
 // Render function for index.html (uses string concat, no template literals)
@@ -211,14 +215,32 @@ function render(code){
 }
 `;
 
-function buildHtml(renderFn, T) {
+function buildHtml(renderFn, T, path) {
   const tJson = safeJson(T);
+  const canonicalUrl = `${SITE_URL}/${path}`;
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Tutti</title>
+<title>${SOCIAL_TITLE}</title>
+<meta name="description" content="${SOCIAL_DESCRIPTION}" />
+<meta name="theme-color" content="#0d9488" />
+<link rel="canonical" href="${canonicalUrl}" />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Tutti" />
+<meta property="og:url" content="${canonicalUrl}" />
+<meta property="og:title" content="${SOCIAL_TITLE}" />
+<meta property="og:description" content="${SOCIAL_DESCRIPTION}" />
+<meta property="og:image" content="${OG_IMAGE_URL}" />
+<meta property="og:image:secure_url" content="${OG_IMAGE_URL}" />
+<meta property="og:image:width" content="1280" />
+<meta property="og:image:height" content="800" />
+<meta property="og:image:alt" content="Tutti cross-posting popup showing multiple social networks" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="${SOCIAL_TITLE}" />
+<meta name="twitter:description" content="${SOCIAL_DESCRIPTION}" />
+<meta name="twitter:image" content="${OG_IMAGE_URL}" />
 <link rel="icon" type="image/png" sizes="32x32" href="./icon-32.png" />
 <link rel="icon" type="image/png" sizes="128x128" href="./icon-128.png" />
 <style>${CSS}</style>
@@ -250,9 +272,9 @@ ${COMMON_JS}
 
 async function main() {
   const T = await loadTranslations();
-  await writeFile(join(OUT_DIR, 'index.html'), buildHtml(INDEX_RENDER, T), 'utf8');
-  await writeFile(join(OUT_DIR, 'privacy.html'), buildHtml(PRIVACY_RENDER, T), 'utf8');
-  await writeFile(join(OUT_DIR, 'support.html'), buildHtml(SUPPORT_RENDER, T), 'utf8');
+  await writeFile(join(OUT_DIR, 'index.html'), buildHtml(INDEX_RENDER, T, ''), 'utf8');
+  await writeFile(join(OUT_DIR, 'privacy.html'), buildHtml(PRIVACY_RENDER, T, 'privacy.html'), 'utf8');
+  await writeFile(join(OUT_DIR, 'support.html'), buildHtml(SUPPORT_RENDER, T, 'support.html'), 'utf8');
   console.log('Done. Generated index.html, privacy.html, support.html');
 }
 
