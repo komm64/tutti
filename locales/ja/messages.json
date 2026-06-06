@@ -41,12 +41,13 @@
     }
   },
   "runtimeXTextareaTimeout": {
-    "message": "X: chunk $CURRENT$/$TOTAL$ の textarea が 15s 以内に出現しませんでした (要 $EXPECTED$ 個、 実 $FOUND$ 個)",
+    "message": "X: chunk $CURRENT$/$TOTAL$ の textarea が 15s 以内に出現しませんでした (要 $EXPECTED$ 個、実 $FOUND$ 個)。ページ状態: $DETAIL$",
     "placeholders": {
       "CURRENT": { "content": "$1" },
       "TOTAL": { "content": "$2" },
       "EXPECTED": { "content": "$3" },
-      "FOUND": { "content": "$4" }
+      "FOUND": { "content": "$4" },
+      "DETAIL": { "content": "$5" }
     }
   },
   "runtimeXPostAllButtonMissing": { "message": "X: 全ポスト送信ボタンが見つかりません" },

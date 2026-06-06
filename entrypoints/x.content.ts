@@ -14,6 +14,8 @@ import {
 import { t } from '../src/utils/i18n';
 import { markPostSubmissionStarted } from '../src/utils/post-submission-state';
 
+const X_THREAD_TEXTAREA_TIMEOUT_MS = 15000;
+
 const X_RESERVED_PATHS = new Set([
   'home', 'explore', 'notifications', 'messages', 'i', 'compose',
   'settings', 'search', 'bookmarks', 'lists', 'communities',
@@ -193,26 +195,24 @@ async function executeXInlineThread(
 
   // 各 chunk を「+」 click → wait → inject の繰り返し。
   for (let i = 1; i < chunks.length; i++) {
-    const addBtn = await waitForXAddPostButton(composeRoot, 15000);
+    const addBtn = await waitForXAddPostButton(composeRoot, X_THREAD_TEXTAREA_TIMEOUT_MS);
     if (!addBtn) {
       throw new Error(t('runtimeXAddButtonMissing', i + 1, chunks.length, i));
     }
     await clickElementMarkedInMainWorld(addBtn, 'tutti-x-add-post');
 
-    // 新 textarea (index i) が出現するまで polling
-    let target: HTMLElement | undefined;
-    const deadline = Date.now() + 15000;
-    while (Date.now() < deadline) {
-      const tas = getXThreadTextareas(composeRoot);
-      if (tas.length > i) {
-        target = tas[i];
-        break;
-      }
-      await sleep(150);
-    }
+    // 新 textarea (index i) が出現するまで MutationObserver で待つ。
+    const target = await waitForXThreadTextarea(composeRoot, i, X_THREAD_TEXTAREA_TIMEOUT_MS);
     if (!target) {
       const got = getXThreadTextareas(composeRoot).length;
-      throw new Error(t('runtimeXTextareaTimeout', i + 1, chunks.length, i + 1, got));
+      throw new Error(t(
+        'runtimeXTextareaTimeout',
+        i + 1,
+        chunks.length,
+        i + 1,
+        got,
+        describeXComposeState(composeRoot),
+      ));
     }
     const marker = `tutti-x-chunk-${i}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     target.setAttribute('data-tutti-marker', marker);
@@ -303,6 +303,40 @@ function getXThreadTextareas(scope: ParentNode = document): HTMLElement[] {
     .filter(isVisible);
 }
 
+function waitForXThreadTextarea(
+  scope: ParentNode,
+  index: number,
+  timeoutMs: number,
+): Promise<HTMLElement | undefined> {
+  const existing = getXThreadTextareas(scope)[index];
+  if (existing) return Promise.resolve(existing);
+
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (target?: HTMLElement) => {
+      if (done) return;
+      done = true;
+      observer.disconnect();
+      clearTimeout(timer);
+      resolve(target);
+    };
+    const check = () => {
+      const target = getXThreadTextareas(scope)[index];
+      if (target) finish(target);
+    };
+    const observer = new MutationObserver(check);
+    const root = scope instanceof Document ? scope.body : scope;
+    observer.observe(root, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['data-testid', 'contenteditable', 'role', 'aria-disabled', 'style', 'class'],
+    });
+    const timer = setTimeout(() => finish(), timeoutMs);
+    check();
+  });
+}
+
 async function clickElementMarkedInMainWorld(el: HTMLElement, prefix: string): Promise<void> {
   const marker = `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   el.setAttribute('data-tutti-click-marker', marker);
@@ -338,6 +372,48 @@ async function waitForXAddPostButton(scope: ParentNode, timeoutMs: number): Prom
     await sleep(200);
   }
   return null;
+}
+
+function describeButton(el: HTMLElement): string {
+  const testId = el.getAttribute('data-testid');
+  const aria = el.getAttribute('aria-label');
+  const text = (el.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 30);
+  const rect = el.getBoundingClientRect();
+  return [
+    testId ? `testid=${testId}` : null,
+    aria ? `aria=${aria.slice(0, 40)}` : null,
+    text ? `text=${text}` : null,
+    `disabled=${isDisabled(el)}`,
+    `visible=${isVisible(el)}`,
+    `rect=${Math.round(rect.width)}x${Math.round(rect.height)}`,
+  ].filter(Boolean).join('/');
+}
+
+function describeXComposeState(scope: ParentNode): string {
+  const visibleTextareas = getXThreadTextareas(scope);
+  const allTextareas = Array.from(scope.querySelectorAll<HTMLElement>('[data-testid^="tweetTextarea_"]'));
+  const addButtons = Array
+    .from(scope.querySelectorAll<HTMLElement>('[data-testid="addButton"], button[aria-label], [role="button"][aria-label]'))
+    .filter((el) => {
+      const aria = el.getAttribute('aria-label') ?? '';
+      return el.getAttribute('data-testid') === 'addButton' ||
+        /add post|add tweet|ポストを追加|ツイートを追加/i.test(aria);
+    })
+    .slice(0, 6)
+    .map(describeButton);
+  const postButtons = Array
+    .from(scope.querySelectorAll<HTMLElement>('[data-testid="tweetButton"], [data-testid="tweetButtonInline"]'))
+    .slice(0, 4)
+    .map(describeButton);
+  const active = document.activeElement instanceof HTMLElement
+    ? describeButton(document.activeElement)
+    : 'none';
+  return [
+    `textareas visible/all=${visibleTextareas.length}/${allTextareas.length}`,
+    `addButtons=[${addButtons.join(' | ') || 'none'}]`,
+    `postButtons=[${postButtons.join(' | ') || 'none'}]`,
+    `active=${active}`,
+  ].join('; ').slice(0, 900);
 }
 
 /** X の inline thread 全送信 button (= 全 chunks を 1 click で thread 投稿)。 */
