@@ -4,40 +4,46 @@
  * 使い方:
  *   node scripts/cws/status.mjs
  *
- * 出力例:
- *   id: mcjfgdcffjfhkcepfpnifcpknlddmbpe
- *   uploadState: SUCCESS
- *   crxVersion: 0.4.11
- *   itemError: ...
+ * v2 fetchStatus で公開済み / 提出済み revision と直近 uploadState を表示する。
  */
 
-import { cwsApi, loadEnv, requireEnv } from './_lib.mjs';
+import { cwsV2Api, getPublisherId, loadEnv, requireEnv } from './_lib.mjs';
+
+function printRevision(label, revision) {
+  if (!revision) {
+    console.log(`${label}: (none)`);
+    return;
+  }
+  console.log(`${label}: ${revision.state ?? '(unknown)'}`);
+  if (Array.isArray(revision.distributionChannels)) {
+    for (const ch of revision.distributionChannels) {
+      console.log(`  - crxVersion=${ch.crxVersion ?? '?'} deployPercentage=${ch.deployPercentage ?? '?'}`);
+    }
+  }
+}
 
 async function main() {
   const env = loadEnv();
   requireEnv(env, 'CWS_ITEM_ID');
+  const publisherId = getPublisherId(env);
 
-  // projection=DRAFT で現在 draft の状態を取得 (uploadState と version、エラー詳細)
-  const res = await cwsApi(env, `/chromewebstore/v1.1/items/${env.CWS_ITEM_ID}?projection=DRAFT`);
+  const v2 = await cwsV2Api(
+    env,
+    `/publishers/${publisherId}/items/${env.CWS_ITEM_ID}:fetchStatus`,
+  );
 
   console.log('=== Chrome Web Store item status ===');
-  console.log(`id:           ${res.id ?? env.CWS_ITEM_ID}`);
-  console.log(`uploadState:  ${res.uploadState ?? '(unknown)'}`);
-  console.log(`crxVersion:   ${res.crxVersion ?? '(unknown)'}`);
-  console.log(`kind:         ${res.kind ?? '(unknown)'}`);
+  console.log(`name: ${v2.name ?? `(publishers/${publisherId}/items/${env.CWS_ITEM_ID})`}`);
+  console.log(`id:   ${v2.itemId ?? env.CWS_ITEM_ID}`);
+  printRevision('published', v2.publishedItemRevisionStatus);
+  printRevision('submitted', v2.submittedItemRevisionStatus);
+  console.log(`lastAsyncUploadState: ${v2.lastAsyncUploadState ?? '(unset)'}`);
+  console.log(`takenDown:            ${v2.takenDown ?? false}`);
+  console.log(`warned:               ${v2.warned ?? false}`);
 
-  if (res.itemError && res.itemError.length > 0) {
-    console.log('');
-    console.log('itemError:');
-    for (const e of res.itemError) {
-      console.log(`  - ${e.error_code ?? '?'}: ${e.error_detail ?? ''}`);
-    }
-  }
-
-  // raw 全体は debug 用に末尾で
   console.log('');
-  console.log('--- raw response ---');
-  console.log(JSON.stringify(res, null, 2));
+  console.log('--- raw v2 response ---');
+  console.log(JSON.stringify(v2, null, 2));
 }
 
 main().catch((e) => {

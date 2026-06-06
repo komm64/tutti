@@ -6,7 +6,7 @@
  *   node scripts/cws/upload.mjs path/to/file.zip # 明示指定
  *
  * Tutti の package.json の version と同じ zip を探して上げる。
- * 新規 draft が作られて、status.mjs で uploadState=SUCCESS が見えるはず。
+ * 新規 draft が作られて、status.mjs で lastAsyncUploadState=SUCCEEDED が見えるはず。
  *
  * その後 submit.mjs で「Submit for review」を打つ。
  *
@@ -19,7 +19,7 @@
 import { readFileSync, statSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { getAccessToken, loadEnv, requireEnv } from './_lib.mjs';
+import { cwsV2UploadApi, getPublisherId, loadEnv, requireEnv } from './_lib.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '..', '..');
@@ -36,6 +36,7 @@ function findDefaultZip() {
 async function main() {
   const env = loadEnv();
   requireEnv(env, 'CWS_ITEM_ID');
+  const publisherId = getPublisherId(env);
 
   const zipPath = process.argv[2] ? resolve(process.argv[2]) : findDefaultZip();
   const size = statSync(zipPath).size;
@@ -44,41 +45,24 @@ async function main() {
   console.log(`[upload] size: ${sizeMB} MB`);
 
   const bytes = readFileSync(zipPath);
-  const accessToken = await getAccessToken(env);
 
   console.log('[upload] CWS にアップロード中...');
-  const res = await fetch(
-    `https://www.googleapis.com/upload/chromewebstore/v1.1/items/${env.CWS_ITEM_ID}`,
-    {
-      method: 'PUT',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'x-goog-api-version': '2',
-        'Content-Type': 'application/zip',
-      },
-      body: bytes,
-    },
+  const data = await cwsV2UploadApi(
+    env,
+    `/publishers/${publisherId}/items/${env.CWS_ITEM_ID}:upload`,
+    bytes,
   );
-
-  const text = await res.text();
-  let data;
-  try { data = JSON.parse(text); } catch { data = { raw: text }; }
-
-  if (!res.ok) {
-    console.error(`[upload] HTTP ${res.status}:`, data);
-    process.exit(1);
-  }
 
   console.log('[upload] === レスポンス ===');
   console.log(JSON.stringify(data, null, 2));
 
-  if (data.uploadState === 'SUCCESS') {
+  if (data.uploadState === 'SUCCEEDED') {
     console.log('');
     console.log('[upload] ✓ アップロード成功。次は `node scripts/cws/submit.mjs` で審査リクエスト');
   } else if (data.uploadState === 'IN_PROGRESS') {
     console.log('');
     console.log('[upload] ⏳ 処理中。`node scripts/cws/status.mjs` で完了確認してから submit');
-  } else if (data.uploadState === 'FAILURE') {
+  } else if (data.uploadState === 'FAILED') {
     console.error('[upload] ✗ アップロード失敗 (詳細は itemError を参照)');
     process.exit(1);
   }

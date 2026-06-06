@@ -1,5 +1,5 @@
 // Chrome Web Store Developer Dashboard を puppeteer で開いて screenshot を撮る。
-// この session で Claude が画面を見て手順案内するためのもの。
+// この session で Codex が画面を見て手順案内するためのもの。
 import puppeteer from 'puppeteer-core';
 
 const browser = await puppeteer.connect({

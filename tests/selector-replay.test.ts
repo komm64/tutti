@@ -5,7 +5,7 @@
  * にロードして happy-dom で query。1 つでもマッチしない selector があれば fail。
  *
  * これで catch できるもの:
- * - Claude (auto-triage) が壊した selector 文字列 (typo / quote escape ミス)
+ * - Codex auto-triage が壊した selector 文字列 (typo / quote escape ミス)
  * - 既存 selector が想定 fixture でマッチしない (fixture 更新漏れ含む)
  * - 新 SNS 追加時に SELECTORS だけ書いて fixture 忘れ
  *

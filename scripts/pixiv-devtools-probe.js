@@ -1,5 +1,5 @@
 // Pixiv compose ページの DevTools Console に貼り付けて実行する。
-// 出力 (JSON) をまるごと Tutti の Claude Code に返してください。
+// 出力 (JSON) をまるごと Tutti の Codex session に返してください。
 //
 // 取れるもの:
 //   - "Visible to" と "AI-generated work" の HTML 構造 (parent 含む)
