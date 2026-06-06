@@ -1650,6 +1650,7 @@ async function sendPostMessageWhenReady(
 ): Promise<PostResultMessage | undefined> {
   let deadline = Date.now() + 2500;
   let reloaded = false;
+  let injectedFederatedScript = false;
   while (true) {
     try {
       return (await browser.tabs.sendMessage(tabId, message)) as PostResultMessage | undefined;
@@ -1659,6 +1660,13 @@ async function sendPostMessageWhenReady(
         msg.includes('Receiving end does not exist') ||
         msg.includes('Could not establish connection');
       if (!receiverMissing) throw e;
+      if (!injectedFederatedScript) {
+        injectedFederatedScript = await tryInjectFederatedContentScripts(tabId, message.platform);
+        if (injectedFederatedScript) {
+          deadline = Date.now() + 2500;
+          continue;
+        }
+      }
       if (Date.now() >= deadline) {
         if (reloaded) throw e;
         // After an extension reload, an existing same-URL tab can keep the old
@@ -1673,6 +1681,33 @@ async function sendPostMessageWhenReady(
       }
       await sleep(100);
     }
+  }
+}
+
+async function tryInjectFederatedContentScripts(tabId: number, platform: PlatformId): Promise<boolean> {
+  const script =
+    platform === 'mastodon' ? '/content-scripts/mastodon.js' :
+    platform === 'misskey' ? '/content-scripts/misskey.js' :
+    null;
+  if (!script) return false;
+
+  try {
+    const injectHelperSpec = {
+      target: { tabId },
+      files: ['/content-scripts/inject-helper.js'],
+      world: 'MAIN',
+    } as unknown as Parameters<typeof browser.scripting.executeScript>[0];
+    await browser.scripting.executeScript(injectHelperSpec);
+    await browser.scripting.executeScript({
+      target: { tabId },
+      files: [script],
+    });
+    await sleep(150);
+    log.info(`${platform}: content scripts injected for configured instance`);
+    return true;
+  } catch (e) {
+    log.warn(`${platform}: dynamic content script injection skipped: ${e instanceof Error ? e.message : String(e)}`);
+    return false;
   }
 }
 

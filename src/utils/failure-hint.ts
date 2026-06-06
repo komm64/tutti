@@ -48,6 +48,7 @@ export function classifyFailure(
       ctas: [
         ...(loginUrl ? [{ kind: 'open-sns' as const, label: t('failureCtaOpenSns', platform), url: loginUrl }] : []),
         { kind: 'retry' as const, label: t('failureCtaRetry') },
+        { kind: 'report' as const, label: t('errorReportButton') },
       ],
     };
   }
@@ -60,6 +61,7 @@ export function classifyFailure(
       ctas: [
         ...(loginUrl ? [{ kind: 'open-sns' as const, label: t('failureCtaOpenSns', platform), url: loginUrl }] : []),
         { kind: 'retry' as const, label: t('failureCtaRetryAfterAccount') },
+        { kind: 'report' as const, label: t('errorReportButton') },
       ],
     };
   }
@@ -72,6 +74,7 @@ export function classifyFailure(
       ctas: [
         ...(loginUrl ? [{ kind: 'open-sns' as const, label: t('failureCtaOpenSns', platform), url: loginUrl }] : []),
         { kind: 'retry' as const, label: t('failureCtaRetryAfterCaptcha') },
+        { kind: 'report' as const, label: t('errorReportButton') },
       ],
     };
   }
@@ -83,6 +86,7 @@ export function classifyFailure(
       guidance: t('failureGuidanceMediaLimit'),
       ctas: [
         { kind: 'retry' as const, label: t('failureCtaRetry') },
+        { kind: 'report' as const, label: t('errorReportButton') },
       ],
     };
   }
@@ -94,6 +98,7 @@ export function classifyFailure(
       guidance: t('failureGuidanceTimeout'),
       ctas: [
         { kind: 'retry' as const, label: t('failureCtaRetry') },
+        { kind: 'report' as const, label: t('errorReportButton') },
       ],
     };
   }
@@ -105,6 +110,7 @@ export function classifyFailure(
       guidance: t('failureGuidanceDuplicate'),
       ctas: [
         { kind: 'wait' as const, label: t('failureCtaWaitFiveMinutes') },
+        { kind: 'report' as const, label: t('errorReportButton') },
       ],
     };
   }

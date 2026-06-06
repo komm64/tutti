@@ -152,10 +152,10 @@
       key = `error:${errorMessage}`;
       text = errorMessage;
     } else {
-      const failures = lastResults?.filter((r) => !r.success && !r.uncertain) ?? [];
+      const failures = lastResults?.filter((r) => !r.success) ?? [];
       if (failures.length > 0) {
-        key = `failures:${failures.map((f) => `${f.platform}:${f.error ?? ''}`).join('|')}`;
-        text = failures.map((f) => `${f.platform}: ${f.error ?? '(no detail)'}`).join('\n');
+        key = `failures:${failures.map((f) => `${f.platform}:${f.uncertain ? 'uncertain' : 'failed'}:${f.error ?? ''}`).join('|')}`;
+        text = failures.map((f) => `${f.platform}${f.uncertain ? ' (uncertain)' : ''}: ${f.error ?? '(no detail)'}`).join('\n');
       }
     }
     if (key && key !== dialogShownForKey) {
@@ -1418,7 +1418,12 @@
       {:else if result?.success}
         <span class="text-green-600 shrink-0">✓</span>
       {:else if result?.uncertain}
-        <span class="text-amber-600 shrink-0" title={result.error}>? ⓘ</span>
+        <button
+          type="button"
+          onclick={(e) => { e.preventDefault(); e.stopPropagation(); expandedFailure = expandedFailure === p.id ? null : p.id; }}
+          class="text-amber-600 shrink-0 hover:text-amber-700 cursor-pointer"
+          title={result.error ?? t('failureHintTooltip')}
+        >? ⓘ</button>
       {:else if result && !result.success}
         <!-- v0.4.86: ✗ click で failure hint card を toggle -->
         <button
@@ -1444,12 +1449,13 @@
       {@const adapter = getAdapter(p.id)}
       {@const loginUrl = adapter?.getLoginUrl?.()}
       {@const hint = classifyFailure(error, p.id, loginUrl)}
+      {@const ctas = result?.uncertain ? hint.ctas.filter((cta) => cta.kind !== 'retry') : hint.ctas}
       <!-- v0.4.86: 失敗の hint card。 grid 2 col の両方を埋めるため col-span-2 -->
       <div class="col-span-2 border border-red-200 bg-red-50/70 rounded p-2 text-[11px]">
         <p class="font-medium text-red-800 mb-1">{p.name}: {hint.reason}</p>
         <p class="text-red-700 mb-2 leading-snug">{hint.guidance}</p>
         <div class="flex flex-wrap gap-1.5">
-          {#each hint.ctas as cta}
+          {#each ctas as cta}
             <button
               type="button"
               onclick={() => handleFailureCta(p.id, cta)}
@@ -1600,21 +1606,24 @@
     </div>
   {/if}
   <!-- 失敗した SNS がある場合: 再送ボタン + Report ボタンを並べる(全体 errorMessage と並列) -->
-  {#if !posting && lastResults?.some((r) => !r.success && !r.uncertain)}
-    {@const failures = lastResults.filter((r) => !r.success && !r.uncertain)}
+  {#if !posting && lastResults?.some((r) => !r.success)}
+    {@const failures = lastResults.filter((r) => !r.success)}
+    {@const definiteFailures = failures.filter((r) => !r.uncertain)}
     <div class="mt-2 flex items-center gap-3 text-xs text-red-700">
-      <button
-        onclick={handleRetryFailed}
-        disabled={text.trim().length === 0 && images.length === 0 && !video}
-        title={t('retryFailedTooltip', String(failures.length))}
-        class="px-2 py-1 rounded bg-red-600 text-white hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium"
-      >{t('retryFailedButton', String(failures.length))} ↻</button>
+      {#if definiteFailures.length > 0}
+        <button
+          onclick={handleRetryFailed}
+          disabled={text.trim().length === 0 && images.length === 0 && !video}
+          title={t('retryFailedTooltip', String(definiteFailures.length))}
+          class="px-2 py-1 rounded bg-red-600 text-white hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium"
+        >{t('retryFailedButton', String(definiteFailures.length))} ↻</button>
+      {/if}
       <button
         onclick={() => {
           // v0.5.7: 直接 fetch せず errorDialog を開く形に統一。 inline 直叩きだと
           // dedup hit / network 失敗時に user に何も feedback されず 「無反応」 と
           // 感じさせていた。 dialog 側に reportResult の表示があるので、 そこに乗せる。
-          errorDialogText = failures.map((r) => `${r.platform}: ${r.error ?? '(no detail)'}`).join('\n');
+          errorDialogText = failures.map((r) => `${r.platform}${r.uncertain ? ' (uncertain)' : ''}: ${r.error ?? '(no detail)'}`).join('\n');
           errorDialogOpen = true;
           reportResult = null;
         }}

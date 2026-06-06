@@ -2,7 +2,6 @@ import { log } from '../src/utils/logger';
 import type { ImageAttachment, PostResultMessage } from '../src/messages';
 import {
   MASTODON_SELECTORS,
-  mastodonAdapter,
 } from '../src/adapters/mastodon';
 import { executePostFlow } from '../src/utils/post-flow';
 import { resolveSelectors } from '../src/utils/selector-overrides';
@@ -107,7 +106,10 @@ export default defineContentScript({
 async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolean): Promise<PostResultMessage> {
   const sel = await resolveSelectors('mastodon', MASTODON_SELECTORS);
   await executePostFlow({
-    prefillsViaUrl: mastodonAdapter.prefillsViaUrl,
+    // /share?text= の prefill は Mastodon Web の hydration 状態に左右される。
+    // Compose URL は入口として使いつつ、本文は DOM に明示注入して preview/submit
+    // の成功条件を安定させる。
+    prefillsViaUrl: false,
     textareaSelector: sel.textarea,
     postButtonSelector: sel.postButton,
     postButtonTexts: ['Publish', 'Toot', 'Post', '投稿', 'トゥート'],
@@ -117,6 +119,8 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     text,
     images,
     dryRun,
+    composeInputTimeoutMs: 30000,
+    postButtonTimeoutMs: 30000,
   });
 
   // v0.5.8〜 URL 取得は bg 側 (capturePostUrl in background.ts) で行う。

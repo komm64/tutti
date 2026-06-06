@@ -189,20 +189,21 @@ async function executeXInlineThread(
 
   // chunk 0 を retry 付きで inject
   await injectTextWithRetry(chunks[0]!, sel.textarea, chunks[0]!);
+  const composeRoot = textarea0.closest('[role="dialog"]') ?? document;
 
   // 各 chunk を「+」 click → wait → inject の繰り返し。
   for (let i = 1; i < chunks.length; i++) {
-    const addBtn = findXAddPostButton();
+    const addBtn = await waitForXAddPostButton(composeRoot, 15000);
     if (!addBtn) {
       throw new Error(t('runtimeXAddButtonMissing', i + 1, chunks.length, i));
     }
-    addBtn.click();
+    await clickElementMarkedInMainWorld(addBtn, 'tutti-x-add-post');
 
     // 新 textarea (index i) が出現するまで polling
     let target: HTMLElement | undefined;
-    const deadline = Date.now() + 5000;
+    const deadline = Date.now() + 15000;
     while (Date.now() < deadline) {
-      const tas = Array.from(document.querySelectorAll<HTMLElement>('[data-testid^="tweetTextarea_"][contenteditable="true"]'));
+      const tas = getXThreadTextareas(composeRoot);
       if (tas.length > i) {
         target = tas[i];
         break;
@@ -210,7 +211,7 @@ async function executeXInlineThread(
       await sleep(150);
     }
     if (!target) {
-      const got = document.querySelectorAll('[data-testid^="tweetTextarea_"][contenteditable="true"]').length;
+      const got = getXThreadTextareas(composeRoot).length;
       throw new Error(t('runtimeXTextareaTimeout', i + 1, chunks.length, i + 1, got));
     }
     const marker = `tutti-x-chunk-${i}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
@@ -220,7 +221,7 @@ async function executeXInlineThread(
 
   // 全 inject 完了後の最終 verify (上記 retry でも残った orphan を救う)。
   // 各 chunk が textarea[i].textContent と prefix 一致するか確認、 ダメなら 1 回 retry。
-  const finalTextareas = Array.from(document.querySelectorAll<HTMLElement>('[data-testid^="tweetTextarea_"][contenteditable="true"]'));
+  const finalTextareas = getXThreadTextareas(composeRoot);
   for (let i = 0; i < chunks.length; i++) {
     const target = finalTextareas[i];
     if (!target) continue;
@@ -248,7 +249,7 @@ async function executeXInlineThread(
     return;
   }
   markPostSubmissionStarted();
-  postBtn.click();
+  await clickElementMarkedInMainWorld(postBtn, 'tutti-x-post-all');
 }
 
 /**
@@ -282,16 +283,59 @@ async function injectTextWithRetry(
   throw new Error(t('runtimeTextInjectFailed'));
 }
 
+function isVisible(el: HTMLElement): boolean {
+  const rect = el.getBoundingClientRect();
+  const style = window.getComputedStyle(el);
+  return rect.width > 0 &&
+    rect.height > 0 &&
+    el.getClientRects().length > 0 &&
+    style.display !== 'none' &&
+    style.visibility !== 'hidden';
+}
+
+function isDisabled(el: HTMLElement): boolean {
+  return el.getAttribute('aria-disabled') === 'true' || (el as HTMLButtonElement).disabled;
+}
+
+function getXThreadTextareas(scope: ParentNode = document): HTMLElement[] {
+  return Array
+    .from(scope.querySelectorAll<HTMLElement>('[data-testid^="tweetTextarea_"][contenteditable="true"], [data-testid^="tweetTextarea_"][role="textbox"]'))
+    .filter(isVisible);
+}
+
+async function clickElementMarkedInMainWorld(el: HTMLElement, prefix: string): Promise<void> {
+  const marker = `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  el.setAttribute('data-tutti-click-marker', marker);
+  try {
+    await clickElementInMainWorld(`[data-tutti-click-marker="${marker}"]`);
+  } finally {
+    el.removeAttribute('data-tutti-click-marker');
+  }
+}
+
 /** X の 「ポストを追加 (+)」 button 候補を多段 fallback で探す。 */
-function findXAddPostButton(): HTMLElement | null {
-  // data-testid="addButton" を最優先
-  const byTestId = document.querySelector<HTMLElement>('[data-testid="addButton"]');
-  if (byTestId && !(byTestId as HTMLButtonElement).disabled) return byTestId;
-  // aria-label 系
+function findXAddPostButton(scope: ParentNode = document): HTMLElement | null {
+  const candidates = Array.from(scope.querySelectorAll<HTMLElement>(
+    '[data-testid="addButton"], button[aria-label], [role="button"][aria-label]',
+  ));
   const ariaPatterns = [/add post/i, /ポストを追加/, /add tweet/i, /ツイートを追加/];
-  for (const el of document.querySelectorAll<HTMLElement>('button, [role="button"]')) {
+  for (const el of candidates) {
+    if (!isVisible(el) || isDisabled(el)) continue;
+    if (el.getAttribute('data-testid') === 'addButton') return el;
     const aria = el.getAttribute('aria-label') ?? '';
     if (ariaPatterns.some((p) => p.test(aria))) return el;
+  }
+  return null;
+}
+
+async function waitForXAddPostButton(scope: ParentNode, timeoutMs: number): Promise<HTMLElement | null> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const scoped = findXAddPostButton(scope);
+    if (scoped) return scoped;
+    const fallback = findXAddPostButton(document);
+    if (fallback) return fallback;
+    await sleep(200);
   }
   return null;
 }
@@ -304,12 +348,12 @@ function findXPostAllButton(sel: typeof X_SELECTORS): HTMLElement | null {
   // tweetButtonInline を先に押すと、追加 chunk だけが投稿される。
   for (const part of (sel.postButton + ',' + sel.postButtonInline).split(',').map((s) => s.trim()).filter(Boolean)) {
     const el = document.querySelector<HTMLElement>(part);
-    if (el && !(el as HTMLButtonElement).disabled) return el;
+    if (el && isVisible(el) && !isDisabled(el)) return el;
   }
   // text fallback
   for (const el of document.querySelectorAll<HTMLElement>('button, [role="button"]')) {
     const text = (el.textContent ?? '').trim();
-    if (/^Post( all)?$|^すべてポスト$|^投稿$|^Tweet( all)?$/.test(text) && !(el as HTMLButtonElement).disabled) {
+    if (/^Post( all)?$|^すべてポスト$|^投稿$|^Tweet( all)?$/.test(text) && isVisible(el) && !isDisabled(el)) {
       return el;
     }
   }

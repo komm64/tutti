@@ -138,6 +138,17 @@ const DEFAULT_SETTINGS: Settings = {
   notifyInteractions: false,
 };
 
+function migrateSelectorOverrideUrl(url: string | undefined): string {
+  if (!url) return url ?? '';
+  if (
+    /^https:\/\/komm64\.github\.io\/tutti\/selectors\.json(?:[?#].*)?$/.test(url) ||
+    /^https:\/\/tutti-site\.pages\.dev\/selectors\.json(?:[?#].*)?$/.test(url)
+  ) {
+    return DEFAULT_SETTINGS.selectorOverrideUrl;
+  }
+  return url;
+}
+
 export async function getSettings(): Promise<Settings> {
   const stored = await browser.storage.sync.get('settings');
   const raw = (stored['settings'] as Partial<Settings> & { dryRun?: boolean } | undefined) ?? {};
@@ -149,6 +160,7 @@ export async function getSettings(): Promise<Settings> {
   return {
     ...DEFAULT_SETTINGS,
     ...rest,
+    selectorOverrideUrl: migrateSelectorOverrideUrl(rest.selectorOverrideUrl ?? DEFAULT_SETTINGS.selectorOverrideUrl),
     uiLanguage: resolveTuttiLocale(rest.uiLanguage),
   };
 }
