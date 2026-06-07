@@ -41,7 +41,7 @@
     }
   },
   "runtimeXTextareaTimeout": {
-    "message": "X: text area for chunk $CURRENT$/$TOTAL$ did not appear within 15 seconds (expected $EXPECTED$, found $FOUND$). Page state: $DETAIL$",
+    "message": "X: text area for chunk $CURRENT$/$TOTAL$ did not appear within the timeout (expected $EXPECTED$, found $FOUND$). Page state: $DETAIL$",
     "placeholders": {
       "CURRENT": { "content": "$1" },
       "TOTAL": { "content": "$2" },

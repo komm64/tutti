@@ -15,6 +15,12 @@ import { t } from '../src/utils/i18n';
 import { markPostSubmissionStarted } from '../src/utils/post-submission-state';
 
 const X_THREAD_TEXTAREA_TIMEOUT_MS = 15000;
+const X_THREAD_COMPOSE_READY_TIMEOUT_MS = 30000;
+const X_THREAD_POST_BUTTON_TIMEOUT_MS = 10000;
+const X_THREAD_DIALOG_TEXTAREA_SELECTOR = [
+  '[role="dialog"] [data-testid="tweetTextarea_0"][role="textbox"]',
+  '[role="dialog"] [data-testid="tweetTextarea_0"][contenteditable="true"]',
+].join(', ');
 
 const X_RESERVED_PATHS = new Set([
   'home', 'explore', 'notifications', 'messages', 'i', 'compose',
@@ -174,9 +180,22 @@ async function executeXInlineThread(
   images: ImageAttachment[] | undefined,
   dryRun: boolean | undefined,
 ): Promise<void> {
-  // 最初の textarea が visible になるまで wait (compose UI のロード待ち)
-  const textarea0 = await waitForVisibleXElement(sel.textarea, 8000);
-  if (!textarea0) throw new Error(t('runtimeXFirstTextareaMissing'));
+  // Thread compose は /compose/post modal 専用。home の inline composer には
+  // Add post UI が安定して存在しないため、fallback selector で拾わない。
+  const textarea0 = await waitForVisibleXElement(
+    X_THREAD_DIALOG_TEXTAREA_SELECTOR,
+    X_THREAD_COMPOSE_READY_TIMEOUT_MS,
+  );
+  if (!textarea0) {
+    throw new Error(t(
+      'runtimeXTextareaTimeout',
+      1,
+      chunks.length,
+      1,
+      getXThreadTextareas(document).length,
+      describeXComposeState(document),
+    ));
+  }
 
   // v0.4.97: 画像 → text の順序が重要。 旧 (text→image) は X の Lexical が
   // image 追加時に compose を re-mount して chunk 0 text を失う事故があった。
@@ -190,10 +209,8 @@ async function executeXInlineThread(
   }
 
   // chunk 0 を retry 付きで inject
-  const marker0 = `tutti-x-chunk-0-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-  textarea0.setAttribute('data-tutti-marker', marker0);
-  await injectTextWithRetry(chunks[0]!, `[data-tutti-marker="${marker0}"]`, chunks[0]!);
   const composeRoot = textarea0.closest('[role="dialog"]') ?? document;
+  await injectTextIntoXThreadTextarea(composeRoot, 0, chunks[0]!);
 
   // 各 chunk を「+」 click → wait → inject の繰り返し。
   for (let i = 1; i < chunks.length; i++) {
@@ -216,9 +233,7 @@ async function executeXInlineThread(
         describeXComposeState(composeRoot),
       ));
     }
-    const marker = `tutti-x-chunk-${i}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    target.setAttribute('data-tutti-marker', marker);
-    await injectTextWithRetry(chunks[i]!, `[data-tutti-marker="${marker}"]`, chunks[i]!);
+    await injectTextIntoXThreadTextarea(composeRoot, i, chunks[i]!);
   }
 
   // 全 inject 完了後の最終 verify (上記 retry でも残った orphan を救う)。
@@ -233,16 +248,13 @@ async function executeXInlineThread(
     const prefixOk = currentText.length > 0 && expected.startsWith(currentText.slice(0, Math.min(20, currentText.length)));
     const lenOk = currentText.length >= Math.min(20, expected.length * 0.6);
     if (!prefixOk || !lenOk) {
-      const marker = `tutti-x-rechunk-${i}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-      target.setAttribute('data-tutti-marker', marker);
       log.warn(`X: chunk ${i + 1} final verify failed (got "${currentText.slice(0, 30)}"), re-injecting`);
-      await injectTextIntoElement(chunks[i]!, `[data-tutti-marker="${marker}"]`);
-      await sleep(400);
+      await injectTextIntoXThreadTextarea(composeRoot, i, chunks[i]!, 2);
     }
   }
 
   // Post button (preview なら highlight だけ、 autoPost なら click)
-  const postBtn = findXPostAllButton(sel);
+  const postBtn = await waitForXPostAllButton(sel, composeRoot, X_THREAD_POST_BUTTON_TIMEOUT_MS);
   if (!postBtn) throw new Error(t('runtimeXPostAllButtonMissing'));
   if (dryRun) {
     const orig = postBtn.style.outline;
@@ -283,6 +295,34 @@ async function injectTextWithRetry(
     }
   }
   throw new Error(t('runtimeTextInjectFailed'));
+}
+
+async function injectTextIntoXThreadTextarea(
+  scope: ParentNode,
+  index: number,
+  text: string,
+  maxAttempts = 4,
+): Promise<void> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const target = getXThreadTextareas(scope)[index];
+    if (!target) {
+      lastError = new Error(`X: textarea index ${index} missing`);
+      await sleep(250 + attempt * 150);
+      continue;
+    }
+    const marker = `tutti-x-chunk-${index}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    target.setAttribute('data-tutti-marker', marker);
+    try {
+      await injectTextWithRetry(text, `[data-tutti-marker="${marker}"]`, text, 2);
+      return;
+    } catch (e) {
+      lastError = e;
+      log.warn(`X: chunk ${index + 1} target remounted during inject, retrying (${attempt}/${maxAttempts})`);
+      await sleep(300 + attempt * 200);
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error(t('runtimeTextInjectFailed'));
 }
 
 function isVisible(el: HTMLElement): boolean {
@@ -372,8 +412,10 @@ async function waitForXAddPostButton(scope: ParentNode, timeoutMs: number): Prom
   return await waitForCondition<HTMLElement>(() => {
     const scoped = findXAddPostButton(scope);
     if (scoped) return scoped;
-    const fallback = findXAddPostButton(document);
-    if (fallback) return fallback;
+    if (scope instanceof Document) {
+      const fallback = findXAddPostButton(document);
+      if (fallback) return fallback;
+    }
     return null;
   }, {
     timeoutMs,
@@ -384,6 +426,25 @@ async function waitForXAddPostButton(scope: ParentNode, timeoutMs: number): Prom
       subtree: true,
       attributes: true,
       attributeFilter: ['data-testid', 'aria-label', 'aria-disabled', 'disabled', 'style', 'class'],
+    },
+  });
+}
+
+async function waitForXPostAllButton(
+  sel: typeof X_SELECTORS,
+  scope: ParentNode,
+  timeoutMs: number,
+): Promise<HTMLElement | null> {
+  return await waitForCondition<HTMLElement>(() => findXPostAllButton(sel, scope), {
+    timeoutMs,
+    intervalMs: 200,
+    root: scope instanceof Document ? scope.body : scope,
+    observerInit: {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      characterData: true,
+      attributeFilter: ['data-testid', 'aria-disabled', 'disabled', 'style', 'class'],
     },
   });
 }
@@ -406,6 +467,7 @@ function describeButton(el: HTMLElement): string {
 function describeXComposeState(scope: ParentNode): string {
   const visibleTextareas = getXThreadTextareas(scope);
   const allTextareas = Array.from(scope.querySelectorAll<HTMLElement>('[data-testid^="tweetTextarea_"]'));
+  const dialogCount = document.querySelectorAll('[role="dialog"]').length;
   const addButtons = Array
     .from(scope.querySelectorAll<HTMLElement>('[data-testid="addButton"], button[aria-label], [role="button"][aria-label]'))
     .filter((el) => {
@@ -423,6 +485,9 @@ function describeXComposeState(scope: ParentNode): string {
     ? describeButton(document.activeElement)
     : 'none';
   return [
+    `url=${location.href}`,
+    `dialogs=${dialogCount}`,
+    `visibility=${document.visibilityState}`,
     `textareas visible/all=${visibleTextareas.length}/${allTextareas.length}`,
     `addButtons=[${addButtons.join(' | ') || 'none'}]`,
     `postButtons=[${postButtons.join(' | ') || 'none'}]`,
@@ -431,17 +496,17 @@ function describeXComposeState(scope: ParentNode): string {
 }
 
 /** X の inline thread 全送信 button (= 全 chunks を 1 click で thread 投稿)。 */
-function findXPostAllButton(sel: typeof X_SELECTORS): HTMLElement | null {
+function findXPostAllButton(sel: typeof X_SELECTORS, scope: ParentNode = document): HTMLElement | null {
   // inline thread の Post button は 「Post all」 / 「すべてポスト」 等の text を持つ
   // ことがある (X UI バージョン依存)。 通常の Post button selector も fallback で
   // 扱う。thread compose では modal 側 tweetButton を先に選ぶ。ホーム画面側の
   // tweetButtonInline を先に押すと、追加 chunk だけが投稿される。
   for (const part of (sel.postButton + ',' + sel.postButtonInline).split(',').map((s) => s.trim()).filter(Boolean)) {
-    const el = document.querySelector<HTMLElement>(part);
+    const el = scope.querySelector<HTMLElement>(part);
     if (el && isVisible(el) && !isDisabled(el)) return el;
   }
   // text fallback
-  for (const el of document.querySelectorAll<HTMLElement>('button, [role="button"]')) {
+  for (const el of scope.querySelectorAll<HTMLElement>('button, [role="button"]')) {
     const text = (el.textContent ?? '').trim();
     if (/^Post( all)?$|^すべてポスト$|^投稿$|^Tweet( all)?$/.test(text) && isVisible(el) && !isDisabled(el)) {
       return el;

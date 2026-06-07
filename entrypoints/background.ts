@@ -1560,7 +1560,13 @@ async function postSingleChunk(
   // のような heavy SPA + 多段 wizard) は background だと requestAnimationFrame /
   // setTimeout がブラウザに throttle されて React state や file upload が
   // 極端に遅くなる。popup が閉じる tradeoff を許容して foreground で開く。
-  const active = adapter.requiresForegroundTab === true;
+  //
+  // X の multi-chunk preview は /compose/post modal が必須。既存の /home tab を
+  // background のまま再利用すると、SPA navigation が遅れて home inline composer
+  // を掴むことがあるため foreground で compose modal を確実に起こす。
+  const forceForegroundForXThreadPreview =
+    adapter.id === 'x' && dryRun && !!textChunks && textChunks.length > 1;
+  const active = adapter.requiresForegroundTab === true || forceForegroundForXThreadPreview;
   const { tab, wasCreated } = await openOrFocusTab(
     overrideUrl ?? adapter.getComposeUrl(text),
     adapter.matchUrl,
