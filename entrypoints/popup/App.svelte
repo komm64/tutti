@@ -172,6 +172,50 @@
   // redactPII は src/utils/redact.ts に切り出し済 (v0.4.78〜)。
   // 単体 test (src/utils/redact.test.ts) で過去事故 regression を防ぐ。
 
+  function safeChunkCount(platform: PlatformId): number | string {
+    const adapter = platforms.find((p) => p.id === platform);
+    if (!adapter) return 'unknown';
+    try {
+      return splitTextForPlatform(platform, text, adapter.limit).length;
+    } catch {
+      return 'error';
+    }
+  }
+
+  function mediaBytesForReport(media: ImageAttachment): string {
+    const bytes = typeof media.bytes === 'number'
+      ? media.bytes
+      : media.data
+        ? base64ByteLength(media.data)
+        : null;
+    return bytes === null ? 'unknown' : `${bytes} (${formatBytes(bytes)})`;
+  }
+
+  function buildCurrentDraftReportSection(): string[] {
+    const selectedPlatforms = platforms
+      .filter((p) => p.available && selected[p.id])
+      .map((p) => p.id);
+    const chunks = selectedPlatforms.map((id) => `${id}:${safeChunkCount(id)}`);
+    const mediaItems = video
+      ? [
+          `- video[0]: type=${video.type || 'unknown'}, bytes=${mediaBytesForReport(video)}, durationS=${Number.isFinite(video.durationS) ? Math.round(video.durationS) : 'unknown'}`,
+        ]
+      : images.map((img, idx) => (
+          `- image[${idx}]: type=${img.type || 'unknown'}, bytes=${mediaBytesForReport(img)}, altLength=${imageAlts[idx]?.length ?? 0}`
+        ));
+    return [
+      '## Current draft (redacted)',
+      `- Text length: ${text.length}`,
+      `- Selected platforms: ${selectedPlatforms.join(', ') || '(none)'}`,
+      `- Platform chunks: ${chunks.join(', ') || '(none)'}`,
+      `- Media: images=${images.length}, video=${video ? 1 : 0}`,
+      `- Content warning length: ${cw.length}`,
+      `- Visibility: ${visibility}`,
+      `- Trim video to seconds: ${trimToS ?? '(none)'}`,
+      ...(mediaItems.length > 0 ? mediaItems : ['- Media items: (none)']),
+    ];
+  }
+
   async function buildReportPayload(errorText: string): Promise<{ title: string; body: string }> {
     let logsExcerpt = '';
     try {
@@ -207,6 +251,8 @@
       '## Environment',
       `- Tutti version: ${version}`,
       `- User agent: ${ua}`,
+      '',
+      ...buildCurrentDraftReportSection(),
       '',
       '## Recent logs (last 30 entries)',
       '```',

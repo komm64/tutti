@@ -14,6 +14,7 @@ import { chromium } from 'playwright';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { existsSync } from 'node:fs';
+import { deflateSync } from 'node:zlib';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '..', '..');
@@ -22,6 +23,7 @@ const cdpEndpoint = process.env.E2E_CDP;
 const userDataDir = process.env.E2E_USER_DATA_DIR ?? resolve(repoRoot, '.tmp', 'verify-x-thread-profile');
 const isolateXTabs = process.argv.includes('--isolate-x-tabs');
 const skipExtensionReload = process.argv.includes('--skip-extension-reload');
+const includeImage = process.argv.includes('--image') || process.argv.includes('--with-image');
 
 let browser;
 let ctx;
@@ -53,6 +55,51 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function pngChunk(type, data) {
+  const len = Buffer.alloc(4);
+  len.writeUInt32BE(data.length, 0);
+  const tag = Buffer.from(type, 'ascii');
+  const body = Buffer.concat([tag, data]);
+  const table = new Uint32Array(256);
+  for (let n = 0; n < 256; n += 1) {
+    let c = n;
+    for (let k = 0; k < 8; k += 1) c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+    table[n] = c >>> 0;
+  }
+  let crcValue = 0xffffffff;
+  for (const b of body) crcValue = table[(crcValue ^ b) & 0xff] ^ (crcValue >>> 8);
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE((crcValue ^ 0xffffffff) >>> 0, 0);
+  return Buffer.concat([len, body, crc]);
+}
+
+function makePng(w, h) {
+  const rowSize = w * 4 + 1;
+  const raw = Buffer.alloc(rowSize * h);
+  for (let y = 0; y < h; y += 1) {
+    raw[y * rowSize] = 0;
+    for (let x = 0; x < w; x += 1) {
+      const i = y * rowSize + 1 + x * 4;
+      raw[i] = 32 + (x % 160);
+      raw[i + 1] = 96 + (y % 120);
+      raw[i + 2] = 220;
+      raw[i + 3] = 255;
+    }
+  }
+  const sig = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(w, 0);
+  ihdr.writeUInt32BE(h, 4);
+  ihdr[8] = 8;
+  ihdr[9] = 6;
+  return Buffer.concat([
+    sig,
+    pngChunk('IHDR', ihdr),
+    pngChunk('IDAT', deflateSync(raw)),
+    pngChunk('IEND', Buffer.alloc(0)),
+  ]);
+}
+
 async function openExtensionPage(path, attempts = 8) {
   let lastError;
   for (let i = 0; i < attempts; i += 1) {
@@ -72,7 +119,7 @@ async function openExtensionPage(path, attempts = 8) {
   await fail(`could not open extension page ${path}`, lastError?.message ?? String(lastError));
 }
 
-console.log(`[verify-x-thread] mode=${cdpEndpoint ? `CDP ${cdpEndpoint}` : `launch ${userDataDir}`}`);
+console.log(`[verify-x-thread] mode=${cdpEndpoint ? `CDP ${cdpEndpoint}` : `launch ${userDataDir}`} image=${includeImage ? 'yes' : 'no'}`);
 if (!cdpEndpoint && !existsSync(extensionDir)) {
   await fail(`extension build not found: ${extensionDir}`);
 }
@@ -150,19 +197,28 @@ if (!homeState.hasTextarea) {
 }
 
 const text = [
-  `Tutti X existing-home thread check ${new Date().toISOString()}`,
+  `Tutti X existing-home thread check ${includeImage ? 'with image' : 'text only'} ${new Date().toISOString()}`,
   `part 1 ${'alpha '.repeat(24)}`,
   `part 2 ${'bravo '.repeat(24)}`,
 ].join('\n');
+const png = includeImage ? makePng(128, 128) : null;
+const image = png
+  ? {
+      name: `tutti-x-thread-${Date.now()}.png`,
+      type: 'image/png',
+      data: png.toString('base64'),
+      bytes: png.byteLength,
+    }
+  : null;
 
-const postResp = await popup.evaluate(async ({ text }) => {
+const postResp = await popup.evaluate(async ({ text, image }) => {
   return new Promise((resolve) => {
     chrome.runtime.sendMessage(
-      { type: 'POST_REQUEST', text, platforms: ['x'] },
+      { type: 'POST_REQUEST', text, platforms: ['x'], images: image ? [image] : undefined },
       (resp) => resolve(resp ?? { error: chrome.runtime.lastError?.message ?? 'no response' }),
     );
   });
-}, { text });
+}, { text, image });
 console.log('[verify-x-thread] POST_REQUEST response:', JSON.stringify(postResp));
 
 const xResult = postResp?.results?.find?.((r) => r.platform === 'x');
@@ -178,7 +234,22 @@ const xPage = xPages.find((page) => page.url().startsWith('https://x.com/compose
 await xPage.bringToFront();
 await xPage.waitForTimeout(1000);
 
+if (includeImage) {
+  for (let i = 0; i < 20; i += 1) {
+    const previewCount = await xPage.evaluate(() => {
+      const dialog = Array.from(document.querySelectorAll('[role="dialog"]'))
+        .find((el) => el.querySelector('[data-testid^="tweetTextarea_"]'));
+      if (!dialog) return 0;
+      return dialog.querySelectorAll('[data-testid="attachments"], [data-testid="attachments"] img, img[src^="blob:"]').length;
+    });
+    if (previewCount > 0) break;
+    await xPage.waitForTimeout(1000);
+  }
+}
+
 const composeState = await xPage.evaluate(() => {
+  const dialog = Array.from(document.querySelectorAll('[role="dialog"]'))
+    .find((el) => el.querySelector('[data-testid^="tweetTextarea_"]'));
   const dialogTextareas = Array.from(document.querySelectorAll(
     '[role="dialog"] [data-testid^="tweetTextarea_"][contenteditable="true"], [role="dialog"] [data-testid^="tweetTextarea_"][role="textbox"]',
   ));
@@ -189,12 +260,15 @@ const composeState = await xPage.evaluate(() => {
     dialogCount: document.querySelectorAll('[role="dialog"]').length,
     dialogTextareaCount: dialogTextareas.length,
     allTextareaCount: allTextareas.length,
-    texts: dialogTextareas.map((el) => (el.textContent ?? '').slice(0, 80)),
+    texts: dialogTextareas.map((el) => (el.textContent ?? '').slice(0, 300)),
     dialogButtons: dialogButtons.map((el) => ({
       testid: el.getAttribute('data-testid'),
       text: (el.textContent ?? '').replace(/\s+/g, ' ').trim(),
       disabled: el.getAttribute('aria-disabled') === 'true' || el.disabled === true,
     })),
+    imagePreviewCount: dialog
+      ? dialog.querySelectorAll('[data-testid="attachments"], [data-testid="attachments"] img, img[src^="blob:"]').length
+      : 0,
     hasHomeInlinePostButton: !!document.querySelector('main [data-testid="tweetButtonInline"]'),
   };
 });
@@ -208,6 +282,9 @@ if (composeState.dialogTextareaCount < 2) {
 }
 if (!composeState.texts.some((s) => s.includes('alpha')) || !composeState.texts.some((s) => s.includes('bravo'))) {
   await fail('X thread textareas do not contain both chunks', composeState);
+}
+if (includeImage && composeState.imagePreviewCount < 1) {
+  await fail('X compose dialog does not contain an attached image preview', composeState);
 }
 
 console.log('[verify-x-thread] PASS');
