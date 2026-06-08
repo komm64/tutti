@@ -31,6 +31,8 @@ void initLogLevelFromSettings();
 const AUDIO_KBPS = 96; // 128k → 96k に削減、AAC LC で SNS 用途は十分
 const SAFETY_MARGIN = 0.85; // ultrafast preset は target bitrate を 10-15% overshoot しがちなので margin 大きめ
 const MIN_VIDEO_KBPS = 200; // 200kbps を下回ると視認性が崩壊するので fallback
+const PASSTHROUGH_MAX_WIDTH = 854;
+const OUTPUT_OVERSHOOT_MARGIN = 1.03;
 
 let ffmpegPromise: Promise<FFmpeg> | null = null;
 
@@ -83,8 +85,13 @@ function computeVideoKbps(targetBytes: number, durationS: number): number {
 }
 
 async function compressVideo(msg: ConvertVideoMessage): Promise<{ outputRef: string; size: number }> {
-  const ff = await getFfmpeg();
   const inputBytes = await getBinary(msg.inputRef);
+  const videoKbps = computeVideoKbps(msg.targetBytes, msg.durationS);
+
+  const fastPath = await tryCompressWithWebCodecs(msg, inputBytes, videoKbps);
+  if (fastPath) return fastPath;
+
+  const ff = await getFfmpeg();
   const inputName = 'input.mp4';
   const outputName = 'output.mp4';
 
@@ -93,8 +100,6 @@ async function compressVideo(msg: ConvertVideoMessage): Promise<{ outputRef: str
   try { await ff.deleteFile(outputName); } catch { /* ignore */ }
 
   await ff.writeFile(inputName, inputBytes);
-
-  const videoKbps = computeVideoKbps(msg.targetBytes, msg.durationS);
 
   // aspect mode 別の `-vf` filter (v0.4.81〜):
   // - passthrough: 横長 / 縦長 そのまま、 短辺 854px cap (= 480p)
@@ -154,6 +159,143 @@ async function compressVideo(msg: ConvertVideoMessage): Promise<{ outputRef: str
   // 出力も IndexedDB binary-transfer 経由で background に渡す (sendMessage 64MB 回避)
   const outputRef = await putBinary(new Uint8Array(buffer));
   return { outputRef, size: out.byteLength };
+}
+
+async function tryCompressWithWebCodecs(
+  msg: ConvertVideoMessage,
+  inputBytes: Uint8Array,
+  videoKbps: number,
+): Promise<{ outputRef: string; size: number } | null> {
+  if ((msg.aspectMode ?? 'passthrough') !== 'passthrough') {
+    log.info('offscreen: WebCodecs fast path skip (vertical letterbox uses ffmpeg filters)');
+    return null;
+  }
+
+  if (typeof VideoEncoder === 'undefined' || typeof VideoDecoder === 'undefined') {
+    log.info('offscreen: WebCodecs fast path unavailable');
+    return null;
+  }
+
+  try {
+    void browser.runtime.sendMessage({ type: 'CONVERSION_PROGRESS', progress: 0, stage: 'load' });
+    const {
+      ALL_FORMATS,
+      BlobSource,
+      BufferTarget,
+      Conversion,
+      Input,
+      Mp4OutputFormat,
+      Output,
+      canEncodeAudio,
+      canEncodeVideo,
+    } = await import('mediabunny');
+
+    const effectiveDuration = msg.trimToSeconds && msg.trimToSeconds > 0
+      ? Math.min(msg.trimToSeconds, msg.durationS || msg.trimToSeconds)
+      : msg.durationS;
+    const output = new Output({
+      format: new Mp4OutputFormat({ fastStart: 'in-memory' }),
+      target: new BufferTarget(),
+    });
+    const inputBuffer = new ArrayBuffer(inputBytes.byteLength);
+    new Uint8Array(inputBuffer).set(inputBytes);
+    const input = new Input({
+      source: new BlobSource(new Blob([inputBuffer], { type: msg.mimeType || 'video/mp4' })),
+      formats: ALL_FORMATS,
+    });
+
+    const videoTrack = await input.getPrimaryVideoTrack();
+    if (!videoTrack) throw new Error('no primary video track');
+
+    const displayWidth = await videoTrack.getDisplayWidth();
+    const displayHeight = await videoTrack.getDisplayHeight();
+    const { width, height } = fitToMaxWidth(displayWidth, displayHeight, PASSTHROUGH_MAX_WIDTH);
+
+    const videoBps = videoKbps * 1000;
+    const audioBps = AUDIO_KBPS * 1000;
+    const canEncodeAvc = await canEncodeVideo('avc', {
+      width,
+      height,
+      bitrate: videoBps,
+      hardwareAcceleration: 'prefer-hardware',
+    });
+    if (!canEncodeAvc) throw new Error(`H.264 WebCodecs encode unsupported at ${width}x${height}`);
+
+    const audioTrack = await input.getPrimaryAudioTrack();
+    const audioOptions = audioTrack
+      ? (await canEncodeAudio('aac', { bitrate: audioBps })
+          ? { codec: 'aac' as const, bitrate: audioBps, forceTranscode: true }
+          : undefined)
+      : { discard: true as const };
+    if (audioTrack && !audioOptions) throw new Error('AAC WebCodecs encode unsupported');
+
+    const conversion = await Conversion.init({
+      input,
+      output,
+      tracks: 'primary',
+      video: {
+        codec: 'avc',
+        width,
+        frameRate: 30,
+        bitrate: videoBps,
+        keyFrameInterval: 8,
+        hardwareAcceleration: 'prefer-hardware',
+        forceTranscode: true,
+      },
+      audio: audioOptions,
+      trim: effectiveDuration && effectiveDuration > 0 && effectiveDuration < msg.durationS
+        ? { start: 0, end: effectiveDuration }
+        : undefined,
+      tags: {},
+      showWarnings: false,
+    });
+
+    if (!conversion.isValid) {
+      const discarded = conversion.discardedTracks
+        .map((track) => `${track.track.id}:${track.reason}`)
+        .join(', ');
+      throw new Error(`invalid conversion${discarded ? ` (${discarded})` : ''}`);
+    }
+
+    conversion.onProgress = (progress) => {
+      void browser.runtime.sendMessage({
+        type: 'CONVERSION_PROGRESS',
+        progress: Math.max(0, Math.min(1, progress)),
+        stage: 'transcode',
+      });
+    };
+
+    const startedAt = performance.now();
+    await conversion.execute();
+    const buffer = output.target.buffer;
+    if (!buffer || buffer.byteLength === 0) throw new Error('WebCodecs produced an empty output');
+    if (buffer.byteLength > Math.floor(msg.targetBytes * OUTPUT_OVERSHOOT_MARGIN)) {
+      throw new Error(`WebCodecs output exceeds target: ${buffer.byteLength} > ${msg.targetBytes}`);
+    }
+
+    const out = new Uint8Array(buffer);
+    const outputRef = await putBinary(out);
+    log.info(`offscreen: WebCodecs fast path 完了 outputBytes=${out.byteLength} ${(performance.now() - startedAt).toFixed(0)}ms (${width}x${height}, ${videoKbps}kbps)`);
+    return { outputRef, size: out.byteLength };
+  } catch (e) {
+    const detail = e instanceof Error ? e.message : String(e);
+    log.warn(`offscreen: WebCodecs fast path fallback to ffmpeg — ${detail}`);
+    return null;
+  }
+}
+
+function fitToMaxWidth(width: number, height: number, maxWidth: number): { width: number; height: number } {
+  if (width <= 0 || height <= 0) return { width: maxWidth, height: maxWidth };
+  const outputWidth = Math.min(width, maxWidth);
+  const scale = outputWidth / width;
+  return {
+    width: even(outputWidth),
+    height: even(height * scale),
+  };
+}
+
+function even(value: number): number {
+  return Math.max(2, Math.floor(value / 2) * 2);
 }
 
 browser.runtime.onMessage.addListener((rawMsg, _sender, sendResponse) => {

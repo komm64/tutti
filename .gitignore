@@ -39,6 +39,7 @@ test-data/
 # E2E test fixtures (image / video の binary。各自 local で用意)
 scripts/e2e/fixtures/*
 !scripts/e2e/fixtures/README.md
+!scripts/e2e/fixtures/tiny-vp8.webm.b64
 
 # Local scratch / brainstorm notes
 tmp/

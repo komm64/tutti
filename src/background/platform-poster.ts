@@ -22,6 +22,7 @@ import { toPreviewResult } from './post-result-policy';
 import type { OpenedTabRegistry } from './opened-tab-registry';
 
 const CHUNK_INTERVAL_MS = 2000;
+const PRE_SUBMIT_LOAD_RETRY_PLATFORMS = new Set<PlatformId>(['mastodon']);
 
 type Visibility = 'public' | 'unlisted' | 'private' | 'direct';
 
@@ -167,10 +168,14 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
 
     const dryRun = !autoPost;
     const active = shouldOpenActive(adapter, dryRun, textChunks);
+    const openOptions = PRE_SUBMIT_LOAD_RETRY_PLATFORMS.has(adapter.id)
+      ? { loadRetries: 1, relaxedComposeUrlReady: true }
+      : undefined;
     const { tab, wasCreated } = await openOrFocusTab(
       overrideUrl ?? adapter.getComposeUrl(text),
       adapter.matchUrl,
       active,
+      openOptions,
     );
     if (typeof tab.id !== 'number') {
       throw new Error(t('runtimeSnsTabOpenFailed'));

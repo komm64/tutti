@@ -13,6 +13,25 @@ import { t } from '../utils/i18n';
 const READY_DELAY_MS = 100;
 /** waitForTabComplete の上限 */
 const TAB_LOAD_TIMEOUT_MS = 15000;
+const DEFAULT_LOAD_RETRY_DELAY_MS = 1000;
+
+export interface OpenOrFocusTabOptions {
+  /** 投稿ボタン click 前の load wait だけを再試行する。click 後 retry は caller 側で扱う。 */
+  loadRetries?: number;
+  loadRetryDelayMs?: number;
+  /**
+   * URL の query が SNS 側で正規化/消費されても、同じ compose route なら ready とみなす。
+   * URL prefill に依存しない DOM injection 系のSNSだけで使う。
+   */
+  relaxedComposeUrlReady?: boolean;
+}
+
+class PageLoadTimeoutError extends Error {
+  constructor() {
+    super(t('runtimeSnsPageLoadTimeout'));
+    this.name = 'PageLoadTimeoutError';
+  }
+}
 
 /**
  * v0.5.7〜 戻り値が `{ tab, wasCreated }` に変更。 wasCreated は 「この呼び出しで
@@ -29,15 +48,17 @@ export async function openOrFocusTab(
   composeUrl: string,
   matchUrl: (url: string) => boolean,
   active: boolean,
+  options: OpenOrFocusTabOptions = {},
 ): Promise<OpenTabResult> {
   const existing = (await browser.tabs.query({})).find(
     (t) => typeof t.url === 'string' && matchUrl(t.url),
   );
 
   if (existing && typeof existing.id === 'number') {
+    const existingTabId = existing.id;
     if (existing.url === composeUrl) {
       if (active) {
-        await browser.tabs.update(existing.id, { active: true });
+        await browser.tabs.update(existingTabId, { active: true });
         if (typeof existing.windowId === 'number') {
           await browser.windows.update(existing.windowId, { focused: true });
         }
@@ -51,7 +72,7 @@ export async function openOrFocusTab(
     // タイムアウトする race を引き起こしていた (tutti-issues#16)。
     // listener を先に install してから tabs.update する + 既に complete なら
     // 即時 resolve する dual-strategy で解消。
-    const updated = await browser.tabs.update(existing.id, {
+    const updated = await browser.tabs.update(existingTabId, {
       url: composeUrl,
       active,
     });
@@ -61,8 +82,12 @@ export async function openOrFocusTab(
     if (active && typeof existing.windowId === 'number') {
       await browser.windows.update(existing.windowId, { focused: true });
     }
-    await waitForTabUrlReady(existing.id, composeUrl);
-    const readyTab = await browser.tabs.get(existing.id);
+    await retryPreSubmitLoadWait(
+      () => waitForTabUrlReady(existingTabId, composeUrl, options.relaxedComposeUrlReady === true),
+      options,
+      () => browser.tabs.update(existingTabId, { url: composeUrl, active }),
+    );
+    const readyTab = await browser.tabs.get(existingTabId);
     await sleep(READY_DELAY_MS);
     return { tab: readyTab, wasCreated: false };
   }
@@ -73,7 +98,12 @@ export async function openOrFocusTab(
   if (typeof created.id !== 'number') {
     throw new Error(t('runtimeSnsTabOpenFailed'));
   }
-  await waitForTabComplete(created.id);
+  const createdTabId = created.id;
+  await retryPreSubmitLoadWait(
+    () => waitForTabComplete(createdTabId),
+    options,
+    () => browser.tabs.reload(createdTabId),
+  );
   await sleep(READY_DELAY_MS);
   return { tab: created, wasCreated: true };
 }
@@ -112,7 +142,7 @@ export function waitForTabComplete(tabId: number): Promise<void> {
     };
 
     const timer = setTimeout(() => {
-      finish(new Error(t('runtimeSnsPageLoadTimeout')));
+      finish(new PageLoadTimeoutError());
     }, TAB_LOAD_TIMEOUT_MS);
 
     const listener = (
@@ -144,16 +174,16 @@ export function waitForTabComplete(tabId: number): Promise<void> {
   });
 }
 
-function waitForTabUrlReady(tabId: number, expectedUrl: string): Promise<void> {
+function waitForTabUrlReady(tabId: number, expectedUrl: string, relaxedComposeUrlReady: boolean): Promise<void> {
   return new Promise((resolve, reject) => {
     const startedAt = Date.now();
     const timer = setInterval(() => {
       browser.tabs.get(tabId).then((tab) => {
         const currentUrl = tab.url ?? tab.pendingUrl ?? '';
-        if (!currentUrl.startsWith(expectedUrl)) {
+        if (!isTabAtExpectedComposeUrl(currentUrl, expectedUrl, relaxedComposeUrlReady)) {
           if (Date.now() - startedAt >= TAB_LOAD_TIMEOUT_MS) {
             clearInterval(timer);
-            reject(new Error(t('runtimeSnsPageLoadTimeout')));
+            reject(new PageLoadTimeoutError());
           }
           return;
         }
@@ -168,7 +198,7 @@ function waitForTabUrlReady(tabId: number, expectedUrl: string): Promise<void> {
         }).catch(() => {
           if (Date.now() - startedAt >= TAB_LOAD_TIMEOUT_MS) {
             clearInterval(timer);
-            reject(new Error(t('runtimeSnsPageLoadTimeout')));
+            reject(new PageLoadTimeoutError());
           }
         });
       }).catch((e) => {
@@ -177,6 +207,47 @@ function waitForTabUrlReady(tabId: number, expectedUrl: string): Promise<void> {
       });
     }, 250);
   });
+}
+
+async function retryPreSubmitLoadWait(
+  wait: () => Promise<void>,
+  options: OpenOrFocusTabOptions,
+  retryNavigation: () => Promise<unknown>,
+): Promise<void> {
+  const maxRetries = Math.max(0, options.loadRetries ?? 0);
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await wait();
+      return;
+    } catch (e) {
+      if (!(e instanceof PageLoadTimeoutError) || attempt >= maxRetries) throw e;
+      log.warn(`SNS tab load timed out before submit; retrying navigation (${attempt + 1}/${maxRetries})`);
+      await retryNavigation();
+      await sleep(options.loadRetryDelayMs ?? DEFAULT_LOAD_RETRY_DELAY_MS);
+    }
+  }
+}
+
+export function isTabAtExpectedComposeUrl(
+  currentUrl: string,
+  expectedUrl: string,
+  relaxedComposeUrlReady = false,
+): boolean {
+  if (!currentUrl) return false;
+  if (currentUrl.startsWith(expectedUrl)) return true;
+  if (!relaxedComposeUrlReady) return false;
+  try {
+    const current = new URL(currentUrl);
+    const expected = new URL(expectedUrl);
+    return current.origin === expected.origin &&
+      normalizePath(current.pathname) === normalizePath(expected.pathname);
+  } catch {
+    return false;
+  }
+}
+
+function normalizePath(pathname: string): string {
+  return pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
 }
 
 function sleep(ms: number): Promise<void> {
