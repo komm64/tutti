@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { summarizeResults } from './tab-management';
+import { summarizeResults } from './post-status-ui';
 
 describe('summarizeResults', () => {
   it('keeps uncertain posts separate from confirmed failures', () => {

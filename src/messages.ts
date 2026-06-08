@@ -44,6 +44,12 @@ export interface PostRequestMessage {
   platforms: PlatformId[];
   images?: ImageAttachment[];
   /**
+   * Request-time mode snapshot. Settings persistence is asynchronous in the
+   * popup, so background must not infer this only from storage.
+   * false = preview / dry-run, true = real post.
+   */
+  autoPost?: boolean;
+  /**
    * v0.4.87〜: 詳細オプション。 SNS によって対応 / 無対応が分かれる:
    * - cw (content warning / spoiler text): Mastodon (spoiler_text) / Misskey (cw)
    * - visibility: Mastodon (public/unlisted/private/direct) / Misskey (public/home/followers/specified)
@@ -92,8 +98,14 @@ export interface PostResultMessage {
   platform: PlatformId;
   success: boolean;
   /**
+   * Compose preview completed, but Tutti did not click the SNS post button.
+   * Preview results must never be stored as post history or carry post URLs.
+   */
+  preview?: boolean;
+  /**
    * SNS 側で landing を確認できた場合のみ true。post URL、API の create 応答、
-   * または SNS 固有の完了 UI が証跡になる。preview の場合も true。
+   * または SNS 固有の完了 UI が証跡になる。preview=true の場合は compose の
+   * 準備完了を示すだけで、実投稿の landing 証跡ではない。
    */
   confirmed?: boolean;
   /**

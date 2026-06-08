@@ -1,14 +1,62 @@
 # Tutti E2E real-post smoke test
 
-実投稿テストは **2 系統** に分けて運用する。
+ブラウザテストは **3 系統** に分けて運用する。
 
 | 系統 | 走る場所 | 対象 SNS | 投稿経路 | trigger |
 |---|---|---|---|---|
+| **Mock browser smoke** | local / CI runner with display | mock X | Playwright で拡張 load → mock SNS DOM | refactor 後 / release 前 |
 | **API smoke** | GitHub-hosted runner (Ubuntu) | Bluesky / Mastodon / Misskey | 公式 API 直叩き (`src/api/`) | nightly + workflow_dispatch |
 | **DOM smoke** | self-hosted runner (Ubuntu+xvfb / Surface) | X / Threads / Tumblr / Pixiv / TikTok / YouTube / Instagram / DeviantArt | Playwright で拡張 load → DOM 操作 | workflow_dispatch のみ (anti-bot 配慮) |
 
+Mock browser smoke は実 SNS に接続せず、毎回 fresh Chromium profile に
+ビルド済み拡張をロードして mock `x.com` 上で popup → background →
+content script の境界を検証する。外部ログイン状態に依存しないので、
+大きなリファクタ後の最初の実ブラウザ検知層として使う。
+
 API smoke は credentials が repo secrets にあれば毎晩自動で回る (= cheap)。
 DOM smoke は anti-bot 対策で self-hosted runner 必須 (= 手動 trigger 中心)。
+
+---
+
+## Mock browser smoke
+
+### 目的
+
+unit test では拾いづらい MV3 extension runtime の事故を、実ブラウザで早期検知する。
+特に以下を固定する:
+
+- built extension が Chromium にロードでき、service worker が起動する
+- `POST_REQUEST` が background → content script に届く
+- preview / dry-run 結果が `preview=true` になり、post URL を持たない
+- preview が `postHistory` を増やさない
+- popup UI 経由の preview で draft text が消えない
+
+### ローカル実行
+
+```bash
+npm run e2e:smoke
+```
+
+既に `npm run build` 済みで、ビルドを省きたい場合:
+
+```bash
+npm run e2e:smoke:no-build
+```
+
+Chrome extensions require a headed browser. Linux CI では `xvfb-run -a` を付ける:
+
+```bash
+xvfb-run -a npm run e2e:smoke
+```
+
+### 失敗時 artifact
+
+失敗時は `.tmp/e2e-smoke-*` に以下を残す:
+
+- `page-*.png`: popup / mock X / extension page のスクリーンショット
+- `state.json`: `postHistory`、`GET_BG_STATE`、エラー stack
+
+この smoke は real SNS の selector drift を保証しない。そこは下の DOM smoke で見る。
 
 ---
 
