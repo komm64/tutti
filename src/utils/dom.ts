@@ -110,10 +110,32 @@ export function findClickableByText(text: string | string[]): HTMLElement | null
   const candidates = document.querySelectorAll<HTMLElement>('button, [role="button"]');
   let lastMatch: HTMLElement | null = null;
   for (const el of candidates) {
-    const t = el.textContent?.trim();
-    if (t && texts.includes(t)) lastMatch = el;
+    if (elementTextMatches(el, texts)) lastMatch = el;
   }
   return lastMatch;
+}
+
+export function normalizeElementText(text: string | null | undefined): string {
+  return (text ?? '').replace(/\s+/g, ' ').trim();
+}
+
+export function elementTextMatches(el: HTMLElement, texts: readonly string[]): boolean {
+  const visibleText = normalizeElementText(el.textContent);
+  if (visibleText && texts.includes(visibleText)) return true;
+  const aria = normalizeElementText(el.getAttribute('aria-label'));
+  return !!aria && texts.includes(aria);
+}
+
+export function isVisibleElement(el: HTMLElement): boolean {
+  if (typeof window === 'undefined' || typeof window.getComputedStyle !== 'function') return true;
+  const style = window.getComputedStyle(el);
+  if (style.display === 'none' || style.visibility === 'hidden') return false;
+  if (typeof el.getClientRects === 'function' && el.getClientRects().length === 0) return false;
+  return true;
+}
+
+export function isElementDisabled(el: HTMLElement): boolean {
+  return el.getAttribute('aria-disabled') === 'true' || (el as HTMLButtonElement).disabled === true;
 }
 
 /**

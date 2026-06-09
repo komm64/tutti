@@ -175,7 +175,14 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
       overrideUrl ?? adapter.getComposeUrl(text),
       adapter.matchUrl,
       active,
-      openOptions,
+      {
+        ...openOptions,
+        // Real posts must start from a clean compose surface.
+        // Reusing broad domain matches (for example instagram.com/ or x.com/compose/post)
+        // can collide with preview drafts left open by the previous request.
+        // Preview still reuses tabs so local mock smoke and manual inspection stay lightweight.
+        reuseExistingTab: dryRun,
+      },
     );
     if (typeof tab.id !== 'number') {
       throw new Error(t('runtimeSnsTabOpenFailed'));

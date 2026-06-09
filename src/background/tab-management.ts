@@ -16,6 +16,12 @@ const TAB_LOAD_TIMEOUT_MS = 15000;
 const DEFAULT_LOAD_RETRY_DELAY_MS = 1000;
 
 export interface OpenOrFocusTabOptions {
+  /**
+   * false の場合、既存のSNSタブを再利用せずに必ず新規 compose タブを作る。
+   * preview で残った下書き・wizard 状態を real post が踏む事故を避けるため、
+   * real posting flow からは false を渡す。
+   */
+  reuseExistingTab?: boolean;
   /** 投稿ボタン click 前の load wait だけを再試行する。click 後 retry は caller 側で扱う。 */
   loadRetries?: number;
   loadRetryDelayMs?: number;
@@ -50,9 +56,12 @@ export async function openOrFocusTab(
   active: boolean,
   options: OpenOrFocusTabOptions = {},
 ): Promise<OpenTabResult> {
-  const existing = (await browser.tabs.query({})).find(
-    (t) => typeof t.url === 'string' && matchUrl(t.url),
-  );
+  const reuseExistingTab = options.reuseExistingTab !== false;
+  const existing = reuseExistingTab
+    ? (await browser.tabs.query({})).find(
+      (t) => typeof t.url === 'string' && matchUrl(t.url),
+    )
+    : undefined;
 
   if (existing && typeof existing.id === 'number') {
     const existingTabId = existing.id;

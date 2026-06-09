@@ -3,7 +3,14 @@ import type { ImageAttachment, PostResultMessage } from '../src/messages';
 import { INSTAGRAM_SELECTORS } from '../src/adapters/instagram';
 import { executeMultiStepFlow, type Step } from '../src/utils/step-runner';
 import { injectImages, injectTextIntoElement } from '../src/utils/image';
-import { sleep, waitForCondition, waitForElement } from '../src/utils/dom';
+import {
+  elementTextMatches,
+  isElementDisabled,
+  isVisibleElement,
+  sleep,
+  waitForCondition,
+  waitForElement,
+} from '../src/utils/dom';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
 import { t } from '../src/utils/i18n';
@@ -527,13 +534,14 @@ function findDialogButtonByText(texts: string[]): HTMLElement | null {
   // Create dialog (aria-label="Create new post" 等) を優先
   const createDialogs = dialogs.filter((d) => /create|投稿/i.test(d.getAttribute('aria-label') ?? ''));
   const target = createDialogs.length > 0 ? createDialogs : dialogs;
-  let lastMatch: HTMLElement | null = null;
+  let lastVisibleMatch: HTMLElement | null = null;
   for (const dialog of target) {
     const buttons = dialog.querySelectorAll<HTMLElement>('button, [role="button"]');
     for (const b of buttons) {
-      const t = (b.textContent ?? '').trim();
-      if (texts.includes(t)) lastMatch = b;
+      if (!elementTextMatches(b, texts) || !isVisibleElement(b)) continue;
+      if (!isElementDisabled(b)) return b;
+      lastVisibleMatch = b;
     }
   }
-  return lastMatch;
+  return lastVisibleMatch;
 }
