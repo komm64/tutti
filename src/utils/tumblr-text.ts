@@ -27,16 +27,16 @@ export function validateTumblrBodyText(actual: string, expected: string): Tumblr
   const normalizedExpected = normalizeTumblrText(expected);
   if (!normalizedExpected) return { ok: normalizedActual.length === 0 };
   const occurrences = countNormalizedOccurrences(normalizedActual, normalizedExpected);
+  if (occurrences === 0) {
+    return {
+      ok: false,
+      error: 'Tumblr body does not contain the current draft text.',
+    };
+  }
   if (occurrences > 1) {
     return {
       ok: false,
       error: `Tumblr body contains ${occurrences} copies of the same text; refusing to submit a duplicated post.`,
-    };
-  }
-  if (normalizedActual !== normalizedExpected) {
-    return {
-      ok: false,
-      error: 'Tumblr body text does not match the current draft; refusing to submit a stale or mixed draft.',
     };
   }
   return { ok: true };

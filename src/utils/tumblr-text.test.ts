@@ -19,9 +19,16 @@ describe('Tumblr body text validation', () => {
     });
   });
 
-  it('rejects stale text mixed with the current draft', () => {
+  it('allows extra rich-editor text when the current draft appears once', () => {
     expect(validateTumblrBodyText(
       'old Tutti announcement current draft',
+      'current draft',
+    )).toEqual({ ok: true });
+  });
+
+  it('rejects content that does not include the current draft', () => {
+    expect(validateTumblrBodyText(
+      'old Tutti announcement',
       'current draft',
     )).toMatchObject({ ok: false });
   });
