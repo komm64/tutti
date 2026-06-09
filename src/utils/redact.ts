@@ -18,15 +18,16 @@
  */
 export function redactPII(text: string): string {
   return text
-    // 1) Mastodon-style `@user@instance.tld` を **handle** として潰す。
+    // 1) URL: scheme://host/path?q#f → scheme://host/<…>
+    //    URL path 内の @handle を先に潰すと path が残るため、URL を最初に処理する。
+    .replace(/(https?:\/\/[\w.-]+)(\/[^\s"'`<>]*)?/gi, (_m, base) => `${base}/<…>`)
+    // 2) Mastodon-style `@user@instance.tld` を **handle** として潰す。
     //    plain email より先に処理しないと `<email-redacted>` でラベルが混じる。
     //    境界は 行頭 or 空白 / 句読点 (mid-word @ は無視)。
     .replace(/(^|[\s\p{P}])@[\w.-]+@[\w-]+\.[\w.-]+/gu, (_m, lead) => `${lead}@<redacted>`)
-    // 2) plain email (上で潰した Mastodon mention の残り、 純粋な email アドレス)。
+    // 3) plain email (上で潰した Mastodon mention の残り、 純粋な email アドレス)。
     //    `@<redacted>` 直後を email 形式と認識しないよう、 直前文字が `@` のときは skip。
     .replace(/(^|[^@\w])([\w.+-]+@[\w-]+\.[\w.-]+)/g, (_m, lead) => `${lead}<email-redacted>`)
-    // 3) X-style `@handle` (instance なし)。
-    .replace(/(^|[\s\p{P}])@[\w.-]+/gu, (_m, lead) => `${lead}@<redacted>`)
-    // 4) URL: scheme://host/path?q#f → scheme://host/<…>
-    .replace(/(https?:\/\/[\w.-]+)(\/[^\s"'`<>]*)?/gi, (_m, base) => `${base}/<…>`);
+    // 4) X-style `@handle` (instance なし)。
+    .replace(/(^|[\s\p{P}])@[\w.-]+/gu, (_m, lead) => `${lead}@<redacted>`);
 }

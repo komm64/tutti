@@ -82,6 +82,49 @@ describe('buildErrorReportPayload', () => {
     expect(payload.body).not.toContain('token=secret');
   });
 
+  it('keeps oversized diagnostics as parseable JSON', () => {
+    const payload = buildErrorReportPayload({
+      errorText: 'Failed',
+      version: '0.5.24',
+      userAgent: 'test-agent',
+      draftSection: [],
+      diagnosticsJson: JSON.stringify({
+        version: '0.5.24',
+        generatedAt: '2026-06-09T00:00:00.000Z',
+        platforms: [{
+          type: 'DIAGNOSE_PLATFORM_RESULT',
+          platform: 'threads',
+          url: 'https://threads.net/@alice/post/secret',
+          detectedUser: '@alice',
+          selectors: [{ name: 'postButton', selector: '[role="button"]', matchCount: 0, firstMatchPreview: null }],
+          domSnapshot: `<body>${'x'.repeat(60_000)}</body>`,
+        }],
+      }),
+    });
+
+    const diagnostics = extractDiagnosticsJson(payload.body);
+    const parsed = JSON.parse(diagnostics);
+    expect(parsed._reportMeta.diagnosticsTruncatedForIssue).toBe(true);
+    expect(parsed.platforms[0].domSnapshot).toContain('report-truncated');
+    expect(diagnostics.length).toBeLessThanOrEqual(30_000);
+    expect(diagnostics).not.toContain('@alice');
+    expect(diagnostics).not.toContain('/post/secret');
+  });
+
+  it('wraps malformed diagnostics as parseable JSON', () => {
+    const payload = buildErrorReportPayload({
+      errorText: 'Failed',
+      version: '0.5.24',
+      userAgent: 'test-agent',
+      draftSection: [],
+      diagnosticsJson: '{"user":"alice@example.com"',
+    });
+
+    const parsed = JSON.parse(extractDiagnosticsJson(payload.body));
+    expect(parsed._reportMeta.diagnosticsParseError).toBe(true);
+    expect(parsed.rawPreview).not.toContain('alice@example.com');
+  });
+
   it('uses placeholder text when logs are empty', () => {
     const payload = buildErrorReportPayload({
       errorText: 'Failed',
@@ -93,6 +136,16 @@ describe('buildErrorReportPayload', () => {
     expect(payload.body).toContain('(no logs captured)');
   });
 });
+
+function extractDiagnosticsJson(body: string): string {
+  const start = '<!-- tutti-diagnostics-begin -->';
+  const end = '<!-- tutti-diagnostics-end -->';
+  const raw = body.slice(body.indexOf(start) + start.length, body.indexOf(end)).trim();
+  return raw
+    .replace(/^```json\s*/, '')
+    .replace(/\s*```$/, '')
+    .trim();
+}
 
 describe('formatLogExcerpt', () => {
   it('formats log entries consistently', () => {

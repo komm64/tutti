@@ -63,6 +63,13 @@ describe('redactPII', () => {
       expect(out).toContain('x.com');
     });
 
+    it('strips paths that contain handles before handle redaction runs', () => {
+      const out = redactPII('see https://threads.net/@alice/post/secret');
+      expect(out).toBe('see https://threads.net/<…>');
+      expect(out).not.toContain('@alice');
+      expect(out).not.toContain('/post/secret');
+    });
+
     it('does not eat surrounding text', () => {
       const out = redactPII('Visit https://example.com/x for details about Y.');
       expect(out).toContain('Visit ');
