@@ -110,6 +110,10 @@ ${s.supportBody}
 
 ${s.privacyBody}
 
+## ${s.h2ResponsibleUse}
+
+${s.responsibleUseBody}
+
 ## ${s.h2License}
 
 ${s.licenseBody}
@@ -125,13 +129,17 @@ ${s.devNoticeBody}
 async function main() {
   const entries = await readdir(STRINGS_DIR);
   const localeFiles = entries.filter((e) => e.endsWith('.json'));
+  const en = JSON.parse(await readFile(join(STRINGS_DIR, 'en.json'), 'utf8'));
   let written = 0;
   for (const file of localeFiles) {
     const locale = file.replace(/\.json$/, '');
     // Skip en (canonical README.md is hand-maintained with dev section).
     // Skip ja (existing README.ja.md is hand-maintained with full dev section).
     if (locale === 'en' || locale === 'ja') continue;
-    const data = JSON.parse(await readFile(join(STRINGS_DIR, file), 'utf8'));
+    const data = {
+      ...en,
+      ...JSON.parse(await readFile(join(STRINGS_DIR, file), 'utf8')),
+    };
     const md = buildReadme(locale, data);
     await writeFile(join(OUT_DIR, fileName(locale)), md, 'utf8');
     written += 1;

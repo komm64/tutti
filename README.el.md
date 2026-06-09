@@ -83,6 +83,10 @@
 
 Το κείμενο των αναρτήσεων, οι εικόνες και το βίντεο επεξεργάζονται **εξ ολοκλήρου μέσα στον περιηγητή σας** — δεν αποστέλλονται ποτέ σε κανέναν διακομιστή τρίτου. Δείτε την [πολιτική απορρήτου](https://tutti.komm64.com/privacy.html) για λεπτομέρειες.
 
+## Responsible Use and Disclaimer
+
+Tutti assists posting actions that you initiate. You remain responsible for your content, selected accounts, and compliance with each platform's terms, rules, posting limits, community guidelines, and applicable laws. Automation, repeated or duplicate content, unauthorized content, or insufficient sensitive-content labeling can result in platform enforcement. Tutti is provided as is, without warranties, and liability is limited to the maximum extent permitted by law. Full terms: https://tutti.komm64.com/terms.html
+
 ## Άδεια
 
 [Με επιφύλαξη παντός δικαιώματος](./LICENSE) — © 2026 komm64

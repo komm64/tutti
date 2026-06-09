@@ -43,6 +43,8 @@
   "supportBody": "Questions, bug reports, feature requests: **[tutti.komm64.com/support.html](https://tutti.komm64.com/support.html)**\n\nOr email **contact@komm64.com**.",
   "h2Privacy": "Privacy",
   "privacyBody": "Post text, images, and video are processed **entirely inside your browser** — they are never sent to any third-party server. See the [privacy policy](https://tutti.komm64.com/privacy.html) for details.",
+  "h2ResponsibleUse": "Responsible Use and Disclaimer",
+  "responsibleUseBody": "Tutti assists posting actions that you initiate. You remain responsible for your content, selected accounts, and compliance with each platform's terms, rules, posting limits, community guidelines, and applicable laws. Automation, repeated or duplicate content, unauthorized content, or insufficient sensitive-content labeling can result in platform enforcement. Tutti is provided as is, without warranties, and liability is limited to the maximum extent permitted by law. Full terms: https://tutti.komm64.com/terms.html",
   "h2License": "License",
   "licenseBody": "[All Rights Reserved](./LICENSE) — © 2026 komm64\n\nThe source code is published for transparency. Redistribution, reuse, or modification is not permitted.",
   "devNoticeHeading": "Development",

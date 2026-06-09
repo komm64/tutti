@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Build docs/{index,privacy,support}.html — Vellie-style single-file pages.
+// Build docs/{index,privacy,support,terms}.html — Vellie-style single-file pages.
 // All 31 locale translations are baked into each HTML as a JS object.
 // Language is detected from localStorage > navigator.language > 'en'.
 // Run: node scripts/build-public-docs.mjs
@@ -116,7 +116,11 @@ const CHROME_ICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"
 const INDEX_RENDER = `
 var CWS_URL='${CWS_URL}';
 function render(code){
-  var t=T[code]||T['en'],c=t.common,i=t.index;
+  var t=T[code]||T['en'],en=T['en'],c=t.common,i=t.index;
+  var termsLabel=c.navTerms||en.common.navTerms;
+  var responsibleTitle=i.h2ResponsibleUse||en.index.h2ResponsibleUse;
+  var responsibleBody=i.responsibleUseBody||en.index.responsibleUseBody;
+  var responsibleLink=i.responsibleUseLink||en.index.responsibleUseLink;
   document.title=i.title;
   document.documentElement.lang=code;
   document.documentElement.dir=code==='ar'?'rtl':'';
@@ -125,14 +129,18 @@ function render(code){
     '<a href="'+CWS_URL+'" target="_blank" rel="noopener">Chrome Web Store</a>'+
     '<a href="https://github.com/komm64/tutti">'+c.navGitHub+'</a>'+
     '<a href="./support.html">'+c.navSupport+'</a>'+
-    '<a href="./privacy.html">'+c.navPrivacy+'</a>';
+    '<a href="./privacy.html">'+c.navPrivacy+'</a>'+
+    '<a href="./terms.html">'+termsLabel+'</a>';
   document.getElementById('content').innerHTML=
     '<a class="cws-btn" href="'+CWS_URL+'" target="_blank" rel="noopener">'+
     '${CHROME_ICON} Add to Chrome — Free</a>'+
     '<h2>'+i.h2Overview+'</h2><p>'+i.overviewBody+'</p>'+
     '<h2>'+i.h2PrivacySummary+'</h2>'+
     '<p>'+i.privacySummaryBody+'</p>'+
-    '<p>'+i.privacyFullPolicy+' <a href="./privacy.html">Privacy Policy</a></p>';
+    '<p>'+i.privacyFullPolicy+' <a href="./privacy.html">'+c.navPrivacy+'</a></p>'+
+    '<h2>'+responsibleTitle+'</h2>'+
+    '<p>'+responsibleBody+'</p>'+
+    '<p><a href="./terms.html">'+responsibleLink+'</a></p>';
   document.getElementById('footer').innerHTML=c.footerCopy;
 }
 `;
@@ -140,7 +148,8 @@ function render(code){
 // Render function for privacy.html
 const PRIVACY_RENDER = `
 function render(code){
-  var t=T[code]||T['en'],c=t.common,p=t.privacy;
+  var t=T[code]||T['en'],en=T['en'],c=t.common,p=t.privacy;
+  var termsLabel=c.navTerms||en.common.navTerms;
   document.title=p.title;
   document.documentElement.lang=code;
   document.documentElement.dir=code==='ar'?'rtl':'';
@@ -148,7 +157,8 @@ function render(code){
   document.getElementById('nav').innerHTML=
     '<a href="./index.html">'+c.navHome+'</a>'+
     '<a href="https://github.com/komm64/tutti">'+c.navGitHub+'</a>'+
-    '<a href="./support.html">'+c.navSupport+'</a>';
+    '<a href="./support.html">'+c.navSupport+'</a>'+
+    '<a href="./terms.html">'+termsLabel+'</a>';
   document.getElementById('content').innerHTML=
     '<p>'+p.lastUpdated+'</p>'+
     '<h2>'+p.h2Data+'</h2>'+
@@ -183,10 +193,41 @@ function render(code){
 }
 `;
 
+// Render function for terms.html
+const TERMS_RENDER = `
+function render(code){
+  var t=T[code]||T['en'],en=T['en'],c=t.common,r=t.terms||en.terms;
+  document.title=r.title;
+  document.documentElement.lang=code;
+  document.documentElement.dir=code==='ar'?'rtl':'';
+  document.getElementById('tagline').textContent=r.headerTagline;
+  document.getElementById('nav').innerHTML=
+    '<a href="./index.html">'+c.navHome+'</a>'+
+    '<a href="https://github.com/komm64/tutti">'+c.navGitHub+'</a>'+
+    '<a href="./support.html">'+c.navSupport+'</a>'+
+    '<a href="./privacy.html">'+c.navPrivacy+'</a>';
+  document.getElementById('content').innerHTML=
+    '<p>'+r.lastUpdated+'</p>'+
+    '<div class="callout"><p>'+r.languageNote+'</p></div>'+
+    '<h2>'+r.h2ResponsibleUse+'</h2>'+
+    '<p>'+r.responsibleUseBody+'</p>'+
+    '<h2>'+r.h2PlatformRules+'</h2>'+
+    '<p>'+r.platformRulesBody+'</p>'+
+    '<h2>'+r.h2Disclaimer+'</h2>'+
+    '<p>'+r.disclaimerBody+'</p>'+
+    '<h2>'+r.h2NoAffiliation+'</h2>'+
+    '<p>'+r.noAffiliationBody+'</p>'+
+    '<h2>'+r.h2Contact+'</h2>'+
+    '<p>'+r.contactBody+'</p>';
+  document.getElementById('footer').innerHTML=c.footerCopy;
+}
+`;
+
 // Render function for support.html
 const SUPPORT_RENDER = `
 function render(code){
-  var t=T[code]||T['en'],c=t.common,u=t.support;
+  var t=T[code]||T['en'],en=T['en'],c=t.common,u=t.support;
+  var termsLabel=c.navTerms||en.common.navTerms;
   document.title=u.title;
   document.documentElement.lang=code;
   document.documentElement.dir=code==='ar'?'rtl':'';
@@ -194,7 +235,8 @@ function render(code){
   document.getElementById('nav').innerHTML=
     '<a href="./index.html">'+c.navHome+'</a>'+
     '<a href="https://github.com/komm64/tutti">'+c.navGitHub+'</a>'+
-    '<a href="./privacy.html">'+c.navPrivacy+'</a>';
+    '<a href="./privacy.html">'+c.navPrivacy+'</a>'+
+    '<a href="./terms.html">'+termsLabel+'</a>';
   document.getElementById('content').innerHTML=
     '<h2>'+u.h2Help+'</h2>'+
     '<h3>'+u.h3Failed+'</h3><p>'+u.failedBody+'</p>'+
@@ -278,7 +320,8 @@ async function main() {
   await writeFile(join(OUT_DIR, 'index.html'), buildHtml(INDEX_RENDER, T, ''), 'utf8');
   await writeFile(join(OUT_DIR, 'privacy.html'), buildHtml(PRIVACY_RENDER, T, 'privacy.html'), 'utf8');
   await writeFile(join(OUT_DIR, 'support.html'), buildHtml(SUPPORT_RENDER, T, 'support.html'), 'utf8');
-  console.log('Done. Generated index.html, privacy.html, support.html');
+  await writeFile(join(OUT_DIR, 'terms.html'), buildHtml(TERMS_RENDER, T, 'terms.html'), 'utf8');
+  console.log('Done. Generated index.html, privacy.html, support.html, terms.html');
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });

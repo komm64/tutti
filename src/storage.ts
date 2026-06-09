@@ -107,7 +107,16 @@ export interface Settings {
    *   将来 API path で順次対応予定。
    */
   notifyInteractions: boolean;
+  /**
+   * Responsible Use / Disclaimer の確認状態。
+   * 文面を実質変更したら RESPONSIBLE_USE_ACK_VERSION を上げ、既存 user に再確認させる。
+   */
+  responsibleUseAcceptedVersion: number;
+  responsibleUseAcceptedAt: number | null;
 }
+
+export const RESPONSIBLE_USE_ACK_VERSION = 1;
+export const TERMS_URL = 'https://tutti.komm64.com/terms.html';
 
 const DEFAULT_SETTINGS: Settings = {
   mastodonInstance: 'https://mastodon.social',
@@ -136,6 +145,8 @@ const DEFAULT_SETTINGS: Settings = {
   // v0.5.10〜 interaction 通知は opt-in (デフォルト OFF)。 「Tutti が勝手に
   // 通知を出す」 は user surprise なので Settings で明示 ON にした人だけ。
   notifyInteractions: false,
+  responsibleUseAcceptedVersion: 0,
+  responsibleUseAcceptedAt: null,
 };
 
 function migrateSelectorOverrideUrl(url: string | undefined): string {

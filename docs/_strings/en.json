@@ -7,6 +7,7 @@
     "navGitHub": "GitHub",
     "navSupport": "Support",
     "navPrivacy": "Privacy Policy",
+    "navTerms": "Terms",
     "navLanguages": "Other languages",
     "footerCopy": "&copy; 2026 komm64 &mdash; <a href=\"https://github.com/komm64/tutti/blob/main/LICENSE\">All Rights Reserved</a>",
     "footerContact": "Tutti is a Chrome extension by <a href=\"https://github.com/komm64\">komm64</a>. Contact: <a href=\"mailto:contact@komm64.com\">contact@komm64.com</a>"
@@ -18,7 +19,26 @@
     "overviewBody": "Tutti broadcasts the same post to 11 social networks (X, Bluesky, Threads, Tumblr, Mastodon, Misskey, Pixiv, TikTok, YouTube Shorts, Instagram, DeviantArt) in one click. It has no backend; post content never passes through any third-party server.",
     "h2PrivacySummary": "Privacy in one sentence",
     "privacySummaryBody": "Tutti has no backend server. Post content (text, images, video) goes directly from your browser to each social network you select — never via any developer-controlled server.",
-    "privacyFullPolicy": "Full policy:"
+    "privacyFullPolicy": "Full policy:",
+    "h2ResponsibleUse": "Responsible Use and Disclaimer",
+    "responsibleUseBody": "You are responsible for your content, accounts, selected services, and compliance with each platform's terms, rules, posting limits, community guidelines, and applicable laws. Automation, repeated posts, duplicate or near-duplicate content, unauthorized content, missing sensitive-content labels, or other platform-prohibited behavior may lead to enforcement actions by third-party platforms.",
+    "responsibleUseLink": "Terms, Disclaimer, and Responsible Use"
+  },
+  "terms": {
+    "title": "Tutti — Terms, Disclaimer, and Responsible Use",
+    "headerTagline": "Use Tutti responsibly and follow each platform's rules.",
+    "lastUpdated": "Last updated: 2026-06-09 (v0.5.24)",
+    "languageNote": "The English version is the controlling version. Translations are provided for convenience only.",
+    "h2ResponsibleUse": "Responsible Use",
+    "responsibleUseBody": "Before using Tutti, please confirm that you are responsible for the content you create, the accounts you use, the services you post to, and your compliance with each platform's terms, rules, posting limits, community guidelines, and applicable laws.",
+    "h2PlatformRules": "Platform Rules and Account Risk",
+    "platformRulesBody": "Use of automation, repeated posting, duplicate or near-duplicate content, unauthorized content, insufficient sensitive-content labeling, or other platform-prohibited behavior may result in post removal, reduced visibility, rate limits, account restrictions, suspension, or other enforcement actions by third-party platforms.",
+    "h2Disclaimer": "Disclaimer of Warranties and Limitation of Liability",
+    "disclaimerBody": "Tutti is provided \"as is\" and \"as available,\" without warranties of any kind, whether express or implied. We do not warrant that Tutti will be accurate, uninterrupted, error-free, compatible with every service, or compliant with the terms or policies of any third-party platform. To the maximum extent permitted by applicable law, we will not be liable for any direct, indirect, incidental, consequential, special, exemplary, or other damages arising from or related to your use of, or inability to use, Tutti, including posting errors, duplicate posts, failed posts, account restrictions, data loss, or third-party platform actions. Nothing in this disclaimer excludes or limits liability that cannot be excluded or limited under applicable law.",
+    "h2NoAffiliation": "No Affiliation",
+    "noAffiliationBody": "Tutti is an independent tool and is not affiliated with, endorsed by, or sponsored by any supported third-party platform.",
+    "h2Contact": "Contact",
+    "contactBody": "Questions about these terms: <a href=\"mailto:contact@komm64.com\">contact@komm64.com</a>."
   },
   "privacy": {
     "title": "Tutti — Privacy Policy",

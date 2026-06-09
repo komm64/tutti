@@ -83,6 +83,10 @@ O invia un'email a **contact@komm64.com**.
 
 Il testo, le immagini e il video dei post sono elaborati **interamente all'interno del tuo browser** — non vengono mai inviati a nessun server di terze parti. Vedi la [informativa sulla privacy](https://tutti.komm64.com/privacy.html) per i dettagli.
 
+## Responsible Use and Disclaimer
+
+Tutti assists posting actions that you initiate. You remain responsible for your content, selected accounts, and compliance with each platform's terms, rules, posting limits, community guidelines, and applicable laws. Automation, repeated or duplicate content, unauthorized content, or insufficient sensitive-content labeling can result in platform enforcement. Tutti is provided as is, without warranties, and liability is limited to the maximum extent permitted by law. Full terms: https://tutti.komm64.com/terms.html
+
 ## Licenza
 
 [Tutti i diritti riservati](./LICENSE) — © 2026 komm64

@@ -83,6 +83,10 @@ Veya **contact@komm64.com**'a e-posta gönderin.
 
 Gönderi metni, resimler ve video **tamamen tarayıcınızın içinde** işlenir — asla herhangi bir üçüncü taraf sunucuya gönderilmez. Ayrıntılar için [gizlilik politikası](https://tutti.komm64.com/privacy.html)na bakın.
 
+## Responsible Use and Disclaimer
+
+Tutti assists posting actions that you initiate. You remain responsible for your content, selected accounts, and compliance with each platform's terms, rules, posting limits, community guidelines, and applicable laws. Automation, repeated or duplicate content, unauthorized content, or insufficient sensitive-content labeling can result in platform enforcement. Tutti is provided as is, without warranties, and liability is limited to the maximum extent permitted by law. Full terms: https://tutti.komm64.com/terms.html
+
 ## Lisans
 
 [Tüm hakları saklıdır](./LICENSE) — © 2026 komm64

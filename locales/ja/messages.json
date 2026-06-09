@@ -487,5 +487,24 @@
   },
 
   "historyClearedConfirmation": { "message": "削除しました ✓" },
-  "historyClearAllHint": { "message": "このデバイスの投稿履歴とメディアをすべて削除します。" }
+  "historyClearAllHint": { "message": "このデバイスの投稿履歴とメディアをすべて削除します。" },
+  "responsibleUseDialogTitle": { "message": "責任ある利用" },
+  "responsibleUseDialogLead": { "message": "Tutti を使用する前に、以下の重要事項を確認してください。" },
+  "responsibleUseDialogPlatformRules": { "message": "投稿内容、使用するアカウント、投稿先サービス、各プラットフォームの利用規約・ルール・投稿制限・コミュニティガイドライン・適用法令の遵守は利用者自身の責任です。" },
+  "responsibleUseDialogAutomationRisk": { "message": "自動化、連続投稿、重複または類似内容の投稿、権利のないコンテンツ、センシティブ表示の不足、その他プラットフォームが禁止する利用は、投稿削除、表示制限、レート制限、アカウント制限、停止などの対象になる場合があります。" },
+  "responsibleUseDialogNoWarranty": { "message": "Tutti は現状有姿かつ提供可能な範囲で提供され、いかなる保証も行いません。適用法令で認められる最大限の範囲で、開発者は Tutti の使用または使用不能から生じる損害について責任を負いません。" },
+  "responsibleUseDialogUnaffiliated": { "message": "Tutti は独立したツールであり、対応する第三者プラットフォームと提携、承認、後援関係にはありません。" },
+  "responsibleUseDialogTermsIntro": { "message": "こちらも確認してください: " },
+  "responsibleUseDialogTermsLink": { "message": "利用条件・免責事項・責任ある利用" },
+  "responsibleUseAccept": { "message": "理解しました" },
+  "responsibleUseClose": { "message": "閉じる" },
+  "responsibleUseSettingsTitle": { "message": "責任ある利用と免責事項" },
+  "responsibleUseSettingsBody": { "message": "初回利用時に表示される、各プラットフォームのルールと無保証に関する注意を確認できます。Tutti は利用者が開始した操作を補助しますが、各サービスは独自のルールを適用する場合があります。" },
+  "responsibleUseSettingsAccepted": {
+    "message": "$DATE$ に承認済み",
+    "placeholders": { "DATE": { "content": "$1" } }
+  },
+  "responsibleUseSettingsNotAccepted": { "message": "未承認" },
+  "responsibleUseReview": { "message": "注意事項を確認" },
+  "responsibleUseOpenTerms": { "message": "全文を開く" }
 }

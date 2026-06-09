@@ -15,6 +15,7 @@
     saveDraft,
     saveSelectedPlatforms,
     saveSettings,
+    RESPONSIBLE_USE_ACK_VERSION,
     type HistoryEntry,
     type LastSeenUsers,
   } from '../../src/storage';
@@ -98,6 +99,7 @@
   import DiagnosticsPanel from './components/DiagnosticsPanel.svelte';
   import HistoryStrip from './components/HistoryStrip.svelte';
   import ErrorReportDialog from './components/ErrorReportDialog.svelte';
+  import ResponsibleUseDialog from './components/ResponsibleUseDialog.svelte';
 
   const platforms: PlatformOption[] = POPUP_PLATFORMS;
 
@@ -142,12 +144,16 @@
   // true=実投稿。デフォルトは false にして、初回ユーザーの誤投稿を防ぐ。
   let autoPost = $state(false);
   let autoPostLoaded = $state(false);
+  let responsibleUseDialogOpen = $state(false);
+  let responsibleUseAccepted = $state(false);
   const version = browser.runtime.getManifest().version;
   $effect(() => {
     void getSettings().then((s) => {
       autoPost = s.autoPost;
       autoPostLoaded = true;
       snsPresets = s.snsPresets ?? [];
+      responsibleUseAccepted = (s.responsibleUseAcceptedVersion ?? 0) >= RESPONSIBLE_USE_ACK_VERSION;
+      responsibleUseDialogOpen = !responsibleUseAccepted;
     });
     void initLogLevelFromSettings();
   });
@@ -634,6 +640,15 @@
     if (reset) reportResult = null;
   }
 
+  async function acceptResponsibleUse(): Promise<void> {
+    await saveSettings({
+      responsibleUseAcceptedVersion: RESPONSIBLE_USE_ACK_VERSION,
+      responsibleUseAcceptedAt: Date.now(),
+    });
+    responsibleUseAccepted = true;
+    responsibleUseDialogOpen = false;
+  }
+
   async function handlePost() {
     if (!canPost) return;
     const uncertainSelected = new Set(uncertainPlatforms(lastResults));
@@ -907,6 +922,14 @@
         await openGitHubIssueDirect(errorDialogText);
         closeReportDialog(true);
       }}
+    />
+  {/if}
+
+  {#if responsibleUseDialogOpen}
+    <ResponsibleUseDialog
+      mode={responsibleUseAccepted ? 'review' : 'required'}
+      onAccept={acceptResponsibleUse}
+      onDismiss={responsibleUseAccepted ? () => { responsibleUseDialogOpen = false; } : undefined}
     />
   {/if}
 </main>

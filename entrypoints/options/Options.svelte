@@ -1,6 +1,12 @@
 <script lang="ts">
   import type { LogEntry, LogLevel } from '../../src/messages';
-  import { clearPostHistory, getSettings, saveSettings } from '../../src/storage';
+  import {
+    clearPostHistory,
+    getSettings,
+    saveSettings,
+    RESPONSIBLE_USE_ACK_VERSION,
+    TERMS_URL,
+  } from '../../src/storage';
   import {
     fetchOverridesFrom,
     getFetchedAt,
@@ -15,6 +21,7 @@
   import { testCredentials as testMastodon } from '../../src/api/mastodon';
   import { testCredentials as testMisskey } from '../../src/api/misskey';
   import { t, TUTTI_LOCALES } from '../../src/utils/i18n';
+  import ResponsibleUseDialog from '../popup/components/ResponsibleUseDialog.svelte';
 
   let mastodonInstance = $state('https://mastodon.social');
   let misskeyInstance = $state('https://misskey.io');
@@ -34,6 +41,9 @@
   let notifyInteractions = $state(false);
   let displayMode = $state<'auto' | 'popup' | 'sidepanel' | 'floating'>('auto');
   let uiLanguage = $state<string>('auto');
+  let responsibleUseAcceptedVersion = $state(0);
+  let responsibleUseAcceptedAt = $state<number | null>(null);
+  let responsibleUseDialogOpen = $state(false);
   let saved = $state(false);
   let loading = $state(true);
   let historyCleared = $state(false);
@@ -71,6 +81,8 @@
       notifyInteractions = s.notifyInteractions ?? false;
       displayMode = s.displayMode ?? 'auto';
       uiLanguage = s.uiLanguage ?? 'auto';
+      responsibleUseAcceptedVersion = s.responsibleUseAcceptedVersion ?? 0;
+      responsibleUseAcceptedAt = s.responsibleUseAcceptedAt ?? null;
       overrideFetchedAt = at;
       overrideCount = Object.values(ov).reduce((sum, v) => sum + Object.keys(v ?? {}).length, 0);
       // API credentials のロード (パスワード / トークンは UI に出すと見えるので
@@ -265,6 +277,21 @@
     saved = true;
     setTimeout(() => (saved = false), 2000);
   }
+
+  async function acceptResponsibleUse(): Promise<void> {
+    const acceptedAt = Date.now();
+    await saveSettings({
+      responsibleUseAcceptedVersion: RESPONSIBLE_USE_ACK_VERSION,
+      responsibleUseAcceptedAt: acceptedAt,
+    });
+    responsibleUseAcceptedVersion = RESPONSIBLE_USE_ACK_VERSION;
+    responsibleUseAcceptedAt = acceptedAt;
+    responsibleUseDialogOpen = false;
+  }
+
+  function formatResponsibleUseAcceptedAt(ts: number | null): string {
+    return ts ? new Date(ts).toLocaleString() : '';
+  }
 </script>
 
 <div class="max-w-lg mx-auto p-6 text-gray-900">
@@ -284,6 +311,35 @@
   {#if loading}
     <p class="text-sm text-gray-400">{t('optionsLoading')}</p>
   {:else}
+    <section class="mb-6 border border-amber-200 bg-amber-50/50 rounded p-4">
+      <h2 class="text-sm font-semibold text-gray-800 mb-2">{t('responsibleUseSettingsTitle')}</h2>
+      <p class="text-xs text-gray-600 leading-relaxed mb-3">{t('responsibleUseSettingsBody')}</p>
+      <p class="text-xs text-gray-500 mb-3">
+        {#if responsibleUseAcceptedVersion >= RESPONSIBLE_USE_ACK_VERSION}
+          {t('responsibleUseSettingsAccepted', formatResponsibleUseAcceptedAt(responsibleUseAcceptedAt))}
+        {:else}
+          {t('responsibleUseSettingsNotAccepted')}
+        {/if}
+      </p>
+      <div class="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onclick={() => { responsibleUseDialogOpen = true; }}
+          class="px-3 py-1.5 text-xs font-medium bg-gray-800 text-white rounded hover:bg-gray-900"
+        >
+          {t('responsibleUseReview')}
+        </button>
+        <a
+          href={TERMS_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          class="text-xs text-blue-600 hover:underline"
+        >
+          {t('responsibleUseOpenTerms')}
+        </a>
+      </div>
+    </section>
+
     <section class="mb-6">
       <h2 class="text-sm font-semibold text-gray-700 mb-3">Mastodon</h2>
       <div class="space-y-2">
@@ -581,3 +637,11 @@
     </div>
   {/if}
 </div>
+
+{#if responsibleUseDialogOpen}
+  <ResponsibleUseDialog
+    mode="review"
+    onAccept={acceptResponsibleUse}
+    onDismiss={() => { responsibleUseDialogOpen = false; }}
+  />
+{/if}

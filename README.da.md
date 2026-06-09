@@ -83,6 +83,10 @@ Eller mail til **contact@komm64.com**.
 
 Opslagstekst, billeder og video behandles **helt inden i din browser** — de sendes aldrig til nogen tredjepartsserver. Se [privatlivspolitikken](https://tutti.komm64.com/privacy.html) for detaljer.
 
+## Responsible Use and Disclaimer
+
+Tutti assists posting actions that you initiate. You remain responsible for your content, selected accounts, and compliance with each platform's terms, rules, posting limits, community guidelines, and applicable laws. Automation, repeated or duplicate content, unauthorized content, or insufficient sensitive-content labeling can result in platform enforcement. Tutti is provided as is, without warranties, and liability is limited to the maximum extent permitted by law. Full terms: https://tutti.komm64.com/terms.html
+
 ## Licens
 
 [Alle rettigheder forbeholdes](./LICENSE) — © 2026 komm64

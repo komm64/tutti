@@ -7,6 +7,7 @@
     "navGitHub": "GitHub",
     "navSupport": "サポート",
     "navPrivacy": "プライバシーポリシー",
+    "navTerms": "利用条件",
     "navLanguages": "他の言語",
     "footerCopy": "&copy; 2026 komm64 &mdash; <a href=\"https://github.com/komm64/tutti/blob/main/LICENSE\">All Rights Reserved</a>",
     "footerContact": "Tutti は <a href=\"https://github.com/komm64\">komm64</a> による Chrome 拡張です。連絡先: <a href=\"mailto:contact@komm64.com\">contact@komm64.com</a>"
@@ -18,7 +19,26 @@
     "overviewBody": "Tutti は同じ投稿を 11 のソーシャルネットワーク (X, Bluesky, Threads, Tumblr, Mastodon, Misskey, Pixiv, TikTok, YouTube Shorts, Instagram, DeviantArt) にワンクリックで一斉送信します。バックエンドを持たず、投稿内容はいかなる第三者サーバーも経由しません。",
     "h2PrivacySummary": "プライバシーを一言で",
     "privacySummaryBody": "Tutti にバックエンドサーバーは無く、投稿コンテンツ (テキスト・画像・動画) はブラウザから選択した各 SNS へ直接送信されます。開発者の管理サーバーを経由することはありません。",
-    "privacyFullPolicy": "完全なポリシー:"
+    "privacyFullPolicy": "完全なポリシー:",
+    "h2ResponsibleUse": "責任ある利用と免責事項",
+    "responsibleUseBody": "投稿内容、使用するアカウント、投稿先サービス、各プラットフォームの利用規約・ルール・投稿制限・コミュニティガイドライン・適用法令の遵守は利用者自身の責任です。自動化、連続投稿、重複または類似内容、権利のないコンテンツ、センシティブ表示不足などは、第三者プラットフォームによる制限対象になる場合があります。",
+    "responsibleUseLink": "利用条件・免責事項・責任ある利用"
+  },
+  "terms": {
+    "title": "Tutti — 利用条件・免責事項・責任ある利用",
+    "headerTagline": "Tutti を責任を持って使用し、各プラットフォームのルールに従ってください。",
+    "lastUpdated": "最終更新: 2026-06-09 (v0.5.24)",
+    "languageNote": "英語版が正式な主文です。翻訳は便宜上提供されています。",
+    "h2ResponsibleUse": "責任ある利用",
+    "responsibleUseBody": "Tutti を使用する前に、投稿内容、使用するアカウント、投稿先サービス、各プラットフォームの利用規約・ルール・投稿制限・コミュニティガイドライン・適用法令の遵守が利用者自身の責任であることを確認してください。",
+    "h2PlatformRules": "プラットフォームルールとアカウントリスク",
+    "platformRulesBody": "自動化、連続投稿、重複または類似内容の投稿、権利のないコンテンツ、センシティブ表示の不足、その他プラットフォームが禁止する利用は、投稿削除、表示制限、レート制限、アカウント制限、停止などの対象になる場合があります。",
+    "h2Disclaimer": "保証の否認と責任制限",
+    "disclaimerBody": "Tutti は現状有姿かつ提供可能な範囲で提供され、明示または黙示を問わずいかなる保証も行いません。Tutti が正確・中断なし・エラーなし・各サービス互換・第三者プラットフォームの規約やポリシーに適合することは保証しません。適用法令で認められる最大限の範囲で、開発者は Tutti の使用または使用不能に関連して生じた直接・間接・付随的・結果的・特別・懲罰的その他の損害、投稿ミス、重複投稿、投稿失敗、アカウント制限、データ損失、第三者プラットフォームによる措置について責任を負いません。ただし、適用法令上免責または制限できない責任についてはこの限りではありません。",
+    "h2NoAffiliation": "非提携",
+    "noAffiliationBody": "Tutti は独立したツールであり、対応する第三者プラットフォームと提携、承認、後援関係にはありません。",
+    "h2Contact": "連絡先",
+    "contactBody": "本条件に関する質問: <a href=\"mailto:contact@komm64.com\">contact@komm64.com</a>。"
   },
   "privacy": {
     "title": "Tutti — プライバシーポリシー",

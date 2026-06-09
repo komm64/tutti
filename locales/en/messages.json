@@ -487,5 +487,24 @@
   },
 
   "historyClearedConfirmation": { "message": "Cleared ✓" },
-  "historyClearAllHint": { "message": "Removes all post history entries and saved media from this device." }
+  "historyClearAllHint": { "message": "Removes all post history entries and saved media from this device." },
+  "responsibleUseDialogTitle": { "message": "Responsible Use" },
+  "responsibleUseDialogLead": { "message": "Before using Tutti, please confirm these important points." },
+  "responsibleUseDialogPlatformRules": { "message": "You are responsible for your content, accounts, selected services, and compliance with each platform's terms, rules, posting limits, community guidelines, and applicable laws." },
+  "responsibleUseDialogAutomationRisk": { "message": "Automation, repeated posts, duplicate or near-duplicate content, unauthorized content, missing sensitive-content labels, or other platform-prohibited behavior may lead to post removal, reduced visibility, rate limits, account restrictions, suspension, or other enforcement actions." },
+  "responsibleUseDialogNoWarranty": { "message": "Tutti is provided as is and as available, without warranties of any kind. To the maximum extent permitted by applicable law, the developer is not liable for damages arising from use of, or inability to use, Tutti." },
+  "responsibleUseDialogUnaffiliated": { "message": "Tutti is an independent tool and is not affiliated with, endorsed by, or sponsored by any supported third-party platform." },
+  "responsibleUseDialogTermsIntro": { "message": "See also: " },
+  "responsibleUseDialogTermsLink": { "message": "Terms, Disclaimer, and Responsible Use" },
+  "responsibleUseAccept": { "message": "I understand" },
+  "responsibleUseClose": { "message": "Close" },
+  "responsibleUseSettingsTitle": { "message": "Responsible Use and Disclaimer" },
+  "responsibleUseSettingsBody": { "message": "Review the platform-rule and no-warranty notice shown on first use. Tutti assists actions you initiate, but each service may enforce its own rules." },
+  "responsibleUseSettingsAccepted": {
+    "message": "Accepted on $DATE$",
+    "placeholders": { "DATE": { "content": "$1" } }
+  },
+  "responsibleUseSettingsNotAccepted": { "message": "Not accepted yet" },
+  "responsibleUseReview": { "message": "Review notice" },
+  "responsibleUseOpenTerms": { "message": "Open full terms" }
 }

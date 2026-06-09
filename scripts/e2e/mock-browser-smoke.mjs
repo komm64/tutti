@@ -189,6 +189,7 @@ async function runPopupPreviewSmoke(ctx, extensionId) {
   await ensureMockXComposePage(ctx);
   const page = await openExtensionPage(ctx, extensionId, 'popup.html');
   await page.waitForSelector('textarea');
+  await acceptResponsibleUseIfShown(page);
 
   const text = twoChunkText('popup');
   await page.locator('textarea').fill(text);
@@ -208,6 +209,17 @@ async function runPopupPreviewSmoke(ctx, extensionId) {
 
   const history = await getPostHistory(page);
   assert(history.length === 1 && history[0]?.id === 'seed-history', `popup preview changed history: ${JSON.stringify(history)}`);
+}
+
+async function acceptResponsibleUseIfShown(page) {
+  const accept = page.getByRole('button', { name: /I understand|理解しました/ });
+  if (await accept.count()) {
+    await accept.first().click();
+    await page.waitForFunction(() => {
+      const settings = chrome.storage.sync.get('settings');
+      return settings.then((stored) => (stored.settings?.responsibleUseAcceptedVersion ?? 0) >= 1);
+    });
+  }
 }
 
 async function ensureMockXComposePage(ctx) {

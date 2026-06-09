@@ -83,6 +83,10 @@ Hoặc gửi email tới **contact@komm64.com**.
 
 Văn bản bài đăng, hình ảnh và video được xử lý **hoàn toàn bên trong trình duyệt của bạn** — chúng không bao giờ được gửi đến bất kỳ máy chủ bên thứ ba nào. Xem [chính sách bảo mật](https://tutti.komm64.com/privacy.html) để biết chi tiết.
 
+## Responsible Use and Disclaimer
+
+Tutti assists posting actions that you initiate. You remain responsible for your content, selected accounts, and compliance with each platform's terms, rules, posting limits, community guidelines, and applicable laws. Automation, repeated or duplicate content, unauthorized content, or insufficient sensitive-content labeling can result in platform enforcement. Tutti is provided as is, without warranties, and liability is limited to the maximum extent permitted by law. Full terms: https://tutti.komm64.com/terms.html
+
 ## Giấy phép
 
 [Bảo lưu mọi quyền](./LICENSE) — © 2026 komm64
