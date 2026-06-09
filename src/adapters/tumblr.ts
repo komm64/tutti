@@ -30,7 +30,10 @@ export const TUMBLR_SELECTORS = {
    *  text fallback (postButtonTexts) で拾う */
   postButton: '[data-testid="postFormPostButton"], button[aria-label="Post"], button[aria-label="Post now"]',
   /** 本文の contenteditable: Gutenberg-style block editor の p 要素(h1=title 除外) */
-  textarea: '[data-testid="gutenberg-editor"] p[contenteditable="true"], .block-editor-rich-text__editable[role="document"]:not(h1)',
+  textarea:
+    '[role="dialog"] [data-testid="gutenberg-editor"] p[contenteditable="true"],' +
+    '[role="dialog"] p.block-editor-rich-text__editable[role="document"][contenteditable="true"]:not(h1),' +
+    '[data-testid="gutenberg-editor"] p[contenteditable="true"]',
   /**
    * 画像添付の drop target。Tumblr の Gutenberg block editor 内に元から
    * 存在する `.components-drop-zone` に drop すると `/api/v2/media/image`

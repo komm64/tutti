@@ -3,10 +3,11 @@ import type { ImageAttachment, PostResultMessage } from '../src/messages';
 import { TUMBLR_SELECTORS, tumblrAdapter } from '../src/adapters/tumblr';
 import { executePostFlow } from '../src/utils/post-flow';
 import { sleep, waitForCondition, waitForElement } from '../src/utils/dom';
-import { injectTagList, injectTextIntoElement } from '../src/utils/image';
+import { injectTagList, injectTumblrTextIntoElement } from '../src/utils/image';
 import { extractHashtags } from '../src/utils/hashtags';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
+import { validateTumblrBodyText } from '../src/utils/tumblr-text';
 
 // page world から送られてくる probe snapshot を蓄積
 const PROBE_TAG = 'tutti-tumblr-probe-v1';
@@ -316,13 +317,20 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     text,
     images,
     postButtonTimeoutMs: 10000,
+    textInjector: injectTumblrTextIntoElement,
     beforeSubmit: async () => {
       // Gutenberg editor は画像 block 追加時に本文 block を re-mount することがある。
-      // drop 前に注入した本文が消えていたら submit 直前に戻す。
-      const body = document.querySelector<HTMLElement>(sel.textarea);
-      if (text && !(body?.textContent ?? '').includes(text.slice(0, 30))) {
-        await injectTextIntoElement(text, sel.textarea);
+      // drop 前に注入した本文が消えた / 古い本文が混ざった / 重複した場合は
+      // 送信前に置換注入で直す。直らなければ投稿せず失敗させる。
+      const validation = validateTumblrBodyText(readTumblrBodyText(sel.textarea), text);
+      if (text && !validation.ok) {
+        log.warn(`Tumblr: body validation failed before submit; reinjecting (${validation.error ?? 'unknown'})`);
+        await injectTumblrTextIntoElement(text, sel.textarea);
         await sleep(300);
+        const after = validateTumblrBodyText(readTumblrBodyText(sel.textarea), text);
+        if (!after.ok) {
+          throw new Error(after.error ?? 'Tumblr body validation failed');
+        }
       }
       // tags input は dialog 下部、 lazy-mount される変種もあるので軽く待機
       const tagEl = await waitForElement<HTMLInputElement>(sel.tagInput, 3000);
@@ -361,6 +369,23 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     confirmed,
     url,
   };
+}
+
+function readTumblrBodyText(textareaSelector: string): string {
+  const candidates: HTMLElement[] = [];
+  for (const part of textareaSelector.split(',').map((s) => s.trim()).filter(Boolean)) {
+    candidates.push(...Array.from(document.querySelectorAll<HTMLElement>(part)));
+  }
+  const bodyBlocks = candidates.filter((el, index, all) =>
+    all.indexOf(el) === index &&
+    el.tagName !== 'H1' &&
+    el.getAttribute('contenteditable') === 'true' &&
+    !el.closest('[aria-label*="tag" i]'),
+  );
+  return bodyBlocks
+    .map((block) => (block.innerText ?? block.textContent ?? '').trim())
+    .filter(Boolean)
+    .join('\n');
 }
 
 async function fetchTumblrRecentPostUrl(blogName: string, text: string): Promise<string | undefined> {

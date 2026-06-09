@@ -8,7 +8,7 @@ const RES_TAG = 'tutti-inject-res-v1';
 interface InjectRequest {
   source: typeof REQ_TAG;
   id: string;
-  mode: 'input' | 'drop' | 'text' | 'tag-list' | 'click' | 'x-post-url';
+  mode: 'input' | 'drop' | 'text' | 'tumblr-text' | 'tag-list' | 'click' | 'x-post-url';
   selector: string;
   files: { name: string; type: string; data: string }[];
   text?: string;
@@ -115,6 +115,22 @@ export async function injectTextIntoElement(
   await waitForElement<HTMLElement>(selector, 5000);
   const result = await sendInjectRequest({
     mode: 'text',
+    selector,
+    files: [],
+    text,
+  });
+  if (!result.ok) {
+    throw new Error(result.error ?? t('runtimeTextInjectFailed'));
+  }
+}
+
+export async function injectTumblrTextIntoElement(
+  text: string,
+  selector: string,
+): Promise<void> {
+  await waitForElement<HTMLElement>(selector, 5000);
+  const result = await sendInjectRequest({
+    mode: 'tumblr-text',
     selector,
     files: [],
     text,

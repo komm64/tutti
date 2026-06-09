@@ -52,6 +52,8 @@ export interface PostFlowOptions {
   beforeSubmit?: () => Promise<void>;
   /** dry-run: post button まで見つけるが click はしない */
   dryRun?: boolean;
+  /** SNS 固有の本文注入が必要な場合に差し替える */
+  textInjector?: (text: string, selector: string) => Promise<void>;
   /** framework が MAIN world の click のみ受理する場合の submit hook */
   clickPostButton?: () => Promise<void>;
 }
@@ -79,6 +81,7 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
     confirmDialogGraceMs,
     beforeSubmit,
     dryRun = false,
+    textInjector = injectTextIntoElement,
     clickPostButton,
   } = options;
   if (!postButtonSelector && !postButtonTexts?.length && !postButtonFinder) {
@@ -97,7 +100,7 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
     // (一部 framework で) editor の placeholder structure を壊すリスクが
     // あるので skip (画像のみ投稿のための path、v0.4.59)。
     if (text) {
-      await injectTextIntoElement(text, textareaSelector);
+      await textInjector(text, textareaSelector);
       await sleep(300);
     }
   }

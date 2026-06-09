@@ -17,6 +17,8 @@
  *   4. 待機完了後 window.postMessage({ source: RES_TAG, id, ok, fileCount?, uploadCount? })
  */
 
+import { validateTumblrBodyText } from '../src/utils/tumblr-text';
+
 const REQ_TAG = 'tutti-inject-req-v1';
 const RES_TAG = 'tutti-inject-res-v1';
 
@@ -63,7 +65,7 @@ interface InjectRequest {
    * 'tag-list' = Pixiv の tag input のような「value 入力 → Enter で確定 →
    *           input がクリア → 次の値」を繰り返す UI。tags[] を順次入れる
    */
-  mode: 'input' | 'drop' | 'text' | 'tag-list' | 'click' | 'x-post-url';
+  mode: 'input' | 'drop' | 'text' | 'tumblr-text' | 'tag-list' | 'click' | 'x-post-url';
   selector: string;
   files: InjectFileSpec[];
   /** mode === 'text' 専用: 挿入するテキスト */
@@ -319,6 +321,44 @@ export default defineContentScript({
         if (el) return { el, matchedPart: part };
       }
       return null;
+    }
+
+    function findAllBySelector(selector: string): HTMLElement[] {
+      const seen = new Set<HTMLElement>();
+      const matches: HTMLElement[] = [];
+      for (const part of selector.split(',').map((s) => s.trim()).filter(Boolean)) {
+        for (const el of document.querySelectorAll<HTMLElement>(part)) {
+          if (seen.has(el)) continue;
+          seen.add(el);
+          matches.push(el);
+        }
+      }
+      return matches;
+    }
+
+    function isTumblrBodyBlock(el: HTMLElement): boolean {
+      return el.tagName !== 'H1' &&
+        el.getAttribute('contenteditable') === 'true' &&
+        !el.closest('[aria-label*="tag" i]');
+    }
+
+    function tumblrBodyBlocks(selector: string, fallback: HTMLElement): HTMLElement[] {
+      const scope = fallback.closest('[data-testid="gutenberg-editor"]') ??
+        fallback.closest('[role="dialog"]') ??
+        document;
+      const scoped = Array
+        .from(scope.querySelectorAll<HTMLElement>(
+          '[data-testid="gutenberg-editor"] p[contenteditable="true"], p.block-editor-rich-text__editable[role="document"][contenteditable="true"], p[contenteditable="true"]',
+        ))
+        .filter(isTumblrBodyBlock);
+      return scoped.length > 0 ? scoped : findAllBySelector(selector).filter(isTumblrBodyBlock);
+    }
+
+    function readTumblrBodyText(blocks: readonly HTMLElement[]): string {
+      return blocks
+        .map((block) => (block.innerText ?? block.textContent ?? '').trim())
+        .filter(Boolean)
+        .join('\n');
     }
 
     function base64ToUint8Array(b64: string): Uint8Array {
@@ -646,6 +686,80 @@ export default defineContentScript({
       };
     }
 
+    async function clearEditableBlock(el: HTMLElement): Promise<void> {
+      el.focus();
+      const sel = window.getSelection();
+      if (sel) {
+        try {
+          sel.removeAllRanges();
+          const range = document.createRange();
+          range.selectNodeContents(el);
+          sel.addRange(range);
+        } catch { /* ignore */ }
+      }
+      try {
+        document.execCommand('delete', false);
+      } catch { /* fallback below */ }
+      if ((el.textContent ?? '').trim().length > 0) {
+        el.textContent = '';
+        el.dispatchEvent(new InputEvent('input', {
+          bubbles: true,
+          inputType: 'deleteContentBackward',
+        }));
+      }
+      await new Promise((r) => setTimeout(r, 50));
+    }
+
+    async function injectTumblrText(req: InjectRequest): Promise<InjectResponse> {
+      const found = findEl(req.selector);
+      if (!found) {
+        return { source: RES_TAG, id: req.id, ok: false, error: 'Tumblr text target not found' };
+      }
+      const text = req.text ?? '';
+      const blocks = tumblrBodyBlocks(req.selector, found.el);
+      const target = blocks[0] ?? found.el;
+      console.log(`[Tutti inject-helper] Tumblr text target matched "${found.matchedPart}" (${blocks.length} body blocks)`);
+
+      for (const block of blocks) {
+        await clearEditableBlock(block);
+      }
+      target.focus();
+
+      if (text) {
+        const dt = new DataTransfer();
+        dt.setData('text/plain', text);
+        target.dispatchEvent(new ClipboardEvent('paste', {
+          bubbles: true,
+          cancelable: true,
+          clipboardData: dt,
+        }));
+        const expectedSnippet = text.slice(0, Math.min(20, text.length)).trim();
+        const pasted = await waitFor(
+          () => readTumblrBodyText(tumblrBodyBlocks(req.selector, target)).includes(expectedSnippet),
+          700,
+        );
+        if (!pasted) {
+          target.textContent = text;
+          target.dispatchEvent(new InputEvent('input', {
+            bubbles: true,
+            data: text,
+            inputType: 'insertText',
+          }));
+          await new Promise((r) => setTimeout(r, 100));
+        }
+      }
+
+      const afterBlocks = tumblrBodyBlocks(req.selector, target);
+      const bodyText = readTumblrBodyText(afterBlocks);
+      const validation = validateTumblrBodyText(bodyText, text);
+      return {
+        source: RES_TAG,
+        id: req.id,
+        ok: validation.ok,
+        error: validation.error,
+      };
+    }
+
     async function injectViaDrop(req: InjectRequest): Promise<InjectResponse> {
       const found = findEl(req.selector);
       if (!found) {
@@ -818,6 +932,7 @@ export default defineContentScript({
         installUploadHook();
         installXPostCaptureHook();
         if (req.mode === 'text') return await injectText(req);
+        if (req.mode === 'tumblr-text') return await injectTumblrText(req);
         if (req.mode === 'drop') return await injectViaDrop(req);
         if (req.mode === 'tag-list') return await injectTagList(req);
         if (req.mode === 'click') return await clickElement(req);
@@ -846,6 +961,7 @@ export default defineContentScript({
       const mode: InjectRequest['mode'] =
         data.mode === 'drop' ? 'drop' :
         data.mode === 'text' ? 'text' :
+        data.mode === 'tumblr-text' ? 'tumblr-text' :
         data.mode === 'tag-list' ? 'tag-list' :
         data.mode === 'click' ? 'click' :
         data.mode === 'x-post-url' ? 'x-post-url' : 'input';
