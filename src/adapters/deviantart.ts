@@ -48,7 +48,7 @@ export const DEVIANTART_SELECTORS = {
    * description editor。DA は TipTap (ProseMirror) ベースだが class が頻繁に
    * 変わるので多段 selector。 v0.4.71〜: editor が lazy-mount される (form を
    * scroll してから初めて DOM に出現) variant 対応のため、 多段 fallback を
-   * 拡張。 docs/selectors.json override で更に追加可能。
+   * 拡張。tutti-site/selectors.json override で更に追加可能。
    */
   descriptionEditor:
     // 王道: TipTap / ProseMirror class

@@ -109,7 +109,7 @@ workflow が fail → 通知 → 中身を確認:
 
 ### 目的
 
-auto-triage が出した PR の selector を、`docs/selectors.json` に流す前に
+auto-triage が出した PR の selector を、`tutti-site/selectors.json` に流す前に
 **実際の SNS で投稿が通るか** を自動検証する。GitHub-hosted runner では
 SNS 側の anti-bot に弾かれるので、自宅環境を self-hosted runner にする。
 

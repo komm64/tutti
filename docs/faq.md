@@ -150,7 +150,7 @@ No. Posts go directly from your browser to each network. The only
 external service Tutti talks to is a Cloudflare Workers proxy for bug
 reports, and that only fires when you press the Report button.
 
-See `docs/privacy.html` for the full breakdown.
+See https://tutti.komm64.com/privacy.html for the full breakdown.
 
 ### How does Tutti remove PII from bug reports?
 

@@ -101,13 +101,13 @@ Plans:
 
 ## Selector hot-fix delivery
 
-Every DOM-driven network honors **`docs/selectors.json` overrides**:
+Every DOM-driven network honors **the public `selectors.json` override feed**:
 
 1. SNS UI changes and selectors stop matching.
 2. User sends a diagnostics-attached issue via the popup's Report button.
 3. `auto-triage.yml` in the private `komm64/tutti-issues` repo hands off to
    Codex, which proposes a public PR patching both
-   `src/adapters/<network>.ts` and `docs/selectors.json`.
+   `src/adapters/<network>.ts` and `tutti-site/selectors.json`.
 4. Human review → merge → public site publish.
 5. Reaches every user whose `Settings.selectorOverrideUrl` is enabled,
    within minutes.
@@ -136,5 +136,5 @@ Details: `CLAUDE.md` P13 section, memory `auto_triage_pipeline.md`.
 - registry: `src/adapters/registry.ts`
 - API クライアント: `src/api/{bluesky,mastodon,misskey}.ts`
 - multi-step framework: `src/utils/step-runner.ts`
-- selector hot-fix: `src/utils/selector-overrides.ts` + `docs/selectors.json`
+- selector hot-fix: `src/utils/selector-overrides.ts` + `tutti-site/selectors.json`
 - E2E runner: `scripts/e2e/run.mjs`, `scripts/e2e/E2E-SETUP.md`

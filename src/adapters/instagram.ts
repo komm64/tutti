@@ -54,7 +54,7 @@ export const INSTAGRAM_SELECTORS = {
   /**
    * caption editor: lexical-style contenteditable div。aria-label が言語ごとに
    * 変わるので複数 locale を試す + 最後に aria-label 無し contenteditable へ
-   * フォールバック。selector override (docs/selectors.json) で更に追加可能。
+   * フォールバック。selector override (tutti-site/selectors.json) で更に追加可能。
    */
   captionEditor:
     '[role="dialog"] div[contenteditable="true"][aria-label="Write a caption..."],' +

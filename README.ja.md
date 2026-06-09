@@ -165,14 +165,17 @@ public/
   _locales/{ja,en}/messages.json - 翻訳
   ffmpeg/                        - ffmpeg.wasm core / wasm (postinstall でコピー)
 docs/
-  index.html                     - 公開サイトのトップページ
-  privacy.html                   - プライバシーポリシーページ
-  support.html                   - サポート / FAQ ページ
   platform-matrix.md             - 11 ネットワークの SoT (制約・検証状態)
-  selectors.json                 - selector hot-fix の配信元
+  screenshots/                   - README / Web Store 用スクリーンショット
+  _strings/readme/               - 多言語 README 生成用 strings
   store-listing.md               - Web Store 申請ドラフト
 scripts/
   e2e/                           - 実投稿 E2E (Playwright / puppeteer-core CDP attach)
   cws/                           - Chrome Web Store Publish API CLI
 worker/                          - 障害報告 → GitHub Issue 化する CF Workers relay
 ```
+
+公開サイト (`tutti.komm64.com`、`privacy.html` / `support.html` /
+`terms.html` / live `selectors.json` を含む) は、拡張本体とは分けて
+private repo の `komm64/tutti-site` で管理します。拡張リリースと
+Web サイト deploy の責務を混ぜないためです。

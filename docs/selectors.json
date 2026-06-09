@@ -1,7 +1,0 @@
-{
-  "_meta": {
-    "schemaVersion": 1,
-    "description": "Tutti hot-fix selector overrides. Each platform's keys override src/adapters/<platform>.ts SELECTORS at runtime. Empty {} means no overrides; canonical defaults from extension code apply. Updated by GitHub Action when an auto-triage PR merges.",
-    "homepage": "https://github.com/komm64/tutti"
-  }
-}

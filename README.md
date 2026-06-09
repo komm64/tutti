@@ -180,14 +180,18 @@ public/
   ffmpeg/                        - ffmpeg.wasm core / wasm (copied by postinstall)
 locales/{ja,en}/messages.json    - canonical BCP 47 translation sources
 docs/
-  index.html                     - public landing page
-  privacy.html                   - privacy policy page
-  support.html                   - support / FAQ page
   platform-matrix.md             - source of truth for the 11 networks (limits + verification)
-  selectors.json                 - selector hot-fix feed
+  screenshots/                   - README / Web Store screenshots
+  _strings/readme/               - localized README generation strings
   store-listing.md               - Web Store submission draft
 scripts/
   e2e/                           - real-post E2E (Playwright / puppeteer-core CDP attach)
   cws/                           - Chrome Web Store Publish API CLI
 worker/                          - CF Workers relay turning bug reports into GitHub issues
 ```
+
+The public website (`tutti.komm64.com`, including `privacy.html`,
+`support.html`, `terms.html`, and the live `selectors.json` hot-fix
+feed) is maintained separately in the private `komm64/tutti-site`
+repository so extension releases and website deploys have one clear
+owner each.

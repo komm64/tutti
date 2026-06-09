@@ -2,7 +2,11 @@
 
 Documents how to bootstrap the two test runners and the secrets needed for
 nightly runs. Once these are set up, GitHub Actions workflows in
-`.github/workflows/` will keep `selectors.json` and the API path honest.
+`.github/workflows/` will keep the selector override path and the API path honest.
+
+The live selector hot-fix feed is served from
+`https://tutti.komm64.com/selectors.json`. Its source file lives in the
+separate `komm64/tutti-site` repository.
 
 ## 1. API E2E (GitHub-hosted runner)
 
