@@ -1,14 +1,13 @@
 import type { PlatformId } from '../messages';
 import { closeTabSafely, waitForTabComplete } from './tab-management';
 
-export type RenderedProfilePlatform = 'x' | 'threads' | 'tumblr' | 'pixiv' | 'instagram';
+export type RenderedProfilePlatform = 'x' | 'threads' | 'tumblr' | 'pixiv';
 
 export function isRenderedProfileFallbackPlatform(platform: PlatformId): platform is RenderedProfilePlatform {
   return platform === 'x' ||
     platform === 'threads' ||
     platform === 'tumblr' ||
-    platform === 'pixiv' ||
-    platform === 'instagram';
+    platform === 'pixiv';
 }
 
 export async function captureRenderedProfilePostUrl(
@@ -55,16 +54,6 @@ export async function captureRenderedProfilePostUrl(
           .find((href) => !!href && /\/users\/\d+(?:[/?#]|$)/.test(href) && !/\/following|\/followers/.test(href));
         return profileHref ? new URL(profileHref, location.origin).href : undefined;
       }
-      if (platformName === 'instagram') {
-        const profileHref = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href^="/"]'))
-          .find((anchor) => {
-            const href = anchor.getAttribute('href') ?? '';
-            const label = `${anchor.getAttribute('aria-label') ?? ''} ${anchor.textContent ?? ''}`;
-            return /^\/[\w._]+\/$/.test(href) && /profile|プロフィール/i.test(label);
-          })
-          ?.getAttribute('href');
-        return profileHref ? new URL(profileHref, location.origin).href : undefined;
-      }
 
       const blogButton = Array.from(document.querySelectorAll<HTMLElement>('[aria-label]'))
         .find((el) => /current selection is|現在の選択/i.test(el.getAttribute('aria-label') ?? ''));
@@ -88,9 +77,7 @@ export async function captureRenderedProfilePostUrl(
   const tab = await browser.tabs.create({ url: profileUrl, active: false });
   if (typeof tab.id !== 'number') return undefined;
   try {
-    if (platform !== 'instagram') {
-      await waitForTabComplete(tab.id);
-    }
+    await waitForTabComplete(tab.id);
     const target = text.replace(/\s+/g, ' ').trim().slice(0, platform === 'pixiv' ? 30 : 60);
     const results = await browser.scripting.executeScript({
       target: { tabId: tab.id },
@@ -106,16 +93,24 @@ export async function captureRenderedProfilePostUrl(
                 : platformName === 'x'
                   ? /\/[^/]+\/status\/\d+/.test(href)
                   : platformName === 'tumblr'
-                    ? /tumblr\.com\/[^/]+\/\d+(?:\/|$)/.test(href)
+                    ? /tumblr\.com\/(?:[^/]+\/\d+|blog\/[^/]+\/\d+)(?:\/|$)/.test(href)
                     : platformName === 'pixiv'
                       ? /pixiv\.net\/(?:[a-z]+\/)?artworks\/\d+/.test(href)
-                      : /instagram\.com\/p\/[\w-]+/.test(href);
+                      : false;
             });
-          if (platformName === 'instagram' && links[0]) return links[0].href;
           for (const link of links) {
             let ancestor: HTMLElement | null = link;
             for (let depth = 0; ancestor && depth < 10; depth += 1, ancestor = ancestor.parentElement) {
-              if (normalize(ancestor.innerText).includes(targetText)) return link.href;
+              const body = normalize(ancestor.innerText);
+              if (platformName === 'tumblr') {
+                if (body.length > 4000) continue;
+                if (/pinned post|固定された投稿/i.test(body)) continue;
+                const postLinkCount = Array.from(ancestor.querySelectorAll<HTMLAnchorElement>('a[href]'))
+                  .filter((anchor) => /tumblr\.com\/(?:[^/]+\/\d+|blog\/[^/]+\/\d+)(?:\/|$)/.test(anchor.href))
+                  .length;
+                if (postLinkCount > 3) continue;
+              }
+              if (body.includes(targetText)) return link.href;
             }
           }
           await new Promise((resolve) => setTimeout(resolve, 500));

@@ -8,6 +8,11 @@ import { extractHashtags } from '../src/utils/hashtags';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
 import { validateTumblrBodyText } from '../src/utils/tumblr-text';
+import {
+  findTumblrPostUrlInDocument,
+  hashCaptureText,
+  readFreshCapturedPost,
+} from '../src/utils/post-capture-record';
 
 // page world から送られてくる probe snapshot を蓄積
 const PROBE_TAG = 'tutti-tumblr-probe-v1';
@@ -305,6 +310,12 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
   // hashtag をきちんと tag field に反映する。 0 個なら空配列 (= user 意図無視で
   // 勝手に tutti tag を付けるのは anti-user、 v0.4.93〜)。
   const tags = extractHashtags(text, { maxCount: 30, maxLen: 140 });
+  if (!dryRun) {
+    try {
+      localStorage.removeItem('tutti:tumblr-latest-post');
+      localStorage.setItem('tutti:tumblr-pending-text-hash', hashCaptureText(text));
+    } catch { /* ignore storage failures */ }
+  }
 
   await executePostFlow({
     prefillsViaUrl: tumblrAdapter.prefillsViaUrl,
@@ -357,7 +368,11 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     );
     if (confirmed) log.info('Tumblr: post confirmed (composer closed)');
     if (!confirmed) log.warn('Tumblr: composer did not close after Post click');
-    if (confirmed && postingUser) {
+    const captured = readLatestTumblrCapturedPost(text);
+    if (captured?.url) {
+      url = captured.url;
+      log.info(`Tumblr: URL captured via post API response: ${url}`);
+    } else if (confirmed && postingUser) {
       url = await fetchTumblrRecentPostUrl(postingUser.slice(1), text);
     }
   }
@@ -388,33 +403,32 @@ function readTumblrBodyText(textareaSelector: string): string {
     .join('\n');
 }
 
+function readLatestTumblrCapturedPost(text: string) {
+  try {
+    return readFreshCapturedPost(
+      localStorage.getItem('tutti:tumblr-latest-post'),
+      text,
+      120_000,
+    );
+  } catch {
+    return undefined;
+  }
+}
+
 async function fetchTumblrRecentPostUrl(blogName: string, text: string): Promise<string | undefined> {
-  const target = text.replace(/\s+/g, ' ').trim().slice(0, 60);
   try {
     const response = await fetch(`/blog/${encodeURIComponent(blogName)}`, { credentials: 'include' });
     if (!response.ok) return undefined;
     const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
-    const links = Array.from(doc.querySelectorAll<HTMLAnchorElement>('a[href]'))
-      .filter((link) => new RegExp(`^/${escapeRegExp(blogName)}/\\d+(?:/|$)`).test(link.getAttribute('href') ?? ''));
-    for (const link of links) {
-      let ancestor: HTMLElement | null = link;
-      for (let depth = 0; ancestor && depth < 10; depth += 1, ancestor = ancestor.parentElement) {
-        const body = (ancestor.textContent ?? '').replace(/\s+/g, ' ').trim();
-        if (body.includes(target)) {
-          const url = new URL(link.getAttribute('href')!, location.origin).href;
-          log.info(`Tumblr: URL captured via profile HTML: ${url}`);
-          return url;
-        }
-      }
+    const url = findTumblrPostUrlInDocument(doc, blogName, text, location.origin);
+    if (url) {
+      log.info(`Tumblr: URL captured via profile HTML: ${url}`);
+      return url;
     }
   } catch (e) {
     log.warn(`Tumblr: profile URL capture failed: ${e instanceof Error ? e.message : String(e)}`);
   }
   return undefined;
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /**

@@ -14,6 +14,7 @@ import {
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
 import { t } from '../src/utils/i18n';
+import { readFreshCapturedPost } from '../src/utils/post-capture-record';
 
 /**
  * Instagram のログイン中ユーザー名検出。
@@ -84,6 +85,9 @@ async function runPost(
 
   const postingUser = dryRun ? null : detectInstagramUser();
   const sel = await resolveSelectors('instagram', INSTAGRAM_SELECTORS);
+  try {
+    localStorage.removeItem('tutti:ig-latest-post');
+  } catch { /* ignore storage failures */ }
 
   // IG は "Turn on Notifications" / "Save Your Login Info?" / "Cookie Banner" 等の
   // ポップアップが wizard 中に被さってくるので、先に dismiss しておく。
@@ -257,7 +261,27 @@ async function runPost(
   // dry-run は finalize click をスキップしてるので verify も skip
   if (!dryRun) {
     await verifyInstagramPosted();
+    let captured: ReturnType<typeof readFreshCapturedPost>;
+    try {
+      captured = readFreshCapturedPost(
+        localStorage.getItem('tutti:ig-latest-post'),
+        text,
+        120_000,
+      );
+    } catch {
+      captured = undefined;
+    }
+    if (captured?.url) {
+      log.info(`IG: URL captured via configure response: ${captured.url}`);
+    }
     if (postingUser) location.assign(`/${postingUser}/`);
+    return {
+      type: 'POST_RESULT',
+      platform: 'instagram',
+      success: true,
+      confirmed: true,
+      url: captured?.url,
+    };
   }
 
   return {

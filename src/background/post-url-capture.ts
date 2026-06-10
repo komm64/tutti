@@ -4,6 +4,7 @@ import {
   captureRenderedProfilePostUrl,
   isRenderedProfileFallbackPlatform,
 } from './post-url-rendered-profile';
+import { readFreshCapturedPost } from '../utils/post-capture-record';
 
 export interface CapturePostUrlOptions {
   platform: PlatformId;
@@ -53,6 +54,9 @@ export async function capturePostUrlFromTab(options: CapturePostUrlOptions): Pro
     if (renderedUrl) return renderedUrl;
   }
 
+  const storedApiUrl = await captureStoredApiPostUrl(platform, tabId, text, dbg);
+  if (storedApiUrl) return storedApiUrl;
+
   try {
     if (platform === 'tumblr') {
       await sleep(1000);
@@ -83,11 +87,7 @@ export async function capturePostUrlFromTab(options: CapturePostUrlOptions): Pro
             return { url: location.href, trace };
           }
           if (platformName === 'instagram') {
-            for (let i = 0; i < 20; i += 1) {
-              const link = document.querySelector<HTMLAnchorElement>('a[href*="/p/"], a[href*="/reel/"]');
-              if (link) return { url: link.href, trace };
-              await new Promise((resolve) => setTimeout(resolve, 500));
-            }
+            trace.push('instagram URL capture requires configure response; DOM first-link fallback disabled');
           }
           if (platformName === 'tiktok') {
             for (let i = 0; i < 20; i += 1) {
@@ -256,6 +256,49 @@ export async function capturePostUrlFromTab(options: CapturePostUrlOptions): Pro
       });
     }
   }
+  return undefined;
+}
+
+async function captureStoredApiPostUrl(
+  platform: PlatformId,
+  tabId: number,
+  text: string,
+  dbg: (message: string) => void,
+): Promise<string | undefined> {
+  const key = platform === 'instagram'
+    ? 'tutti:ig-latest-post'
+    : platform === 'tumblr'
+      ? 'tutti:tumblr-latest-post'
+      : undefined;
+  if (!key) return undefined;
+
+  for (let i = 0; i < 12; i += 1) {
+    try {
+      const results = await browser.scripting.executeScript({
+        target: { tabId },
+        func: (storageKey: string) => {
+          try {
+            return localStorage.getItem(storageKey);
+          } catch {
+            return null;
+          }
+        },
+        args: [key],
+        world: 'MAIN',
+      });
+      const raw = results?.[0]?.result;
+      const record = readFreshCapturedPost(typeof raw === 'string' ? raw : null, text, 120_000);
+      if (record?.url) {
+        dbg(`URL captured via stored API response: ${record.url}`);
+        return record.url;
+      }
+    } catch (e) {
+      dbg(`stored API response read failed: ${e instanceof Error ? e.message : String(e)}`);
+      return undefined;
+    }
+    await sleep(500);
+  }
+  dbg('stored API response URL not found');
   return undefined;
 }
 

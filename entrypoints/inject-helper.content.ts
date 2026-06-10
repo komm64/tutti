@@ -18,6 +18,12 @@
  */
 
 import { validateTumblrBodyText } from '../src/utils/tumblr-text';
+import {
+  extractInstagramPostRecord,
+  extractTumblrPostRecord,
+  isInstagramConfigureUrl,
+  prepareInstagramConfigureBody,
+} from '../src/utils/post-capture-record';
 
 const REQ_TAG = 'tutti-inject-req-v1';
 const RES_TAG = 'tutti-inject-res-v1';
@@ -110,6 +116,8 @@ declare global {
      * 投稿後 (or 失敗時) に IG 側が clear する責任。
      */
     __tuttiIgPendingCaption?: string;
+    __tuttiIgLatestPost?: { url?: string; code?: string; capturedAt: number; textHash?: string };
+    __tuttiTumblrLatestPost?: { url?: string; id?: string; blogName?: string; capturedAt: number; textHash?: string };
     __tuttiXPostCaptureInstalled?: boolean;
     __tuttiXLatestPostId?: { id: string; capturedAt: number };
   }
@@ -140,32 +148,49 @@ export default defineContentScript({
       if ((window as unknown as { __tuttiIgFetchHook?: boolean }).__tuttiIgFetchHook) return;
       (window as unknown as { __tuttiIgFetchHook?: boolean }).__tuttiIgFetchHook = true;
 
-      const injectCaptionIntoBody = (body: string): string => {
+      const captureInstagramPost = (payload: unknown, textHash?: string): void => {
+        const record = extractInstagramPostRecord(payload, textHash);
+        if (!record?.url) return;
+        window.__tuttiIgLatestPost = record;
+        try {
+          localStorage.setItem('tutti:ig-latest-post', JSON.stringify(record));
+        } catch { /* in-memory capture remains available */ }
+        window.__tuttiIgPendingCaption = undefined;
+        console.log('[Tutti inject-helper] IG post URL captured: ' + record.url);
+      };
+
+      const prepareCaptionBody = (body: string): { body: string; textHash?: string } => {
         const cap = window.__tuttiIgPendingCaption;
-        if (!cap || typeof body !== 'string') return body;
-        if (!/(^|&)caption=(&|$)/.test(body)) return body;
-        const encoded = encodeURIComponent(cap);
-        const newBody = body.replace(/(^|&)caption=(?=&|$)/, (match) => match + encoded);
-        console.log('[Tutti inject-helper] IG configure: caption= に inject (len=' + cap.length + ')');
-        window.__tuttiIgPendingCaption = undefined; // 一度きり
-        return newBody;
+        const prepared = prepareInstagramConfigureBody(body, cap);
+        if (prepared.changed) {
+          console.log('[Tutti inject-helper] IG configure: caption を inject (len=' + (cap?.length ?? 0) + ')');
+        }
+        return { body: prepared.body, textHash: prepared.textHash };
       };
 
       // fetch hook
       const origFetch = window.fetch.bind(window);
-      window.fetch = function(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+      window.fetch = async function(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+        let requestTextHash: string | undefined;
+        let nextInit = init;
         try {
           const url = typeof input === 'string' ? input : (input instanceof URL ? input.toString() : input.url);
-          if (url && /\/api\/v1\/media\/configure\//.test(url) && typeof init?.body === 'string') {
-            const newBody = injectCaptionIntoBody(init.body);
-            if (newBody !== init.body) {
-              return origFetch(input as RequestInfo, { ...init, body: newBody });
-            }
+          if (url && isInstagramConfigureUrl(url) && typeof init?.body === 'string') {
+            const prepared = prepareCaptionBody(init.body);
+            requestTextHash = prepared.textHash;
+            if (prepared.body !== init.body) nextInit = { ...init, body: prepared.body };
           }
         } catch (e) {
           console.warn('[Tutti inject-helper] IG fetch hook err:', e);
         }
-        return origFetch(input as RequestInfo, init);
+        const response = await origFetch(input as RequestInfo, nextInit);
+        try {
+          const url = typeof input === 'string' ? input : (input instanceof URL ? input.toString() : input.url);
+          if (url && isInstagramConfigureUrl(url)) {
+            void response.clone().json().then((data) => captureInstagramPost(data, requestTextHash)).catch(() => {});
+          }
+        } catch { /* capture is best-effort */ }
+        return response;
       };
 
       // XHR hook (IG は configure/ を XHR 経由で呼んでる可能性、 fetch hook が
@@ -182,11 +207,16 @@ export default defineContentScript({
         return origOpen.call(this, method, u, ...rest);
       };
       OrigXHR.prototype.send = function(this: XMLHttpRequest, body?: Document | XMLHttpRequestBodyInit | null) {
+        let requestTextHash: string | undefined;
         try {
           const url = urls.get(this) ?? '';
-          if (/\/api\/v1\/media\/configure\//.test(url) && typeof body === 'string') {
-            const newBody = injectCaptionIntoBody(body);
-            if (newBody !== body) body = newBody;
+          if (isInstagramConfigureUrl(url) && typeof body === 'string') {
+            const prepared = prepareCaptionBody(body);
+            requestTextHash = prepared.textHash;
+            if (prepared.body !== body) body = prepared.body;
+            this.addEventListener('load', () => {
+              try { captureInstagramPost(JSON.parse(this.responseText), requestTextHash); } catch { /* best-effort */ }
+            }, { once: true });
           }
         } catch (e) {
           console.warn('[Tutti inject-helper] IG XHR hook err:', e);
@@ -194,6 +224,71 @@ export default defineContentScript({
         return origSend.call(this, body as Document | XMLHttpRequestBodyInit | null);
       };
       console.log('[Tutti inject-helper] IG fetch + XHR hooks installed');
+    }
+
+    function installTumblrPostCaptureHook() {
+      if (!/tumblr\.com/.test(location.host)) return;
+      if ((window as unknown as { __tuttiTumblrPostCaptureHook?: boolean }).__tuttiTumblrPostCaptureHook) return;
+      (window as unknown as { __tuttiTumblrPostCaptureHook?: boolean }).__tuttiTumblrPostCaptureHook = true;
+
+      const isTumblrPostCreateUrl = (url: string, method = 'GET'): boolean =>
+        method.toUpperCase() === 'POST' && (
+          /\/api\/v2\/blog\/[^/]+\/post(?:\?|$|\/)/.test(url) ||
+          /\/v2\/blog\/[^/]+\/post(?:\?|$|\/)/.test(url)
+        );
+
+      const blogNameFromUrl = (url: string): string | undefined => {
+        const m = url.match(/\/(?:api\/)?v2\/blog\/([^/]+)\/post/);
+        return m?.[1]?.replace(/\.tumblr\.com$/i, '');
+      };
+
+      const captureTumblrPost = (payload: unknown, blogName?: string): void => {
+        let textHash: string | undefined;
+        try {
+          textHash = localStorage.getItem('tutti:tumblr-pending-text-hash') ?? undefined;
+        } catch { /* ignore storage failures */ }
+        const record = extractTumblrPostRecord(payload, blogName, textHash);
+        if (!record?.url) return;
+        window.__tuttiTumblrLatestPost = record;
+        try {
+          localStorage.setItem('tutti:tumblr-latest-post', JSON.stringify(record));
+          localStorage.removeItem('tutti:tumblr-pending-text-hash');
+        } catch { /* in-memory capture remains available */ }
+        console.log('[Tutti inject-helper] Tumblr post URL captured: ' + record.url);
+      };
+
+      const origFetch = window.fetch.bind(window);
+      window.fetch = async function(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+        const url = typeof input === 'string' ? input : (input instanceof URL ? input.toString() : input.url);
+        const method = init?.method ?? (input instanceof Request ? input.method : 'GET');
+        const shouldCapture = isTumblrPostCreateUrl(url, method);
+        const response = await origFetch(input as RequestInfo, init);
+        if (shouldCapture) {
+          void response.clone().json().then((data) => captureTumblrPost(data, blogNameFromUrl(url))).catch(() => {});
+        }
+        return response;
+      };
+
+      const OrigXHR = window.XMLHttpRequest;
+      const origOpen = OrigXHR.prototype.open;
+      const requests = new WeakMap<XMLHttpRequest, { method: string; url: string }>();
+      OrigXHR.prototype.open = function(this: XMLHttpRequest, method: string, url: string | URL, ...rest: unknown[]) {
+        const value = typeof url === 'string' ? url : url.toString();
+        requests.set(this, { method, url: value });
+        // @ts-expect-error rest spread
+        return origOpen.call(this, method, value, ...rest);
+      };
+      const origSend = OrigXHR.prototype.send;
+      OrigXHR.prototype.send = function(this: XMLHttpRequest, body?: Document | XMLHttpRequestBodyInit | null) {
+        const req = requests.get(this);
+        const url = req?.url ?? '';
+        if (isTumblrPostCreateUrl(url, req?.method)) {
+          this.addEventListener('load', () => {
+            try { captureTumblrPost(JSON.parse(this.responseText), blogNameFromUrl(url)); } catch { /* best-effort */ }
+          }, { once: true });
+        }
+        return origSend.call(this, body as Document | XMLHttpRequestBodyInit | null);
+      };
     }
 
     function installUploadHook() {
@@ -447,6 +542,10 @@ export default defineContentScript({
         // 旧 v0.4.58 paste-only path は X の文字化け (paste と execCommand の
         // 二重発火) を防ぐためだったが、 IG では paste が DOM のみ更新で state
         // 未同期になり caption 空投稿が発生。 framework 別に分岐する。
+        if (/instagram\.com/.test(location.host)) {
+          window.__tuttiIgPendingCaption = text;
+          console.log('[Tutti inject-helper] IG pending caption set (len=' + text.length + ')');
+        }
         const isLexical =
           !!el.closest('[data-lexical-editor]') ||
           el.matches('[data-lexical-editor]');
@@ -457,10 +556,6 @@ export default defineContentScript({
           // を更新しても IG の submit state には伝わらない silent failure)。
           // pending caption を window 変数にセットし、 fetch hook が send 時に
           // body に inject する。
-          if (/instagram\.com/.test(location.host)) {
-            window.__tuttiIgPendingCaption = text;
-            console.log('[Tutti inject-helper] IG pending caption set (len=' + text.length + ')');
-          }
           // Lexical: 直接 editor instance に access して parseEditorState +
           // setEditorState で state を直接書き換える (v0.4.69〜)。
           //
@@ -930,6 +1025,7 @@ export default defineContentScript({
     async function handle(req: InjectRequest): Promise<InjectResponse> {
       try {
         installUploadHook();
+        installTumblrPostCaptureHook();
         installXPostCaptureHook();
         if (req.mode === 'text') return await injectText(req);
         if (req.mode === 'tumblr-text') return await injectTumblrText(req);
@@ -951,6 +1047,7 @@ export default defineContentScript({
     // 起動直後に hook をインストール(早ければ早いほど取りこぼしが少ない)
     installUploadHook();
     installIgCaptionFetchHook();
+    installTumblrPostCaptureHook();
     installXPostCaptureHook();
 
     window.addEventListener('message', (ev) => {
