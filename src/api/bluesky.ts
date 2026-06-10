@@ -119,6 +119,10 @@ export async function postViaSession(
   let recordRequestInFlight = false;
   try {
     const pds = session.pdsHost || DEFAULT_PDS;
+    const hasVideo = !!input.images?.some((m) => m.type.startsWith('video/'));
+    if (hasVideo) {
+      throw new Error('Bluesky API video posting is not supported; use DOM posting instead');
+    }
 
     const imageRecords: { alt: string; image: { $type: 'blob'; ref: { $link: string }; mimeType: string; size: number } }[] = [];
     const images = (input.images ?? []).filter((m) => m.type.startsWith('image/')).slice(0, MAX_IMAGES);

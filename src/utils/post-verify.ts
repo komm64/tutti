@@ -18,6 +18,8 @@ export interface VerifyExpectation {
   text: string;
   /** 画像を添付したか */
   hasImages: boolean;
+  /** 動画を添付したか */
+  hasVideo?: boolean;
   /** 期待する tag (Pixiv / DA / YouTube / Tumblr 専用 tag field 用、 inline #word は対象外) */
   expectedTags?: string[];
 }
@@ -32,12 +34,13 @@ export interface VerifyResult {
   found?: {
     text?: string;
     hasImages?: boolean;
+    hasVideo?: boolean;
     tags?: string[];
   };
 }
 
 export interface VerifyIssue {
-  kind: 'caption-missing' | 'caption-mismatch' | 'image-missing' | 'tags-missing' | 'verify-error';
+  kind: 'caption-missing' | 'caption-mismatch' | 'image-missing' | 'video-missing' | 'tags-missing' | 'verify-error';
   message: string;
   /** soft (warn) / hard (error) */
   severity: 'warn' | 'error';
@@ -105,6 +108,13 @@ export function buildVerifyResult(
     issues.push({
       kind: 'image-missing',
       message: t('verifyIssueImageMissing'),
+      severity: 'error',
+    });
+  }
+  if (expected.hasVideo && found?.hasVideo === false) {
+    issues.push({
+      kind: 'video-missing',
+      message: 'Attached video was not found in the published post.',
       severity: 'error',
     });
   }

@@ -19,6 +19,7 @@ interface PostRecord {
     $type?: string;
     images?: unknown[];
     media?: { images?: unknown[] };
+    video?: unknown;
   };
 }
 
@@ -29,6 +30,7 @@ interface PostView {
       $type?: string;
       images?: unknown[];
       media?: { images?: unknown[] };
+      video?: unknown;
     };
   };
 }
@@ -68,10 +70,13 @@ export async function verifyBlueskyPost(
       post.embed?.media?.images ??
       [];
     const hasImages = Array.isArray(imgList) && imgList.length > 0;
+    const embedJson = JSON.stringify(post.record?.embed ?? post.embed ?? {});
+    const hasVideo = /app\.bsky\.embed\.video|"video"\s*:/.test(embedJson);
 
     return buildVerifyResult(expected, {
       text,
       hasImages,
+      hasVideo,
       // Bluesky は専用 tag field 無し (inline `#word` のみ。 facets は別軸なのでここでは tag verify skip)
     });
   } catch (e) {

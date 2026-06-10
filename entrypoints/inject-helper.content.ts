@@ -82,6 +82,8 @@ interface InjectRequest {
   texts?: string[];
   /** アップロード完了待ちのタイムアウト(ms)。省略時 30000 */
   uploadTimeoutMs?: number;
+  /** video file で upload/preview evidence を必須にするか。省略時 true */
+  requireVideoAccepted?: boolean;
 }
 
 interface InjectResponse {
@@ -94,6 +96,8 @@ interface InjectResponse {
   droppedOn?: string;
   /** 待機中に検出された成功アップロード数 */
   uploadCount?: number;
+  /** upload request が見えない UI で、プレビュー描画により添付受付を確認した */
+  acceptedByPreview?: boolean;
   /** アップロード待機がタイムアウトしたか */
   uploadTimedOut?: boolean;
   url?: string;
@@ -380,10 +384,17 @@ export default defineContentScript({
      * 戦略(PerformanceObserver で completion 時刻のみが分かる):
      *   - 少なくとも 1 回 upload-pattern URL で resource entry が来た +
      *     直近 800ms 以内に新規 entry なし → 完了
-     *   - 6 秒待っても entry 0 件 → アップロード対象なしと判断して return
+     *   - 通常添付: 4 秒待っても entry 0 件 → アップロード対象なしと判断して return
+     *   - 動画添付: upload または compose preview が確認できるまで待つ
      *   - timeoutMs 超え → タイムアウト返却
      */
-    async function waitForUploadComplete(timeoutMs: number): Promise<{ uploadCount: number; timedOut: boolean }> {
+    async function waitForUploadComplete(
+      timeoutMs: number,
+      options: {
+        requireMediaAccepted?: boolean;
+        isMediaPreviewVisible?: () => boolean;
+      } = {},
+    ): Promise<{ uploadCount: number; timedOut: boolean; acceptedByPreview: boolean }> {
       const tracker = window.__tuttiUpload!;
       const startCount = tracker.successCount;
       const start = Date.now();
@@ -396,18 +407,65 @@ export default defineContentScript({
       while (Date.now() < deadline) {
         const newSuccess = tracker.successCount - startCount;
         const elapsed = Date.now() - start;
+        const acceptedByPreview = !!options.isMediaPreviewVisible?.();
 
         if (newSuccess > 0) {
           const sinceLast = Date.now() - tracker.lastSuccessAt;
           if (sinceLast >= QUIET_MS) {
-            return { uploadCount: newSuccess, timedOut: false };
+            return { uploadCount: newSuccess, timedOut: false, acceptedByPreview };
           }
-        } else if (elapsed >= NO_UPLOAD_GIVE_UP_MS) {
-          return { uploadCount: 0, timedOut: false };
+        } else if (acceptedByPreview && options.requireMediaAccepted) {
+          return { uploadCount: 0, timedOut: false, acceptedByPreview: true };
+        } else if (!options.requireMediaAccepted && elapsed >= NO_UPLOAD_GIVE_UP_MS) {
+          return { uploadCount: 0, timedOut: false, acceptedByPreview: false };
         }
         await sleep(150);
       }
-      return { uploadCount: tracker.successCount - startCount, timedOut: true };
+      return {
+        uploadCount: tracker.successCount - startCount,
+        timedOut: true,
+        acceptedByPreview: !!options.isMediaPreviewVisible?.(),
+      };
+    }
+
+    function isVisibleMediaElement(el: HTMLElement): boolean {
+      const rect = el.getBoundingClientRect();
+      const style = window.getComputedStyle(el);
+      return rect.width > 4 &&
+        rect.height > 4 &&
+        el.getClientRects().length > 0 &&
+        style.display !== 'none' &&
+        style.visibility !== 'hidden' &&
+        style.opacity !== '0';
+    }
+
+    function mediaPreviewScope(target: HTMLElement): ParentNode {
+      return target.closest('[role="dialog"], [data-testid="composer"], form, main') ?? document.body;
+    }
+
+    function countMediaPreviews(scope: ParentNode): number {
+      const selectors = [
+        'video',
+        'canvas',
+        'img[src^="blob:"]',
+        'img[src^="data:"]',
+        'img[src*="twimg.com/media"]',
+        '[data-testid*="media" i]',
+        '[data-testid*="attachment" i]',
+        '[aria-label*="Remove" i]',
+        '[aria-label*="削除"]',
+      ].join(',');
+      return Array
+        .from(scope.querySelectorAll<HTMLElement>(selectors))
+        .filter(isVisibleMediaElement)
+        .length;
+    }
+
+    function mediaAcceptedPredicate(target: HTMLElement, beforeCount: number): () => boolean {
+      return () => {
+        const scope = target.isConnected ? mediaPreviewScope(target) : document.body;
+        return countMediaPreviews(scope) > beforeCount;
+      };
     }
 
     function findEl(selector: string): { el: HTMLElement; matchedPart: string } | null {
@@ -486,19 +544,30 @@ export default defineContentScript({
       console.log(`[Tutti inject-helper] inject input matched "${found.matchedPart}" — inDialog=${inDialog}`);
       const built = buildDataTransfer(req.files);
       if ('error' in built) return { source: RES_TAG, id: req.id, ok: false, error: built.error };
+      const requireMediaAccepted =
+        req.requireVideoAccepted !== false &&
+        req.files.some((file) => file.type.startsWith('video/'));
+      const beforePreviewCount = countMediaPreviews(mediaPreviewScope(input));
       const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'files')?.set;
       if (setter) setter.call(input, built.dt.files);
       else input.files = built.dt.files;
       input.dispatchEvent(new Event('change', { bubbles: true }));
       input.dispatchEvent(new Event('input', { bubbles: true }));
-      const wait = await waitForUploadComplete(req.uploadTimeoutMs ?? 30000);
+      const wait = await waitForUploadComplete(req.uploadTimeoutMs ?? 30000, {
+        requireMediaAccepted,
+        isMediaPreviewVisible: requireMediaAccepted
+          ? mediaAcceptedPredicate(input, beforePreviewCount)
+          : undefined,
+      });
+      const ok = !wait.timedOut || wait.acceptedByPreview;
       return {
         source: RES_TAG,
         id: req.id,
-        ok: !wait.timedOut,
-        error: wait.timedOut ? 'Timed out while waiting for the upload to finish' : undefined,
+        ok,
+        error: ok ? undefined : 'Timed out while waiting for the video upload or media preview',
         fileCount: input.files?.length ?? 0,
         uploadCount: wait.uploadCount,
+        acceptedByPreview: wait.acceptedByPreview,
         uploadTimedOut: wait.timedOut,
       };
     }
@@ -864,6 +933,8 @@ export default defineContentScript({
       console.log(`[Tutti inject-helper] drop target matched "${found.matchedPart}"`);
       const built = buildDataTransfer(req.files);
       if ('error' in built) return { source: RES_TAG, id: req.id, ok: false, error: built.error };
+      const requireMediaAccepted = req.files.some((file) => file.type.startsWith('video/'));
+      const beforePreviewCount = countMediaPreviews(mediaPreviewScope(target));
       const rect = target.getBoundingClientRect();
       const x = rect.left + rect.width / 2;
       const y = rect.top + rect.height / 2;
@@ -877,15 +948,22 @@ export default defineContentScript({
         });
         target.dispatchEvent(ev);
       }
-      const wait = await waitForUploadComplete(req.uploadTimeoutMs ?? 30000);
+      const wait = await waitForUploadComplete(req.uploadTimeoutMs ?? 30000, {
+        requireMediaAccepted,
+        isMediaPreviewVisible: requireMediaAccepted
+          ? mediaAcceptedPredicate(target, beforePreviewCount)
+          : undefined,
+      });
+      const ok = !wait.timedOut || wait.acceptedByPreview;
       return {
         source: RES_TAG,
         id: req.id,
-        ok: !wait.timedOut,
-        error: wait.timedOut ? 'Timed out while waiting for the upload to finish' : undefined,
+        ok,
+        error: ok ? undefined : 'Timed out while waiting for the video upload or media preview',
         fileCount: built.dt.files.length,
         droppedOn: target.tagName,
         uploadCount: wait.uploadCount,
+        acceptedByPreview: wait.acceptedByPreview,
         uploadTimedOut: wait.timedOut,
       };
     }
@@ -1072,6 +1150,7 @@ export default defineContentScript({
         tags: Array.isArray(data.tags) ? data.tags.filter((t): t is string => typeof t === 'string') : undefined,
         texts: Array.isArray(data.texts) ? data.texts.filter((t): t is string => typeof t === 'string') : undefined,
         uploadTimeoutMs: typeof data.uploadTimeoutMs === 'number' ? data.uploadTimeoutMs : undefined,
+        requireVideoAccepted: typeof data.requireVideoAccepted === 'boolean' ? data.requireVideoAccepted : undefined,
       };
       void handle(req).then((res) => {
         if (!res.ok) console.warn('[Tutti inject-helper] failed:', res.error);

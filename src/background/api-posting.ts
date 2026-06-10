@@ -19,7 +19,11 @@ export async function tryApiPath(
   visibility?: ApiPostingVisibility,
 ): Promise<ApiPostResult | 'no-credentials'> {
   const creds = await getApiCredentials();
+  const hasVideo = !!images?.some((image) => image.type.startsWith('video/'));
   if (platform === 'bluesky' && creds.bluesky) {
+    // The Bluesky API client currently supports image embeds only. Let the DOM
+    // path handle videos so a video post cannot silently become text-only.
+    if (hasVideo) return 'no-credentials';
     return await postBlueskyApi(creds.bluesky, { text, images });
   }
   if (platform === 'mastodon' && creds.mastodon) {

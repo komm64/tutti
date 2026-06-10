@@ -352,35 +352,44 @@ async function fetchBlueskyRecentPostUrl(text: string): Promise<string | undefin
       log.warn('bluesky: BSKY_STORAGE session not available, skip URL capture');
       return undefined;
     }
-    const pds = session.service || 'https://bsky.social';
+    const pds = (session.service || 'https://bsky.social').replace(/\/+$/, '');
     const target = text.replace(/\s+/g, ' ').trim().slice(0, 60);
+    const actors = [...new Set([session.did, session.handle].filter((v): v is string => !!v))];
+    const endpoints = [
+      { base: pds, headers: { Authorization: `Bearer ${session.accessJwt}` } },
+      { base: 'https://public.api.bsky.app', headers: undefined },
+    ];
 
-    for (let attempt = 0; attempt < 5; attempt += 1) {
+    for (let attempt = 0; attempt < 20; attempt += 1) {
       if (attempt > 0) await new Promise((r) => setTimeout(r, 1000));
-      const res = await fetch(
-        `${pds}/xrpc/app.bsky.feed.getAuthorFeed?actor=${encodeURIComponent(session.did)}&limit=5`,
-        { headers: { Authorization: `Bearer ${session.accessJwt}` } },
-      );
-      if (!res.ok) continue;
-      const data = (await res.json()) as { feed?: Array<{ post?: { uri?: string; record?: { text?: string } } }> };
-      const feed = data.feed ?? [];
-      for (const item of feed) {
-        const postText = (item.post?.record?.text ?? '').replace(/\s+/g, ' ').trim();
-        if (postText.startsWith(target)) {
-          const uri = item.post?.uri;
-          if (uri) {
-            // at://did:plc:xxx/app.bsky.feed.post/rkey → bsky.app/profile/handle/post/rkey
-            const m = uri.match(/\/app\.bsky\.feed\.post\/([a-zA-Z0-9]+)$/);
-            if (m && session.handle) {
-              const url = `https://bsky.app/profile/${session.handle}/post/${m[1]}`;
-              log.info(`bluesky: URL captured via API: ${url}`);
-              return url;
+      for (const endpoint of endpoints) {
+        for (const actor of actors) {
+          const res = await fetch(
+            `${endpoint.base}/xrpc/app.bsky.feed.getAuthorFeed?actor=${encodeURIComponent(actor)}&limit=20`,
+            endpoint.headers ? { headers: endpoint.headers } : undefined,
+          );
+          if (!res.ok) continue;
+          const data = (await res.json()) as { feed?: Array<{ post?: { uri?: string; record?: { text?: string } } }> };
+          const feed = data.feed ?? [];
+          for (const item of feed) {
+            const postText = (item.post?.record?.text ?? '').replace(/\s+/g, ' ').trim();
+            if (postText.startsWith(target)) {
+              const uri = item.post?.uri;
+              if (uri) {
+                // at://did:plc:xxx/app.bsky.feed.post/rkey → bsky.app/profile/handle/post/rkey
+                const m = uri.match(/\/app\.bsky\.feed\.post\/([a-zA-Z0-9]+)$/);
+                if (m && session.handle) {
+                  const url = `https://bsky.app/profile/${session.handle}/post/${m[1]}`;
+                  log.info(`bluesky: URL captured via API: ${url}`);
+                  return url;
+                }
+              }
             }
           }
         }
       }
     }
-    log.warn('bluesky: post URL not found in recent 5 feed entries');
+    log.warn('bluesky: post URL not found in recent feed entries');
   } catch (e) {
     log.warn(`bluesky URL capture failed: ${e instanceof Error ? e.message : String(e)}`);
   }

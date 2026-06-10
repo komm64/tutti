@@ -113,6 +113,9 @@ export async function captureRenderedProfilePostUrl(
               if (body.includes(targetText)) return link.href;
             }
           }
+          if (platformName === 'threads' && normalize(document.body.innerText).includes(targetText)) {
+            return links[0]?.href;
+          }
           await new Promise((resolve) => setTimeout(resolve, 500));
         }
         return undefined;

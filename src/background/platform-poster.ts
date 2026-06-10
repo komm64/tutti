@@ -18,7 +18,7 @@ import { sendPostMessageWhenReady } from './content-dispatch';
 import { resolveAdapter } from './adapter-resolver';
 import { prepareMediaForPlatform } from './platform-media';
 import { maybeResizeImagesForPlatform } from './media-preprocess';
-import { toPreviewResult } from './post-result-policy';
+import { downgradeHardVerifyFailures, toPreviewResult } from './post-result-policy';
 import type { OpenedTabRegistry } from './opened-tab-registry';
 
 const CHUNK_INTERVAL_MS = 2000;
@@ -102,10 +102,11 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
       confirmed: allConfirmed,
       url: prevPostUrl,
     };
-    const finalResult = autoPost ? finalResultBase : toPreviewResult(finalResultBase);
+    let finalResult = autoPost ? finalResultBase : toPreviewResult(finalResultBase);
 
     if (autoPost && prevPostUrl && isVerifySupported(platform)) {
       await attachVerifyResult(finalResult, platform, prevPostUrl, chunks, text, images);
+      finalResult = downgradeHardVerifyFailures(finalResult);
     }
 
     if (autoPost && prevPostUrl) {
@@ -309,6 +310,7 @@ async function attachVerifyResult(
   const expectation = {
     text: chunks.length > 1 ? chunks[chunks.length - 1]! : text,
     hasImages: !!images?.some((image) => image.type.startsWith('image/')),
+    hasVideo: !!images?.some((image) => image.type.startsWith('video/')),
   };
   try {
     const verify = await runVerify(platform, postUrl, expectation);

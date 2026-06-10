@@ -13,6 +13,19 @@ export function postedResults(results: readonly PostResultMessage[]): PostResult
   return results.filter((result) => !result.preview);
 }
 
+export function downgradeHardVerifyFailures(result: PostResultMessage): PostResultMessage {
+  if (!result.success) return result;
+  const hardIssue = result.verify?.issues.find((issue) => issue.severity === 'error');
+  if (!hardIssue) return result;
+  return {
+    ...result,
+    success: false,
+    confirmed: false,
+    uncertain: true,
+    error: hardIssue.message,
+  };
+}
+
 export function shouldRunPostCompletionSideEffects(
   autoPost: boolean,
   results: readonly PostResultMessage[],

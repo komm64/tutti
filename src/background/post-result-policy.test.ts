@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { PostResultMessage } from '../messages';
 import {
+  downgradeHardVerifyFailures,
   postedResults,
   shouldRunPostCompletionSideEffects,
   toPreviewResult,
@@ -59,5 +60,27 @@ describe('post result policy', () => {
     expect(shouldRunPostCompletionSideEffects(false, [actual])).toBe(false);
     expect(shouldRunPostCompletionSideEffects(true, [preview])).toBe(false);
     expect(shouldRunPostCompletionSideEffects(true, [actual])).toBe(true);
+  });
+
+  it('moves hard verify failures out of green success state', () => {
+    const result = downgradeHardVerifyFailures({
+      type: 'POST_RESULT',
+      platform: 'x',
+      success: true,
+      confirmed: true,
+      url: 'https://x.com/alice/status/123',
+      verify: {
+        verified: true,
+        issues: [{ kind: 'image-missing', message: 'Media is missing', severity: 'error' }],
+      },
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      confirmed: false,
+      uncertain: true,
+      error: 'Media is missing',
+      url: 'https://x.com/alice/status/123',
+    });
   });
 });

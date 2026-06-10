@@ -61,6 +61,14 @@ describe('buildVerifyResult', () => {
     expect(r.issues.some((i) => i.kind === 'image-missing' && i.severity === 'error')).toBe(true);
   });
 
+  it('reports video-missing when expected video but found none', () => {
+    const r = buildVerifyResult(
+      { text: 'Hello', hasImages: false, hasVideo: true },
+      { text: 'Hello', hasImages: false, hasVideo: false },
+    );
+    expect(r.issues.some((i) => i.kind === 'video-missing' && i.severity === 'error')).toBe(true);
+  });
+
   it('reports tags-missing as warning for partial', () => {
     const r = buildVerifyResult(
       { text: 'Hello', hasImages: false, expectedTags: ['cats', 'dogs', 'birds'] },

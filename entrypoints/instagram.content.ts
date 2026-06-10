@@ -164,7 +164,7 @@ async function runPost(
         if (!fi) {
           throw new Error(t('runtimeInstagramFileInputMissing'));
         }
-        await injectImages(images, sel.fileInput);
+        await injectImages(images, sel.fileInput, { requireVideoAccepted: false });
         // v0.4.61: Crop dialog が mount された直後に Original aspect ratio を選んで、
         // 横長/縦長の写真が IG default の 1:1 で左右 (or 上下) 見切れるのを回避。
         // 失敗は warn のみで続行 (IG が許す範囲外なら IG 側で勝手に fit させる、

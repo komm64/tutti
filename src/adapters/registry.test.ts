@@ -28,10 +28,9 @@ describe('checkVideoConstraint', () => {
     expect(err).toContain('140');
   });
 
-  it('Threads は 300s 超を拒否 (5min cap)', () => {
-    const err = checkVideoConstraint('threads', 400, 10 * 1024 * 1024);
-    expect(err).toContain('尺');
-    expect(err).toContain('300');
+  it('Threads video is disabled until the web flow can verify media', () => {
+    const err = checkVideoConstraint('threads', 30, 10 * 1024 * 1024);
+    expect(err).toContain('未対応');
   });
 });
 

@@ -163,6 +163,7 @@ export default defineContentScript({
 
 async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolean): Promise<PostResultMessage> {
   const sel = await resolveSelectors('threads', THREADS_SELECTORS);
+  const postingUser = detectThreadsUser()?.replace(/^@/, '') ?? null;
   await executePostFlow({
     prefillsViaUrl: threadsAdapter.prefillsViaUrl,
     textareaSelector: sel.textarea,
@@ -212,8 +213,14 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     if (captured) {
       url = captured;
       confirmed = true;
-    } else if (!document.querySelector(sel.textarea)) {
-      confirmed = true;
+    } else {
+      const profileUrl = await captureThreadsPostUrlFromProfile(text, postingUser, 30_000);
+      if (profileUrl) {
+        url = profileUrl;
+        confirmed = true;
+      } else if (!document.querySelector(sel.textarea)) {
+        confirmed = true;
+      }
     }
   }
 
@@ -224,6 +231,58 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     confirmed,
     url,
   };
+}
+
+async function captureThreadsPostUrlFromProfile(
+  text: string,
+  username: string | null,
+  timeoutMs: number,
+): Promise<string | null> {
+  if (!username) return null;
+  const profileUrl = `https://www.threads.com/@${encodeURIComponent(username)}`;
+  if (location.href !== profileUrl) {
+    location.assign(profileUrl);
+  }
+  const loaded = await waitForCondition<boolean>(
+    () => location.pathname === `/@${username}` ? true : null,
+    { timeoutMs: 10_000, intervalMs: 250 },
+  );
+  if (!loaded) return null;
+
+  return await waitForCondition<string>(
+    () => findThreadsPostUrlByText(text),
+    {
+      timeoutMs,
+      intervalMs: 500,
+      root: document.body,
+      observerInit: {
+        childList: true,
+        subtree: true,
+        characterData: true,
+        attributes: true,
+        attributeFilter: ['href'],
+      },
+    },
+  ) ?? null;
+}
+
+function findThreadsPostUrlByText(text: string): string | null {
+  const target = text.replace(/\s+/g, ' ').trim().slice(0, 60);
+  const normalize = (value: string): string => value.replace(/\s+/g, ' ').trim();
+  const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href*="/post/"]'))
+    .filter((anchor) => /\/@[^/]+\/post\/[\w-]+/.test(anchor.href));
+  for (const link of links) {
+    let ancestor: HTMLElement | null = link;
+    for (let depth = 0; ancestor && depth < 12; depth += 1, ancestor = ancestor.parentElement) {
+      if (normalize(ancestor.innerText ?? ancestor.textContent ?? '').includes(target)) {
+        return link.href;
+      }
+    }
+  }
+  if (normalize(document.body.innerText ?? document.body.textContent ?? '').includes(target)) {
+    return links[0]?.href ?? null;
+  }
+  return null;
 }
 
 /**

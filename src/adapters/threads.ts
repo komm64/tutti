@@ -15,16 +15,14 @@ export const threadsAdapter: PlatformAdapter = {
     `https://www.threads.com/intent/post?text=${encodeURIComponent(text)}`,
   getLoginUrl: () => 'https://www.threads.com/',
   prefillsViaUrl: true,
-  videoConstraints: {
-    // Threads は 5min (300s) 上限 (2026 spec)。 1GB max file size。
-    maxDurationS: 300,
-    maxBytes: 1024 * 1024 * 1024, // 1GB
-  },
   imageConstraints: {
     maxBytesPerImage: 8 * 1024 * 1024, // 8MB
     maxImages: 10,
   },
-  kinds: ['text', 'image', 'shortVideo', 'longVideo'],
+  // 2026-06: Threads Web accepted the injected video path but published a
+  // text-only post in Surface verification. Disable video until the web flow
+  // can prove the media survives the published post.
+  kinds: ['text', 'image'],
 };
 
 export const THREADS_SELECTORS = {
@@ -33,5 +31,5 @@ export const THREADS_SELECTORS = {
   /** 投稿入力欄(fallback 用) */
   textarea: 'div[contenteditable="true"][role="textbox"], div[contenteditable="plaintext-only"]',
   /** 画像添付用 file input */
-  fileInput: 'input[type="file"][accept*="image"], input[type="file"]',
+  fileInput: 'input[type="file"][accept*="video"], input[type="file"][accept*="image"], input[type="file"]',
 } as const;

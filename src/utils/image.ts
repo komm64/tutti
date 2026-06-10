@@ -15,6 +15,7 @@ interface InjectRequest {
   tags?: string[];
   texts?: string[];
   uploadTimeoutMs?: number;
+  requireVideoAccepted?: boolean;
 }
 
 interface InjectResponse {
@@ -29,16 +30,22 @@ interface InjectResponse {
   url?: string;
 }
 
-const RESPONSE_TIMEOUT_MS = 35000; // helper 側が最大 30s 待つので 35s で安全マージン
+const DEFAULT_RESPONSE_TIMEOUT_MS = 35000; // helper 側 default 30s + safety margin
+const RESPONSE_GRACE_MS = 5000;
+const VIDEO_UPLOAD_TIMEOUT_MS = 120000;
 
 async function sendInjectRequest(req: Omit<InjectRequest, 'source' | 'id'>): Promise<InjectResponse> {
   const id = `tutti-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
   return await new Promise<InjectResponse>((resolve, reject) => {
+    const responseTimeoutMs = Math.max(
+      DEFAULT_RESPONSE_TIMEOUT_MS,
+      (req.uploadTimeoutMs ?? 0) + RESPONSE_GRACE_MS,
+    );
     const timeout = setTimeout(() => {
       window.removeEventListener('message', onMessage);
       reject(new Error('画像注入のタイムアウト(MAIN world ヘルパ未応答)'));
-    }, RESPONSE_TIMEOUT_MS);
+    }, responseTimeoutMs);
 
     const onMessage = (ev: MessageEvent) => {
       if (ev.source !== window) return;
@@ -68,8 +75,10 @@ async function sendInjectRequest(req: Omit<InjectRequest, 'source' | 'id'>): Pro
 export async function injectImages(
   rawImages: ImageAttachment[],
   fileInputSelector: string,
+  options: { requireVideoAccepted?: boolean } = {},
 ): Promise<void> {
   await waitForElement<HTMLInputElement>(fileInputSelector, 5000);
+  const hasVideo = rawImages.some((m) => m.type.startsWith('video/'));
 
   // 大きな media は dataRef 経由 (background→content の 64MB cap 回避)。
   // ここで chunked sendMessage で base64 を組み立てる。
@@ -81,6 +90,8 @@ export async function injectImages(
   const result = await sendInjectRequest({
     mode: 'input',
     selector: fileInputSelector,
+    uploadTimeoutMs: hasVideo ? VIDEO_UPLOAD_TIMEOUT_MS : undefined,
+    requireVideoAccepted: options.requireVideoAccepted,
     files: images.map((img, i) => {
       if (!img.data) {
         throw new Error(
@@ -194,6 +205,7 @@ export async function dropImages(
   dropTargetSelector: string,
 ): Promise<void> {
   await waitForElement<HTMLElement>(dropTargetSelector, 5000);
+  const hasVideo = rawImages.some((m) => m.type.startsWith('video/'));
 
   const { resolveAttachmentToBase64ViaMessage } = await import('./attachment');
   const images = await Promise.all(
@@ -203,6 +215,7 @@ export async function dropImages(
   const result = await sendInjectRequest({
     mode: 'drop',
     selector: dropTargetSelector,
+    uploadTimeoutMs: hasVideo ? VIDEO_UPLOAD_TIMEOUT_MS : undefined,
     files: images.map((img, i) => {
       if (!img.data) {
         throw new Error(
