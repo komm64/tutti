@@ -3,6 +3,7 @@ export interface CapturedPostRecord {
   code?: string;
   id?: string;
   blogName?: string;
+  username?: string;
   capturedAt: number;
   textHash?: string;
 }
@@ -17,6 +18,9 @@ const INSTAGRAM_CONFIGURE_RE = /\/api\/v1\/media\/(?:configure|configure_sidecar
 const INSTAGRAM_POST_URL_RE = /^https:\/\/(?:www\.)?instagram\.com\/(?:p|reel)\/[\w-]+\/?/;
 const INSTAGRAM_CODE_RE = /^[A-Za-z0-9_-]{5,}$/;
 const TUMBLR_POST_URL_RE = /^https:\/\/(?:www\.)?tumblr\.com\/(?:[^/]+\/\d+|blog\/[^/]+\/\d+)(?:[/?#]|$)/;
+const THREADS_POST_URL_RE = /^https:\/\/(?:www\.)?threads\.(?:com|net)\/@[^/]+\/post\/[\w-]+(?:[/?#]|$)/;
+const THREADS_CODE_RE = /^[A-Za-z0-9_-]{5,}$/;
+const THREADS_USERNAME_RE = /^[A-Za-z0-9._]{2,}$/;
 
 export function normalizeCaptureText(value: string): string {
   return value.replace(/\s+/g, ' ').trim();
@@ -129,12 +133,12 @@ export function extractTumblrPostRecord(
     if (typeof value === 'string') {
       const normalizedUrl = normalizeTumblrUrl(value);
       if (!url && normalizedUrl) url = normalizedUrl;
-      if (!id && (lowerKey === 'id' || lowerKey === 'post_id') && /^\d+$/.test(value)) id = value;
-      if (!blogName && (lowerKey === 'name' || lowerKey === 'blog_name') && /^[\w-]+$/.test(value)) {
+      if (!id && isTumblrPostIdKey(lowerKey) && /^\d+$/.test(value)) id = value;
+      if (!blogName && isTumblrBlogNameKey(lowerKey) && /^[\w-]+$/.test(value)) {
         blogName = cleanTumblrBlogName(value);
       }
     } else if (typeof value === 'number' && Number.isFinite(value)) {
-      if (!id && (lowerKey === 'id' || lowerKey === 'post_id')) id = String(Math.trunc(value));
+      if (!id && isTumblrPostIdKey(lowerKey)) id = String(Math.trunc(value));
     }
   });
 
@@ -143,6 +147,49 @@ export function extractTumblrPostRecord(
   }
   if (!url && !id) return undefined;
   return { url, id, blogName, capturedAt: now, textHash };
+}
+
+export function extractThreadsPostRecord(
+  payload: unknown,
+  fallbackUsername?: string,
+  textHash?: string,
+  now = Date.now(),
+): CapturedPostRecord | undefined {
+  let url: string | undefined;
+  let code: string | undefined;
+  let username: string | undefined;
+  let usernameFromPayload = false;
+
+  walkObject(payload, (key, value) => {
+    const lowerKey = key.toLowerCase();
+    if (typeof value !== 'string') return;
+
+    const normalizedUrl = normalizeThreadsUrl(value);
+    if (!url && normalizedUrl) {
+      url = normalizedUrl;
+      const parsed = parseThreadsPostUrl(normalizedUrl);
+      if (!code && parsed?.code) code = parsed.code;
+      if (!username && parsed?.username) {
+        username = parsed.username;
+        usernameFromPayload = true;
+      }
+    }
+
+    if (!code && isThreadsCodeKey(lowerKey) && isLikelyThreadsPostCode(value)) {
+      code = value;
+    }
+    if (!username && isThreadsUsernameKey(lowerKey) && THREADS_USERNAME_RE.test(value)) {
+      username = cleanThreadsUsername(value);
+      usernameFromPayload = true;
+    }
+  });
+
+  if (!url && usernameFromPayload && username && code) {
+    url = `https://www.threads.com/@${username}/post/${code}`;
+  }
+  if (!url && !code) return undefined;
+  if (!url && code) return undefined;
+  return { url, code, username: username ?? (fallbackUsername ? cleanThreadsUsername(fallbackUsername) : undefined), capturedAt: now, textHash };
 }
 
 export function readFreshCapturedPost(
@@ -190,6 +237,28 @@ export function findTumblrPostUrlInDocument(
   return undefined;
 }
 
+export function findLatestTumblrPostUrlInDocument(
+  doc: Document,
+  blogName: string,
+  origin: string,
+  excludeUrls: readonly string[] = [],
+): string | undefined {
+  const cleanBlog = cleanTumblrBlogName(blogName);
+  const excluded = new Set(excludeUrls.map((url) => normalizeTumblrComparableUrl(url)).filter(Boolean));
+  const links = Array.from(doc.querySelectorAll<HTMLAnchorElement>('a[href]'))
+    .filter((link) => isTumblrPostHref(link.getAttribute('href') ?? '', cleanBlog));
+  const seen = new Set<string>();
+  for (const link of links) {
+    const href = link.getAttribute('href') ?? '';
+    const normalized = normalizeTumblrPostHref(href, origin);
+    if (!normalized || seen.has(normalized) || excluded.has(normalizeTumblrComparableUrl(normalized))) continue;
+    seen.add(normalized);
+    if (!findLikelyTumblrPostContainer(link, cleanBlog)) continue;
+    return normalized;
+  }
+  return undefined;
+}
+
 function findNarrowPostContainer(
   link: HTMLAnchorElement,
   blogName: string,
@@ -207,6 +276,29 @@ function findNarrowPostContainer(
     return ancestor;
   }
   return null;
+}
+
+function findLikelyTumblrPostContainer(
+  link: HTMLAnchorElement,
+  blogName: string,
+): HTMLElement | null {
+  const article = link.closest<HTMLElement>('article, [role="article"]');
+  if (article) return isLikelyTumblrPostContainer(article, blogName) ? article : null;
+
+  let ancestor: HTMLElement | null = link.parentElement;
+  for (let depth = 0; ancestor && depth < 8; depth += 1, ancestor = ancestor.parentElement) {
+    if (isLikelyTumblrPostContainer(ancestor, blogName)) return ancestor;
+  }
+  return null;
+}
+
+function isLikelyTumblrPostContainer(container: HTMLElement, blogName: string): boolean {
+  const text = normalizeCaptureText(container.textContent ?? '');
+  if (text.length > 4000) return false;
+  if (/pinned post|固定された投稿/i.test(text)) return false;
+  const postLinkCount = Array.from(container.querySelectorAll<HTMLAnchorElement>('a[href]'))
+    .filter((a) => isTumblrPostHref(a.getAttribute('href') ?? '', blogName)).length;
+  return postLinkCount > 0 && postLinkCount <= 3;
 }
 
 function isTumblrPostHref(href: string, blogName: string): boolean {
@@ -246,8 +338,80 @@ function normalizeTumblrUrl(value: string): string | undefined {
   }
 }
 
+function normalizeTumblrPostHref(href: string, origin: string): string | undefined {
+  try {
+    const url = new URL(href, origin);
+    return normalizeTumblrUrl(url.href);
+  } catch {
+    return undefined;
+  }
+}
+
+function normalizeTumblrComparableUrl(value: string | undefined): string {
+  if (!value) return '';
+  return value.replace(/[?#].*$/, '').replace(/\/$/, '');
+}
+
+function normalizeThreadsUrl(value: string): string | undefined {
+  try {
+    const url = new URL(value, 'https://www.threads.com');
+    if (!THREADS_POST_URL_RE.test(url.href)) return undefined;
+    const match = url.href.match(/^https:\/\/(?:www\.)?threads\.(?:com|net)\/@([^/]+)\/post\/([\w-]+)(?:[/?#]|$)/);
+    if (!match?.[1] || !match?.[2]) return undefined;
+    return `https://www.threads.com/@${match[1]}/post/${match[2]}`;
+  } catch {
+    return undefined;
+  }
+}
+
+function parseThreadsPostUrl(value: string): { username: string; code: string } | undefined {
+  const m = value.match(/^https:\/\/(?:www\.)?threads\.(?:com|net)\/@([^/]+)\/post\/([\w-]+)/);
+  if (!m?.[1] || !m?.[2]) return undefined;
+  return { username: cleanThreadsUsername(m[1]), code: m[2] };
+}
+
 function cleanTumblrBlogName(value: string): string {
   return value.replace(/^@/, '').replace(/\.tumblr\.com$/i, '');
+}
+
+function cleanThreadsUsername(value: string): string {
+  return value.replace(/^@/, '').trim();
+}
+
+function isTumblrPostIdKey(lowerKey: string): boolean {
+  return lowerKey === 'id' ||
+    lowerKey === 'id_string' ||
+    lowerKey === 'postid' ||
+    lowerKey === 'post_id' ||
+    lowerKey === 'post_id_string';
+}
+
+function isTumblrBlogNameKey(lowerKey: string): boolean {
+  return lowerKey === 'name' ||
+    lowerKey === 'blog_name' ||
+    lowerKey === 'blogname';
+}
+
+function isThreadsCodeKey(lowerKey: string): boolean {
+  return lowerKey === 'code' ||
+    lowerKey === 'shortcode' ||
+    lowerKey === 'url_code' ||
+    lowerKey === 'post_code' ||
+    lowerKey === 'media_code';
+}
+
+function isLikelyThreadsPostCode(value: string): boolean {
+  if (!THREADS_CODE_RE.test(value)) return false;
+  if (value.length < 8 || value.length > 64) return false;
+  if (/^(?:SUCCESS|OK|ERROR|FAIL|FAILED|PENDING|QUEUED)$/i.test(value)) return false;
+  return /[a-z0-9_-]/.test(value);
+}
+
+function isThreadsUsernameKey(lowerKey: string): boolean {
+  return lowerKey === 'username' ||
+    lowerKey === 'user_name' ||
+    lowerKey === 'owner_username' ||
+    lowerKey === 'profile_username';
 }
 
 function decodeFormValue(value: string): string {

@@ -56,6 +56,12 @@ export interface PostFlowOptions {
   textInjector?: (text: string, selector: string) => Promise<void>;
   /** framework が MAIN world の click のみ受理する場合の submit hook */
   clickPostButton?: () => Promise<void>;
+  /** upload request または compose preview で media 受理を確認する */
+  requireMediaAccepted?: boolean;
+  /** compose preview が出るまで media 注入成功扱いにしない */
+  requireMediaPreview?: boolean;
+  /** drag/drop 型の添付で、drop target 出現後に待つ時間(ms) */
+  beforeDropDelayMs?: number;
 }
 
 /**
@@ -83,6 +89,9 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
     dryRun = false,
     textInjector = injectTextIntoElement,
     clickPostButton,
+    requireMediaAccepted,
+    requireMediaPreview,
+    beforeDropDelayMs,
   } = options;
   if (!postButtonSelector && !postButtonTexts?.length && !postButtonFinder) {
     throw new Error('postButtonSelector, postButtonTexts, or postButtonFinder is required');
@@ -107,9 +116,9 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
 
   if (images && images.length > 0) {
     if (dropTargetSelector) {
-      await dropImages(images, dropTargetSelector);
+      await dropImages(images, dropTargetSelector, { requireMediaAccepted, requireMediaPreview, beforeDropDelayMs });
     } else if (fileInputSelector) {
-      await injectImages(images, fileInputSelector);
+      await injectImages(images, fileInputSelector, { requireMediaAccepted, requireMediaPreview });
     } else {
       throw new Error(t('runtimeImageUnsupported'));
     }

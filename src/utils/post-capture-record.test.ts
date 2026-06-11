@@ -2,7 +2,9 @@ import { Window } from 'happy-dom';
 import { describe, expect, it } from 'vitest';
 import {
   extractInstagramPostRecord,
+  extractThreadsPostRecord,
   extractTumblrPostRecord,
+  findLatestTumblrPostUrlInDocument,
   findTumblrPostUrlInDocument,
   hashCaptureText,
   prepareInstagramConfigureBody,
@@ -73,6 +75,76 @@ describe('post capture records', () => {
     expect(record?.url).toBe('https://www.tumblr.com/komm64/456');
   });
 
+  it('extracts Tumblr post IDs from alternate API response keys', () => {
+    const record = extractTumblrPostRecord(
+      { response: { post_id_string: '789' } },
+      'komm64.tumblr.com',
+      undefined,
+      100,
+    );
+
+    expect(record?.url).toBe('https://www.tumblr.com/komm64/789');
+  });
+
+  it('extracts Threads post URLs from GraphQL-like responses', () => {
+    const record = extractThreadsPostRecord(
+      {
+        data: {
+          create_post: {
+            post: {
+              code: 'DZaBc_12345',
+              user: { username: 'komm64' },
+            },
+          },
+        },
+      },
+      undefined,
+      'hash',
+      100,
+    );
+
+    expect(record).toEqual({
+      url: 'https://www.threads.com/@komm64/post/DZaBc_12345',
+      code: 'DZaBc_12345',
+      username: 'komm64',
+      capturedAt: 100,
+      textHash: 'hash',
+    });
+  });
+
+  it('extracts Threads post URLs from URL fields', () => {
+    const record = extractThreadsPostRecord(
+      { response: { permalink: 'https://www.threads.net/@komm64/post/DZxyz_987?x=1' } },
+      undefined,
+      undefined,
+      100,
+    );
+
+    expect(record?.url).toBe('https://www.threads.com/@komm64/post/DZxyz_987');
+  });
+
+  it('does not build Threads URLs from generic status codes', () => {
+    const record = extractThreadsPostRecord(
+      { response: { code: 'SUCCESS' } },
+      'komm64',
+      undefined,
+      100,
+    );
+
+    expect(record).toBeUndefined();
+  });
+
+  it('does not build Threads URLs from a code plus fallback username only', () => {
+    const record = extractThreadsPostRecord(
+      { response: { code: 'DZaBc_12345' } },
+      'komm64',
+      undefined,
+      100,
+    );
+
+    expect(record).toBeUndefined();
+  });
+
   it('rejects fresh records with a mismatched text hash', () => {
     const raw = JSON.stringify({
       url: 'https://example.com/post/1',
@@ -105,5 +177,51 @@ describe('post capture records', () => {
         'https://www.tumblr.com',
       ),
     ).toBe('https://www.tumblr.com/komm64/222');
+  });
+
+  it('returns the latest non-pinned Tumblr post for media-only fallback', () => {
+    const window = new Window();
+    window.document.body.innerHTML = `
+      <article>
+        <div>Pinned post</div>
+        <a href="/komm64/111">Pinned permalink</a>
+      </article>
+      <article>
+        <a href="/komm64/222">Latest normal permalink</a>
+        <img src="https://example.test/image.jpg" />
+      </article>
+      <article>
+        <a href="/komm64/333">Older permalink</a>
+      </article>
+    `;
+
+    expect(
+      findLatestTumblrPostUrlInDocument(
+        window.document as unknown as Document,
+        'komm64',
+        'https://www.tumblr.com',
+      ),
+    ).toBe('https://www.tumblr.com/komm64/222');
+  });
+
+  it('skips a known pre-submit Tumblr URL when finding latest media-only post', () => {
+    const window = new Window();
+    window.document.body.innerHTML = `
+      <article>
+        <a href="/komm64/222">New permalink</a>
+      </article>
+      <article>
+        <a href="/komm64/111">Old permalink</a>
+      </article>
+    `;
+
+    expect(
+      findLatestTumblrPostUrlInDocument(
+        window.document as unknown as Document,
+        'komm64',
+        'https://www.tumblr.com',
+        ['https://www.tumblr.com/komm64/222'],
+      ),
+    ).toBe('https://www.tumblr.com/komm64/111');
   });
 });

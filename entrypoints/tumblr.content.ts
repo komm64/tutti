@@ -9,6 +9,7 @@ import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
 import { validateTumblrBodyText } from '../src/utils/tumblr-text';
 import {
+  findLatestTumblrPostUrlInDocument,
   findTumblrPostUrlInDocument,
   hashCaptureText,
   readFreshCapturedPost,
@@ -304,6 +305,11 @@ export default defineContentScript({
 async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolean): Promise<PostResultMessage> {
   const sel = await resolveSelectors('tumblr', TUMBLR_SELECTORS);
   const postingUser = dryRun ? null : await detectTumblrUser();
+  const blogName = postingUser?.slice(1);
+  const shouldUseLatestDiff = !dryRun && !!blogName && !text.trim();
+  const preSubmitSnapshot = shouldUseLatestDiff && blogName
+    ? await fetchTumblrLatestPostSnapshot(blogName)
+    : { ok: false, url: undefined };
 
   // v0.4.72: 本文から #hashtag を抽出して Tumblr の tags chip 入力に commit。
   // Tumblr は tags driven な culture (発見性の主役) なので、 user 入力の
@@ -372,8 +378,12 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     if (captured?.url) {
       url = captured.url;
       log.info(`Tumblr: URL captured via post API response: ${url}`);
-    } else if (confirmed && postingUser) {
-      url = await fetchTumblrRecentPostUrl(postingUser.slice(1), text);
+    } else if (confirmed && blogName) {
+      url = text.trim()
+        ? await fetchTumblrRecentPostUrl(blogName, text)
+        : shouldUseLatestDiff && preSubmitSnapshot.ok
+          ? await fetchTumblrLatestPostUrlAfterSubmit(blogName, preSubmitSnapshot.url)
+          : undefined;
     }
   }
 
@@ -427,6 +437,42 @@ async function fetchTumblrRecentPostUrl(blogName: string, text: string): Promise
     }
   } catch (e) {
     log.warn(`Tumblr: profile URL capture failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  return undefined;
+}
+
+async function fetchTumblrLatestPostUrl(blogName: string): Promise<string | undefined> {
+  const snapshot = await fetchTumblrLatestPostSnapshot(blogName);
+  return snapshot.ok ? snapshot.url : undefined;
+}
+
+async function fetchTumblrLatestPostSnapshot(blogName: string): Promise<{ ok: boolean; url?: string }> {
+  try {
+    const response = await fetch(`/blog/${encodeURIComponent(blogName)}`, { credentials: 'include' });
+    if (!response.ok) return { ok: false };
+    const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+    return {
+      ok: true,
+      url: findLatestTumblrPostUrlInDocument(doc, blogName, location.origin),
+    };
+  } catch (e) {
+    log.warn(`Tumblr: latest profile URL capture failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  return { ok: false };
+}
+
+async function fetchTumblrLatestPostUrlAfterSubmit(
+  blogName: string,
+  preSubmitLatestUrl: string | undefined,
+): Promise<string | undefined> {
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    const latest = await fetchTumblrLatestPostUrl(blogName);
+    if (latest && latest !== preSubmitLatestUrl) {
+      log.info(`Tumblr: URL captured via latest profile diff: ${latest}`);
+      return latest;
+    }
+    await sleep(1000);
   }
   return undefined;
 }

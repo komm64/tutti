@@ -16,6 +16,8 @@ interface InjectRequest {
   texts?: string[];
   uploadTimeoutMs?: number;
   requireVideoAccepted?: boolean;
+  requireMediaAccepted?: boolean;
+  requireMediaPreview?: boolean;
 }
 
 interface InjectResponse {
@@ -75,7 +77,7 @@ async function sendInjectRequest(req: Omit<InjectRequest, 'source' | 'id'>): Pro
 export async function injectImages(
   rawImages: ImageAttachment[],
   fileInputSelector: string,
-  options: { requireVideoAccepted?: boolean } = {},
+  options: { requireVideoAccepted?: boolean; requireMediaAccepted?: boolean; requireMediaPreview?: boolean } = {},
 ): Promise<void> {
   await waitForElement<HTMLInputElement>(fileInputSelector, 5000);
   const hasVideo = rawImages.some((m) => m.type.startsWith('video/'));
@@ -90,8 +92,10 @@ export async function injectImages(
   const result = await sendInjectRequest({
     mode: 'input',
     selector: fileInputSelector,
-    uploadTimeoutMs: hasVideo ? VIDEO_UPLOAD_TIMEOUT_MS : undefined,
+    uploadTimeoutMs: hasVideo ? VIDEO_UPLOAD_TIMEOUT_MS : (options.requireMediaAccepted ? 30000 : undefined),
     requireVideoAccepted: options.requireVideoAccepted,
+    requireMediaAccepted: options.requireMediaAccepted,
+    requireMediaPreview: options.requireMediaPreview,
     files: images.map((img, i) => {
       if (!img.data) {
         throw new Error(
@@ -203,8 +207,17 @@ export async function getLatestXPostUrlInMainWorld(handle: string): Promise<stri
 export async function dropImages(
   rawImages: ImageAttachment[],
   dropTargetSelector: string,
+  options: {
+    requireVideoAccepted?: boolean;
+    requireMediaAccepted?: boolean;
+    requireMediaPreview?: boolean;
+    beforeDropDelayMs?: number;
+  } = {},
 ): Promise<void> {
   await waitForElement<HTMLElement>(dropTargetSelector, 5000);
+  if (options.beforeDropDelayMs && options.beforeDropDelayMs > 0) {
+    await sleep(options.beforeDropDelayMs);
+  }
   const hasVideo = rawImages.some((m) => m.type.startsWith('video/'));
 
   const { resolveAttachmentToBase64ViaMessage } = await import('./attachment');
@@ -215,7 +228,10 @@ export async function dropImages(
   const result = await sendInjectRequest({
     mode: 'drop',
     selector: dropTargetSelector,
-    uploadTimeoutMs: hasVideo ? VIDEO_UPLOAD_TIMEOUT_MS : undefined,
+    uploadTimeoutMs: hasVideo ? VIDEO_UPLOAD_TIMEOUT_MS : (options.requireMediaAccepted ? 30000 : undefined),
+    requireVideoAccepted: options.requireVideoAccepted,
+    requireMediaAccepted: options.requireMediaAccepted,
+    requireMediaPreview: options.requireMediaPreview,
     files: images.map((img, i) => {
       if (!img.data) {
         throw new Error(

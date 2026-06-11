@@ -7,6 +7,7 @@ import { clickElementInMainWorld } from '../src/utils/image';
 import { waitForPostUrl } from '../src/utils/url-capture';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
+import { hashCaptureText, readFreshCapturedPost } from '../src/utils/post-capture-record';
 
 function detectThreadsUser(): string | null {
   type Strategy = { name: string; fn: () => string | null };
@@ -164,17 +165,32 @@ export default defineContentScript({
 async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolean): Promise<PostResultMessage> {
   const sel = await resolveSelectors('threads', THREADS_SELECTORS);
   const postingUser = detectThreadsUser()?.replace(/^@/, '') ?? null;
+  const shouldUseLatestDiff = !dryRun && !!postingUser && !text.trim();
+  const preSubmitSnapshot = shouldUseLatestDiff && postingUser
+    ? await fetchThreadsLatestPostSnapshot(postingUser)
+    : { ok: false, url: undefined };
+  if (!dryRun) {
+    try {
+      localStorage.removeItem('tutti:threads-latest-post');
+      localStorage.setItem('tutti:threads-pending-text-hash', hashCaptureText(text));
+      if (postingUser) localStorage.setItem('tutti:threads-pending-user', postingUser);
+      else localStorage.removeItem('tutti:threads-pending-user');
+    } catch { /* ignore storage failures */ }
+  }
   await executePostFlow({
     prefillsViaUrl: threadsAdapter.prefillsViaUrl,
     textareaSelector: sel.textarea,
     // Threads の post button は React Native Web で aria-label / data-testid が
     // 不安定。テキスト「投稿」「Post」で探す finder を使う。
     postButtonFinder: findThreadsPostButton,
-    fileInputSelector: sel.fileInput,
+    dropTargetSelector: sel.dropTarget,
     text,
     images,
     postButtonTimeoutMs: 12000,
     dryRun,
+    requireMediaAccepted: !!images?.length,
+    requireMediaPreview: !!images?.length,
+    beforeDropDelayMs: images?.length ? 5000 : undefined,
     clickPostButton: () => clickElementInMainWorld(
       '[role="dialog"] [role="button"], [role="dialog"] button',
       ['Post', '投稿', '投稿する', 'Post now'],
@@ -214,12 +230,26 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
       url = captured;
       confirmed = true;
     } else {
-      const profileUrl = await captureThreadsPostUrlFromProfile(text, postingUser, 30_000);
-      if (profileUrl) {
-        url = profileUrl;
+      const apiUrl = await waitForLatestThreadsCapturedPost(text, 20_000);
+      if (apiUrl) {
+        url = apiUrl;
         confirmed = true;
-      } else if (!document.querySelector(sel.textarea)) {
-        confirmed = true;
+      } else {
+        const profileUrl = await captureThreadsPostUrlFromProfile(text, postingUser, 30_000);
+        if (profileUrl) {
+          url = profileUrl;
+          confirmed = true;
+        } else if (postingUser && shouldUseLatestDiff && preSubmitSnapshot.ok) {
+          const latestDiffUrl = await captureThreadsPostUrlByLatestDiff(postingUser, preSubmitSnapshot.url, 30_000);
+          if (latestDiffUrl) {
+            url = latestDiffUrl;
+            confirmed = true;
+          } else if (!document.querySelector(sel.textarea)) {
+            confirmed = true;
+          }
+        } else if (!document.querySelector(sel.textarea)) {
+          confirmed = true;
+        }
       }
     }
   }
@@ -231,6 +261,76 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     confirmed,
     url,
   };
+}
+
+async function waitForLatestThreadsCapturedPost(text: string, timeoutMs: number): Promise<string | null> {
+  return await waitForCondition<string>(
+    () => {
+      try {
+        const record = readFreshCapturedPost(
+          localStorage.getItem('tutti:threads-latest-post'),
+          text,
+          120_000,
+        );
+        return record?.url ?? null;
+      } catch {
+        return null;
+      }
+    },
+    { timeoutMs, intervalMs: 500 },
+  ) ?? null;
+}
+
+async function fetchThreadsLatestPostSnapshot(username: string): Promise<{ ok: boolean; url?: string }> {
+  try {
+    const response = await fetch(`https://www.threads.com/@${encodeURIComponent(username)}`, {
+      credentials: 'include',
+    });
+    if (!response.ok) return { ok: false };
+    const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+    return {
+      ok: true,
+      url: findLatestThreadsPostUrlInDocument(doc, username, location.origin),
+    };
+  } catch (e) {
+    log.warn(`threads: latest profile URL capture failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  return { ok: false };
+}
+
+async function captureThreadsPostUrlByLatestDiff(
+  username: string,
+  preSubmitLatestUrl: string | undefined,
+  timeoutMs: number,
+): Promise<string | null> {
+  const profilePath = `/@${username}`;
+  const profileUrl = `https://www.threads.com${profilePath}`;
+  if (location.href !== profileUrl) {
+    location.assign(profileUrl);
+  }
+  const loaded = await waitForCondition<boolean>(
+    () => location.pathname === profilePath ? true : null,
+    { timeoutMs: 10_000, intervalMs: 250 },
+  );
+  if (!loaded) return null;
+
+  return await waitForCondition<string>(
+    () => {
+      const latest = findLatestThreadsPostUrlInDocument(document, username, location.origin);
+      return latest && latest !== preSubmitLatestUrl ? latest : null;
+    },
+    {
+      timeoutMs,
+      intervalMs: 500,
+      root: document.body,
+      observerInit: {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['href'],
+      },
+    },
+  ) ?? null;
 }
 
 async function captureThreadsPostUrlFromProfile(
@@ -268,6 +368,7 @@ async function captureThreadsPostUrlFromProfile(
 
 function findThreadsPostUrlByText(text: string): string | null {
   const target = text.replace(/\s+/g, ' ').trim().slice(0, 60);
+  if (!target) return null;
   const normalize = (value: string): string => value.replace(/\s+/g, ' ').trim();
   const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href*="/post/"]'))
     .filter((anchor) => /\/@[^/]+\/post\/[\w-]+/.test(anchor.href));
@@ -283,6 +384,38 @@ function findThreadsPostUrlByText(text: string): string | null {
     return links[0]?.href ?? null;
   }
   return null;
+}
+
+function findLatestThreadsPostUrlInDocument(doc: Document, username: string, origin: string): string | undefined {
+  const escapedUser = escapeRegExp(username);
+  const links = Array.from(doc.querySelectorAll<HTMLAnchorElement>('a[href*="/post/"]'));
+  const seen = new Set<string>();
+  for (const link of links) {
+    const href = link.getAttribute('href') ?? '';
+    const url = normalizeThreadsPostUrl(href, origin);
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    if (!new RegExp(`/@${escapedUser}/post/[\\w-]+`, 'i').test(new URL(url).pathname)) continue;
+    return url;
+  }
+  return undefined;
+}
+
+function normalizeThreadsPostUrl(href: string, origin: string): string | undefined {
+  try {
+    const url = new URL(href, origin);
+    const match = url.href.match(/^https:\/\/(?:www\.)?threads\.(?:com|net)\/@([^/]+)\/post\/([\w-]+)(?:[/?#]|$)/);
+    if (!match?.[1] || !match?.[2]) return undefined;
+    url.search = '';
+    url.hash = '';
+    return `https://www.threads.com/@${match[1]}/post/${match[2]}`;
+  } catch {
+    return undefined;
+  }
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /**

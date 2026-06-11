@@ -79,6 +79,10 @@ export async function captureRenderedProfilePostUrl(
   try {
     await waitForTabComplete(tab.id);
     const target = text.replace(/\s+/g, ' ').trim().slice(0, platform === 'pixiv' ? 30 : 60);
+    if (!target) {
+      dbg('rendered profile fallback skipped for empty text');
+      return undefined;
+    }
     const results = await browser.scripting.executeScript({
       target: { tabId: tab.id },
       func: async (platformName: string, targetText: string) => {

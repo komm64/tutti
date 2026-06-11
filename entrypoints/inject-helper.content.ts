@@ -20,6 +20,7 @@
 import { validateTumblrBodyText } from '../src/utils/tumblr-text';
 import {
   extractInstagramPostRecord,
+  extractThreadsPostRecord,
   extractTumblrPostRecord,
   isInstagramConfigureUrl,
   prepareInstagramConfigureBody,
@@ -84,6 +85,10 @@ interface InjectRequest {
   uploadTimeoutMs?: number;
   /** video file で upload/preview evidence を必須にするか。省略時 true */
   requireVideoAccepted?: boolean;
+  /** image/video を問わず upload/preview evidence を必須にする */
+  requireMediaAccepted?: boolean;
+  /** upload 完了だけでなく compose preview evidence を必須にする */
+  requireMediaPreview?: boolean;
 }
 
 interface InjectResponse {
@@ -121,6 +126,7 @@ declare global {
      */
     __tuttiIgPendingCaption?: string;
     __tuttiIgLatestPost?: { url?: string; code?: string; capturedAt: number; textHash?: string };
+    __tuttiThreadsLatestPost?: { url?: string; code?: string; username?: string; capturedAt: number; textHash?: string };
     __tuttiTumblrLatestPost?: { url?: string; id?: string; blogName?: string; capturedAt: number; textHash?: string };
     __tuttiXPostCaptureInstalled?: boolean;
     __tuttiXLatestPostId?: { id: string; capturedAt: number };
@@ -237,12 +243,12 @@ export default defineContentScript({
 
       const isTumblrPostCreateUrl = (url: string, method = 'GET'): boolean =>
         method.toUpperCase() === 'POST' && (
-          /\/api\/v2\/blog\/[^/]+\/post(?:\?|$|\/)/.test(url) ||
-          /\/v2\/blog\/[^/]+\/post(?:\?|$|\/)/.test(url)
+          /\/api\/v2\/blog\/[^/]+\/posts?(?:\?|$|\/)/.test(url) ||
+          /\/v2\/blog\/[^/]+\/posts?(?:\?|$|\/)/.test(url)
         );
 
       const blogNameFromUrl = (url: string): string | undefined => {
-        const m = url.match(/\/(?:api\/)?v2\/blog\/([^/]+)\/post/);
+        const m = url.match(/\/(?:api\/)?v2\/blog\/([^/]+)\/posts?/);
         return m?.[1]?.replace(/\.tumblr\.com$/i, '');
       };
 
@@ -293,6 +299,90 @@ export default defineContentScript({
         }
         return origSend.call(this, body as Document | XMLHttpRequestBodyInit | null);
       };
+    }
+
+    function installThreadsPostCaptureHook() {
+      if (!/threads\.(?:com|net)$/.test(location.host)) return;
+      if ((window as unknown as { __tuttiThreadsPostCaptureHook?: boolean }).__tuttiThreadsPostCaptureHook) return;
+      (window as unknown as { __tuttiThreadsPostCaptureHook?: boolean }).__tuttiThreadsPostCaptureHook = true;
+
+      const isThreadsPostMutationUrl = (url: string, method = 'GET', bodyText = ''): boolean => {
+        if (method.toUpperCase() !== 'POST') return false;
+        try {
+          const parsed = new URL(url, location.origin);
+          if (!/threads\.(?:com|net)$/.test(parsed.hostname)) return false;
+          if (!/\/(?:api\/graphql|graphql|ajax|api\/v\d+)/i.test(parsed.pathname)) return false;
+          if (!bodyText) return false;
+          if (!/(create|publish|composer|mutation|text_post|post_create|create_post)/i.test(bodyText)) return false;
+          if (/(feed|timeline|search|notification|inbox|viewer)/i.test(bodyText)) return false;
+          return true;
+        } catch {
+          return false;
+        }
+      };
+
+      const requestBodyText = (body: unknown): string => {
+        if (typeof body === 'string') return body;
+        if (body instanceof URLSearchParams) return body.toString();
+        if (body instanceof FormData) {
+          return Array.from(body.entries())
+            .map(([key, value]) => `${key}=${typeof value === 'string' ? value : value.name}`)
+            .join('&');
+        }
+        return '';
+      };
+
+      const captureThreadsPost = (payload: unknown): void => {
+        let textHash: string | undefined;
+        let username: string | undefined;
+        try {
+          textHash = localStorage.getItem('tutti:threads-pending-text-hash') ?? undefined;
+          username = localStorage.getItem('tutti:threads-pending-user') ?? undefined;
+        } catch { /* ignore storage failures */ }
+        if (!textHash && !username) return;
+        const record = extractThreadsPostRecord(payload, username, textHash);
+        if (!record?.url) return;
+        window.__tuttiThreadsLatestPost = record;
+        try {
+          localStorage.setItem('tutti:threads-latest-post', JSON.stringify(record));
+          localStorage.removeItem('tutti:threads-pending-text-hash');
+          localStorage.removeItem('tutti:threads-pending-user');
+        } catch { /* in-memory capture remains available */ }
+        console.log('[Tutti inject-helper] Threads post URL captured: ' + record.url);
+      };
+
+      const origFetch = window.fetch.bind(window);
+      window.fetch = async function(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+        const url = typeof input === 'string' ? input : (input instanceof URL ? input.toString() : input.url);
+        const method = init?.method ?? (input instanceof Request ? input.method : 'GET');
+        const shouldCapture = isThreadsPostMutationUrl(url, method, requestBodyText(init?.body));
+        const response = await origFetch(input as RequestInfo, init);
+        if (shouldCapture) {
+          void response.clone().json().then(captureThreadsPost).catch(() => {});
+        }
+        return response;
+      };
+
+      const OrigXHR = window.XMLHttpRequest;
+      const origOpen = OrigXHR.prototype.open;
+      const requests = new WeakMap<XMLHttpRequest, { method: string; url: string }>();
+      OrigXHR.prototype.open = function(this: XMLHttpRequest, method: string, url: string | URL, ...rest: unknown[]) {
+        const value = typeof url === 'string' ? url : url.toString();
+        requests.set(this, { method, url: value });
+        // @ts-expect-error rest spread
+        return origOpen.call(this, method, value, ...rest);
+      };
+      const origSend = OrigXHR.prototype.send;
+      OrigXHR.prototype.send = function(this: XMLHttpRequest, body?: Document | XMLHttpRequestBodyInit | null) {
+        const req = requests.get(this);
+        if (isThreadsPostMutationUrl(req?.url ?? '', req?.method, requestBodyText(body))) {
+          this.addEventListener('load', () => {
+            try { captureThreadsPost(JSON.parse(this.responseText)); } catch { /* best-effort */ }
+          }, { once: true });
+        }
+        return origSend.call(this, body as Document | XMLHttpRequestBodyInit | null);
+      };
+      console.log('[Tutti inject-helper] Threads fetch + XHR hooks installed');
     }
 
     function installUploadHook() {
@@ -392,6 +482,7 @@ export default defineContentScript({
       timeoutMs: number,
       options: {
         requireMediaAccepted?: boolean;
+        requirePreviewAccepted?: boolean;
         isMediaPreviewVisible?: () => boolean;
       } = {},
     ): Promise<{ uploadCount: number; timedOut: boolean; acceptedByPreview: boolean }> {
@@ -412,6 +503,10 @@ export default defineContentScript({
         if (newSuccess > 0) {
           const sinceLast = Date.now() - tracker.lastSuccessAt;
           if (sinceLast >= QUIET_MS) {
+            if (options.requirePreviewAccepted && !acceptedByPreview) {
+              await sleep(150);
+              continue;
+            }
             return { uploadCount: newSuccess, timedOut: false, acceptedByPreview };
           }
         } else if (acceptedByPreview && options.requireMediaAccepted) {
@@ -439,6 +534,38 @@ export default defineContentScript({
         style.opacity !== '0';
     }
 
+    function mediaPreviewText(el: HTMLElement): string {
+      return [
+        el.getAttribute('alt'),
+        el.getAttribute('aria-label'),
+        el.getAttribute('data-testid'),
+        el.getAttribute('class'),
+        el.getAttribute('src'),
+        el.textContent,
+      ].filter(Boolean).join(' ').toLowerCase();
+    }
+
+    function isLikelyAttachmentImage(el: HTMLImageElement): boolean {
+      const rect = el.getBoundingClientRect();
+      const text = mediaPreviewText(el);
+      if (text.includes('profile picture') || text.includes('profile_pic') || text.includes('avatar')) return false;
+      if (el.currentSrc.startsWith('blob:') || el.currentSrc.startsWith('data:')) return true;
+      return rect.width >= 80 && rect.height >= 80;
+    }
+
+    function isLikelyMediaPreviewElement(el: HTMLElement): boolean {
+      if (!isVisibleMediaElement(el)) return false;
+      const tag = el.tagName.toLowerCase();
+      if (tag === 'video' || tag === 'canvas') return true;
+      if (tag === 'img') return isLikelyAttachmentImage(el as HTMLImageElement);
+      const text = mediaPreviewText(el);
+      if (text.includes('attach media') || text.includes('add media')) return false;
+      return text.includes('media') ||
+        text.includes('attachment') ||
+        text.includes('remove') ||
+        text.includes('削除');
+    }
+
     function mediaPreviewScope(target: HTMLElement): ParentNode {
       return target.closest('[role="dialog"], [data-testid="composer"], form, main') ?? document.body;
     }
@@ -447,9 +574,7 @@ export default defineContentScript({
       const selectors = [
         'video',
         'canvas',
-        'img[src^="blob:"]',
-        'img[src^="data:"]',
-        'img[src*="twimg.com/media"]',
+        'img',
         '[data-testid*="media" i]',
         '[data-testid*="attachment" i]',
         '[aria-label*="Remove" i]',
@@ -457,7 +582,7 @@ export default defineContentScript({
       ].join(',');
       return Array
         .from(scope.querySelectorAll<HTMLElement>(selectors))
-        .filter(isVisibleMediaElement)
+        .filter(isLikelyMediaPreviewElement)
         .length;
     }
 
@@ -545,8 +670,11 @@ export default defineContentScript({
       const built = buildDataTransfer(req.files);
       if ('error' in built) return { source: RES_TAG, id: req.id, ok: false, error: built.error };
       const requireMediaAccepted =
-        req.requireVideoAccepted !== false &&
-        req.files.some((file) => file.type.startsWith('video/'));
+        req.requireMediaAccepted === true ||
+        (
+          req.requireVideoAccepted !== false &&
+          req.files.some((file) => file.type.startsWith('video/'))
+        );
       const beforePreviewCount = countMediaPreviews(mediaPreviewScope(input));
       const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'files')?.set;
       if (setter) setter.call(input, built.dt.files);
@@ -555,6 +683,7 @@ export default defineContentScript({
       input.dispatchEvent(new Event('input', { bubbles: true }));
       const wait = await waitForUploadComplete(req.uploadTimeoutMs ?? 30000, {
         requireMediaAccepted,
+        requirePreviewAccepted: req.requireMediaPreview === true,
         isMediaPreviewVisible: requireMediaAccepted
           ? mediaAcceptedPredicate(input, beforePreviewCount)
           : undefined,
@@ -564,7 +693,7 @@ export default defineContentScript({
         source: RES_TAG,
         id: req.id,
         ok,
-        error: ok ? undefined : 'Timed out while waiting for the video upload or media preview',
+        error: ok ? undefined : 'Timed out while waiting for the media upload or preview',
         fileCount: input.files?.length ?? 0,
         uploadCount: wait.uploadCount,
         acceptedByPreview: wait.acceptedByPreview,
@@ -933,7 +1062,12 @@ export default defineContentScript({
       console.log(`[Tutti inject-helper] drop target matched "${found.matchedPart}"`);
       const built = buildDataTransfer(req.files);
       if ('error' in built) return { source: RES_TAG, id: req.id, ok: false, error: built.error };
-      const requireMediaAccepted = req.files.some((file) => file.type.startsWith('video/'));
+      const requireMediaAccepted =
+        req.requireMediaAccepted === true ||
+        (
+          req.requireVideoAccepted !== false &&
+          req.files.some((file) => file.type.startsWith('video/'))
+        );
       const beforePreviewCount = countMediaPreviews(mediaPreviewScope(target));
       const rect = target.getBoundingClientRect();
       const x = rect.left + rect.width / 2;
@@ -942,6 +1076,7 @@ export default defineContentScript({
         const ev = new DragEvent(type, {
           bubbles: true,
           cancelable: true,
+          composed: true,
           dataTransfer: built.dt,
           clientX: x,
           clientY: y,
@@ -950,6 +1085,7 @@ export default defineContentScript({
       }
       const wait = await waitForUploadComplete(req.uploadTimeoutMs ?? 30000, {
         requireMediaAccepted,
+        requirePreviewAccepted: req.requireMediaPreview === true,
         isMediaPreviewVisible: requireMediaAccepted
           ? mediaAcceptedPredicate(target, beforePreviewCount)
           : undefined,
@@ -959,7 +1095,7 @@ export default defineContentScript({
         source: RES_TAG,
         id: req.id,
         ok,
-        error: ok ? undefined : 'Timed out while waiting for the video upload or media preview',
+        error: ok ? undefined : 'Timed out while waiting for the media upload or preview',
         fileCount: built.dt.files.length,
         droppedOn: target.tagName,
         uploadCount: wait.uploadCount,
@@ -1103,6 +1239,7 @@ export default defineContentScript({
     async function handle(req: InjectRequest): Promise<InjectResponse> {
       try {
         installUploadHook();
+        installThreadsPostCaptureHook();
         installTumblrPostCaptureHook();
         installXPostCaptureHook();
         if (req.mode === 'text') return await injectText(req);
@@ -1125,6 +1262,7 @@ export default defineContentScript({
     // 起動直後に hook をインストール(早ければ早いほど取りこぼしが少ない)
     installUploadHook();
     installIgCaptionFetchHook();
+    installThreadsPostCaptureHook();
     installTumblrPostCaptureHook();
     installXPostCaptureHook();
 
@@ -1151,6 +1289,8 @@ export default defineContentScript({
         texts: Array.isArray(data.texts) ? data.texts.filter((t): t is string => typeof t === 'string') : undefined,
         uploadTimeoutMs: typeof data.uploadTimeoutMs === 'number' ? data.uploadTimeoutMs : undefined,
         requireVideoAccepted: typeof data.requireVideoAccepted === 'boolean' ? data.requireVideoAccepted : undefined,
+        requireMediaAccepted: typeof data.requireMediaAccepted === 'boolean' ? data.requireMediaAccepted : undefined,
+        requireMediaPreview: typeof data.requireMediaPreview === 'boolean' ? data.requireMediaPreview : undefined,
       };
       void handle(req).then((res) => {
         if (!res.ok) console.warn('[Tutti inject-helper] failed:', res.error);

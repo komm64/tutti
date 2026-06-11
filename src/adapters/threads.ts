@@ -31,5 +31,11 @@ export const THREADS_SELECTORS = {
   /** 投稿入力欄(fallback 用) */
   textarea: 'div[contenteditable="true"][role="textbox"], div[contenteditable="plaintext-only"]',
   /** 画像添付用 file input */
-  fileInput: 'input[type="file"][accept*="video"], input[type="file"][accept*="image"], input[type="file"]',
+  fileInput:
+    '[role="dialog"] input[type="file"][accept*="image"],' +
+    '[role="dialog"] input[type="file"],' +
+    'input[type="file"][accept*="image"],' +
+    'input[type="file"]',
+  /** Current Threads Web accepts media through drop on the compose textbox. */
+  dropTarget: '[role="dialog"] [role="textbox"]',
 } as const;

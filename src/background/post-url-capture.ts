@@ -49,13 +49,13 @@ export async function capturePostUrlFromTab(options: CapturePostUrlOptions): Pro
   };
   dbg(`start (tabId=${tabId}, text="${text.slice(0, 30)}...")`);
 
+  const storedApiUrl = await captureStoredApiPostUrl(platform, tabId, text, dbg);
+  if (storedApiUrl) return storedApiUrl;
+
   if (platform === 'threads' && expectedUser) {
     const renderedUrl = await captureRenderedProfilePostUrl(platform, tabId, text, dbg, expectedUser);
     if (renderedUrl) return renderedUrl;
   }
-
-  const storedApiUrl = await captureStoredApiPostUrl(platform, tabId, text, dbg);
-  if (storedApiUrl) return storedApiUrl;
 
   try {
     if (platform === 'tumblr') {
@@ -97,6 +97,7 @@ export async function capturePostUrlFromTab(options: CapturePostUrlOptions): Pro
             }
           }
           if (platformName === 'youtube') {
+            if (!targetText) return { trace };
             for (let i = 0; i < 120; i += 1) {
               const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href*="/video/"]'));
               const body = (document.body?.innerText ?? '').replace(/\s+/g, ' ');
@@ -126,6 +127,7 @@ export async function capturePostUrlFromTab(options: CapturePostUrlOptions): Pro
             }
           }
           if (platformName === 'mastodon') {
+            if (!targetText) return { trace };
             const initScript = document.querySelector<HTMLScriptElement>('script#initial-state');
             let token: string | undefined;
             let meId: string | undefined;
@@ -159,6 +161,7 @@ export async function capturePostUrlFromTab(options: CapturePostUrlOptions): Pro
             }
           }
           if (platformName === 'misskey') {
+            if (!targetText) return { trace };
             const raw = localStorage.getItem('account');
             trace.push(`misskey account in localStorage: ${raw ? 'yes' : 'no'}`);
             if (!raw) return { trace };
@@ -190,6 +193,7 @@ export async function capturePostUrlFromTab(options: CapturePostUrlOptions): Pro
             }
           }
           if (platformName === 'bluesky') {
+            if (!targetText) return { trace };
             const raw = localStorage.getItem('BSKY_STORAGE');
             trace.push(`BSKY_STORAGE: ${raw ? 'present' : 'missing'}`);
             if (!raw) return { trace };
@@ -267,6 +271,8 @@ async function captureStoredApiPostUrl(
 ): Promise<string | undefined> {
   const key = platform === 'instagram'
     ? 'tutti:ig-latest-post'
+    : platform === 'threads'
+      ? 'tutti:threads-latest-post'
     : platform === 'tumblr'
       ? 'tutti:tumblr-latest-post'
       : undefined;
