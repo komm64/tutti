@@ -125,6 +125,28 @@ describe('buildErrorReportPayload', () => {
     expect(parsed.rawPreview).not.toContain('alice@example.com');
   });
 
+  it('keeps diagnostics parseable when redacting URLs inside escaped DOM attributes', () => {
+    const payload = buildErrorReportPayload({
+      errorText: 'Failed',
+      version: '0.5.31',
+      userAgent: 'test-agent',
+      draftSection: [],
+      diagnosticsJson: JSON.stringify({
+        version: '0.5.31',
+        platforms: [{
+          platform: 'threads',
+          selectors: [],
+          domSnapshot: '<body><a href="https://www.threads.com/@alice/post/secret">post</a></body>',
+        }],
+      }),
+    });
+
+    const parsed = JSON.parse(extractDiagnosticsJson(payload.body));
+    expect(parsed.platforms[0].domSnapshot).toContain('https://www.threads.com/<…>');
+    expect(parsed.platforms[0].domSnapshot).not.toContain('@alice');
+    expect(parsed.platforms[0].domSnapshot).not.toContain('/post/secret');
+  });
+
   it('uses placeholder text when logs are empty', () => {
     const payload = buildErrorReportPayload({
       errorText: 'Failed',

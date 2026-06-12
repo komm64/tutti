@@ -20,7 +20,7 @@ export function redactPII(text: string): string {
   return text
     // 1) URL: scheme://host/path?q#f → scheme://host/<…>
     //    URL path 内の @handle を先に潰すと path が残るため、URL を最初に処理する。
-    .replace(/(https?:\/\/[\w.-]+)(\/[^\s"'`<>]*)?/gi, (_m, base) => `${base}/<…>`)
+    .replace(/(https?:\/\/[\w.-]+)(\/[^\s"'`<>\\]*)?/gi, (_m, base) => `${base}/<…>`)
     // 2) Mastodon-style `@user@instance.tld` を **handle** として潰す。
     //    plain email より先に処理しないと `<email-redacted>` でラベルが混じる。
     //    境界は 行頭 or 空白 / 句読点 (mid-word @ は無視)。

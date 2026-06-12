@@ -70,6 +70,14 @@ describe('redactPII', () => {
       expect(out).not.toContain('/post/secret');
     });
 
+    it('does not consume JSON escape backslashes after redacted URLs', () => {
+      const json = '{"domSnapshot":"<a href=\\"https://example.com/private/path\\">link</a>"}';
+      const out = redactPII(json);
+      expect(JSON.parse(out)).toEqual({
+        domSnapshot: '<a href="https://example.com/<…>">link</a>',
+      });
+    });
+
     it('does not eat surrounding text', () => {
       const out = redactPII('Visit https://example.com/x for details about Y.');
       expect(out).toContain('Visit ');
