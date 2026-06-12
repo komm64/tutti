@@ -224,7 +224,7 @@ export default defineBackground(() => {
     }
 
     if (msg.type === 'DIAGNOSE_REQUEST') {
-      void buildDiagnosticsReport()
+      void buildDiagnosticsReport({ platforms: msg.platforms })
         .then((report) => sendResponse({ report }))
         .catch((err: unknown) => {
           const message = err instanceof Error ? err.message : String(err);

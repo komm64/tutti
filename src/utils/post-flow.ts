@@ -98,18 +98,19 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
   }
 
   if (!prefillsViaUrl) {
-    if (!textareaSelector) {
+    const injectSelector = textareaSelector;
+    if (!injectSelector) {
       throw new Error('textareaSelector is required for DOM injection');
     }
-    const textarea = await waitForElement<HTMLElement>(textareaSelector, composeInputTimeoutMs);
-    if (!textarea) {
+    const composeInput = await waitForElement<HTMLElement>(injectSelector, composeInputTimeoutMs);
+    if (!composeInput) {
       throw new Error(t('runtimeComposeInputMissing'));
     }
     // 本文がある場合のみ MAIN world 経由でテキスト挿入。空文字 inject は
     // (一部 framework で) editor の placeholder structure を壊すリスクが
     // あるので skip (画像のみ投稿のための path、v0.4.59)。
     if (text) {
-      await textInjector(text, textareaSelector);
+      await textInjector(text, injectSelector);
       await sleep(300);
     }
   }
@@ -134,7 +135,11 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
   // DOM 順で先勝ちなので、scope の好みを表せない)。X のように modal と
   // homepage 両方に同じ data-testid のボタンが存在するケースでは、左 = dialog scope を
   // 先に書くことで modal を優先できる。
+  let sawComposeInput = prefillsViaUrl ? !!findComposeInput(textareaSelector) : true;
   const findButton = (): HTMLElement | null => {
+    if (prefillsViaUrl && !sawComposeInput) {
+      sawComposeInput = !!findComposeInput(textareaSelector);
+    }
     if (postButtonFinder) return postButtonFinder();
     if (postButtonSelector) {
       for (const part of postButtonSelector.split(',').map((s) => s.trim()).filter(Boolean)) {
@@ -175,6 +180,9 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
   }, { timeoutMs: effectiveTimeoutMs, intervalMs: 300 });
   if (!button) {
     if (!lastFound) {
+      if (prefillsViaUrl && textareaSelector && !sawComposeInput) {
+        throw new Error(t('runtimeComposeInputMissing'));
+      }
       throw new Error(
         t('runtimePostButtonMissing'),
       );
@@ -202,6 +210,10 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
   }
 
   await sleep(afterClickDelayMs);
+}
+
+function findComposeInput(selector: string | undefined): HTMLElement | null {
+  return selector ? document.querySelector<HTMLElement>(selector) : null;
 }
 
 /**

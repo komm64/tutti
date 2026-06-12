@@ -10,6 +10,7 @@ import {
 describe('shouldIncludeDiagnosticPlatformResult', () => {
   it('includes compose-like diagnostics with selector hits', () => {
     expect(shouldIncludeDiagnosticPlatformResult({
+      platform: 'x',
       selectors: [{ name: 'textarea', selector: 'textarea', matchCount: 1, firstMatchPreview: '<textarea>' }],
       detectedUser: null,
     })).toBe(true);
@@ -17,6 +18,7 @@ describe('shouldIncludeDiagnosticPlatformResult', () => {
 
   it('includes diagnostics with a detected user', () => {
     expect(shouldIncludeDiagnosticPlatformResult({
+      platform: 'x',
       selectors: [{ name: 'textarea', selector: 'textarea', matchCount: 0, firstMatchPreview: null }],
       detectedUser: '@alice',
     })).toBe(true);
@@ -24,9 +26,26 @@ describe('shouldIncludeDiagnosticPlatformResult', () => {
 
   it('excludes unrelated browsing pages with no selector hits and no user', () => {
     expect(shouldIncludeDiagnosticPlatformResult({
+      platform: 'x',
       selectors: [{ name: 'textarea', selector: 'textarea', matchCount: 0, firstMatchPreview: null }],
       detectedUser: null,
     })).toBe(false);
+  });
+
+  it('includes requested platforms even with no selector hits', () => {
+    expect(shouldIncludeDiagnosticPlatformResult({
+      platform: 'bluesky',
+      selectors: [{ name: 'textarea', selector: 'textarea', matchCount: 0, firstMatchPreview: null }],
+      detectedUser: null,
+    }, { requested: true })).toBe(true);
+  });
+
+  it('includes known compose URLs even with no selector hits', () => {
+    expect(shouldIncludeDiagnosticPlatformResult({
+      platform: 'threads',
+      selectors: [{ name: 'textarea', selector: 'textarea', matchCount: 0, firstMatchPreview: null }],
+      detectedUser: null,
+    }, { tabUrl: 'https://www.threads.com/intent/post?text=hi' })).toBe(true);
   });
 });
 

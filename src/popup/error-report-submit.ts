@@ -23,7 +23,7 @@ export async function buildPopupReportPayload(
   context: PopupReportContext,
 ): Promise<{ title: string; body: string }> {
   const logsExcerpt = await loadLogsExcerpt();
-  const diagnosticsJson = await loadDiagnosticsJson();
+  const diagnosticsJson = await loadDiagnosticsJson(selectedPlatformIds(context));
   return buildErrorReportPayload({
     errorText,
     version: context.version,
@@ -94,9 +94,15 @@ async function loadLogsExcerpt(): Promise<string> {
   }
 }
 
-async function loadDiagnosticsJson(): Promise<string> {
+function selectedPlatformIds(context: PopupReportContext) {
+  return context.platforms
+    .filter((p) => p.available && context.selected[p.id])
+    .map((p) => p.id);
+}
+
+async function loadDiagnosticsJson(platforms: ReturnType<typeof selectedPlatformIds>): Promise<string> {
   try {
-    const res = (await browser.runtime.sendMessage({ type: 'DIAGNOSE_REQUEST' })) as
+    const res = (await browser.runtime.sendMessage({ type: 'DIAGNOSE_REQUEST', platforms })) as
       | { report?: unknown }
       | undefined;
     return res?.report ? JSON.stringify(res.report, null, 2) : '';

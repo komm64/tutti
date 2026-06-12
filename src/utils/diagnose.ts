@@ -1,4 +1,5 @@
 import type { DiagnosePlatformResult, PlatformId, SelectorAudit } from '../messages';
+import { isKnownComposeUrl } from './compose-url';
 import { snapshotDocument } from './dom-snapshot';
 
 /**
@@ -59,7 +60,7 @@ export function buildDiagnosis(
   // - hasHit && hasMiss = compose page で何かが壊れた状態 → snapshot 必要 (本来の用途)
   // - 全 hit (hasMiss=false) = 健全、snapshot 不要 (帯域節約)
   let domSnapshot: string | null = null;
-  if (hasMiss && hasHit) {
+  if (hasMiss && (hasHit || isKnownComposeUrl(platform, location.href))) {
     try {
       domSnapshot = snapshotDocument(8000);
     } catch { /* ignore — 診断は best-effort */ }

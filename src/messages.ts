@@ -209,6 +209,8 @@ export interface ConversionErrorMessage {
 /** popup → background: 全 SNS の現在状態を吸い上げてレポート化する */
 export interface DiagnoseRequestMessage {
   type: 'DIAGNOSE_REQUEST';
+  /** Error reports can limit diagnostics to the platforms involved in the failed draft. */
+  platforms?: PlatformId[];
 }
 
 /** background → content script: selector audit を要求 */

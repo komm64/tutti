@@ -2,6 +2,7 @@ import type { DiagnosePlatformResult, PlatformId } from '../messages';
 import type { HistoryEntry } from '../storage';
 import { getLastSeenUsers, getPostHistory, getSettings } from '../storage';
 import { adapters, getAdapter } from '../adapters/registry';
+import { isKnownComposeUrl } from '../utils/compose-url';
 
 export interface DiagnosticsReport {
   version: string;
@@ -23,22 +24,33 @@ export interface DiagnosticsReport {
   platforms: DiagnosePlatformResult[];
 }
 
-export async function buildDiagnosticsReport(): Promise<DiagnosticsReport> {
+export interface DiagnosticsReportOptions {
+  platforms?: readonly PlatformId[];
+}
+
+export async function buildDiagnosticsReport(
+  options: DiagnosticsReportOptions = {},
+): Promise<DiagnosticsReport> {
   const tabs = await browser.tabs.query({});
   const platformResults: DiagnosePlatformResult[] = [];
   const platformIds = Object.keys(adapters) as PlatformId[];
+  const requestedPlatforms = options.platforms ? new Set(options.platforms) : undefined;
 
   for (const tab of tabs) {
     if (typeof tab.url !== 'string' || typeof tab.id !== 'number') continue;
     const platform = platformIds.find((p) => getAdapter(p)?.matchUrl(tab.url ?? ''));
     if (!platform) continue;
+    if (requestedPlatforms && !requestedPlatforms.has(platform)) continue;
     try {
       const res = (await browser.tabs.sendMessage(tab.id, {
         type: 'DIAGNOSE_PLATFORM',
         platform,
       })) as DiagnosePlatformResult | undefined;
       if (res?.type !== 'DIAGNOSE_PLATFORM_RESULT') continue;
-      if (!shouldIncludeDiagnosticPlatformResult(res)) continue;
+      if (!shouldIncludeDiagnosticPlatformResult(res, {
+        requested: requestedPlatforms?.has(platform) === true,
+        tabUrl: tab.url,
+      })) continue;
       platformResults.push(res);
     } catch {
       // content script unreachable (= まだ inject されてない or wrong page)。
@@ -58,13 +70,16 @@ export async function buildDiagnosticsReport(): Promise<DiagnosticsReport> {
 }
 
 export function shouldIncludeDiagnosticPlatformResult(
-  res: Pick<DiagnosePlatformResult, 'selectors' | 'detectedUser'>,
+  res: Pick<DiagnosePlatformResult, 'platform' | 'selectors' | 'detectedUser'>,
+  context: { requested?: boolean; tabUrl?: string } = {},
 ): boolean {
-  // **privacy critical**: compose 系 tab だけ result に含める。
-  // 全 selector が miss + detectedUser も無い tab は閲覧 / 視聴ページ等
-  // (例: youtube.com/watch?v=xxx)、ユーザの不関係 browsing を public Issue
-  // に流してしまう事故 (v0.4.32 で発生) を防ぐ。
-  return res.selectors.some((s) => s.matchCount > 0) || !!res.detectedUser;
+  // **privacy critical**: manual diagnostics keeps the old compose-like filter.
+  // Error reports pass `requested=true` with the draft's selected platforms, so
+  // zero-match selector audits are still useful and limited to the failing SNS.
+  // Redacted DOM snapshots are controlled separately by buildDiagnosis().
+  if (res.selectors.some((s) => s.matchCount > 0) || !!res.detectedUser) return true;
+  if (context.requested) return true;
+  return !!context.tabUrl && isKnownComposeUrl(res.platform, context.tabUrl);
 }
 
 export function redactLastSeenUsers(raw: Record<string, string | null | undefined>): Record<string, string> {
