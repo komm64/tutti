@@ -8,6 +8,7 @@
 
 import { log } from '../utils/logger';
 import { t } from '../utils/i18n';
+import { retryTransientTabAction } from './tab-action-retry';
 
 /** 既存 / 新規どちらでも、 tab 内 content script の準備が整うまでの猶予 */
 const READY_DELAY_MS = 100;
@@ -67,9 +68,13 @@ export async function openOrFocusTab(
     const existingTabId = existing.id;
     if (existing.url === composeUrl) {
       if (active) {
-        await browser.tabs.update(existingTabId, { active: true });
+        await retryTransientTabAction('activate existing SNS tab', () => (
+          browser.tabs.update(existingTabId, { active: true })
+        ));
         if (typeof existing.windowId === 'number') {
-          await browser.windows.update(existing.windowId, { focused: true });
+          await retryTransientTabAction('focus existing SNS window', () => (
+            browser.windows.update(existing.windowId, { focused: true })
+          ));
         }
       }
       await sleep(READY_DELAY_MS);
@@ -81,20 +86,26 @@ export async function openOrFocusTab(
     // タイムアウトする race を引き起こしていた (tutti-issues#16)。
     // listener を先に install してから tabs.update する + 既に complete なら
     // 即時 resolve する dual-strategy で解消。
-    const updated = await browser.tabs.update(existingTabId, {
-      url: composeUrl,
-      active,
-    });
+    const updated = await retryTransientTabAction('navigate existing SNS tab', () => (
+      browser.tabs.update(existingTabId, {
+        url: composeUrl,
+        active,
+      })
+    ));
     if (!updated) {
       throw new Error(t('runtimeExistingSnsTabUnavailable'));
     }
     if (active && typeof existing.windowId === 'number') {
-      await browser.windows.update(existing.windowId, { focused: true });
+      await retryTransientTabAction('focus existing SNS window', () => (
+        browser.windows.update(existing.windowId, { focused: true })
+      ));
     }
     await retryPreSubmitLoadWait(
       () => waitForTabUrlReady(existingTabId, composeUrl, options.relaxedComposeUrlReady === true),
       options,
-      () => browser.tabs.update(existingTabId, { url: composeUrl, active }),
+      () => retryTransientTabAction('retry SNS tab navigation', () => (
+        browser.tabs.update(existingTabId, { url: composeUrl, active })
+      )),
     );
     const readyTab = await browser.tabs.get(existingTabId);
     await sleep(READY_DELAY_MS);
@@ -103,7 +114,9 @@ export async function openOrFocusTab(
 
   // 新規タブ作成は create + waitForTabComplete の順で OK
   // (create 時点では tab は loading state 確定で event が必ず来る)
-  const created = await browser.tabs.create({ url: composeUrl, active });
+  const created = await retryTransientTabAction('create SNS tab', () => (
+    browser.tabs.create({ url: composeUrl, active })
+  ));
   if (typeof created.id !== 'number') {
     throw new Error(t('runtimeSnsTabOpenFailed'));
   }
@@ -111,7 +124,9 @@ export async function openOrFocusTab(
   await retryPreSubmitLoadWait(
     () => waitForTabComplete(createdTabId),
     options,
-    () => browser.tabs.reload(createdTabId),
+    () => retryTransientTabAction('reload SNS tab after load timeout', () => (
+      browser.tabs.reload(createdTabId)
+    )),
   );
   await sleep(READY_DELAY_MS);
   return { tab: created, wasCreated: true };

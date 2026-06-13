@@ -1,5 +1,6 @@
 import type { PlatformId } from '../messages';
 import { closeTabSafely, waitForTabComplete } from './tab-management';
+import { retryTransientTabAction } from './tab-action-retry';
 
 export type RenderedProfilePlatform = 'x' | 'threads' | 'tumblr' | 'pixiv';
 
@@ -74,7 +75,9 @@ export async function captureRenderedProfilePostUrl(
   }
 
   dbg(`rendered profile scrape: ${profileUrl}`);
-  const tab = await browser.tabs.create({ url: profileUrl, active: false });
+  const tab = await retryTransientTabAction('open rendered profile capture tab', () => (
+    browser.tabs.create({ url: profileUrl, active: false })
+  ));
   if (typeof tab.id !== 'number') return undefined;
   try {
     await waitForTabComplete(tab.id);

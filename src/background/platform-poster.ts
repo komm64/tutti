@@ -20,6 +20,7 @@ import { prepareMediaForPlatform } from './platform-media';
 import { maybeResizeImagesForPlatform } from './media-preprocess';
 import { downgradeHardVerifyFailures, toPreviewResult } from './post-result-policy';
 import type { OpenedTabRegistry } from './opened-tab-registry';
+import { retryTransientTabAction } from './tab-action-retry';
 
 const CHUNK_INTERVAL_MS = 2000;
 const PRE_SUBMIT_LOAD_RETRY_PLATFORMS = new Set<PlatformId>(['mastodon']);
@@ -409,7 +410,9 @@ async function maybeAutoOpenPostUrl(
     const hasError =
       verify && verify.issues.some((issue) => issue.severity === 'error' || issue.kind === 'verify-error');
     if (autoOpenPostUrl === 'on-issue' && !hasError) return;
-    await browser.tabs.create({ url, active: false });
+    await retryTransientTabAction('auto-open post URL tab', () => (
+      browser.tabs.create({ url, active: false })
+    ));
     log.info(`auto-open post URL: ${url} (autoOpenPostUrl=${autoOpenPostUrl}, hasError=${!!hasError})`);
   } catch (e) {
     log.warn(`auto-open failed: ${e instanceof Error ? e.message : String(e)}`);

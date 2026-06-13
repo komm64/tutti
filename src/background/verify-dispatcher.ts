@@ -27,6 +27,7 @@ import {
 } from '../utils/post-verify-og';
 import { buildVerifyResult, type VerifyExpectation, type VerifyResult } from '../utils/post-verify';
 import { log } from '../utils/logger';
+import { retryTransientTabAction } from './tab-action-retry';
 
 export async function runVerify(
   platform: PlatformId,
@@ -75,7 +76,9 @@ async function verifyViaDomTab(
 ): Promise<VerifyResult> {
   let verifyTab: Browser.tabs.Tab | undefined;
   try {
-    verifyTab = await browser.tabs.create({ url: postUrl, active: false });
+    verifyTab = await retryTransientTabAction('open verify tab', () => (
+      browser.tabs.create({ url: postUrl, active: false })
+    ));
     if (typeof verifyTab.id !== 'number') {
       return { verified: false, issues: [{ kind: 'verify-error', message: 'verify tab open 失敗', severity: 'warn' }] };
     }

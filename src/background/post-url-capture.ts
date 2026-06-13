@@ -6,6 +6,7 @@ import {
 } from './post-url-rendered-profile';
 import { getSettings } from '../storage';
 import { normalizeCaptureText, readFreshCapturedPost } from '../utils/post-capture-record';
+import { retryTransientTabAction } from './tab-action-retry';
 
 export interface CapturePostUrlOptions {
   platform: PlatformId;
@@ -123,7 +124,9 @@ export async function capturePostUrlFromTab(options: CapturePostUrlOptions): Pro
     }
     if (platform === 'youtube') {
       dbg('reload Studio dashboard before latest Short lookup');
-      await browser.tabs.reload(tabId);
+      await retryTransientTabAction('reload YouTube Studio before URL capture', () => (
+        browser.tabs.reload(tabId)
+      ));
       await waitForTabComplete(tabId);
       await sleep(1000);
     }

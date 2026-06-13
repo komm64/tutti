@@ -1,6 +1,7 @@
 import type { PlatformId, PostResultMessage, PostToPlatformMessage } from '../messages';
 import { log } from '../utils/logger';
 import { waitForTabComplete } from './tab-management';
+import { retryTransientTabAction } from './tab-action-retry';
 
 /**
  * tab complete の直後は content script の listener 登録が数百 ms 遅れる場合がある。
@@ -32,7 +33,9 @@ export async function sendPostMessageWhenReady(
       if (Date.now() >= deadline) {
         if (reloaded) throw e;
         reloaded = true;
-        await browser.tabs.reload(tabId);
+        await retryTransientTabAction('reload SNS tab after missing receiver', () => (
+          browser.tabs.reload(tabId)
+        ));
         await waitForTabComplete(tabId);
         await sleep(100);
         deadline = Date.now() + 5000;

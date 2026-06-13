@@ -1,5 +1,6 @@
 import { getSettings } from '../storage';
 import { log } from '../utils/logger';
+import { retryTransientTabAction } from './tab-action-retry';
 
 export type TuttiDisplayMode = 'sidepanel' | 'floating' | 'popup';
 
@@ -49,11 +50,14 @@ export async function openFloatingTutti(): Promise<void> {
     height?: number;
   } | undefined;
 
-  if (saved?.id) {
+  const savedWindowId = saved?.id;
+  if (savedWindowId) {
     try {
-      const w = await browser.windows.get(saved.id);
+      const w = await browser.windows.get(savedWindowId);
       if (w) {
-        await browser.windows.update(saved.id, { focused: true });
+        await retryTransientTabAction('focus floating Tutti window', () => (
+          browser.windows.update(savedWindowId, { focused: true })
+        ));
         return;
       }
     } catch { /* window no longer exists; recreate below */ }

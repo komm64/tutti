@@ -1,6 +1,7 @@
 import type { PlatformId } from '../messages';
 import { log } from '../utils/logger';
 import { t } from '../utils/i18n';
+import { retryTransientTabAction } from './tab-action-retry';
 
 export interface UserActionNotifier {
   notify(platform: PlatformId, reason: 'captcha' | 'confirmation', tabId: number): Promise<void>;
@@ -13,9 +14,13 @@ export function createUserActionNotifier(): UserActionNotifier {
   async function focusTab(tabId: number): Promise<void> {
     try {
       const tab = await browser.tabs.get(tabId);
-      await browser.tabs.update(tabId, { active: true });
+      await retryTransientTabAction('focus user-action tab', () => (
+        browser.tabs.update(tabId, { active: true })
+      ));
       if (typeof tab.windowId === 'number') {
-        await browser.windows.update(tab.windowId, { focused: true });
+        await retryTransientTabAction('focus user-action window', () => (
+          browser.windows.update(tab.windowId, { focused: true })
+        ));
       }
     } catch (e) {
       log.warn(`focus user-action tab failed: ${e instanceof Error ? e.message : String(e)}`);
