@@ -2,6 +2,7 @@ import { Window } from 'happy-dom';
 import { describe, expect, it } from 'vitest';
 import {
   extractInstagramPostRecord,
+  extractMastodonPostRecord,
   extractThreadsPostRecord,
   extractTumblrPostRecord,
   findLatestTumblrPostUrlInDocument,
@@ -45,6 +46,38 @@ describe('post capture records', () => {
       capturedAt: 100,
       textHash: 'hash',
     });
+  });
+
+  it('extracts Mastodon post URLs from status responses', () => {
+    const record = extractMastodonPostRecord(
+      {
+        id: '116731234567890123',
+        url: 'https://mastodon.social/@komm64/116731234567890123?utm=ignored',
+      },
+      'hash',
+      100,
+    );
+
+    expect(record).toEqual({
+      url: 'https://mastodon.social/@komm64/116731234567890123',
+      id: '116731234567890123',
+      capturedAt: 100,
+      textHash: 'hash',
+    });
+  });
+
+  it('extracts Mastodon federated URI fallbacks from status responses', () => {
+    const record = extractMastodonPostRecord(
+      {
+        id: '116731234567890124',
+        uri: 'https://mastodon.social/users/komm64/statuses/116731234567890124',
+      },
+      undefined,
+      100,
+    );
+
+    expect(record?.url).toBe('https://mastodon.social/users/komm64/statuses/116731234567890124');
+    expect(record?.id).toBe('116731234567890124');
   });
 
   it('extracts Tumblr post URLs from API responses', () => {

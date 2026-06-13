@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { PostResultMessage } from '../messages';
 import {
   downgradeHardVerifyFailures,
+  normalizePostEvidence,
   postedResults,
   shouldRunPostCompletionSideEffects,
   toPreviewResult,
@@ -60,6 +61,17 @@ describe('post result policy', () => {
     expect(shouldRunPostCompletionSideEffects(false, [actual])).toBe(false);
     expect(shouldRunPostCompletionSideEffects(true, [preview])).toBe(false);
     expect(shouldRunPostCompletionSideEffects(true, [actual])).toBe(true);
+  });
+
+  it('marks URL-backed successes as confirmed', () => {
+    const result = normalizePostEvidence({
+      type: 'POST_RESULT',
+      platform: 'mastodon',
+      success: true,
+      url: 'https://mastodon.social/@alice/123',
+    });
+
+    expect(result.confirmed).toBe(true);
   });
 
   it('moves hard verify failures out of green success state', () => {

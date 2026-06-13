@@ -4,7 +4,8 @@ import {
   captureRenderedProfilePostUrl,
   isRenderedProfileFallbackPlatform,
 } from './post-url-rendered-profile';
-import { readFreshCapturedPost } from '../utils/post-capture-record';
+import { getSettings } from '../storage';
+import { normalizeCaptureText, readFreshCapturedPost } from '../utils/post-capture-record';
 
 export interface CapturePostUrlOptions {
   platform: PlatformId;
@@ -103,6 +104,11 @@ export async function capturePostUrlFromTab(options: CapturePostUrlOptions): Pro
 
   const storedApiUrl = await captureStoredApiPostUrl(platform, tabId, text, dbg);
   if (storedApiUrl) return storedApiUrl;
+
+  if (platform === 'mastodon') {
+    const publicApiUrl = await captureMastodonPostViaPublicApi(tabId, text, expectedUser, dbg);
+    if (publicApiUrl) return publicApiUrl;
+  }
 
   let triedRenderedProfileFallback = false;
   if (platform === 'threads' && expectedUser) {
@@ -325,6 +331,8 @@ async function captureStoredApiPostUrl(
 ): Promise<string | undefined> {
   const key = platform === 'instagram'
     ? 'tutti:ig-latest-post'
+    : platform === 'mastodon'
+      ? 'tutti:mastodon-latest-post'
     : platform === 'threads'
       ? 'tutti:threads-latest-post'
     : platform === 'tumblr'
@@ -360,6 +368,113 @@ async function captureStoredApiPostUrl(
   }
   dbg('stored API response URL not found');
   return undefined;
+}
+
+async function captureMastodonPostViaPublicApi(
+  tabId: number,
+  text: string,
+  expectedUser: string | undefined,
+  dbg: (message: string) => void,
+): Promise<string | undefined> {
+  const target = normalizeCaptureText(text).slice(0, 60);
+  if (!target) return undefined;
+
+  const identity = await resolveMastodonIdentity(tabId, expectedUser);
+  if (!identity.acct) {
+    dbg('Mastodon public API fallback skipped: account unknown');
+    return undefined;
+  }
+
+  const accountId = await fetchMastodonAccountId(identity.instance, identity.acct, dbg);
+  if (!accountId) return undefined;
+
+  for (let i = 0; i < 12; i += 1) {
+    if (i > 0) await sleep(1000);
+    try {
+      const statusesUrl = `${identity.instance}/api/v1/accounts/${encodeURIComponent(accountId)}/statuses?limit=10&exclude_replies=false&exclude_reblogs=true`;
+      const res = await fetch(statusesUrl, { cache: 'no-store' });
+      dbg(`Mastodon public API statuses attempt ${i}: ${res.status}`);
+      if (!res.ok) continue;
+      const statuses = await res.json() as Array<{ url?: string | null; uri?: string; content?: string }>;
+      for (const status of statuses) {
+        const body = normalizeCaptureText(stripHtml(status.content ?? ''));
+        dbg(`  cmp "${body.slice(0, 30)}" vs "${target.slice(0, 30)}"`);
+        if (!body.startsWith(target)) continue;
+        const url = status.url || status.uri;
+        if (url) {
+          dbg(`URL captured via Mastodon public API: ${url}`);
+          return url;
+        }
+      }
+    } catch (e) {
+      dbg(`Mastodon public API statuses failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+  return undefined;
+}
+
+async function resolveMastodonIdentity(
+  tabId: number,
+  expectedUser: string | undefined,
+): Promise<{ instance: string; acct?: string }> {
+  let instance = await inferMastodonInstance(tabId);
+  const raw = expectedUser?.trim().replace(/^@/, '') ?? '';
+  if (!raw) return { instance };
+
+  const federated = raw.match(/^([^@]+)@([^@]+)$/);
+  if (federated?.[1] && federated?.[2]) {
+    instance = `https://${federated[2]}`;
+    return { instance, acct: federated[1] };
+  }
+
+  return { instance, acct: raw };
+}
+
+async function inferMastodonInstance(tabId: number): Promise<string> {
+  try {
+    const tab = await browser.tabs.get(tabId);
+    if (tab.url) {
+      const url = new URL(tab.url);
+      if (url.protocol === 'https:') return url.origin;
+    }
+  } catch { /* fall through to settings */ }
+
+  try {
+    return (await getSettings()).mastodonInstance;
+  } catch {
+    return 'https://mastodon.social';
+  }
+}
+
+async function fetchMastodonAccountId(
+  instance: string,
+  acct: string,
+  dbg: (message: string) => void,
+): Promise<string | undefined> {
+  try {
+    const lookupUrl = `${instance}/api/v1/accounts/lookup?acct=${encodeURIComponent(acct)}`;
+    const res = await fetch(lookupUrl, { cache: 'no-store' });
+    dbg(`Mastodon public API lookup: ${res.status}`);
+    if (!res.ok) return undefined;
+    const data = await res.json() as { id?: string };
+    return data.id;
+  } catch (e) {
+    dbg(`Mastodon public API lookup failed: ${e instanceof Error ? e.message : String(e)}`);
+    return undefined;
+  }
+}
+
+function stripHtml(value: string): string {
+  return value
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"');
 }
 
 function sleep(ms: number): Promise<void> {

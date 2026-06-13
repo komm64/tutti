@@ -20,7 +20,7 @@ import { notifyResults, clearBadge, updateProgressBadge } from '../src/backgroun
 import { runPostWorkerPool } from '../src/background/post-worker-pool';
 import { buildDiagnosticsReport } from '../src/background/diagnostics';
 import { recordHistoryEntry, releasePostAttachments } from '../src/background/history-recorder';
-import { shouldRunPostCompletionSideEffects } from '../src/background/post-result-policy';
+import { normalizePostEvidence, shouldRunPostCompletionSideEffects } from '../src/background/post-result-policy';
 import { applyDisplayModeBehavior, installFloatingWindowCleanup, openFloatingTutti, resolveAutoDisplayMode } from '../src/background/display-mode';
 import { createPersistentLogBuffer } from '../src/background/log-buffer';
 import { createUserActionNotifier } from '../src/background/user-action-notifier';
@@ -282,7 +282,9 @@ async function handlePostRequest(
     const results = await runPostWorkerPool({
       platforms,
       concurrency: POST_CONCURRENCY,
-      post: (platform) => platformPoster.postToPlatform(platform, text, adjustedImages, cw, visibility, autoPost),
+      post: async (platform) => normalizePostEvidence(
+        await platformPoster.postToPlatform(platform, text, adjustedImages, cw, visibility, autoPost),
+      ),
       onResult: recordPlatformProgress,
     });
 

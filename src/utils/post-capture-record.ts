@@ -17,6 +17,7 @@ export interface InstagramConfigureBodyResult {
 const INSTAGRAM_CONFIGURE_RE = /\/api\/v1\/media\/(?:configure|configure_sidecar|configure_to_clips)\//;
 const INSTAGRAM_POST_URL_RE = /^https:\/\/(?:www\.)?instagram\.com\/(?:p|reel)\/[\w-]+\/?/;
 const INSTAGRAM_CODE_RE = /^[A-Za-z0-9_-]{5,}$/;
+const MASTODON_POST_URL_RE = /^https:\/\/[^/]+\/(?:@[^/]+\/\d+|users\/[^/]+\/statuses\/\d+)(?:[/?#]|$)/;
 const TUMBLR_POST_URL_RE = /^https:\/\/(?:www\.)?tumblr\.com\/(?:[^/]+\/\d+|blog\/[^/]+\/\d+)(?:[/?#]|$)/;
 const THREADS_POST_URL_RE = /^https:\/\/(?:www\.)?threads\.(?:com|net)\/@[^/]+\/post\/[\w-]+(?:[/?#]|$)/;
 const THREADS_CODE_RE = /^[A-Za-z0-9_-]{5,}$/;
@@ -116,6 +117,29 @@ export function extractInstagramPostRecord(
   }
   if (!url && !code) return undefined;
   return { url, code, capturedAt: now, textHash };
+}
+
+export function extractMastodonPostRecord(
+  payload: unknown,
+  textHash?: string,
+  now = Date.now(),
+): CapturedPostRecord | undefined {
+  let url: string | undefined;
+  let id: string | undefined;
+
+  walkObject(payload, (key, value) => {
+    const lowerKey = key.toLowerCase();
+    if (typeof value === 'string') {
+      const normalizedUrl = normalizeMastodonUrl(value);
+      if (!url && normalizedUrl) url = normalizedUrl;
+      if (!id && lowerKey === 'id' && /^\d+$/.test(value)) id = value;
+      const idFromUrl = normalizedUrl?.match(/\/(?:statuses\/)?(\d+)(?:[/?#]|$)/)?.[1];
+      if (!id && idFromUrl) id = idFromUrl;
+    }
+  });
+
+  if (!url && !id) return undefined;
+  return { url, id, capturedAt: now, textHash };
 }
 
 export function extractTumblrPostRecord(
@@ -316,6 +340,18 @@ function normalizeInstagramUrl(value: string): string | undefined {
     url.search = '';
     url.hash = '';
     return url.href.endsWith('/') ? url.href : `${url.href}/`;
+  } catch {
+    return undefined;
+  }
+}
+
+function normalizeMastodonUrl(value: string): string | undefined {
+  try {
+    const url = new URL(value, 'https://mastodon.social');
+    if (!MASTODON_POST_URL_RE.test(url.href)) return undefined;
+    url.search = '';
+    url.hash = '';
+    return url.href.replace(/\/$/, '');
   } catch {
     return undefined;
   }

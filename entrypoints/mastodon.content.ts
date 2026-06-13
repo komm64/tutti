@@ -6,6 +6,10 @@ import {
 import { executePostFlow } from '../src/utils/post-flow';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
+import {
+  hashCaptureText,
+  readFreshCapturedPost,
+} from '../src/utils/post-capture-record';
 
 function detectMastodonUser(): string | null {
   type Strategy = { name: string; fn: () => string | null };
@@ -105,6 +109,13 @@ export default defineContentScript({
 
 async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolean): Promise<PostResultMessage> {
   const sel = await resolveSelectors('mastodon', MASTODON_SELECTORS);
+  if (!dryRun) {
+    try {
+      localStorage.removeItem('tutti:mastodon-latest-post');
+      localStorage.setItem('tutti:mastodon-pending-text-hash', hashCaptureText(text));
+    } catch { /* ignore storage failures */ }
+  }
+
   await executePostFlow({
     // /share?text= の prefill は Mastodon Web の hydration 状態に左右される。
     // Compose URL は入口として使いつつ、本文は DOM に明示注入して preview/submit
@@ -123,13 +134,37 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     postButtonTimeoutMs: 30000,
   });
 
-  // v0.5.8〜 URL 取得は bg 側 (capturePostUrl in background.ts) で行う。
-  // Mastodon は post 後 /share → /home へ navigation するため content script が
-  // 死ぬ。 「runPost を return → channel-closed で bg が success 確定 → bg が
-  // scripting.executeScript で API を叩く」 の流れに変えた。
+  let url: string | undefined;
+  if (!dryRun) {
+    const captured = await waitForCapturedMastodonPost(text);
+    if (captured?.url) {
+      url = captured.url;
+      log.info(`mastodon: URL captured via status API response: ${url}`);
+    }
+  }
+
+  // URL がここで取れない場合は bg 側 capturePostUrl fallback が続けて試す。
   return {
     type: 'POST_RESULT',
     platform: 'mastodon',
     success: true,
+    confirmed: true,
+    url,
   };
+}
+
+async function waitForCapturedMastodonPost(text: string) {
+  const deadline = Date.now() + 5000;
+  while (Date.now() < deadline) {
+    try {
+      const captured = readFreshCapturedPost(
+        localStorage.getItem('tutti:mastodon-latest-post'),
+        text,
+        120_000,
+      );
+      if (captured?.url) return captured;
+    } catch { /* ignore storage failures */ }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  return undefined;
 }

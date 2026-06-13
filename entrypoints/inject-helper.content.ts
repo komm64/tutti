@@ -20,6 +20,7 @@
 import { validateTumblrBodyText } from '../src/utils/tumblr-text';
 import {
   extractInstagramPostRecord,
+  extractMastodonPostRecord,
   extractThreadsPostRecord,
   extractTumblrPostRecord,
   isInstagramConfigureUrl,
@@ -126,6 +127,8 @@ declare global {
      */
     __tuttiIgPendingCaption?: string;
     __tuttiIgLatestPost?: { url?: string; code?: string; capturedAt: number; textHash?: string };
+    __tuttiMastodonPostCaptureHook?: boolean;
+    __tuttiMastodonLatestPost?: { url?: string; id?: string; capturedAt: number; textHash?: string };
     __tuttiThreadsLatestPost?: { url?: string; code?: string; username?: string; capturedAt: number; textHash?: string };
     __tuttiTumblrLatestPost?: { url?: string; id?: string; blogName?: string; capturedAt: number; textHash?: string };
     __tuttiXPostCaptureInstalled?: boolean;
@@ -234,6 +237,70 @@ export default defineContentScript({
         return origSend.call(this, body as Document | XMLHttpRequestBodyInit | null);
       };
       console.log('[Tutti inject-helper] IG fetch + XHR hooks installed');
+    }
+
+    function installMastodonPostCaptureHook() {
+      if (!/mastodon\.social$/.test(location.host)) return;
+      if (window.__tuttiMastodonPostCaptureHook) return;
+      window.__tuttiMastodonPostCaptureHook = true;
+
+      const isMastodonStatusCreateUrl = (url: string, method = 'GET'): boolean => {
+        if (method.toUpperCase() !== 'POST') return false;
+        try {
+          const parsed = new URL(url, location.origin);
+          return parsed.origin === location.origin && parsed.pathname === '/api/v1/statuses';
+        } catch {
+          return false;
+        }
+      };
+
+      const captureMastodonPost = (payload: unknown): void => {
+        let textHash: string | undefined;
+        try {
+          textHash = localStorage.getItem('tutti:mastodon-pending-text-hash') ?? undefined;
+        } catch { /* ignore storage failures */ }
+        const record = extractMastodonPostRecord(payload, textHash);
+        if (!record?.url) return;
+        window.__tuttiMastodonLatestPost = record;
+        try {
+          localStorage.setItem('tutti:mastodon-latest-post', JSON.stringify(record));
+          localStorage.removeItem('tutti:mastodon-pending-text-hash');
+        } catch { /* in-memory capture remains available */ }
+        console.log('[Tutti inject-helper] Mastodon post URL captured: ' + record.url);
+      };
+
+      const origFetch = window.fetch.bind(window);
+      window.fetch = async function(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+        const url = typeof input === 'string' ? input : (input instanceof URL ? input.toString() : input.url);
+        const method = init?.method ?? (input instanceof Request ? input.method : 'GET');
+        const shouldCapture = isMastodonStatusCreateUrl(url, method);
+        const response = await origFetch(input as RequestInfo, init);
+        if (shouldCapture) {
+          void response.clone().json().then(captureMastodonPost).catch(() => {});
+        }
+        return response;
+      };
+
+      const OrigXHR = window.XMLHttpRequest;
+      const origOpen = OrigXHR.prototype.open;
+      const requests = new WeakMap<XMLHttpRequest, { method: string; url: string }>();
+      OrigXHR.prototype.open = function(this: XMLHttpRequest, method: string, url: string | URL, ...rest: unknown[]) {
+        const value = typeof url === 'string' ? url : url.toString();
+        requests.set(this, { method, url: value });
+        // @ts-expect-error rest spread
+        return origOpen.call(this, method, value, ...rest);
+      };
+      const origSend = OrigXHR.prototype.send;
+      OrigXHR.prototype.send = function(this: XMLHttpRequest, body?: Document | XMLHttpRequestBodyInit | null) {
+        const req = requests.get(this);
+        if (isMastodonStatusCreateUrl(req?.url ?? '', req?.method)) {
+          this.addEventListener('load', () => {
+            try { captureMastodonPost(JSON.parse(this.responseText)); } catch { /* best-effort */ }
+          }, { once: true });
+        }
+        return origSend.call(this, body as Document | XMLHttpRequestBodyInit | null);
+      };
+      console.log('[Tutti inject-helper] Mastodon fetch + XHR hooks installed');
     }
 
     function installTumblrPostCaptureHook() {
@@ -1239,6 +1306,7 @@ export default defineContentScript({
     async function handle(req: InjectRequest): Promise<InjectResponse> {
       try {
         installUploadHook();
+        installMastodonPostCaptureHook();
         installThreadsPostCaptureHook();
         installTumblrPostCaptureHook();
         installXPostCaptureHook();
@@ -1262,6 +1330,7 @@ export default defineContentScript({
     // 起動直後に hook をインストール(早ければ早いほど取りこぼしが少ない)
     installUploadHook();
     installIgCaptionFetchHook();
+    installMastodonPostCaptureHook();
     installThreadsPostCaptureHook();
     installTumblrPostCaptureHook();
     installXPostCaptureHook();

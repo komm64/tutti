@@ -13,6 +13,13 @@ export function postedResults(results: readonly PostResultMessage[]): PostResult
   return results.filter((result) => !result.preview);
 }
 
+export function normalizePostEvidence(result: PostResultMessage): PostResultMessage {
+  if (result.success && result.url && result.confirmed !== true) {
+    return { ...result, confirmed: true };
+  }
+  return result;
+}
+
 export function downgradeHardVerifyFailures(result: PostResultMessage): PostResultMessage {
   if (!result.success) return result;
   const hardIssue = result.verify?.issues.find((issue) => issue.severity === 'error');
