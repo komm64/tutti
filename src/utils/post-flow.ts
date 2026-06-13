@@ -130,6 +130,22 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
     await beforeSubmit();
   }
 
+  if (dryRun && prefillsViaUrl && textareaSelector) {
+    const composeInput = await waitForCondition<HTMLElement>(
+      () => findComposeInput(textareaSelector),
+      { timeoutMs: composeInputTimeoutMs, intervalMs: 150 },
+    );
+    if (composeInput) {
+      console.log('[Tutti] dry-run: URL-prefill compose input found, skipping post button check', composeInput);
+      if (composeInput.style) {
+        const orig = composeInput.style.outline;
+        composeInput.style.outline = '3px dashed #f59e0b';
+        setTimeout(() => { composeInput.style.outline = orig; }, 5000);
+      }
+      return;
+    }
+  }
+
   // post button 探索: finder > selector > texts の順で優先。
   // selector はカンマ区切りを **左から順に** 試す(querySelector の comma 動作は
   // DOM 順で先勝ちなので、scope の好みを表せない)。X のように modal と

@@ -64,6 +64,45 @@ describe('executePostFlow', () => {
     })).resolves.toBeUndefined();
   });
 
+  it('allows URL-prefill preview when the editor is present even if the post button selector misses', async () => {
+    const editor = { tagName: 'DIV', style: {} } as HTMLElement;
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.stubGlobal('document', {
+      body: {},
+      querySelector: vi.fn((selector: string) => selector === 'textarea' ? editor : null),
+      querySelectorAll: vi.fn(() => []),
+    });
+
+    await expect(executePostFlow({
+      prefillsViaUrl: true,
+      textareaSelector: 'textarea',
+      postButtonSelector: '.post',
+      text: 'hello',
+      dryRun: true,
+      composeInputTimeoutMs: 10,
+      postButtonTimeoutMs: 10,
+    })).resolves.toBeUndefined();
+  });
+
+  it('still requires the post button for URL-prefill real posting', async () => {
+    const editor = { tagName: 'DIV', style: {} } as HTMLElement;
+    vi.stubGlobal('document', {
+      body: {},
+      querySelector: vi.fn((selector: string) => selector === 'textarea' ? editor : null),
+      querySelectorAll: vi.fn(() => []),
+    });
+
+    await expect(executePostFlow({
+      prefillsViaUrl: true,
+      textareaSelector: 'textarea',
+      postButtonSelector: '.post',
+      text: 'hello',
+      dryRun: false,
+      composeInputTimeoutMs: 10,
+      postButtonTimeoutMs: 10,
+    })).rejects.toThrow('投稿ボタンが見つかりません');
+  });
+
   it('does not require the editor selector for URL-prefill text-only preview when the button is present', async () => {
     const button = {
       style: {},
