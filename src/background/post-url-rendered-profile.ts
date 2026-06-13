@@ -87,7 +87,7 @@ export async function captureRenderedProfilePostUrl(
       target: { tabId: tab.id },
       func: async (platformName: string, targetText: string) => {
         const normalize = (value: string): string => value.replace(/\s+/g, ' ').trim();
-        const deadline = Date.now() + 12_000;
+        const deadline = Date.now() + 20_000;
         while (Date.now() < deadline) {
           const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href]'))
             .filter((anchor) => {

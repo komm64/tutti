@@ -15,6 +15,11 @@ export interface CapturePostUrlOptions {
   frameRetry?: number;
 }
 
+export interface CapturePostUrlRetryStep {
+  label: string;
+  delayMs: number;
+}
+
 const CAPTURE_SUPPORTED_PLATFORMS = new Set<PlatformId>([
   'mastodon',
   'misskey',
@@ -28,6 +33,53 @@ const CAPTURE_SUPPORTED_PLATFORMS = new Set<PlatformId>([
   'tiktok',
   'youtube',
 ]);
+
+export function buildPostUrlCaptureRetryPlan(platform: PlatformId): CapturePostUrlRetryStep[] {
+  if (!CAPTURE_SUPPORTED_PLATFORMS.has(platform)) return [];
+
+  const steps: CapturePostUrlRetryStep[] = [{ label: 'immediate', delayMs: 0 }];
+  if (platform === 'youtube') return steps;
+
+  if (platform === 'instagram') {
+    return [
+      ...steps,
+      { label: 'settled-page', delayMs: 3000 },
+      { label: 'late-api-response', delayMs: 10000 },
+    ];
+  }
+
+  const needsLateProfile = platform === 'threads' ||
+    platform === 'tumblr' ||
+    platform === 'x' ||
+    platform === 'pixiv' ||
+    platform === 'tiktok';
+
+  if (needsLateProfile) {
+    return [
+      ...steps,
+      { label: 'late-api-or-profile', delayMs: 10000 },
+    ];
+  }
+
+  steps.push({ label: 'settled-page', delayMs: 3000 });
+  return steps;
+}
+
+export async function capturePostUrlFromTabWithRetry(
+  options: CapturePostUrlOptions,
+): Promise<string | undefined> {
+  const steps = buildPostUrlCaptureRetryPlan(options.platform);
+  for (let i = 0; i < steps.length; i += 1) {
+    const step = steps[i]!;
+    if (step.delayMs > 0) await sleep(step.delayMs);
+    if (i > 0) {
+      options.onDebug?.(`[capturePostUrl ${options.platform}] retry pass "${step.label}"`);
+    }
+    const url = await capturePostUrlFromTab(options);
+    if (url) return url;
+  }
+  return undefined;
+}
 
 /**
  * v0.5.8+ post 後の URL を tab 側 API で取得する。
@@ -52,7 +104,9 @@ export async function capturePostUrlFromTab(options: CapturePostUrlOptions): Pro
   const storedApiUrl = await captureStoredApiPostUrl(platform, tabId, text, dbg);
   if (storedApiUrl) return storedApiUrl;
 
+  let triedRenderedProfileFallback = false;
   if (platform === 'threads' && expectedUser) {
+    triedRenderedProfileFallback = true;
     const renderedUrl = await captureRenderedProfilePostUrl(platform, tabId, text, dbg, expectedUser);
     if (renderedUrl) return renderedUrl;
   }
@@ -239,7 +293,7 @@ export async function capturePostUrlFromTab(options: CapturePostUrlOptions): Pro
       return r.url;
     }
 
-    if (isRenderedProfileFallbackPlatform(platform)) {
+    if (isRenderedProfileFallbackPlatform(platform) && !triedRenderedProfileFallback) {
       const renderedUrl = await captureRenderedProfilePostUrl(platform, tabId, text, dbg, expectedUser);
       if (renderedUrl) return renderedUrl;
     }
@@ -278,7 +332,7 @@ async function captureStoredApiPostUrl(
       : undefined;
   if (!key) return undefined;
 
-  for (let i = 0; i < 12; i += 1) {
+  for (let i = 0; i < 30; i += 1) {
     try {
       const results = await browser.scripting.executeScript({
         target: { tabId },

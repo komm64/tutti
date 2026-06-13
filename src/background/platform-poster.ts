@@ -13,7 +13,7 @@ import { t } from '../utils/i18n';
 import { runVerify } from './verify-dispatcher';
 import { openOrFocusTab } from './tab-management';
 import { tryApiPath } from './api-posting';
-import { capturePostUrlFromTab } from './post-url-capture';
+import { capturePostUrlFromTabWithRetry } from './post-url-capture';
 import { sendPostMessageWhenReady } from './content-dispatch';
 import { resolveAdapter } from './adapter-resolver';
 import { prepareMediaForPlatform } from './platform-media';
@@ -312,7 +312,7 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
     text: string,
     expectedUser: string | undefined,
   ): Promise<string | undefined> {
-    return await capturePostUrlFromTab({
+    return await capturePostUrlFromTabWithRetry({
       platform,
       tabId,
       text,
