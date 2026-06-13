@@ -62,11 +62,13 @@
     type PostingViewState,
   } from '../../src/popup/posting-progress';
   import {
+    buildSelectedCompatibilityErrors,
     buildImageCompatibility,
     buildVideoCompatibility,
     countTotalPosts,
     resolveCurrentKind,
   } from '../../src/popup/compatibility';
+  import { buildDraftKey } from '../../src/popup/draft-key';
   import {
     filesFromClipboardItems,
     isFileDrag,
@@ -146,6 +148,7 @@
   let autoPostLoaded = $state(false);
   let responsibleUseDialogOpen = $state(false);
   let responsibleUseAccepted = $state(false);
+  let lastResultDraftKey = $state<string | null>(null);
   const version = browser.runtime.getManifest().version;
   $effect(() => {
     void getSettings().then((s) => {
@@ -392,6 +395,20 @@
     compressionEtaS = next.compressionEtaS;
   }
 
+  function currentDraftKey(): string {
+    return buildDraftKey({
+      text,
+      selectedIds,
+      images,
+      video,
+      imageAlts,
+      cw,
+      visibility,
+      trimToS,
+      autoPost,
+    });
+  }
+
   // P19 / v0.4.63: popup 閉じ→再 open 時、background が保持してる進行状態を
   // 復元する。pending / 完了済 results / 圧縮進捗 を全部復元することで、
   // 「2/7 完了済み、5 投稿中」のような中間状態でも閉じ→開きで正しく表示される。
@@ -400,8 +417,24 @@
   $effect(() => {
     void browser.runtime.sendMessage({ type: 'GET_BG_STATE' }).then((res: unknown) => {
       const r = res as BgStateResponse | undefined;
-      applyPostingViewState(applyBackgroundState(r, currentPostingViewState()));
+      const next = applyBackgroundState(r, currentPostingViewState());
+      applyPostingViewState(next);
+      if (!next.posting && next.lastResults?.length) {
+        lastResultDraftKey = currentDraftKey();
+      }
     }).catch(() => { /* background sleep してたら null 戻り、無視 */ });
+  });
+
+  $effect(() => {
+    const key = currentDraftKey();
+    if (!draftLoaded || posting || !lastResults?.length || !lastResultDraftKey) return;
+    if (key === lastResultDraftKey) return;
+    lastResults = null;
+    pendingPlatforms = [];
+    errorMessage = null;
+    expandedFailure = null;
+    dialogShownForKey = null;
+    lastResultDraftKey = null;
   });
 
   // background からの進捗ストリームを受信
@@ -505,14 +538,20 @@
   const hasMedia = $derived(images.length > 0 || video !== null);
   // 現在のコンテンツ種別を自動判定: 動画 60s 以下=short / 超=long / 画像 / 文字
   const currentKind = $derived.by(() => resolveCurrentKind(images, video));
-  const canPost = $derived(
-    !posting && (text.trim().length > 0 || hasMedia) && selectedIds.length > 0,
-  );
   const totalPostCount = $derived(countTotalPosts(platforms, selectedIds, text));
   const videoCompatibility = $derived(buildVideoCompatibility(platforms, video));
   // 画像サイズは投稿時に自動リサイズされるので、枚数オーバーだけ警告する
   const imageCompatibility = $derived(
     buildImageCompatibility(platforms, images, video, (max) => t('constraintTooManyImages', String(max))),
+  );
+  const selectedCompatibilityErrors = $derived(
+    buildSelectedCompatibilityErrors(selectedIds, videoCompatibility, imageCompatibility),
+  );
+  const canPost = $derived(
+    !posting &&
+      (text.trim().length > 0 || hasMedia) &&
+      selectedIds.length > 0 &&
+      selectedCompatibilityErrors.length === 0,
   );
 
   async function processFiles(files: File[]) {
@@ -650,6 +689,12 @@
   }
 
   async function handlePost() {
+    if (selectedCompatibilityErrors.length > 0) {
+      errorMessage = selectedCompatibilityErrors
+        .map((item) => `${item.platform}: ${item.error}`)
+        .join('\n');
+      return;
+    }
     if (!canPost) return;
     const uncertainSelected = new Set(uncertainPlatforms(lastResults));
     if (selectedIds.some((id) => uncertainSelected.has(id))) {
@@ -726,6 +771,7 @@
   async function submitPostFor(platforms: PlatformId[], isRetry: boolean) {
     if (platforms.length === 0) return;
     const requestAutoPost = autoPost;
+    const submissionDraftKey = currentDraftKey();
     posting = true;
     if (!isRetry) {
       lastResults = [];
@@ -764,6 +810,9 @@
           revokeVideoPreview(video);
           video = null;
           void clearDraft();
+          lastResultDraftKey = currentDraftKey();
+        } else {
+          lastResultDraftKey = submissionDraftKey;
         }
       }
     } catch (err) {

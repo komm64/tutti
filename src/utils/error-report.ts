@@ -5,7 +5,7 @@ import { splitTextForPlatform } from './platform-text';
 import { redactPII } from './redact';
 
 const DIAGNOSTICS_JSON_MAX_CHARS = 30_000;
-const TRUNCATION_MARKER = '<!--report-truncated-->';
+const TRUNCATION_MARKER = '[report-truncated]';
 
 export interface ErrorReportPlatformOption {
   id: PlatformId;

@@ -9,6 +9,8 @@ import { dropImages, injectImages, injectTextIntoElement } from './image';
 import { t } from './i18n';
 import { markPostSubmissionStarted } from './post-submission-state';
 
+const VIDEO_POST_BUTTON_TIMEOUT_MS = 120_000;
+
 export interface PostFlowOptions {
   /** URL pre-fill 方式なら true、DOM injection が必要なら false */
   prefillsViaUrl: boolean;
@@ -158,10 +160,14 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
     }
     if (postButtonFinder) return postButtonFinder();
     if (postButtonSelector) {
+      let firstSelectorMatch: HTMLElement | null = null;
       for (const part of postButtonSelector.split(',').map((s) => s.trim()).filter(Boolean)) {
-        const el = document.querySelector<HTMLElement>(part);
-        if (el) return el;
+        for (const el of document.querySelectorAll<HTMLElement>(part)) {
+          firstSelectorMatch ??= el;
+          if (!isDisabled(el)) return el;
+        }
       }
+      if (firstSelectorMatch) return firstSelectorMatch;
     }
     if (postButtonTexts && postButtonTexts.length > 0) {
       return findClickableByText(postButtonTexts);
@@ -179,9 +185,7 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
   const isDisabled = (b: HTMLElement) =>
     b.getAttribute('aria-disabled') === 'true' || (b as HTMLButtonElement).disabled;
   const hasVideo = (images ?? []).some((m) => m.type.startsWith('video/'));
-  const effectiveTimeoutMs = postButtonTimeoutMs >= 30000
-    ? postButtonTimeoutMs
-    : (hasVideo ? Math.max(postButtonTimeoutMs, 120000) : postButtonTimeoutMs);
+  const effectiveTimeoutMs = resolvePostButtonTimeoutMs(postButtonTimeoutMs, hasVideo);
 
   let lastFound: HTMLElement | null = null;
   const button = await waitForCondition<HTMLElement>(() => {
@@ -226,6 +230,10 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
   }
 
   await sleep(afterClickDelayMs);
+}
+
+export function resolvePostButtonTimeoutMs(postButtonTimeoutMs: number, hasVideo: boolean): number {
+  return hasVideo ? Math.max(postButtonTimeoutMs, VIDEO_POST_BUTTON_TIMEOUT_MS) : postButtonTimeoutMs;
 }
 
 function findComposeInput(selector: string | undefined): HTMLElement | null {

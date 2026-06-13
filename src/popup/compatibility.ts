@@ -55,3 +55,19 @@ export function buildImageCompatibility(
     }),
   );
 }
+
+export interface SelectedCompatibilityError {
+  platform: PlatformId;
+  error: string;
+}
+
+export function buildSelectedCompatibilityErrors(
+  selectedIds: readonly PlatformId[],
+  videoCompatibility: Record<string, string | null>,
+  imageCompatibility: Record<string, string | null>,
+): SelectedCompatibilityError[] {
+  return selectedIds.flatMap((platform) => {
+    const error = videoCompatibility[platform] || imageCompatibility[platform];
+    return error ? [{ platform, error }] : [];
+  });
+}

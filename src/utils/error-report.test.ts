@@ -106,6 +106,7 @@ describe('buildErrorReportPayload', () => {
     const parsed = JSON.parse(diagnostics);
     expect(parsed._reportMeta.diagnosticsTruncatedForIssue).toBe(true);
     expect(parsed.platforms[0].domSnapshot).toContain('report-truncated');
+    expect(parsed.platforms[0].domSnapshot).not.toContain('<!--report-truncated-->');
     expect(diagnostics.length).toBeLessThanOrEqual(30_000);
     expect(diagnostics).not.toContain('@alice');
     expect(diagnostics).not.toContain('/post/secret');

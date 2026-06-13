@@ -260,7 +260,8 @@ async function runPost(
 
   // dry-run は finalize click をスキップしてるので verify も skip
   if (!dryRun) {
-    await verifyInstagramPosted();
+    const hasVideo = images.some((image) => image.type.startsWith('video/'));
+    await verifyInstagramPosted(hasVideo ? 180_000 : 90_000, text);
     let captured: ReturnType<typeof readFreshCapturedPost>;
     try {
       captured = readFreshCapturedPost(
@@ -419,12 +420,21 @@ async function waitForShareEnabled(timeoutMs: number): Promise<void> {
  * といった silent failure を user が「Tutti は成功と言ったが投稿が無い」と
  * 経験することになる (2026-05-13 ユーザ報告)。
  *
- * 検証方針: Share click 後の dialog が消える / または "shared" 系の成功 UI に
- * 切り替わるのを最大 30s 待つ。timeout / 内部に error text を発見した場合は throw。
+ * 検証方針: Share click 後の configure response / dialog 消失 / "shared" 系の
+ * 成功 UI を待つ。動画は処理が長いので timeout を長めにする。
  */
-async function verifyInstagramPosted(timeoutMs = 30_000): Promise<void> {
+async function verifyInstagramPosted(timeoutMs = 90_000, text = ''): Promise<void> {
   const ERROR_TEXT_RE = /error|failed|try again|too large|please try|エラー|失敗|もう一度/i;
   const verified = await waitForCondition<boolean>(() => {
+    const captured = readFreshCapturedPost(
+      localStorage.getItem('tutti:ig-latest-post'),
+      text,
+      180_000,
+    );
+    if (captured?.url) {
+      log.info(`IG: post verified (configure response captured ${captured.url})`);
+      return true;
+    }
     const dialog = document.querySelector<HTMLElement>('[role="dialog"]');
     if (!dialog) {
       // dialog 消失 = post 確定。返却 OK

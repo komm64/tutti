@@ -1,7 +1,7 @@
 import { log } from '../src/utils/logger';
 import type { ImageAttachment, PostResultMessage } from '../src/messages';
 import { BLUESKY_EDITOR_SELECTOR, BLUESKY_SELECTORS, blueskyAdapter } from '../src/adapters/bluesky';
-import { executePostFlow } from '../src/utils/post-flow';
+import { executePostFlow, resolvePostButtonTimeoutMs } from '../src/utils/post-flow';
 import { sleep, waitForCondition, waitForElement } from '../src/utils/dom';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
@@ -100,6 +100,7 @@ async function executeBlueskyInlineThread(
   images: ImageAttachment[] | undefined,
   dryRun: boolean | undefined,
 ): Promise<void> {
+  const hasVideo = !!images?.some((image) => image.type.startsWith('video/'));
   // 最初の textarea の wait (compose modal のロード待ち)
   const textarea0 = await waitForElement<HTMLElement>(sel.textarea, 8000);
   if (!textarea0) throw new Error(t('runtimeBlueskyFirstTextareaMissing'));
@@ -115,7 +116,11 @@ async function executeBlueskyInlineThread(
 
   // images は最初の chunk にだけ attach (drop target に drop)
   if (images && images.length > 0) {
-    await dropImages(images, sel.dropTarget);
+    await dropImages(images, sel.dropTarget, {
+      requireMediaAccepted: hasVideo || undefined,
+      requireMediaPreview: hasVideo || undefined,
+      beforeDropDelayMs: hasVideo ? 500 : undefined,
+    });
     await sleep(1500);
   }
 
@@ -152,7 +157,10 @@ async function executeBlueskyInlineThread(
     }
     return null;
   };
-  const postBtn = await waitForCondition<HTMLElement>(findButton, { timeoutMs: 30000, intervalMs: 300 });
+  const postBtn = await waitForCondition<HTMLElement>(findButton, {
+    timeoutMs: resolvePostButtonTimeoutMs(30000, hasVideo),
+    intervalMs: 300,
+  });
   if (!postBtn) throw new Error(t('runtimeBlueskyPublishButtonMissing'));
 
   if (dryRun) {
@@ -261,6 +269,7 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
   if (textChunks && textChunks.length > 1) {
     await executeBlueskyInlineThread(sel, textChunks, images, dryRun);
   } else {
+    const hasVideo = !!images?.some((image) => image.type.startsWith('video/'));
     await executePostFlow({
       prefillsViaUrl: blueskyAdapter.prefillsViaUrl,
       textareaSelector: sel.textarea,
@@ -270,7 +279,10 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
       text,
       images,
       dryRun,
-      clickPostButton: () => clickElementInMainWorld('[data-testid="composerPublishBtn"]'),
+      requireMediaAccepted: hasVideo || undefined,
+      requireMediaPreview: hasVideo || undefined,
+      beforeDropDelayMs: hasVideo ? 500 : undefined,
+      clickPostButton: () => clickElementInMainWorld(sel.postButton),
     });
   }
 

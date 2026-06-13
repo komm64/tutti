@@ -627,7 +627,9 @@ export default defineContentScript({
       if (tag === 'img') return isLikelyAttachmentImage(el as HTMLImageElement);
       const text = mediaPreviewText(el);
       if (text.includes('attach media') || text.includes('add media')) return false;
+      if (text.includes('attach video') || text.includes('add video')) return false;
       return text.includes('media') ||
+        text.includes('video') ||
         text.includes('attachment') ||
         text.includes('remove') ||
         text.includes('削除');
@@ -642,8 +644,10 @@ export default defineContentScript({
         'video',
         'canvas',
         'img',
+        '[data-testid*="video" i]',
         '[data-testid*="media" i]',
         '[data-testid*="attachment" i]',
+        '[aria-label*="video" i]',
         '[aria-label*="Remove" i]',
         '[aria-label*="削除"]',
       ].join(',');

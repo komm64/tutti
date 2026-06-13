@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { executePostFlow, maybeConfirmDialog } from './post-flow';
+import { executePostFlow, maybeConfirmDialog, resolvePostButtonTimeoutMs } from './post-flow';
 
 describe('maybeConfirmDialog', () => {
   afterEach(() => {
@@ -113,7 +113,7 @@ describe('executePostFlow', () => {
     vi.stubGlobal('document', {
       body: {},
       querySelector: vi.fn((selector: string) => selector === '.post' ? button : null),
-      querySelectorAll: vi.fn(() => []),
+      querySelectorAll: vi.fn((selector: string) => selector === '.post' ? [button] : []),
     });
 
     await expect(executePostFlow({
@@ -125,5 +125,51 @@ describe('executePostFlow', () => {
       composeInputTimeoutMs: 10,
       postButtonTimeoutMs: 10,
     })).resolves.toBeUndefined();
+  });
+
+  it('uses an enabled selector match instead of getting stuck on an earlier disabled button', async () => {
+    const editor = { tagName: 'DIV' } as HTMLElement;
+    const disabledButton = {
+      getAttribute: vi.fn((name: string) => name === 'aria-disabled' ? 'true' : null),
+      disabled: true,
+      click: vi.fn(),
+    } as unknown as HTMLElement;
+    const enabledButton = {
+      getAttribute: vi.fn(() => null),
+      disabled: false,
+      click: vi.fn(),
+    } as unknown as HTMLElement;
+    vi.stubGlobal('document', {
+      body: {},
+      querySelector: vi.fn((selector: string) => selector === 'textarea' ? editor : null),
+      querySelectorAll: vi.fn((selector: string) => {
+        if (selector === '.primary') return [disabledButton];
+        if (selector === '.secondary') return [enabledButton];
+        return [];
+      }),
+    });
+
+    await expect(executePostFlow({
+      prefillsViaUrl: true,
+      textareaSelector: 'textarea',
+      postButtonSelector: '.primary, .secondary',
+      text: 'hello',
+      dryRun: false,
+      composeInputTimeoutMs: 10,
+      postButtonTimeoutMs: 10,
+      afterClickDelayMs: 0,
+    })).resolves.toBeUndefined();
+    expect(enabledButton.click).toHaveBeenCalledOnce();
+    expect(disabledButton.click).not.toHaveBeenCalled();
+  });
+});
+
+describe('resolvePostButtonTimeoutMs', () => {
+  it('extends video post button waits even when callers pass a 30s timeout', () => {
+    expect(resolvePostButtonTimeoutMs(30000, true)).toBe(120000);
+  });
+
+  it('keeps explicit non-video timeouts unchanged', () => {
+    expect(resolvePostButtonTimeoutMs(30000, false)).toBe(30000);
   });
 });

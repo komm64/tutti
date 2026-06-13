@@ -1,7 +1,7 @@
 import { log } from '../src/utils/logger';
 import type { ImageAttachment, PostResultMessage } from '../src/messages';
-import { X_SELECTORS, xAdapter } from '../src/adapters/x';
-import { executePostFlow } from '../src/utils/post-flow';
+import { X_SELECTORS } from '../src/adapters/x';
+import { resolvePostButtonTimeoutMs } from '../src/utils/post-flow';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
 import { sleep, waitForCondition } from '../src/utils/dom';
@@ -17,6 +17,18 @@ import { markPostSubmissionStarted } from '../src/utils/post-submission-state';
 const X_THREAD_TEXTAREA_TIMEOUT_MS = 15000;
 const X_THREAD_COMPOSE_READY_TIMEOUT_MS = 30000;
 const X_THREAD_POST_BUTTON_TIMEOUT_MS = 10000;
+const X_SINGLE_COMPOSE_READY_TIMEOUT_MS = 30000;
+const X_SINGLE_POST_BUTTON_TIMEOUT_MS = 30000;
+const X_SINGLE_MEDIA_SETTLE_MS = 2500;
+const X_COMPOSE_TEXTAREA_SELECTOR = [
+  '[data-testid="tweetTextarea_0"][role="textbox"]',
+  '[data-testid="tweetTextarea_0"][contenteditable="true"]',
+].join(', ');
+const X_COMPOSE_FILE_INPUT_SELECTOR = 'input[data-testid="fileInput"]';
+const X_COMPOSE_POST_BUTTON_SELECTOR = [
+  '[data-testid="tweetButton"]',
+  '[data-testid="tweetButtonInline"]',
+].join(', ');
 const X_THREAD_DIALOG_TEXTAREA_SELECTOR = [
   '[role="dialog"] [data-testid="tweetTextarea_0"][role="textbox"]',
   '[role="dialog"] [data-testid="tweetTextarea_0"][contenteditable="true"]',
@@ -100,32 +112,7 @@ async function runPost(
   if (textChunks && textChunks.length > 1) {
     await executeXInlineThread(sel, textChunks, images, dryRun);
   } else {
-    await executePostFlow({
-      prefillsViaUrl: xAdapter.prefillsViaUrl,
-      textareaSelector: sel.textarea,
-      // reply intent の modal と home compose が同時に存在する場合がある。
-      // modal を先に選ばないと、home 側の disabled button で待ち続ける。
-      postButtonSelector: `${sel.postButton}, ${sel.postButtonInline}`,
-      postButtonTexts: ['Post', 'Tweet', 'Reply', '投稿する', 'ポスト', '返信'],
-      fileInputSelector: sel.fileInput,
-      text: images && images.length > 0 ? '' : text,
-      images,
-      dryRun,
-      composeInputTimeoutMs: 90_000,
-      // X は画像添付時に Lexical editor を再生成し、先に注入した本文を失う
-      // ことがある。画像 upload 後に本文を再注入してから submit する。
-      beforeSubmit: text && images && images.length > 0
-        ? () => injectTextWithRetry(text, sel.textarea, text)
-        : undefined,
-      clickPostButton: () => clickElementInMainWorld(`${sel.postButton}, ${sel.postButtonInline}`, [
-        'Post',
-        'Tweet',
-        'Reply',
-        '投稿する',
-        'ポスト',
-        '返信',
-      ]),
-    });
+    await executeXSinglePost(text, images, dryRun);
   }
 
   // dryRun でなければ post URL を capture (= 本当の完了)。 reply chain の連結
@@ -150,6 +137,72 @@ async function runPost(
     success: true,
     url,
   };
+}
+
+async function executeXSinglePost(
+  text: string,
+  images: ImageAttachment[] | undefined,
+  dryRun: boolean | undefined,
+): Promise<void> {
+  const composeRoot = await waitForXComposeDialog(X_SINGLE_COMPOSE_READY_TIMEOUT_MS);
+  if (!composeRoot) {
+    throw new Error(t(
+      'runtimeXTextareaTimeout',
+      1,
+      1,
+      1,
+      getXThreadTextareas(document).length,
+      describeXComposeState(document),
+    ));
+  }
+
+  const rootMarker = markXComposeRoot(composeRoot, 'single');
+  try {
+    const textareaSelector = scopedXComposeSelector(rootMarker, X_COMPOSE_TEXTAREA_SELECTOR);
+    const textarea0 = await waitForXScopedElement(composeRoot, X_COMPOSE_TEXTAREA_SELECTOR, X_SINGLE_COMPOSE_READY_TIMEOUT_MS);
+    if (!textarea0) {
+      throw new Error(t(
+        'runtimeXTextareaTimeout',
+        1,
+        1,
+        1,
+        getXThreadTextareas(composeRoot).length,
+        describeXComposeState(composeRoot),
+      ));
+    }
+
+    // X は media attach 時に Lexical editor を remount することがあるので、
+    // media → settle → text の順で dialog 内に限定して注入する。
+    if (images && images.length > 0) {
+      await injectImages(images, scopedXComposeSelector(rootMarker, X_COMPOSE_FILE_INPUT_SELECTOR));
+      await sleep(X_SINGLE_MEDIA_SETTLE_MS);
+    }
+
+    if (text) {
+      await injectTextWithRetry(text, textareaSelector, text, images && images.length > 0 ? 4 : 3);
+    }
+
+    const hasVideo = (images ?? []).some((image) => image.type.startsWith('video/'));
+    const postBtn = await waitForXSinglePostButton(
+      composeRoot,
+      resolvePostButtonTimeoutMs(X_SINGLE_POST_BUTTON_TIMEOUT_MS, hasVideo),
+    );
+    if (!postBtn) {
+      throw new Error(t('runtimePostButtonDisabled'));
+    }
+
+    if (dryRun) {
+      const orig = postBtn.style.outline;
+      postBtn.style.outline = '3px dashed #f59e0b';
+      setTimeout(() => { postBtn.style.outline = orig; }, 5000);
+      return;
+    }
+
+    markPostSubmissionStarted();
+    await clickElementMarkedInMainWorld(postBtn, 'tutti-x-post');
+  } finally {
+    unmarkXComposeRoot(composeRoot, rootMarker);
+  }
 }
 
 /**
@@ -196,74 +249,84 @@ async function executeXInlineThread(
       describeXComposeState(document),
     ));
   }
+  const composeRoot = textarea0.closest<HTMLElement>('[role="dialog"]') ?? document.body;
+  const rootMarker = markXComposeRoot(composeRoot, 'thread');
 
-  // v0.4.97: 画像 → text の順序が重要。 旧 (text→image) は X の Lexical が
-  // image 追加時に compose を re-mount して chunk 0 text を失う事故があった。
-  // v0.4.100: image upload 完了後の thumbnail render に時間がかかる real X だと
-  // 800ms wait では足りず、 後発の Lexical re-mount で chunk 0 が flush されて
-  // 「画像だけ表示」 になっていた (user 報告 2026-05-23)。 wait を 2500ms に
-  // 拡張 + injectTextWithRetry で多段 verify+re-inject。
-  if (images && images.length > 0) {
-    await injectImages(images, sel.fileInput);
-    await sleep(2500);
-  }
-
-  // chunk 0 を retry 付きで inject
-  const composeRoot = textarea0.closest('[role="dialog"]') ?? document;
-  await injectTextIntoXThreadTextarea(composeRoot, 0, chunks[0]!);
-
-  // 各 chunk を「+」 click → wait → inject の繰り返し。
-  for (let i = 1; i < chunks.length; i++) {
-    const addBtn = await waitForXAddPostButton(composeRoot, X_THREAD_TEXTAREA_TIMEOUT_MS);
-    if (!addBtn) {
-      throw new Error(t('runtimeXAddButtonMissing', i + 1, chunks.length, i));
+  try {
+    // v0.4.97: 画像 → text の順序が重要。 旧 (text→image) は X の Lexical が
+    // image 追加時に compose を re-mount して chunk 0 text を失う事故があった。
+    // v0.4.100: image upload 完了後の thumbnail render に時間がかかる real X だと
+    // 800ms wait では足りず、 後発の Lexical re-mount で chunk 0 が flush されて
+    // 「画像だけ表示」 になっていた (user 報告 2026-05-23)。 wait を 2500ms に
+    // 拡張 + injectTextWithRetry で多段 verify+re-inject。
+    if (images && images.length > 0) {
+      await injectImages(images, scopedXComposeSelector(rootMarker, X_COMPOSE_FILE_INPUT_SELECTOR));
+      await sleep(2500);
     }
-    await clickElementMarkedInMainWorld(addBtn, 'tutti-x-add-post');
 
-    // 新 textarea (index i) が出現するまで MutationObserver で待つ。
-    const target = await waitForXThreadTextarea(composeRoot, i, X_THREAD_TEXTAREA_TIMEOUT_MS);
-    if (!target) {
-      const got = getXThreadTextareas(composeRoot).length;
-      throw new Error(t(
-        'runtimeXTextareaTimeout',
-        i + 1,
-        chunks.length,
-        i + 1,
-        got,
-        describeXComposeState(composeRoot),
-      ));
+    // chunk 0 を retry 付きで inject
+    await injectTextIntoXThreadTextarea(composeRoot, 0, chunks[0]!);
+
+    // 各 chunk を「+」 click → wait → inject の繰り返し。
+    for (let i = 1; i < chunks.length; i++) {
+      const addBtn = await waitForXAddPostButton(composeRoot, X_THREAD_TEXTAREA_TIMEOUT_MS);
+      if (!addBtn) {
+        throw new Error(t('runtimeXAddButtonMissing', i + 1, chunks.length, i));
+      }
+      await clickElementMarkedInMainWorld(addBtn, 'tutti-x-add-post');
+
+      // 新 textarea (index i) が出現するまで MutationObserver で待つ。
+      const target = await waitForXThreadTextarea(composeRoot, i, X_THREAD_TEXTAREA_TIMEOUT_MS);
+      if (!target) {
+        const got = getXThreadTextareas(composeRoot).length;
+        throw new Error(t(
+          'runtimeXTextareaTimeout',
+          i + 1,
+          chunks.length,
+          i + 1,
+          got,
+          describeXComposeState(composeRoot),
+        ));
+      }
+      await injectTextIntoXThreadTextarea(composeRoot, i, chunks[i]!);
     }
-    await injectTextIntoXThreadTextarea(composeRoot, i, chunks[i]!);
-  }
 
-  // 全 inject 完了後の最終 verify (上記 retry でも残った orphan を救う)。
-  // 各 chunk が textarea[i].textContent と prefix 一致するか確認、 ダメなら 1 回 retry。
-  const finalTextareas = getXThreadTextareas(composeRoot);
-  for (let i = 0; i < chunks.length; i++) {
-    const target = finalTextareas[i];
-    if (!target) continue;
-    const currentText = (target.textContent ?? '').trim();
-    const expected = chunks[i]!.trim();
-    // text 内容比較: prefix 一致 + 全長 60% 以上 を OK 判定
-    const prefixOk = currentText.length > 0 && expected.startsWith(currentText.slice(0, Math.min(20, currentText.length)));
-    const lenOk = currentText.length >= Math.min(20, expected.length * 0.6);
-    if (!prefixOk || !lenOk) {
-      log.warn(`X: chunk ${i + 1} final verify failed (got "${currentText.slice(0, 30)}"), re-injecting`);
-      await injectTextIntoXThreadTextarea(composeRoot, i, chunks[i]!, 2);
+    // 全 inject 完了後の最終 verify (上記 retry でも残った orphan を救う)。
+    // 各 chunk が textarea[i].textContent と prefix 一致するか確認、 ダメなら 1 回 retry。
+    const finalTextareas = getXThreadTextareas(composeRoot);
+    for (let i = 0; i < chunks.length; i++) {
+      const target = finalTextareas[i];
+      if (!target) continue;
+      const currentText = (target.textContent ?? '').trim();
+      const expected = chunks[i]!.trim();
+      // text 内容比較: prefix 一致 + 全長 60% 以上 を OK 判定
+      const prefixOk = currentText.length > 0 && expected.startsWith(currentText.slice(0, Math.min(20, currentText.length)));
+      const lenOk = currentText.length >= Math.min(20, expected.length * 0.6);
+      if (!prefixOk || !lenOk) {
+        log.warn(`X: chunk ${i + 1} final verify failed (got "${currentText.slice(0, 30)}"), re-injecting`);
+        await injectTextIntoXThreadTextarea(composeRoot, i, chunks[i]!, 2);
+      }
     }
-  }
 
-  // Post button (preview なら highlight だけ、 autoPost なら click)
-  const postBtn = await waitForXPostAllButton(sel, composeRoot, X_THREAD_POST_BUTTON_TIMEOUT_MS);
-  if (!postBtn) throw new Error(t('runtimeXPostAllButtonMissing'));
-  if (dryRun) {
-    const orig = postBtn.style.outline;
-    postBtn.style.outline = '3px dashed #f59e0b';
-    setTimeout(() => { postBtn.style.outline = orig; }, 5000);
-    return;
+    // Post button (preview なら highlight だけ、 autoPost なら click)
+    const hasVideo = (images ?? []).some((image) => image.type.startsWith('video/'));
+    const postBtn = await waitForXPostAllButton(
+      sel,
+      composeRoot,
+      resolvePostButtonTimeoutMs(X_THREAD_POST_BUTTON_TIMEOUT_MS, hasVideo),
+    );
+    if (!postBtn) throw new Error(t('runtimeXPostAllButtonMissing'));
+    if (dryRun) {
+      const orig = postBtn.style.outline;
+      postBtn.style.outline = '3px dashed #f59e0b';
+      setTimeout(() => { postBtn.style.outline = orig; }, 5000);
+      return;
+    }
+    markPostSubmissionStarted();
+    await clickElementMarkedInMainWorld(postBtn, 'tutti-x-post-all');
+  } finally {
+    unmarkXComposeRoot(composeRoot, rootMarker);
   }
-  markPostSubmissionStarted();
-  await clickElementMarkedInMainWorld(postBtn, 'tutti-x-post-all');
 }
 
 /**
@@ -345,6 +408,78 @@ function getXThreadTextareas(scope: ParentNode = document): HTMLElement[] {
     .filter(isVisible);
 }
 
+function findVisibleXComposeDialog(): HTMLElement | null {
+  const dialogs = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"]')).filter(isVisible);
+  for (const dialog of dialogs) {
+    if (
+      Array.from(dialog.querySelectorAll<HTMLElement>(X_COMPOSE_TEXTAREA_SELECTOR)).some(isVisible) ||
+      dialog.querySelector(X_COMPOSE_FILE_INPUT_SELECTOR)
+    ) {
+      return dialog;
+    }
+  }
+  return null;
+}
+
+function waitForXComposeDialog(timeoutMs: number): Promise<HTMLElement | undefined> {
+  return waitForCondition<HTMLElement>(
+    () => findVisibleXComposeDialog(),
+    {
+      timeoutMs,
+      intervalMs: 150,
+      root: document.body,
+      observerInit: {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['data-testid', 'contenteditable', 'role', 'aria-disabled', 'style', 'class'],
+      },
+    },
+  ).then((el) => el ?? undefined);
+}
+
+function waitForXScopedElement(
+  scope: ParentNode,
+  selector: string,
+  timeoutMs: number,
+): Promise<HTMLElement | undefined> {
+  return waitForCondition<HTMLElement>(
+    () => Array.from(scope.querySelectorAll<HTMLElement>(selector)).find(isVisible),
+    {
+      timeoutMs,
+      intervalMs: 150,
+      root: scope instanceof Document ? scope.body : scope,
+      observerInit: {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['data-testid', 'contenteditable', 'role', 'aria-disabled', 'style', 'class'],
+      },
+    },
+  ).then((el) => el ?? undefined);
+}
+
+function markXComposeRoot(root: HTMLElement, label: string): string {
+  const marker = `tutti-x-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  root.setAttribute('data-tutti-x-compose-root', marker);
+  return marker;
+}
+
+function unmarkXComposeRoot(root: HTMLElement, marker: string): void {
+  if (root.getAttribute('data-tutti-x-compose-root') === marker) {
+    root.removeAttribute('data-tutti-x-compose-root');
+  }
+}
+
+function scopedXComposeSelector(rootMarker: string, selector: string): string {
+  return selector
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => `[data-tutti-x-compose-root="${rootMarker}"] ${part}`)
+    .join(', ');
+}
+
 function waitForXThreadTextarea(
   scope: ParentNode,
   index: number,
@@ -364,6 +499,44 @@ function waitForXThreadTextarea(
       },
     },
   ).then((el) => el ?? undefined);
+}
+
+async function waitForXSinglePostButton(
+  scope: ParentNode,
+  timeoutMs: number,
+): Promise<HTMLElement | null> {
+  return await waitForCondition<HTMLElement>(() => findXSinglePostButton(scope), {
+    timeoutMs,
+    intervalMs: 250,
+    root: scope instanceof Document ? scope.body : scope,
+    observerInit: {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      characterData: true,
+      attributeFilter: ['data-testid', 'aria-disabled', 'disabled', 'style', 'class'],
+    },
+  });
+}
+
+function findXSinglePostButton(scope: ParentNode): HTMLElement | null {
+  for (const part of X_COMPOSE_POST_BUTTON_SELECTOR.split(',').map((s) => s.trim()).filter(Boolean)) {
+    for (const el of scope.querySelectorAll<HTMLElement>(part)) {
+      if (isVisible(el) && !isDisabled(el)) return el;
+    }
+  }
+  for (const el of scope.querySelectorAll<HTMLElement>('button, [role="button"]')) {
+    const text = (el.textContent ?? '').trim();
+    const aria = el.getAttribute('aria-label') ?? '';
+    if (
+      (/^(Post|Tweet|Reply|投稿する|ポスト|返信)$/.test(text) || /^(Post|Tweet|Reply|投稿する|ポスト|返信)$/.test(aria)) &&
+      isVisible(el) &&
+      !isDisabled(el)
+    ) {
+      return el;
+    }
+  }
+  return null;
 }
 
 function waitForVisibleXElement(selector: string, timeoutMs: number): Promise<HTMLElement | undefined> {
