@@ -205,8 +205,10 @@ git push
 
 ## Monitor
 
-After submit, check every 30 minutes until the submitted version is published.
+After submit, checking every 30 minutes is mandatory. Start the watcher
+immediately and keep monitoring until the submitted version is published, or
+until the user explicitly stops the monitor.
 
 ```powershell
-node scripts/cws/watch-status.mjs --interval-minutes 30
+node scripts/cws/watch-status.mjs --interval-minutes 30 --version <submitted-version>
 ```
