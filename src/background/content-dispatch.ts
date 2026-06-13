@@ -10,7 +10,7 @@ export async function sendPostMessageWhenReady(
   tabId: number,
   message: PostToPlatformMessage,
 ): Promise<PostResultMessage | undefined> {
-  let deadline = Date.now() + 2500;
+  let deadline = Date.now() + 5000;
   let reloaded = false;
   let injectedFederatedScript = false;
   while (true) {
@@ -25,7 +25,7 @@ export async function sendPostMessageWhenReady(
       if (!injectedFederatedScript) {
         injectedFederatedScript = await tryInjectFederatedContentScripts(tabId, message.platform);
         if (injectedFederatedScript) {
-          deadline = Date.now() + 2500;
+          deadline = Date.now() + 5000;
           continue;
         }
       }
@@ -35,7 +35,7 @@ export async function sendPostMessageWhenReady(
         await browser.tabs.reload(tabId);
         await waitForTabComplete(tabId);
         await sleep(100);
-        deadline = Date.now() + 2500;
+        deadline = Date.now() + 5000;
         continue;
       }
       await sleep(100);

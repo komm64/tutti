@@ -80,8 +80,8 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
     dropTargetSelector,
     text,
     images,
-    postButtonTimeoutMs = 8000,
-    composeInputTimeoutMs = 8000,
+    postButtonTimeoutMs = 15000,
+    composeInputTimeoutMs = 15000,
     afterClickDelayMs = 250,
     confirmDialogButtonTexts,
     confirmDialogGraceMs,
@@ -174,7 +174,7 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
   // メディアアップロード処理中 (例: Bluesky CDN への 50MB+ 動画 upload) で
   // 数秒待てば enabled になるケースまで弾いていた。
   // 動画ありの場合は upload 完了に時間が掛かるので timeout を多めに延長
-  // (caller が postButtonTimeoutMs に明示値を渡していなければ default 8s、
+  // (caller が postButtonTimeoutMs に明示値を渡していなければ default 15s、
   //  動画 attachment があれば 120s に bump)。
   const isDisabled = (b: HTMLElement) =>
     b.getAttribute('aria-disabled') === 'true' || (b as HTMLButtonElement).disabled;

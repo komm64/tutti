@@ -26,6 +26,15 @@ const PRE_SUBMIT_LOAD_RETRY_PLATFORMS = new Set<PlatformId>(['mastodon']);
 
 type Visibility = 'public' | 'unlisted' | 'private' | 'direct';
 
+export interface DomPostAttempt {
+  label: string;
+  skipApi?: boolean;
+  forceActive?: boolean;
+  reuseExistingTab?: boolean;
+  loadRetries?: number;
+  delayBeforeMs?: number;
+}
+
 export interface PlatformPosterOptions {
   openedTabs: Pick<OpenedTabRegistry, 'record'>;
   appendBackgroundLog?: (message: string) => void;
@@ -70,9 +79,16 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
       const overrideUrl = buildReplyOverrideUrl(adapter.id, i, prevPostUrl);
 
       try {
-        const result = i === 0
-          ? await postSingleChunkWithRetry(adapter, chunks[i]!, chunkImages, undefined, overrideUrl, cw, visibility, autoPost)
-          : await postSingleChunk(adapter, chunks[i]!, chunkImages, undefined, overrideUrl, cw, visibility, autoPost);
+        const result = await postSingleChunkWithRetry(
+          adapter,
+          chunks[i]!,
+          chunkImages,
+          undefined,
+          overrideUrl,
+          cw,
+          visibility,
+          autoPost,
+        );
 
         if (!result.success) {
           return {
@@ -123,7 +139,7 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
     autoPost = true,
   ): Promise<PostResultMessage> {
     log.info(`${adapter.id}: inline thread compose で ${chunks.length} chunks を 1 つの compose に並べる`);
-    return await postSingleChunk(adapter, chunks[0]!, images, chunks, undefined, undefined, undefined, autoPost);
+    return await postSingleChunkWithRetry(adapter, chunks[0]!, images, chunks, undefined, undefined, undefined, autoPost);
   }
 
   async function postSingleChunkWithRetry(
@@ -136,8 +152,34 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
     visibility?: Visibility,
     autoPost = true,
   ): Promise<PostResultMessage> {
-    // Post operations are not idempotent. Manual retry is handled in the popup.
-    return await postSingleChunk(adapter, text, rawImages, textChunks, overrideUrl, cw, visibility, autoPost);
+    const attempts = buildDomPostAttempts(adapter, autoPost);
+    let lastError: unknown;
+    for (let i = 0; i < attempts.length; i += 1) {
+      const attempt = attempts[i]!;
+      if (attempt.delayBeforeMs) await sleep(attempt.delayBeforeMs);
+      try {
+        return await postSingleChunk(
+          adapter,
+          text,
+          rawImages,
+          textChunks,
+          overrideUrl,
+          cw,
+          visibility,
+          autoPost,
+          attempt,
+        );
+      } catch (err) {
+        lastError = err;
+        if (i >= attempts.length - 1) throw err;
+        const next = attempts[i + 1]!;
+        log.warn(
+          `${adapter.id}: pre-submit attempt "${attempt.label}" failed before the post action; ` +
+          `retrying with "${next.label}": ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error(String(lastError ?? t('runtimeUnknownError')));
   }
 
   async function postSingleChunk(
@@ -149,10 +191,11 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
     cw?: string,
     visibility?: Visibility,
     autoPost = true,
+    attempt: DomPostAttempt = { label: 'default' },
   ): Promise<PostResultMessage> {
     const images = rawImages ? await maybeResizeImagesForPlatform(adapter, rawImages) : undefined;
 
-    if (autoPost && !overrideUrl) {
+    if (autoPost && !overrideUrl && !textChunks && !attempt.skipApi) {
       const apiResult = await tryApiPath(adapter.id, text, images, cw, visibility);
       if (apiResult === 'no-credentials') {
         // Fall through to DOM path.
@@ -163,12 +206,12 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
         log.warn(`${adapter.id} via API: post result uncertain - ${apiResult.error ?? t('runtimeUnknownError')}`);
         return unconfirmedPostResult(adapter.id);
       } else {
-        throw new Error(`API: ${apiResult.error ?? t('runtimeUnknownError')}`);
+        log.warn(`${adapter.id} via API failed before a confirmed post; falling back to DOM path: ${apiResult.error ?? t('runtimeUnknownError')}`);
       }
     }
 
     const dryRun = !autoPost;
-    const active = shouldOpenActive(adapter, dryRun, textChunks);
+    const active = attempt.forceActive === true || shouldOpenActive(adapter, dryRun, textChunks);
     const openOptions = PRE_SUBMIT_LOAD_RETRY_PLATFORMS.has(adapter.id)
       ? { loadRetries: 1, relaxedComposeUrlReady: true }
       : undefined;
@@ -178,11 +221,12 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
       active,
       {
         ...openOptions,
+        loadRetries: Math.max(openOptions?.loadRetries ?? 0, attempt.loadRetries ?? 0),
         // Real posts must start from a clean compose surface.
         // Reusing broad domain matches (for example instagram.com/ or x.com/compose/post)
         // can collide with preview drafts left open by the previous request.
         // Preview still reuses tabs so local mock smoke and manual inspection stay lightweight.
-        reuseExistingTab: dryRun,
+        reuseExistingTab: attempt.reuseExistingTab ?? dryRun,
       },
     );
     if (typeof tab.id !== 'number') {
@@ -297,6 +341,34 @@ function shouldOpenActive(adapter: PlatformAdapter, dryRun: boolean, textChunks?
   const forceForegroundForXThreadPreview =
     adapter.id === 'x' && dryRun && !!textChunks && textChunks.length > 1;
   return adapter.requiresForegroundTab === true || forceForegroundForXThreadPreview;
+}
+
+export function buildDomPostAttempts(adapter: PlatformAdapter, autoPost: boolean): DomPostAttempt[] {
+  const dryRun = !autoPost;
+  const attempts: DomPostAttempt[] = [
+    { label: 'default' },
+    {
+      label: 'fresh foreground compose',
+      skipApi: true,
+      forceActive: true,
+      reuseExistingTab: false,
+      loadRetries: 1,
+      delayBeforeMs: dryRun ? 250 : 750,
+    },
+  ];
+
+  if (!adapter.requiresForegroundTab) {
+    attempts.push({
+      label: 'fresh foreground compose with reload retry',
+      skipApi: true,
+      forceActive: true,
+      reuseExistingTab: false,
+      loadRetries: 2,
+      delayBeforeMs: 1000,
+    });
+  }
+
+  return attempts;
 }
 
 async function attachVerifyResult(
