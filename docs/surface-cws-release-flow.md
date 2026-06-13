@@ -205,10 +205,11 @@ git push
 
 ## Monitor
 
-After submit, checking every 30 minutes is mandatory. Start the watcher
-immediately and keep monitoring until the submitted version is published, or
-until the user explicitly stops the monitor.
+After submit, checking every 30 minutes is mandatory. Codex must keep the
+active conversation open, run the status command every 30 minutes, and report
+each result to the user. Do not replace this with a detached/background watcher
+process unless the user explicitly asks for background monitoring.
 
 ```powershell
-node scripts/cws/watch-status.mjs --interval-minutes 30 --version <submitted-version>
+node scripts/cws/status.mjs
 ```

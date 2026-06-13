@@ -13,13 +13,14 @@ node scripts/cws/status.mjs
 
 ## CWS Monitoring
 
-After submitting a new Chrome Web Store version, immediately start 30-minute
-status monitoring for the submitted version:
+After submitting a new Chrome Web Store version, Codex must keep the active
+conversation open and check CWS status every 30 minutes. Do not treat a
+background watcher process as satisfying this rule.
 
 ```powershell
-node scripts/cws/watch-status.mjs --interval-minutes 30 --version <submitted-version>
+node scripts/cws/status.mjs
 ```
 
-Keep monitoring until that version is published, or until the user explicitly
-stops the monitor. When asked for CWS status during monitoring, run
-`node scripts/cws/status.mjs` before answering.
+Report each check result to the user. Continue until the submitted version is
+published, or until the user explicitly stops the monitor. When asked for CWS
+status during monitoring, run `node scripts/cws/status.mjs` before answering.
