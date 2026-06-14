@@ -42,6 +42,18 @@ export function extractMetaContent(html: string, propValue: string): string {
   return '';
 }
 
+export function hasVideoEvidenceInHtml(html: string): boolean {
+  return !!(
+    extractMetaContent(html, 'og:video') ||
+    extractMetaContent(html, 'og:video:url') ||
+    extractMetaContent(html, 'og:video:secure_url') ||
+    extractMetaContent(html, 'twitter:player') ||
+    /<meta\s+[^>]*?(?:property|name)=["']og:type["'][^>]*?content=["'][^"']*video/i.test(html) ||
+    /<meta\s+[^>]*?content=["'][^"']*video[^"']*["'][^>]*?(?:property|name)=["']og:type["']/i.test(html) ||
+    /<video\b/i.test(html)
+  );
+}
+
 function decodeHtmlEntities(s: string): string {
   return s
     .replace(/&amp;/g, '&')
@@ -93,8 +105,9 @@ export async function verifyViaOg(
 
     const text = cleanDescription ? cleanDescription(ogDesc, html) : ogDesc;
     const hasImages = judgeImage ? judgeImage(ogImage, html) : !!ogImage;
+    const hasVideo = expected.hasVideo ? hasVideoEvidenceInHtml(html) : undefined;
 
-    return buildVerifyResult(expected, { text, hasImages });
+    return buildVerifyResult(expected, { text, hasImages, hasVideo });
   } catch (e) {
     return verifyError(`og verify 例外: ${e instanceof Error ? e.message : String(e)}`);
   }

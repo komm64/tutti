@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { PlatformAdapter } from '../adapters/types';
-import { buildDomPostAttempts, buildReplyOverrideUrl } from './platform-poster';
+import {
+  buildDomPostAttempts,
+  buildReplyOverrideUrl,
+  shouldReuseExistingTabForAttempt,
+} from './platform-poster';
 
 function adapter(overrides: Partial<PlatformAdapter> = {}): PlatformAdapter {
   return {
@@ -70,5 +74,19 @@ describe('platform poster helpers', () => {
       label: 'fresh foreground compose',
       delayBeforeMs: 250,
     });
+  });
+
+  it('does not reuse existing tabs for foreground-only preview flows', () => {
+    expect(shouldReuseExistingTabForAttempt(adapter(), false)).toBe(true);
+    expect(shouldReuseExistingTabForAttempt(adapter({ requiresForegroundTab: true }), false)).toBe(false);
+  });
+
+  it('honors explicit retry tab reuse overrides', () => {
+    expect(shouldReuseExistingTabForAttempt(adapter({ requiresForegroundTab: true }), false, {
+      reuseExistingTab: true,
+    })).toBe(true);
+    expect(shouldReuseExistingTabForAttempt(adapter(), false, {
+      reuseExistingTab: false,
+    })).toBe(false);
   });
 });

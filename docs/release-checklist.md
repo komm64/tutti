@@ -19,6 +19,12 @@ recommending to the broader audience. Track here, not in scattered TODOs.
   - [x] DeviantArt — description + tags verified (v0.4.74)
 - [ ] **At least 1 week of dogfooding** from the maintainer's real account
   with no regressions filed
+- [ ] Surface preview matrix passes on the exact release build for all supported
+  draft shapes: text only, image only, text + image, video only, text + video,
+  image + video input normalized to video-only, long text + image, and repeated
+  posting/preview
+- [ ] Affected Surface real-post matrix cases return confirmed post URLs for
+  every selected SNS before CWS upload
 - [ ] auto-triage pipeline has processed ≥ 3 selector breakage reports
   end-to-end without manual escalation
 

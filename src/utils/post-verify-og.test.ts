@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   cleanGenericDescription,
   cleanInstagramDescription,
@@ -6,7 +6,13 @@ import {
   cleanXDescription,
   cleanYouTubeDescription,
   extractMetaContent,
+  hasVideoEvidenceInHtml,
+  verifyViaOg,
 } from './post-verify-og';
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe('extractMetaContent', () => {
   it('extracts property→content order', () => {
@@ -36,6 +42,59 @@ describe('extractMetaContent', () => {
   it('matches name= attribute too', () => {
     const html = '<meta name="description" content="fallback">';
     expect(extractMetaContent(html, 'description')).toBe('fallback');
+  });
+});
+
+describe('hasVideoEvidenceInHtml', () => {
+  it('detects OpenGraph video metadata', () => {
+    expect(hasVideoEvidenceInHtml('<meta property="og:video" content="https://cdn.example/video.mp4">')).toBe(true);
+  });
+
+  it('detects video tags', () => {
+    expect(hasVideoEvidenceInHtml('<article><video src="clip.mp4"></video></article>')).toBe(true);
+  });
+
+  it('does not treat a plain image post as video', () => {
+    expect(hasVideoEvidenceInHtml('<meta property="og:image" content="https://cdn.example/image.jpg">')).toBe(false);
+  });
+});
+
+describe('verifyViaOg video evidence', () => {
+  function stubFetchHtml(html: string): void {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      text: async () => html,
+    })));
+  }
+
+  it('passes video verification when OG video evidence exists', async () => {
+    stubFetchHtml([
+      '<meta property="og:description" content="Hello video">',
+      '<meta property="og:video" content="https://cdn.example/video.mp4">',
+    ].join(''));
+
+    const result = await verifyViaOg('https://example.com/post/1', {
+      text: 'Hello video',
+      hasImages: false,
+      hasVideo: true,
+    });
+
+    expect(result.issues).toEqual([]);
+  });
+
+  it('reports video-missing when expected video has no video evidence', async () => {
+    stubFetchHtml([
+      '<meta property="og:description" content="Hello video">',
+      '<meta property="og:image" content="https://cdn.example/image.jpg">',
+    ].join(''));
+
+    const result = await verifyViaOg('https://example.com/post/1', {
+      text: 'Hello video',
+      hasImages: false,
+      hasVideo: true,
+    });
+
+    expect(result.issues.some((issue) => issue.kind === 'video-missing' && issue.severity === 'error')).toBe(true);
   });
 });
 

@@ -1,11 +1,10 @@
 import type { PostResultMessage } from '../messages';
 
 export function toPreviewResult(result: PostResultMessage): PostResultMessage {
-  const { url: _url, verify: _verify, ...rest } = result;
+  const { url: _url, verify: _verify, confirmed: _confirmed, ...rest } = result;
   return {
     ...rest,
     preview: true,
-    confirmed: result.success ? true : result.confirmed,
   };
 }
 

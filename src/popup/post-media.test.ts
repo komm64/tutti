@@ -25,6 +25,59 @@ describe('buildPostRequest', () => {
     });
   });
 
+  it('builds an image-only request with alt text', async () => {
+    await expect(buildPostRequest({
+      text: '',
+      platforms: ['x'],
+      images: [{
+        name: 'photo.png',
+        type: 'image/png',
+        data: 'AA==',
+        previewUrl: 'blob:photo',
+      }],
+      video: null,
+      imageAlts: ['alt text'],
+      autoPost: false,
+      cw: '',
+      visibility: 'public',
+      trimToS: null,
+    })).resolves.toMatchObject({
+      type: 'POST_REQUEST',
+      text: '',
+      platforms: ['x'],
+      images: [{ name: 'photo.png', type: 'image/png', data: 'AA==', alt: 'alt text', bytes: 1 }],
+      autoPost: false,
+    });
+  });
+
+  it('builds a text and image request without leaking default options', async () => {
+    await expect(buildPostRequest({
+      text: 'caption',
+      platforms: ['threads'],
+      images: [{
+        name: 'photo.png',
+        type: 'image/png',
+        data: 'AA==',
+        previewUrl: 'blob:photo',
+      }],
+      video: null,
+      imageAlts: [],
+      autoPost: true,
+      cw: '',
+      visibility: 'public',
+      trimToS: null,
+    })).resolves.toMatchObject({
+      type: 'POST_REQUEST',
+      text: 'caption',
+      platforms: ['threads'],
+      images: [{ name: 'photo.png', type: 'image/png', data: 'AA==', bytes: 1 }],
+      autoPost: true,
+      cw: undefined,
+      visibility: undefined,
+      trimVideoToSeconds: undefined,
+    });
+  });
+
   it('keeps video metadata and explicit posting options', async () => {
     await expect(buildPostRequest({
       text: '',

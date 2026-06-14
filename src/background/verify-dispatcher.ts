@@ -11,7 +11,7 @@
  * verify 失敗時は VerifyResult.verified=false で warn を立てる (best-effort)。
  */
 
-import type { PlatformId } from '../messages';
+import type { PlatformId, VerifyPostDomResult } from '../messages';
 import { verifyBlueskyPost } from '../api/bluesky-verify';
 import { verifyMastodonPost } from '../api/mastodon-verify';
 import { verifyMisskeyPost } from '../api/misskey-verify';
@@ -85,7 +85,7 @@ async function verifyViaDomTab(
     // tab load + content script ready を待つ (最大 15s polling)
     const tabId = verifyTab.id;
     const deadline = Date.now() + 15000;
-    let resp: { type?: string; ogDescription?: string; ogImage?: string; bodyExcerpt?: string } | undefined;
+    let resp: VerifyPostDomResult | undefined;
     let latestResult: VerifyResult | undefined;
     while (Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, 700));
@@ -98,7 +98,8 @@ async function verifyViaDomTab(
         // hydration 後の実本文を比較対象に含める。
         const text = [cleaner(desc), resp.bodyExcerpt ?? ''].filter(Boolean).join('\n');
         const hasImages = judgeImg ? judgeImg(img) : !!img;
-        latestResult = buildVerifyResult(expected, { text, hasImages });
+        const hasVideo = expected.hasVideo ? resp.hasVideo === true : undefined;
+        latestResult = buildVerifyResult(expected, { text, hasImages, hasVideo });
         const hasHardIssue = latestResult.issues.some((issue) => issue.severity === 'error');
         if (!hasHardIssue && (platform !== 'x' || latestResult.issues.length === 0)) {
           return latestResult;

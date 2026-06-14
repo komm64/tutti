@@ -130,6 +130,34 @@ $env:E2E_EXTENSION_ID = '<returned-extension-id>'
 
 6. Run the target real-browser check.
 
+For posting/media changes, start with the full preview matrix. This is the
+minimum gate before committing a posting-related change:
+
+```powershell
+$env:E2E_CDP = 'http://127.0.0.1:9223'
+$env:E2E_EXTENSION_ID = '<returned-extension-id>'
+node scripts/e2e/surface-posting-matrix.mjs --mode preview --repeat 2
+```
+
+If a platform hangs, keep the failure visible instead of waiting indefinitely:
+
+```powershell
+node scripts/e2e/surface-posting-matrix.mjs --mode preview --repeat 2 --case-timeout-ms 180000
+```
+
+The matrix must pass the common draft shapes for every supported SNS: text only,
+image only, text + image, video only, text + video, image + video input
+normalized to video-only, long text + image, and an immediate repeated run.
+Preview must never write history or return post URLs.
+
+Before CWS upload, run at least the affected real-post cases in post mode. For a
+media or URL-capture fix, every selected SNS in that run must return
+`success=true`, `confirmed=true`, and a captured post URL:
+
+```powershell
+node scripts/e2e/surface-posting-matrix.mjs --mode post --cases image-only,text-image,video-only,text-video --platforms x,bluesky,threads,mastodon,misskey,tumblr,instagram
+```
+
 For URL capture checks:
 
 ```powershell

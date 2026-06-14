@@ -1,6 +1,6 @@
 {
   "name": "tutti",
-  "version": "0.5.34",
+  "version": "0.5.35",
   "description": "クロスポストの面倒を全部肩代わりする Chrome 拡張",
   "type": "module",
   "private": true,
@@ -12,6 +12,7 @@
     "zip": "npm run build && node scripts/zip-extension.mjs",
     "compile": "tsc --noEmit",
     "test": "vitest run",
+    "verify:commit": "npm run compile && npm test && npm run build",
     "test:watch": "vitest",
     "test:e2e-api": "vitest run --config vitest.config.e2e-api.ts",
     "e2e": "node scripts/e2e/run.mjs",
@@ -20,6 +21,7 @@
     "e2e:video-smoke": "npm run build && node scripts/e2e/video-conversion-smoke.mjs",
     "e2e:video-smoke:no-build": "node scripts/e2e/video-conversion-smoke.mjs",
     "e2e:surface-url-capture": "node scripts/e2e/surface-url-capture-check.mjs",
+    "e2e:surface-matrix": "node scripts/e2e/surface-posting-matrix.mjs",
     "cws:status": "node scripts/cws/status.mjs",
     "cws:upload": "node scripts/cws/upload.mjs",
     "cws:submit": "node scripts/cws/submit.mjs",

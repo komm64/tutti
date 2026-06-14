@@ -1,5 +1,6 @@
 import type { PlatformId, PostResultMessage, PostToPlatformMessage } from '../messages';
 import { log } from '../utils/logger';
+import { t } from '../utils/i18n';
 import { waitForTabComplete } from './tab-management';
 import { retryTransientTabAction } from './tab-action-retry';
 
@@ -18,11 +19,16 @@ export async function sendPostMessageWhenReady(
     try {
       return (await browser.tabs.sendMessage(tabId, message)) as PostResultMessage | undefined;
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      const receiverMissing =
-        msg.includes('Receiving end does not exist') ||
-        msg.includes('Could not establish connection');
-      if (!receiverMissing) throw e;
+      if (!isMissingReceiverError(e)) throw e;
+      const loginError = await buildMissingReceiverLoginError(tabId, message.platform);
+      if (loginError) {
+        return {
+          type: 'POST_RESULT',
+          platform: message.platform,
+          success: false,
+          error: loginError,
+        };
+      }
       if (!injectedFederatedScript) {
         injectedFederatedScript = await tryInjectFederatedContentScripts(tabId, message.platform);
         if (injectedFederatedScript) {
@@ -31,7 +37,9 @@ export async function sendPostMessageWhenReady(
         }
       }
       if (Date.now() >= deadline) {
-        if (reloaded) throw e;
+        if (reloaded) {
+          throw e;
+        }
         reloaded = true;
         await retryTransientTabAction('reload SNS tab after missing receiver', () => (
           browser.tabs.reload(tabId)
@@ -43,6 +51,49 @@ export async function sendPostMessageWhenReady(
       }
       await sleep(100);
     }
+  }
+}
+
+export async function buildMissingReceiverLoginError(
+  tabId: number,
+  platform?: PlatformId,
+): Promise<string | null> {
+  const tab = await browser.tabs.get(tabId).catch(() => null);
+  const urlError = buildLoginRedirectErrorForUrl(tab?.url ?? tab?.pendingUrl ?? '');
+  if (urlError) return urlError;
+
+  // YouTube sign-in can redirect to accounts.google.com. Tutti intentionally
+  // avoids requesting that host permission, so tabs.get() cannot reveal the URL.
+  if (!tab?.url && !tab?.pendingUrl && platform === 'youtube') {
+    return `${t('failureReasonLogin')} (YouTube / Google)`;
+  }
+  return null;
+}
+
+export function buildLoginRedirectErrorForUrl(url: string): string | null {
+  const host = parseHost(url);
+  if (!host || !looksLikeLoginRedirect(url, host)) return null;
+  return `${t('failureReasonLogin')} (${host})`;
+}
+
+export function isMissingReceiverError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return (
+    msg.includes('Receiving end does not exist') ||
+    msg.includes('Could not establish connection')
+  );
+}
+
+function looksLikeLoginRedirect(url: string, host: string): boolean {
+  if (/accounts\.google\.com$/i.test(host)) return true;
+  return /(?:^|[/?#&])(?:login|signin|sign-in|auth|accountchooser)(?:[/?#&=]|$)/i.test(url);
+}
+
+function parseHost(url: string): string | null {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return null;
   }
 }
 

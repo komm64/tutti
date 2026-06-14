@@ -23,9 +23,9 @@ describe('post result policy', () => {
       type: 'POST_RESULT',
       platform: 'x',
       success: true,
-      confirmed: true,
       preview: true,
     });
+    expect(result.confirmed).toBeUndefined();
     expect(result.url).toBeUndefined();
     expect(result.verify).toBeUndefined();
   });

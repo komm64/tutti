@@ -14,7 +14,12 @@ import { runVerify } from './verify-dispatcher';
 import { openOrFocusTab } from './tab-management';
 import { tryApiPath } from './api-posting';
 import { capturePostUrlFromTabWithRetry } from './post-url-capture';
-import { sendPostMessageWhenReady } from './content-dispatch';
+import {
+  buildLoginRedirectErrorForUrl,
+  buildMissingReceiverLoginError,
+  isMissingReceiverError,
+  sendPostMessageWhenReady,
+} from './content-dispatch';
 import { resolveAdapter } from './adapter-resolver';
 import { prepareMediaForPlatform } from './platform-media';
 import { maybeResizeImagesForPlatform } from './media-preprocess';
@@ -213,6 +218,7 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
 
     const dryRun = !autoPost;
     const active = attempt.forceActive === true || shouldOpenActive(adapter, dryRun, textChunks);
+    const reuseExistingTab = shouldReuseExistingTabForAttempt(adapter, autoPost, attempt);
     const openOptions = PRE_SUBMIT_LOAD_RETRY_PLATFORMS.has(adapter.id)
       ? { loadRetries: 1, relaxedComposeUrlReady: true }
       : undefined;
@@ -226,12 +232,23 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
         // Real posts must start from a clean compose surface.
         // Reusing broad domain matches (for example instagram.com/ or x.com/compose/post)
         // can collide with preview drafts left open by the previous request.
-        // Preview still reuses tabs so local mock smoke and manual inspection stay lightweight.
-        reuseExistingTab: attempt.reuseExistingTab ?? dryRun,
+        // Foreground-only upload wizards are stateful enough that preview also needs
+        // a clean compose surface between repeated runs.
+        reuseExistingTab,
       },
     );
     if (typeof tab.id !== 'number') {
       throw new Error(t('runtimeSnsTabOpenFailed'));
+    }
+    const currentTab = await browser.tabs.get(tab.id).catch(() => tab);
+    const loginRedirectError = buildLoginRedirectErrorForUrl(currentTab.url ?? currentTab.pendingUrl ?? '');
+    if (loginRedirectError) {
+      return {
+        type: 'POST_RESULT',
+        platform: adapter.id,
+        success: false,
+        error: loginRedirectError,
+      };
     }
     if (wasCreated && !dryRun) options.openedTabs.record(adapter.id, tab.id);
 
@@ -253,6 +270,17 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
     try {
       response = await sendPostMessageWhenReady(tab.id, message);
     } catch (err) {
+      if (isMissingReceiverError(err)) {
+        const loginError = await buildMissingReceiverLoginError(tab.id, adapter.id);
+        if (loginError) {
+          return {
+            type: 'POST_RESULT',
+            platform: adapter.id,
+            success: false,
+            error: loginError,
+          };
+        }
+      }
       const recovered = await recoverFromMaybeLandedChannelClose(err, adapter.id, tab.id, text, expectedUser, dryRun);
       if (recovered) return recovered;
       throw err;
@@ -370,6 +398,16 @@ export function buildDomPostAttempts(adapter: PlatformAdapter, autoPost: boolean
   }
 
   return attempts;
+}
+
+export function shouldReuseExistingTabForAttempt(
+  adapter: Pick<PlatformAdapter, 'requiresForegroundTab'>,
+  autoPost: boolean,
+  attempt: Pick<DomPostAttempt, 'reuseExistingTab'> = {},
+): boolean {
+  if (typeof attempt.reuseExistingTab === 'boolean') return attempt.reuseExistingTab;
+  const dryRun = !autoPost;
+  return dryRun && adapter.requiresForegroundTab !== true;
 }
 
 async function attachVerifyResult(

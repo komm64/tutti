@@ -948,6 +948,8 @@ export default defineContentScript({
           // Draft.js (TikTok Studio): upload 後に filename 由来の初期 caption
           // が入る variant がある。DOM だけ消して paste すると controlled
           // state 側の旧値へ追記されるため、editor selection を全置換する。
+          const visibleNow = (): string =>
+            (el as HTMLElement).innerText ?? el.textContent ?? '';
           const sel = window.getSelection();
           el.focus();
           if (sel) {
@@ -956,27 +958,55 @@ export default defineContentScript({
             range.selectNodeContents(el);
             sel.addRange(range);
           }
+          el.dispatchEvent(new InputEvent('beforeinput', {
+            bubbles: true,
+            cancelable: true,
+            inputType: 'deleteByCut',
+            data: null,
+          }));
           try {
             document.execCommand('delete', false);
           } catch { /* fallback below verifies the DOM */ }
-          const dt = new DataTransfer();
-          dt.setData('text/plain', text);
-          el.dispatchEvent(new ClipboardEvent('paste', {
+          el.dispatchEvent(new InputEvent('input', {
             bubbles: true,
-            cancelable: true,
-            clipboardData: dt,
+            inputType: 'deleteContentBackward',
+            data: null,
           }));
+          await new Promise((r) => setTimeout(r, 120));
+
           const matchSnippet = text.slice(0, Math.min(16, text.length));
-          const visibleNow = (): string =>
-            (el as HTMLElement).innerText ?? el.textContent ?? '';
-          const pasted = await waitFor(
-            () => matchSnippet === '' || visibleNow().includes(matchSnippet),
-            600,
-          );
-          if (!pasted) {
-            try {
-              document.execCommand('insertText', false, text);
-            } catch { /* fallback below verifies the DOM */ }
+          if (text.trim().length > 0) {
+            const dt = new DataTransfer();
+            dt.setData('text/plain', text);
+            el.dispatchEvent(new ClipboardEvent('paste', {
+              bubbles: true,
+              cancelable: true,
+              clipboardData: dt,
+            }));
+            const pasted = await waitFor(
+              () => visibleNow().includes(matchSnippet),
+              600,
+            );
+            if (!pasted) {
+              el.dispatchEvent(new InputEvent('beforeinput', {
+                bubbles: true,
+                cancelable: true,
+                inputType: 'insertText',
+                data: text,
+              }));
+              try {
+                document.execCommand('insertText', false, text);
+              } catch { /* fallback below verifies the DOM */ }
+            }
+            const inserted = await waitFor(
+              () => visibleNow().includes(matchSnippet),
+              600,
+            );
+            if (!inserted) {
+              el.textContent = text;
+            }
+          } else if (visibleNow().trim().length > 0) {
+            el.textContent = '';
           }
           el.dispatchEvent(new InputEvent('input', {
             bubbles: true, data: text, inputType: 'insertText',

@@ -1,6 +1,29 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ImagePreview } from './types';
+
+const mediaPreviewMocks = vi.hoisted(() => ({
+  createImagePreview: vi.fn(async (file: File) => ({
+    name: file.name,
+    type: file.type,
+    data: 'image-data',
+    previewUrl: `blob:${file.name}`,
+  })),
+  createVideoPreview: vi.fn(async (file: File) => ({
+    name: file.name,
+    type: file.type,
+    data: 'video-data',
+    previewUrl: `blob:${file.name}`,
+    durationS: 30,
+  })),
+  revokeImagePreview: vi.fn(),
+  revokeImagePreviews: vi.fn(),
+  revokeVideoPreview: vi.fn(),
+}));
+
+vi.mock('./media-preview', () => mediaPreviewMocks);
+
 import {
+  addFilesToMediaState,
   moveImageAt,
   removeImageAt,
   removeVideoFromState,
@@ -21,6 +44,10 @@ function image(name: string): ImagePreview {
 }
 
 describe('popup media state', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it('removes image previews and matching alt text together', () => {
     const state: PopupMediaState = {
       images: [image('a'), image('b')],
@@ -65,5 +92,27 @@ describe('popup media state', () => {
       video: null,
       imageAlts: ['alt a'],
     });
+  });
+
+  it('normalizes mixed image and video input to video-only state', async () => {
+    const state: PopupMediaState = {
+      images: [image('existing')],
+      video: null,
+      imageAlts: ['existing alt'],
+    };
+
+    const result = await addFilesToMediaState(state, [
+      { name: 'photo.png', type: 'image/png' } as File,
+      { name: 'clip.mp4', type: 'video/mp4' } as File,
+    ]);
+
+    expect(result).toMatchObject({
+      images: [],
+      video: { name: 'clip.mp4', type: 'video/mp4', durationS: 30 },
+      imageAlts: [],
+    });
+    expect(mediaPreviewMocks.createVideoPreview).toHaveBeenCalledWith(expect.objectContaining({ name: 'clip.mp4' }));
+    expect(mediaPreviewMocks.createImagePreview).not.toHaveBeenCalled();
+    expect(mediaPreviewMocks.revokeImagePreviews).toHaveBeenCalledWith(state.images);
   });
 });

@@ -38,6 +38,17 @@ export default defineContentScript({
   ],
   runAt: 'document_idle',
   main() {
+    const hasVideoEvidence = (): boolean => {
+      const videoMeta =
+        document.querySelector<HTMLMetaElement>('meta[property="og:video"]')?.content ||
+        document.querySelector<HTMLMetaElement>('meta[property="og:video:url"]')?.content ||
+        document.querySelector<HTMLMetaElement>('meta[property="og:video:secure_url"]')?.content ||
+        document.querySelector<HTMLMetaElement>('meta[name="twitter:player"]')?.content;
+      if (videoMeta?.trim()) return true;
+      if (document.querySelector('video')) return true;
+      return !!document.querySelector('[data-testid*="video" i], [aria-label*="video" i]');
+    };
+
     browser.runtime.onMessage.addListener((rawMsg, _sender, sendResponse) => {
       const msg = rawMsg as Message;
       if (msg.type !== 'VERIFY_POST_DOM') return;
@@ -53,6 +64,7 @@ export default defineContentScript({
         type: 'VERIFY_POST_DOM_RESULT',
         ogDescription,
         ogImage,
+        hasVideo: hasVideoEvidence(),
         bodyExcerpt,
       });
       return true;

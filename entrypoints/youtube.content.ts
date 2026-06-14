@@ -303,12 +303,7 @@ async function runPost(
   await executeMultiStepFlow({
     steps,
     finalize: {
-      finder: () => {
-        const btns = Array.from(document.querySelectorAll<HTMLElement>('button, ytcp-button'))
-          .filter((b) => /^Publish$|^Save$|^公開$|^保存$/i.test((b.textContent ?? '').trim()));
-        const enabled = btns.find((b) => !(b as HTMLButtonElement).disabled);
-        return enabled ?? btns[0] ?? null;
-      },
+      finder: findYouTubePublishButton,
       texts: ['Publish', 'Save', '公開', '保存'],
       // v0.5.11〜 YouTube は自動 content check (copyright / safety) が間に合わない
       // 動画 (実写 / 長尺 / 音楽あり) で Publish click 直後に確認 dialog を出す:
@@ -345,6 +340,51 @@ async function runPost(
     success: true,
     url,
   };
+}
+
+function findYouTubePublishButton(): HTMLElement | null {
+  const selectors = [
+    '#done-button',
+    '#done-button button',
+    'ytcp-button#done-button',
+    'ytcp-button[aria-label*="Publish" i]',
+    'ytcp-button[aria-label*="Save" i]',
+    'ytcp-button[aria-label*="公開" i]',
+    'ytcp-button[aria-label*="保存" i]',
+  ];
+  const selectorMatches = selectors.flatMap((selector) => (
+    Array.from(document.querySelectorAll<HTMLElement>(selector))
+  ));
+  const textMatches = Array.from(document.querySelectorAll<HTMLElement>('button, ytcp-button'))
+    .filter((b) => {
+      const text = getButtonLabel(b);
+      return /^Publish$|^Save$|^公開$|^保存$/i.test(text);
+    });
+  const buttons = uniqueElements([...selectorMatches, ...textMatches]);
+  return buttons.find((button) => !isDisabledButton(button)) ?? buttons[0] ?? null;
+}
+
+function getButtonLabel(el: HTMLElement): string {
+  return (
+    el.getAttribute('aria-label') ??
+    el.textContent ??
+    ''
+  ).replace(/\s+/g, ' ').trim();
+}
+
+function isDisabledButton(el: HTMLElement): boolean {
+  return (el as HTMLButtonElement).disabled === true ||
+    el.getAttribute('aria-disabled') === 'true' ||
+    el.hasAttribute('disabled');
+}
+
+function uniqueElements<T extends Element>(elements: T[]): T[] {
+  const seen = new Set<T>();
+  return elements.filter((element) => {
+    if (seen.has(element)) return false;
+    seen.add(element);
+    return true;
+  });
 }
 
 /**

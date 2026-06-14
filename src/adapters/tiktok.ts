@@ -1,5 +1,7 @@
 import type { PlatformAdapter } from './types';
 
+export const TIKTOK_EMPTY_CAPTION_SENTINEL = '\u200B';
+
 /**
  * TikTok web upload (TikTok Studio)。/tiktokstudio/upload で動画 only。
  * 2024 年に "Photo Mode" が追加されたが Web は依然 video-first。
@@ -45,7 +47,10 @@ export const TIKTOK_SELECTORS = {
    * input[type=file][accept=video/*]。Pixiv 同様 setter で files を入れると React が
    * 反応して upload 開始 + caption form mount。
    */
-  fileInput: 'input[type="file"][accept*="video"]',
+  fileInput:
+    'input[type="file"][accept*="video"], ' +
+    'input[type="file"][accept*="mp4"], ' +
+    'input[type="file"]:not([accept*="image"])',
   /**
    * caption editor。TikTok Studio は Draft.js (Facebook の rich text editor) を使う。
    * `.public-DraftEditor-content` がエディタ本体 (`contenteditable=true`、role=combobox)。
@@ -63,5 +68,6 @@ export const TIKTOK_SELECTORS = {
  * hashtag は本文中に含まれていればそのまま (TikTok は hashtag を本文中で使う)。
  */
 export function buildTikTokCaption(text: string): string {
-  return text.slice(0, 2200);
+  const caption = text.slice(0, 2200);
+  return caption.length > 0 ? caption : TIKTOK_EMPTY_CAPTION_SENTINEL;
 }

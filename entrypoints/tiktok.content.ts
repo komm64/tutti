@@ -66,7 +66,12 @@ async function runPost(
       // 動画 file input に inject。upload が始まり caption form が mount される
       name: 'inject-video',
       action: async () => {
-        await waitForElement<HTMLInputElement>(sel.fileInput, 15000);
+        const input = await waitForElement<HTMLInputElement>(sel.fileInput, 45000);
+        if (!input) {
+          const buttons = dumpVisibleButtons();
+          const buttonHint = buttons ? ` [visible buttons: ${buttons}]` : '';
+          throw new Error(`file input not found on ${location.pathname}${buttonHint}`);
+        }
         await injectImages([video], sel.fileInput);
       },
       // upload + caption form 描画。30s 程度かかることもあるので長め
@@ -80,7 +85,7 @@ async function runPost(
         if (!el) {
           throw new Error(t('runtimeTikTokCaptionMissing'));
         }
-        await injectTextIntoElement(caption, sel.captionEditor);
+        await setTikTokCaption(caption, sel.captionEditor);
       },
       settleMs: 500,
     },
@@ -130,4 +135,52 @@ async function runPost(
     success: true,
     url,
   };
+}
+
+async function setTikTokCaption(caption: string, selector: string): Promise<void> {
+  let lastError: string | undefined;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      await injectTextIntoElement(caption, selector);
+    } catch (e) {
+      lastError = e instanceof Error ? e.message : String(e);
+    }
+
+    await sleep(500);
+    const visible = readTikTokCaption(selector);
+    if (captionMatches(visible, caption)) return;
+
+    lastError = caption
+      ? `caption mismatch after inject attempt ${attempt}: "${visible.slice(0, 80)}"`
+      : `caption was not cleared after inject attempt ${attempt}: "${visible.slice(0, 80)}"`;
+    log.warn(`TikTok: ${lastError}`);
+    await injectTextIntoElement('', selector).catch(() => {});
+    await sleep(300);
+  }
+  throw new Error(lastError ?? 'TikTok caption injection failed');
+}
+
+function readTikTokCaption(selector: string): string {
+  const el = document.querySelector<HTMLElement>(selector);
+  return (el?.innerText ?? el?.textContent ?? '').trim();
+}
+
+function captionMatches(visible: string, expected: string): boolean {
+  const actual = visible.replace(/\s+/g, ' ').trim();
+  const normalizedExpected = expected.replace(/\s+/g, ' ').trim();
+  if (!normalizedExpected) return actual.length === 0;
+  const snippet = normalizedExpected.slice(0, Math.min(20, normalizedExpected.length));
+  return actual.includes(snippet);
+}
+
+function dumpVisibleButtons(): string {
+  return Array.from(document.querySelectorAll<HTMLElement>('button, [role="button"], a[href]'))
+    .map((el) => (
+      el.getAttribute('aria-label') ??
+      el.textContent ??
+      ''
+    ).replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .slice(0, 12)
+    .join(' | ');
 }

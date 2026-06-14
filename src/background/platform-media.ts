@@ -20,6 +20,7 @@ export async function prepareMediaForPlatform(
 ): Promise<PlatformMediaPreparation> {
   const videoItem = images?.find((img) => img.type.startsWith('video/'));
   if (videoItem) {
+    const videoOnly = [videoItem];
     const isLong = (videoItem.durationS ?? 0) > 60;
     const requiredKind = isLong ? 'longVideo' : 'shortVideo';
     if (!adapter.kinds.includes(requiredKind)) {
@@ -67,7 +68,7 @@ export async function prepareMediaForPlatform(
         };
       }
     }
-    return { ok: true, images };
+    return { ok: true, images: videoOnly };
   }
 
   if (!images || images.length === 0) return { ok: true, images };

@@ -15,14 +15,17 @@ export const threadsAdapter: PlatformAdapter = {
     `https://www.threads.com/intent/post?text=${encodeURIComponent(text)}`,
   getLoginUrl: () => 'https://www.threads.com/',
   prefillsViaUrl: true,
+  videoConstraints: {
+    // Threads supports video posts on web. Keep the platform enabled, but rely
+    // on post-submit verification to catch the previous text-only failure mode.
+    maxDurationS: 300,
+    maxBytes: 1024 * 1024 * 1024, // 1GB
+  },
   imageConstraints: {
     maxBytesPerImage: 8 * 1024 * 1024, // 8MB
     maxImages: 10,
   },
-  // 2026-06: Threads Web accepted the injected video path but published a
-  // text-only post in Surface verification. Disable video until the web flow
-  // can prove the media survives the published post.
-  kinds: ['text', 'image'],
+  kinds: ['text', 'image', 'shortVideo', 'longVideo'],
 };
 
 export const THREADS_SELECTORS = {
@@ -32,8 +35,10 @@ export const THREADS_SELECTORS = {
   textarea: 'div[contenteditable="true"][role="textbox"], div[contenteditable="plaintext-only"]',
   /** 画像添付用 file input */
   fileInput:
+    '[role="dialog"] input[type="file"][accept*="video"],' +
     '[role="dialog"] input[type="file"][accept*="image"],' +
     '[role="dialog"] input[type="file"],' +
+    'input[type="file"][accept*="video"],' +
     'input[type="file"][accept*="image"],' +
     'input[type="file"]',
   /** Current Threads Web accepts media through drop on the compose textbox. */
