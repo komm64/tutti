@@ -109,10 +109,11 @@ async function runPost(
   // v0.4.94: textChunks > 1 のとき X の inline thread compose UI ("+" Add post
   // button) を使って 1 つの compose に全 chunks を並べる。
   // preview mode は post button を click せずに highlight、 user が確認後に押す。
+  let submittedAt: number | undefined;
   if (textChunks && textChunks.length > 1) {
-    await executeXInlineThread(sel, textChunks, images, dryRun);
+    submittedAt = await executeXInlineThread(sel, textChunks, images, dryRun);
   } else {
-    await executeXSinglePost(text, images, dryRun);
+    submittedAt = await executeXSinglePost(text, images, dryRun);
   }
 
   // dryRun でなければ post URL を capture (= 本当の完了)。 reply chain の連結
@@ -124,7 +125,7 @@ async function runPost(
     if (!cleanHandle) {
       throw new Error(t('runtimeXOwnHandleMissing'));
     }
-    const captured = await captureNewXPostUrl(cleanHandle, beforeIds, 60000);
+    const captured = await captureNewXPostUrl(cleanHandle, beforeIds, 60000, submittedAt);
     if (!captured) {
       throw new Error(t('runtimeXPostUrlTimeout'));
     }
@@ -143,7 +144,7 @@ async function executeXSinglePost(
   text: string,
   images: ImageAttachment[] | undefined,
   dryRun: boolean | undefined,
-): Promise<void> {
+): Promise<number | undefined> {
   const composeRoot = await waitForXComposeDialog(X_SINGLE_COMPOSE_READY_TIMEOUT_MS);
   if (!composeRoot) {
     throw new Error(t(
@@ -174,7 +175,10 @@ async function executeXSinglePost(
     // X は media attach 時に Lexical editor を remount することがあるので、
     // media → settle → text の順で dialog 内に限定して注入する。
     if (images && images.length > 0) {
-      await injectImages(images, scopedXComposeSelector(rootMarker, X_COMPOSE_FILE_INPUT_SELECTOR));
+      await injectImages(images, scopedXComposeSelector(rootMarker, X_COMPOSE_FILE_INPUT_SELECTOR), {
+        requireMediaAccepted: true,
+        requireMediaPreview: true,
+      });
       await sleep(X_SINGLE_MEDIA_SETTLE_MS);
     }
 
@@ -198,8 +202,10 @@ async function executeXSinglePost(
       return;
     }
 
-    markPostSubmissionStarted();
+    const submittedAt = Date.now();
+    markPostSubmissionStarted(submittedAt);
     await clickElementMarkedInMainWorld(postBtn, 'tutti-x-post');
+    return submittedAt;
   } finally {
     unmarkXComposeRoot(composeRoot, rootMarker);
   }
@@ -232,7 +238,7 @@ async function executeXInlineThread(
   chunks: string[],
   images: ImageAttachment[] | undefined,
   dryRun: boolean | undefined,
-): Promise<void> {
+): Promise<number | undefined> {
   // Thread compose は /compose/post modal 専用。home の inline composer には
   // Add post UI が安定して存在しないため、fallback selector で拾わない。
   const textarea0 = await waitForVisibleXElement(
@@ -260,7 +266,10 @@ async function executeXInlineThread(
     // 「画像だけ表示」 になっていた (user 報告 2026-05-23)。 wait を 2500ms に
     // 拡張 + injectTextWithRetry で多段 verify+re-inject。
     if (images && images.length > 0) {
-      await injectImages(images, scopedXComposeSelector(rootMarker, X_COMPOSE_FILE_INPUT_SELECTOR));
+      await injectImages(images, scopedXComposeSelector(rootMarker, X_COMPOSE_FILE_INPUT_SELECTOR), {
+        requireMediaAccepted: true,
+        requireMediaPreview: true,
+      });
       await sleep(2500);
     }
 
@@ -322,8 +331,10 @@ async function executeXInlineThread(
       setTimeout(() => { postBtn.style.outline = orig; }, 5000);
       return;
     }
-    markPostSubmissionStarted();
+    const submittedAt = Date.now();
+    markPostSubmissionStarted(submittedAt);
     await clickElementMarkedInMainWorld(postBtn, 'tutti-x-post-all');
+    return submittedAt;
   } finally {
     unmarkXComposeRoot(composeRoot, rootMarker);
   }
@@ -692,20 +703,29 @@ async function captureNewXPostUrl(
   handle: string,
   before: Set<string>,
   timeoutMs: number,
+  minCapturedAt?: number,
 ): Promise<string | null> {
   const deadline = Date.now() + timeoutMs;
   const re = new RegExp(`/${handle}/status/(\\d+)`);
   while (Date.now() < deadline) {
-    const captured = await getLatestXPostUrlInMainWorld(handle);
+    const captured = await getLatestXPostUrlInMainWorld(handle, minCapturedAt);
     if (captured) return captured;
     const links = Array.from(document.querySelectorAll<HTMLAnchorElement>(`a[href*="/${handle}/status/"]`));
     for (const link of links) {
       const m = link.getAttribute('href')?.match(re);
-      if (m && m[1] && !before.has(m[1])) {
+      if (m && m[1] && !before.has(m[1]) && isXStatusLinkAfter(link, minCapturedAt)) {
         return `https://x.com/${handle}/status/${m[1]}`;
       }
     }
     await sleep(500);
   }
   return null;
+}
+
+function isXStatusLinkAfter(link: HTMLAnchorElement, minCapturedAt: number | undefined): boolean {
+  if (!minCapturedAt) return true;
+  const time = link.closest('article')?.querySelector<HTMLTimeElement>('time[datetime]');
+  const timestamp = Date.parse(time?.dateTime ?? time?.getAttribute('datetime') ?? '');
+  if (!Number.isFinite(timestamp)) return false;
+  return timestamp >= minCapturedAt - 5000;
 }

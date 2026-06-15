@@ -44,4 +44,16 @@ describe('buildPostIds', () => {
       },
     ])).toEqual({});
   });
+
+  it('does not extract IDs from unconfirmed history attempts', () => {
+    expect(buildPostIds([
+      {
+        type: 'POST_RESULT',
+        platform: 'tumblr',
+        success: false,
+        uncertain: true,
+        error: 'check before retry',
+      },
+    ])).toEqual({});
+  });
 });

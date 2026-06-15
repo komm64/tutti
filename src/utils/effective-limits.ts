@@ -13,6 +13,7 @@
 import type { PlatformId } from '../messages';
 import type { VideoConstraints } from '../adapters/types';
 import { getApiCredentials } from './api-credentials';
+import { getSettings } from '../storage';
 import { getVideoConstraintsOverrides } from './selector-overrides';
 import {
   probeBluesky,
@@ -40,7 +41,15 @@ async function probePlatform(platform: PlatformId): Promise<ProbedLimits | null>
   const creds = await getApiCredentials();
   try {
     if (platform === 'bluesky' && creds.bluesky) return await probeBluesky(creds.bluesky);
-    if (platform === 'mastodon' && creds.mastodon) return await probeMastodon(creds.mastodon);
+    if (platform === 'mastodon') {
+      const settings = await getSettings();
+      return await probeMastodon(
+        creds.mastodon ?? {
+          instance: settings.mastodonInstance,
+          accessToken: '',
+        },
+      );
+    }
     if (platform === 'misskey' && creds.misskey) return await probeMisskey(creds.misskey);
   } catch (e) {
     return { fetchedAt: Date.now(), error: e instanceof Error ? e.message : String(e) };

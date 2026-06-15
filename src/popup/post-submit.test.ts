@@ -3,6 +3,7 @@ import type { PostResultMessage } from '../messages';
 import {
   buildRetryDedupSkippedResults,
   failedRetryPlatforms,
+  isDurablePostedResult,
   mergePostResults,
   sendPostRequest,
   shouldClearDraftAfterSubmit,
@@ -47,10 +48,33 @@ describe('popup post submit policy', () => {
   });
 
   it('clears drafts only for non-empty successful real post results', () => {
-    expect(shouldClearDraftAfterSubmit(true, [{ type: 'POST_RESULT', platform: 'x', success: true }])).toBe(true);
-    expect(shouldClearDraftAfterSubmit(false, [{ type: 'POST_RESULT', platform: 'x', success: true }])).toBe(false);
+    const durable: PostResultMessage = {
+      type: 'POST_RESULT',
+      platform: 'x',
+      success: true,
+      confirmed: true,
+      url: 'https://x.com/alice/status/123',
+    };
+    expect(shouldClearDraftAfterSubmit(true, [durable])).toBe(true);
+    expect(shouldClearDraftAfterSubmit(false, [durable])).toBe(false);
     expect(shouldClearDraftAfterSubmit(true, [{ type: 'POST_RESULT', platform: 'x', success: true, preview: true }])).toBe(false);
+    expect(shouldClearDraftAfterSubmit(true, [{ type: 'POST_RESULT', platform: 'x', success: true }])).toBe(false);
     expect(shouldClearDraftAfterSubmit(true, [])).toBe(false);
+  });
+
+  it('requires a URL as durable post evidence', () => {
+    expect(isDurablePostedResult({
+      type: 'POST_RESULT',
+      platform: 'x',
+      success: true,
+      url: 'https://x.com/alice/status/123',
+    })).toBe(true);
+    expect(isDurablePostedResult({
+      type: 'POST_RESULT',
+      platform: 'tumblr',
+      success: true,
+      confirmed: true,
+    })).toBe(false);
   });
 
   it('separates retryable failures from uncertain results', () => {

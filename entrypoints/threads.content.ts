@@ -165,7 +165,10 @@ export default defineContentScript({
 async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolean): Promise<PostResultMessage> {
   const sel = await resolveSelectors('threads', THREADS_SELECTORS);
   const postingUser = detectThreadsUser()?.replace(/^@/, '') ?? null;
-  const shouldUseLatestDiff = !dryRun && !!postingUser && !text.trim();
+  const hasMedia = !!images?.length;
+  const hasVideo = !!images?.some((image) => image.type.startsWith('video/'));
+  const postSettleTimeoutMs = hasVideo ? 120_000 : hasMedia ? 60_000 : 30_000;
+  const shouldUseLatestDiff = !dryRun && !!postingUser;
   const preSubmitSnapshot = shouldUseLatestDiff && postingUser
     ? await fetchThreadsLatestPostSnapshot(postingUser)
     : { ok: false, url: undefined };
@@ -183,14 +186,16 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     // Threads の post button は React Native Web で aria-label / data-testid が
     // 不安定。テキスト「投稿」「Post」で探す finder を使う。
     postButtonFinder: findThreadsPostButton,
+    fileInputSelector: sel.fileInput,
     dropTargetSelector: sel.dropTarget,
+    mediaAttachOrder: ['input', 'drop'],
     text,
     images,
     postButtonTimeoutMs: 12000,
     dryRun,
-    requireMediaAccepted: !!images?.length,
-    requireMediaPreview: !!images?.length,
-    beforeDropDelayMs: images?.length ? 5000 : undefined,
+    requireMediaAccepted: hasMedia,
+    requireMediaPreview: hasMedia,
+    beforeDropDelayMs: hasMedia ? 5000 : undefined,
     clickPostButton: () => clickElementInMainWorld(
       '[role="dialog"] [role="button"], [role="dialog"] button',
       ['Post', '投稿', '投稿する', 'Post now'],
@@ -199,13 +204,23 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
   if (!dryRun) {
     const closed = await waitForCondition<boolean>(
       () => isThreadsDraftOpen(text, sel.textarea) ? null : true,
-      { timeoutMs: 30_000, intervalMs: 500 },
+      { timeoutMs: postSettleTimeoutMs, intervalMs: 500 },
     );
     if (!closed && isThreadsDraftOpen(text, sel.textarea)) {
-      await clickElementInMainWorld(
-        '[role="dialog"] [role="button"], [role="dialog"] button',
-        ['Post', '投稿', '投稿する', 'Post now'],
-      );
+      const button = findThreadsPostButton();
+      if (button && !isDisabled(button)) {
+        log.warn('Threads: composer still open after submit; enabled Post button returned, retrying click once');
+        await clickElementInMainWorld(
+          '[role="dialog"] [role="button"], [role="dialog"] button',
+          ['Post', '投稿', '投稿する', 'Post now'],
+        );
+        await waitForCondition<boolean>(
+          () => isThreadsDraftOpen(text, sel.textarea) ? null : true,
+          { timeoutMs: Math.min(postSettleTimeoutMs, 60_000), intervalMs: 500 },
+        );
+      } else {
+        log.warn('Threads: composer still open but Post button is disabled/missing; treating as still processing and moving to URL capture');
+      }
     }
   }
 
@@ -218,7 +233,7 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
   let confirmed = !!dryRun;
   if (!dryRun) {
     let captured: string | null = null;
-    const deadline = Date.now() + 20_000;
+    const deadline = Date.now() + Math.max(20_000, Math.min(postSettleTimeoutMs, 60_000));
     while (Date.now() < deadline) {
       captured = await waitForPostUrl([
         /^https:\/\/(?:www\.)?threads\.(?:com|net)\/@[^/]+\/post\/[\w-]+/,
@@ -230,17 +245,17 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
       url = captured;
       confirmed = true;
     } else {
-      const apiUrl = await waitForLatestThreadsCapturedPost(text, 20_000);
+      const apiUrl = await waitForLatestThreadsCapturedPost(text, Math.max(20_000, Math.min(postSettleTimeoutMs, 60_000)));
       if (apiUrl) {
         url = apiUrl;
         confirmed = true;
       } else {
-        const profileUrl = await captureThreadsPostUrlFromProfile(text, postingUser, 30_000);
+          const profileUrl = await captureThreadsPostUrlFromProfile(text, postingUser, Math.max(30_000, Math.min(postSettleTimeoutMs, 90_000)));
         if (profileUrl) {
           url = profileUrl;
           confirmed = true;
         } else if (postingUser && shouldUseLatestDiff && preSubmitSnapshot.ok) {
-          const latestDiffUrl = await captureThreadsPostUrlByLatestDiff(postingUser, preSubmitSnapshot.url, 30_000);
+          const latestDiffUrl = await captureThreadsPostUrlByLatestDiff(postingUser, preSubmitSnapshot.url, Math.max(30_000, Math.min(postSettleTimeoutMs, 90_000)));
           if (latestDiffUrl) {
             url = latestDiffUrl;
             confirmed = true;
@@ -439,6 +454,10 @@ function findThreadsPostButton(): HTMLElement | null {
     if (el) return el;
   }
   return findClickableByText(['Post', '投稿', '投稿する', 'Post now']);
+}
+
+function isDisabled(el: HTMLElement): boolean {
+  return el.getAttribute('aria-disabled') === 'true' || (el as HTMLButtonElement).disabled === true;
 }
 
 function isThreadsDraftOpen(text: string, textareaSelector: string): boolean {

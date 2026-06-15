@@ -12,6 +12,7 @@ interface InjectRequest {
   selector: string;
   files: { name: string; type: string; data: string }[];
   text?: string;
+  minCapturedAt?: number;
   tags?: string[];
   texts?: string[];
   uploadTimeoutMs?: number;
@@ -189,12 +190,16 @@ export async function clickElementInMainWorld(selector: string, texts?: string[]
   }
 }
 
-export async function getLatestXPostUrlInMainWorld(handle: string): Promise<string | undefined> {
+export async function getLatestXPostUrlInMainWorld(
+  handle: string,
+  minCapturedAt?: number,
+): Promise<string | undefined> {
   const result = await sendInjectRequest({
     mode: 'x-post-url',
     selector: '',
     files: [],
     text: handle,
+    minCapturedAt,
   });
   return result.url;
 }

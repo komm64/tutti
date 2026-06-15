@@ -28,6 +28,20 @@ describe('classifyFailure', () => {
     expect(h.reason).toMatch(/captcha/);
   });
 
+  it('uses structured recovery actions before message guessing', () => {
+    const h = classifyFailure('Something vague', 'threads', 'https://www.threads.com/', 'check-post-before-retry');
+    expect(h.reason).toMatch(/確認/);
+    expect(h.guidance).toMatch(/重複投稿/);
+    expect(h.ctas.find((c) => c.kind === 'retry')).toBeUndefined();
+    expect(h.ctas.find((c) => c.kind === 'open-sns')).toBeDefined();
+  });
+
+  it('guides users to foreground the social tab when needed', () => {
+    const h = classifyFailure('Posting requires an active tab', 'instagram', 'https://www.instagram.com/');
+    expect(h.reason).toMatch(/手動操作/);
+    expect(h.guidance).toMatch(/前面/);
+  });
+
   it('catches size over limit', () => {
     const h = classifyFailure('Video too large: 200MB exceeds 100MB limit', 'bluesky', undefined);
     expect(h.reason).toMatch(/上限/);
@@ -36,6 +50,16 @@ describe('classifyFailure', () => {
   it('catches timeout', () => {
     const h = classifyFailure('SNS ページの読み込みがタイムアウトしました', 'mastodon', undefined);
     expect(h.reason).toMatch(/タイムアウト/);
+  });
+
+  it('catches post-submit uncertain confirmations', () => {
+    const h = classifyFailure(
+      'Tutti submitted the post action but could not confirm the resulting post.',
+      'tumblr',
+      'https://www.tumblr.com/',
+    );
+    expect(h.reason).toMatch(/確認/);
+    expect(h.ctas.find((c) => c.kind === 'retry')).toBeUndefined();
   });
 
   it('catches duplicate / rate-limit', () => {

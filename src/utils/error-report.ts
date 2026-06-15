@@ -1,4 +1,4 @@
-import type { ImageAttachment, LogEntry, PlatformId } from '../messages';
+import type { ImageAttachment, LogEntry, PlatformId, PostResultMessage } from '../messages';
 import { base64ByteLength } from './base64';
 import { formatBytes } from './formatters';
 import { splitTextForPlatform } from './platform-text';
@@ -23,6 +23,7 @@ export interface CurrentDraftReportInput {
   cw: string;
   visibility: 'public' | 'unlisted' | 'private' | 'direct';
   trimToS?: number | null;
+  lastResults?: readonly PostResultMessage[] | null;
 }
 
 export interface ErrorReportPayloadInput {
@@ -73,6 +74,28 @@ export function buildCurrentDraftReportSection(input: CurrentDraftReportInput): 
     `- Visibility: ${input.visibility}`,
     `- Trim video to seconds: ${input.trimToS ?? '(none)'}`,
     ...(mediaItems.length > 0 ? mediaItems : ['- Media items: (none)']),
+    ...buildResultSummaryLines(input.lastResults),
+  ];
+}
+
+function buildResultSummaryLines(results: readonly PostResultMessage[] | null | undefined): string[] {
+  if (!results || results.length === 0) return ['- Last results: (none)'];
+  return [
+    '- Last results:',
+    ...results.map((result) => {
+      const flow = result.flow;
+      return [
+        `  - ${result.platform}:`,
+        `success=${result.success}`,
+        result.preview ? 'preview=true' : undefined,
+        result.confirmed ? 'confirmed=true' : undefined,
+        result.uncertain ? 'uncertain=true' : undefined,
+        result.userAction ? `userAction=${result.userAction}` : undefined,
+        flow?.submitReached !== undefined ? `submitReached=${flow.submitReached}` : undefined,
+        flow?.lastCompletedStep ? `lastCompletedStep=${flow.lastCompletedStep}` : undefined,
+        flow?.failedStep ? `failedStep=${flow.failedStep}` : undefined,
+      ].filter(Boolean).join(' ').replace(': success=', ': success=');
+    }),
   ];
 }
 

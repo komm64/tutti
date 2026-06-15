@@ -58,7 +58,7 @@ try {
 
   const extensionId = await detectExtensionId(context);
   console.log(`[mock-smoke] extension id=${extensionId}`);
-  popupPage = await openExtensionPage(context, extensionId, 'popup.html');
+  popupPage = await openExtensionPage(context, extensionId, 'history.html');
   await resetExtensionStorage(popupPage);
   await ensureMockXComposePage(context);
 
@@ -190,6 +190,7 @@ async function runPopupPreviewSmoke(ctx, extensionId) {
   const page = await openExtensionPage(ctx, extensionId, 'popup.html');
   await page.waitForSelector('textarea');
   await acceptResponsibleUseIfShown(page);
+  await waitForSelectedPlatforms(page, ['X']);
 
   const text = twoChunkText('popup');
   await page.locator('textarea').fill(text);
@@ -209,6 +210,19 @@ async function runPopupPreviewSmoke(ctx, extensionId) {
 
   const history = await getPostHistory(page);
   assert(history.length === 1 && history[0]?.id === 'seed-history', `popup preview changed history: ${JSON.stringify(history)}`);
+}
+
+async function waitForSelectedPlatforms(page, expectedNames) {
+  await page.waitForFunction((expected) => {
+    const checkedNames = Array.from(document.querySelectorAll('label'))
+      .map((label) => {
+        const input = label.querySelector('input[type="checkbox"]');
+        const name = label.querySelector('.font-medium')?.textContent?.trim();
+        return input?.checked && name ? name : null;
+      })
+      .filter(Boolean);
+    return JSON.stringify(checkedNames) === JSON.stringify(expected);
+  }, expectedNames);
 }
 
 async function acceptResponsibleUseIfShown(page) {

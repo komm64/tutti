@@ -352,6 +352,8 @@ export interface HistoryPlatformResult {
   success: boolean;
   confirmed?: boolean;
   uncertain?: boolean;
+  userAction?: PostResultMessage['userAction'];
+  flow?: Pick<NonNullable<PostResultMessage['flow']>, 'mode' | 'attempt' | 'lastCompletedStep' | 'failedStep' | 'submitReached'>;
   url?: string;
   error?: string;
   postId?: string;
@@ -506,6 +508,16 @@ export async function addToPostHistory(
           success: r.success,
           confirmed: r.confirmed,
           uncertain: r.uncertain,
+          userAction: r.userAction,
+          flow: r.flow
+            ? {
+                mode: r.flow.mode,
+                attempt: r.flow.attempt,
+                lastCompletedStep: r.flow.lastCompletedStep,
+                failedStep: r.flow.failedStep,
+                submitReached: r.flow.submitReached,
+              }
+            : undefined,
           url: r.url,
           error: r.error,
           postId: opts.postIds?.[r.platform],

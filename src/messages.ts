@@ -5,6 +5,31 @@
 
 export type PlatformId = 'x' | 'bluesky' | 'threads' | 'mastodon' | 'misskey' | 'tumblr' | 'pixiv' | 'deviantart' | 'instagram' | 'tiktok' | 'youtube';
 
+export type UserActionCategory =
+  | 'sign-in'
+  | 'check-account'
+  | 'complete-captcha'
+  | 'complete-confirmation'
+  | 'activate-tab'
+  | 'check-post-before-retry'
+  | 'fix-media'
+  | 'wait'
+  | 'report-ui-change';
+
+export type PostFlowStep = string;
+
+export interface PostFlowTrace {
+  mode?: 'preview' | 'post';
+  attempt?: string;
+  lastCompletedStep?: PostFlowStep;
+  failedStep?: PostFlowStep;
+  submitReached: boolean;
+  submissionStartedAt?: number;
+  tabUrlBefore?: string;
+  tabUrlAfter?: string;
+  urlCaptureTrace?: string[];
+}
+
 /**
  * 画像または動画の添付データ。
  * 拡張内 message では base64 文字列で運ぶ(ArrayBuffer は MV3 で潰れる)。
@@ -113,6 +138,13 @@ export interface PostResultMessage {
    * 非 idempotent な投稿を重複させないため、自動 retry 対象にしない。
    */
   uncertain?: boolean;
+  /**
+   * Optional recovery category for popup guidance. This is intentionally coarse:
+   * the UI should tell the user what to do next without exposing brittle
+   * platform-internal step names.
+   */
+  userAction?: UserActionCategory;
+  flow?: PostFlowTrace;
   error?: string;
   /**
    * 投稿後の post URL (= 「本当に landing した」 証跡)。 redirect 型 SNS では

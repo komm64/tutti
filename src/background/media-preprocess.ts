@@ -18,6 +18,27 @@ export interface MediaPreprocessHooks {
   onConversionFinished?: () => void;
 }
 
+const VIDEO_TARGET_BYTES_RATIO = 0.9;
+
+export function resolveSafeVideoTargetBytes(
+  currentBytes: number,
+  minLimitBytes: number,
+): number {
+  if (!Number.isFinite(minLimitBytes)) return currentBytes;
+  return Math.max(1, Math.floor(Math.min(currentBytes, minLimitBytes * VIDEO_TARGET_BYTES_RATIO)));
+}
+
+export function shouldTranscodeVideoForBudget(
+  currentBytes: number,
+  minLimitBytes: number,
+  needsVerticalLetterbox: boolean,
+  needsTrim: boolean,
+): boolean {
+  if (needsVerticalLetterbox || needsTrim) return true;
+  if (!Number.isFinite(minLimitBytes)) return false;
+  return currentBytes > resolveSafeVideoTargetBytes(currentBytes, minLimitBytes);
+}
+
 export async function maybeResizeImagesForPlatform(
   adapter: PlatformAdapter,
   images: ImageAttachment[],
@@ -84,12 +105,11 @@ export async function maybeCompressVideoForBudget(
   // v0.4.90: trim opt-in
   const needsTrim = !!(trimToSeconds && trimToSeconds > 0 && (video.durationS ?? 0) > trimToSeconds);
 
-  if (minBytes === Infinity && !needsVerticalLetterbox && !needsTrim) return images;
-  if (currentBytes <= minBytes && !needsVerticalLetterbox && !needsTrim) return images;
+  if (!shouldTranscodeVideoForBudget(currentBytes, minBytes, needsVerticalLetterbox, needsTrim)) return images;
 
-  const targetBytes = minBytes === Infinity ? currentBytes : Math.min(currentBytes, minBytes);
+  const targetBytes = resolveSafeVideoTargetBytes(currentBytes, minBytes);
   const aspectMode: 'passthrough' | 'vertical9x16' = needsVerticalLetterbox ? 'vertical9x16' : 'passthrough';
-  log.info(`P16/P81: video ${(currentBytes / 1024 / 1024).toFixed(1)}MB → 目標 ${(targetBytes / 1024 / 1024).toFixed(1)}MB${needsVerticalLetterbox ? ' + 9:16 letterbox' : ''}${needsTrim ? ` + trim to ${trimToSeconds}s` : ''}`);
+  log.info(`P16/P81: video ${(currentBytes / 1024 / 1024).toFixed(1)}MB → 目標 ${(targetBytes / 1024 / 1024).toFixed(1)}MB${Number.isFinite(minBytes) ? ` (limit ${(minBytes / 1024 / 1024).toFixed(1)}MB)` : ''}${needsVerticalLetterbox ? ' + 9:16 letterbox' : ''}${needsTrim ? ` + trim to ${trimToSeconds}s` : ''}`);
 
   let inputRef = video.dataRef;
   let inputRefOwned = false;
@@ -111,6 +131,9 @@ export async function maybeCompressVideoForBudget(
       trimToSeconds: needsTrim ? trimToSeconds : undefined,
     }, hooks);
     log.info(`P16: 圧縮完了 ${(compressed.outputBytes / 1024 / 1024).toFixed(1)}MB`);
+    if (Number.isFinite(minBytes) && compressed.outputBytes > minBytes) {
+      throw new Error(`compressed video still exceeds platform limit: ${compressed.outputBytes} > ${minBytes}`);
+    }
     const newImages = images.slice();
     newImages[videoIdx] = {
       name: video.name,

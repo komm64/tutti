@@ -13,6 +13,7 @@ export interface CapturePostUrlOptions {
   tabId: number;
   text: string;
   expectedUser?: string;
+  minCapturedAt?: number;
   onDebug?: (message: string) => void;
   frameRetry?: number;
 }
@@ -50,9 +51,15 @@ export function buildPostUrlCaptureRetryPlan(platform: PlatformId): CapturePostU
     ];
   }
 
-  const needsLateProfile = platform === 'threads' ||
-    platform === 'tumblr' ||
-    platform === 'x' ||
+  if (platform === 'threads' || platform === 'tumblr') {
+    return [
+      ...steps,
+      { label: 'late-api-or-profile', delayMs: 10000 },
+      { label: 'final-profile-settle', delayMs: 30000 },
+    ];
+  }
+
+  const needsLateProfile = platform === 'x' ||
     platform === 'pixiv' ||
     platform === 'tiktok';
 
@@ -93,6 +100,7 @@ export async function capturePostUrlFromTab(options: CapturePostUrlOptions): Pro
     tabId,
     text,
     expectedUser,
+    minCapturedAt,
     onDebug,
     frameRetry = 0,
   } = options;
@@ -101,9 +109,9 @@ export async function capturePostUrlFromTab(options: CapturePostUrlOptions): Pro
   const dbg = (message: string): void => {
     onDebug?.(`[capturePostUrl ${platform}] ${message}`);
   };
-  dbg(`start (tabId=${tabId}, text="${text.slice(0, 30)}...")`);
+  dbg(`start (tabId=${tabId}, text="${text.slice(0, 30)}...", minCapturedAt=${minCapturedAt ?? 'none'})`);
 
-  const storedApiUrl = await captureStoredApiPostUrl(platform, tabId, text, dbg);
+  const storedApiUrl = await captureStoredApiPostUrl(platform, tabId, text, dbg, minCapturedAt);
   if (storedApiUrl) return storedApiUrl;
 
   if (platform === 'mastodon') {
@@ -134,7 +142,12 @@ export async function capturePostUrlFromTab(options: CapturePostUrlOptions): Pro
     const target = text.replace(/\s+/g, ' ').trim().slice(0, 60);
     const results = await browser.scripting.executeScript({
       target: { tabId },
-      func: async (platformName: string, targetText: string, expectedUserName?: string) => {
+      func: async (
+        platformName: string,
+        targetText: string,
+        expectedUserName?: string,
+        minCapturedAtValue?: number,
+      ) => {
         const trace: string[] = [];
         async function tryFetch(): Promise<{ url?: string; trace: string[] }> {
           if (
@@ -178,13 +191,14 @@ export async function capturePostUrlFromTab(options: CapturePostUrlOptions): Pro
                 captured = JSON.parse(localStorage.getItem('tutti:x-latest-post') ?? 'null') as typeof captured;
               } catch { /* ignore */ }
               const fresh = captured?.id && captured.capturedAt && Date.now() - captured.capturedAt < 60_000;
+              const afterStart = !minCapturedAtValue || (captured?.capturedAt ?? 0) >= minCapturedAtValue;
               if (fresh && captured?.id) {
                 const avatar = document.querySelector<HTMLElement>(
                   '[data-testid="SideNav_AccountSwitcher_Button"] [data-testid^="UserAvatar-Container-"]',
                 );
                 const fromAvatar = avatar?.getAttribute('data-testid')?.match(/^UserAvatar-Container-(.+)$/)?.[1];
                 const handle = expectedUserName?.replace(/^@/, '') || fromAvatar;
-                if (handle) return { url: `https://x.com/${handle}/status/${captured.id}`, trace };
+                if (handle && afterStart) return { url: `https://x.com/${handle}/status/${captured.id}`, trace };
               }
               await new Promise((resolve) => setTimeout(resolve, 500));
             }
@@ -224,7 +238,6 @@ export async function capturePostUrlFromTab(options: CapturePostUrlOptions): Pro
             }
           }
           if (platformName === 'misskey') {
-            if (!targetText) return { trace };
             const raw = localStorage.getItem('account');
             trace.push(`misskey account in localStorage: ${raw ? 'yes' : 'no'}`);
             if (!raw) return { trace };
@@ -246,12 +259,16 @@ export async function capturePostUrlFromTab(options: CapturePostUrlOptions): Pro
               });
               trace.push(`attempt ${i}: notes status=${res.status}`);
               if (!res.ok) continue;
-              const notes = await res.json() as Array<{ id?: string; text?: string }>;
+              const notes = await res.json() as Array<{ id?: string; text?: string; createdAt?: string }>;
               trace.push(`  got ${notes.length} notes`);
               for (const n of notes) {
                 const t = (n.text ?? '').replace(/\s+/g, ' ').trim();
-                trace.push(`  cmp "${t.slice(0, 30)}" vs "${targetText.slice(0, 30)}"`);
-                if (t.startsWith(targetText) && n.id) return { url: `${location.origin}/notes/${n.id}`, trace };
+                const createdAt = Date.parse(n.createdAt ?? '');
+                const afterStart = !minCapturedAtValue ||
+                  (Number.isFinite(createdAt) && createdAt >= minCapturedAtValue - 5000);
+                trace.push(`  cmp "${t.slice(0, 30)}" vs "${targetText.slice(0, 30)}" createdAt=${n.createdAt ?? 'missing'} afterStart=${afterStart}`);
+                if (!n.id || !afterStart) continue;
+                if (targetText ? t.startsWith(targetText) : true) return { url: `${location.origin}/notes/${n.id}`, trace };
               }
             }
           }
@@ -288,7 +305,7 @@ export async function capturePostUrlFromTab(options: CapturePostUrlOptions): Pro
         }
         return await tryFetch();
       },
-      args: [platform, target, expectedUser],
+      args: [platform, target, expectedUser, minCapturedAt],
       world: 'MAIN',
     });
 
@@ -318,6 +335,7 @@ export async function capturePostUrlFromTab(options: CapturePostUrlOptions): Pro
         tabId,
         text,
         expectedUser,
+        minCapturedAt,
         onDebug,
         frameRetry: frameRetry + 1,
       });
@@ -331,6 +349,7 @@ async function captureStoredApiPostUrl(
   tabId: number,
   text: string,
   dbg: (message: string) => void,
+  minCapturedAt?: number,
 ): Promise<string | undefined> {
   const key = platform === 'instagram'
     ? 'tutti:ig-latest-post'
@@ -359,6 +378,11 @@ async function captureStoredApiPostUrl(
       });
       const raw = results?.[0]?.result;
       const record = readFreshCapturedPost(typeof raw === 'string' ? raw : null, text, 120_000);
+      if (record && minCapturedAt && record.capturedAt < minCapturedAt) {
+        dbg(`stored API response is stale (capturedAt=${record.capturedAt}, min=${minCapturedAt})`);
+        await sleep(500);
+        continue;
+      }
       if (record?.url) {
         dbg(`URL captured via stored API response: ${record.url}`);
         return record.url;

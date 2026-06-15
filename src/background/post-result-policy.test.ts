@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import type { PostResultMessage } from '../messages';
 import {
   downgradeHardVerifyFailures,
+  hasDurablePostEvidence,
   normalizePostEvidence,
   postedResults,
+  realPostResults,
   shouldRunPostCompletionSideEffects,
   toPreviewResult,
 } from './post-result-policy';
@@ -46,6 +48,34 @@ describe('post result policy', () => {
     expect(postedResults([preview, actual])).toEqual([actual]);
   });
 
+  it('keeps successful results without durable post evidence out of posted result sets', () => {
+    expect(postedResults([
+      {
+        type: 'POST_RESULT',
+        platform: 'tumblr',
+        success: true,
+        confirmed: true,
+      },
+    ])).toEqual([]);
+  });
+
+  it('keeps non-preview real post attempts available for history', () => {
+    const uncertain: PostResultMessage = {
+      type: 'POST_RESULT',
+      platform: 'tumblr',
+      success: false,
+      uncertain: true,
+      error: 'check first',
+    };
+    const preview = toPreviewResult({
+      type: 'POST_RESULT',
+      platform: 'x',
+      success: true,
+    });
+
+    expect(realPostResults([uncertain, preview])).toEqual([uncertain]);
+  });
+
   it('runs completion side effects only for real post requests', () => {
     const preview = toPreviewResult({
       type: 'POST_RESULT',
@@ -72,6 +102,23 @@ describe('post result policy', () => {
     });
 
     expect(result.confirmed).toBe(true);
+    expect(hasDurablePostEvidence(result)).toBe(true);
+  });
+
+  it('downgrades real successes without a URL to uncertain results', () => {
+    const result = normalizePostEvidence({
+      type: 'POST_RESULT',
+      platform: 'tumblr',
+      success: true,
+      confirmed: true,
+    });
+
+    expect(result).toMatchObject({
+      success: false,
+      confirmed: false,
+      uncertain: true,
+      userAction: 'check-post-before-retry',
+    });
   });
 
   it('moves hard verify failures out of green success state', () => {

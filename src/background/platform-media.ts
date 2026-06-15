@@ -17,7 +17,9 @@ export async function prepareMediaForPlatform(
   adapter: PlatformAdapter,
   platform: PlatformId,
   images?: ImageAttachment[],
+  autoPost = true,
 ): Promise<PlatformMediaPreparation> {
+  const mode = autoPost ? 'post' : 'preview';
   const videoItem = images?.find((img) => img.type.startsWith('video/'));
   if (videoItem) {
     const videoOnly = [videoItem];
@@ -27,11 +29,18 @@ export async function prepareMediaForPlatform(
       return {
         ok: false,
         result: {
-          type: 'POST_RESULT',
-          platform,
-          success: false,
-          error: t(requiredKind === 'longVideo' ? 'runtimeLongVideoUnsupported' : 'runtimeShortVideoUnsupported'),
-        },
+            type: 'POST_RESULT',
+            platform,
+            success: false,
+            userAction: 'fix-media',
+            flow: {
+              mode,
+              submitReached: false,
+              lastCompletedStep: 'preflight',
+              failedStep: 'preflight:capability',
+            },
+            error: t(requiredKind === 'longVideo' ? 'runtimeLongVideoUnsupported' : 'runtimeShortVideoUnsupported'),
+          },
       };
     }
 
@@ -48,6 +57,13 @@ export async function prepareMediaForPlatform(
             type: 'POST_RESULT',
             platform,
             success: false,
+            userAction: 'fix-media',
+            flow: {
+              mode,
+              submitReached: false,
+              lastCompletedStep: 'preflight',
+              failedStep: 'preflight:video-duration',
+            },
             error: t('runtimeVideoDurationExceeded', effective.maxDurationS, Math.round(durationS)),
           },
         };
@@ -59,6 +75,13 @@ export async function prepareMediaForPlatform(
             type: 'POST_RESULT',
             platform,
             success: false,
+            userAction: 'fix-media',
+            flow: {
+              mode,
+              submitReached: false,
+              lastCompletedStep: 'preflight',
+              failedStep: 'preflight:video-size',
+            },
             error: t(
               'runtimeFileSizeExceeded',
               Math.round(effective.maxBytes / 1024 / 1024),
@@ -81,7 +104,19 @@ export async function prepareMediaForPlatform(
   if (err) {
     return {
       ok: false,
-      result: { type: 'POST_RESULT', platform, success: false, error: err },
+      result: {
+        type: 'POST_RESULT',
+        platform,
+        success: false,
+        userAction: 'fix-media',
+        flow: {
+          mode,
+          submitReached: false,
+          lastCompletedStep: 'preflight',
+          failedStep: 'preflight:image-size',
+        },
+        error: err,
+      },
     };
   }
 

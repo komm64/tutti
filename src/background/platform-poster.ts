@@ -1,6 +1,7 @@
 import type {
   ImageAttachment,
   PlatformId,
+  PostFlowTrace,
   PostResultMessage,
   PostToPlatformMessage,
 } from '../messages';
@@ -61,11 +62,16 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
         type: 'POST_RESULT',
         platform,
         success: false,
+        flow: {
+          mode: autoPost ? 'post' : 'preview',
+          submitReached: false,
+          failedStep: 'preflight:adapter',
+        },
         error: t('runtimeUnsupportedPlatform'),
       };
     }
 
-    const media = await prepareMediaForPlatform(adapter, platform, images);
+    const media = await prepareMediaForPlatform(adapter, platform, images, autoPost);
     if (!media.ok) return media.result;
     images = media.images;
 
@@ -79,6 +85,7 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
 
     let prevPostUrl: string | undefined;
     let allConfirmed = true;
+    let finalChunkFlow: PostResultMessage['flow'];
     for (let i = 0; i < chunks.length; i++) {
       if (i > 0) await sleep(CHUNK_INTERVAL_MS);
       const chunkImages = i === 0 ? images : undefined;
@@ -106,24 +113,24 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
         }
         if (result.url) prevPostUrl = result.url;
         if (!result.confirmed && !result.url) allConfirmed = false;
+        finalChunkFlow = result.flow;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         return {
           type: 'POST_RESULT',
           platform,
           success: false,
+          flow: {
+            mode: autoPost ? 'post' : 'preview',
+            submitReached: false,
+            failedStep: 'pre-submit-attempt',
+          },
           error: chunks.length > 1 ? t('runtimeChunkFailed', i + 1, chunks.length, msg) : msg,
         };
       }
     }
 
-    const finalResultBase: PostResultMessage = {
-      type: 'POST_RESULT',
-      platform,
-      success: true,
-      confirmed: allConfirmed,
-      url: prevPostUrl,
-    };
+    const finalResultBase = buildFinalChunkResult(platform, autoPost, allConfirmed, prevPostUrl, finalChunkFlow);
     let finalResult = autoPost ? finalResultBase : toPreviewResult(finalResultBase);
 
     if (autoPost && prevPostUrl && isVerifySupported(platform)) {
@@ -200,17 +207,47 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
     attempt: DomPostAttempt = { label: 'default' },
   ): Promise<PostResultMessage> {
     const images = rawImages ? await maybeResizeImagesForPlatform(adapter, rawImages) : undefined;
+    const baseFlow: Partial<PostFlowTrace> = {
+      mode: autoPost ? 'post' : 'preview',
+      attempt: attempt.label,
+      submitReached: false,
+      lastCompletedStep: 'preflight',
+    };
 
     if (autoPost && !overrideUrl && !textChunks && !attempt.skipApi) {
       const apiResult = await tryApiPath(adapter.id, text, images, cw, visibility);
       if (apiResult === 'no-credentials') {
         // Fall through to DOM path.
       } else if (apiResult.success) {
+        if (!apiResult.postUrl) {
+          log.warn(`${adapter.id} via API: create response succeeded but no post URL was returned`);
+          return unconfirmedPostResult(adapter.id, {
+            ...baseFlow,
+            submitReached: true,
+            lastCompletedStep: 'api-create-post',
+            failedStep: 'capture-url',
+          });
+        }
         log.info(`${adapter.id} via API ✓ ${apiResult.postUrl ?? ''}`);
-        return { type: 'POST_RESULT', platform: adapter.id, success: true, confirmed: true, url: apiResult.postUrl };
+        return withFlow({
+          type: 'POST_RESULT',
+          platform: adapter.id,
+          success: true,
+          confirmed: true,
+          url: apiResult.postUrl,
+        }, {
+          ...baseFlow,
+          submitReached: true,
+          lastCompletedStep: 'api-create-post',
+        });
       } else if (apiResult.uncertain) {
         log.warn(`${adapter.id} via API: post result uncertain - ${apiResult.error ?? t('runtimeUnknownError')}`);
-        return unconfirmedPostResult(adapter.id);
+        return unconfirmedPostResult(adapter.id, {
+          ...baseFlow,
+          submitReached: true,
+          lastCompletedStep: 'api-create-post',
+          failedStep: 'capture-url',
+        });
       } else {
         log.warn(`${adapter.id} via API failed before a confirmed post; falling back to DOM path: ${apiResult.error ?? t('runtimeUnknownError')}`);
       }
@@ -241,14 +278,20 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
       throw new Error(t('runtimeSnsTabOpenFailed'));
     }
     const currentTab = await browser.tabs.get(tab.id).catch(() => tab);
+    const tabUrlBefore = currentTab.url ?? currentTab.pendingUrl;
     const loginRedirectError = buildLoginRedirectErrorForUrl(currentTab.url ?? currentTab.pendingUrl ?? '');
     if (loginRedirectError) {
-      return {
+      return withFlow({
         type: 'POST_RESULT',
         platform: adapter.id,
         success: false,
+        userAction: 'sign-in',
         error: loginRedirectError,
-      };
+      }, {
+        ...baseFlow,
+        tabUrlBefore,
+        failedStep: 'verify-login',
+      });
     }
     if (wasCreated && !dryRun) options.openedTabs.record(adapter.id, tab.id);
 
@@ -267,6 +310,7 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
     };
 
     let response: PostResultMessage | undefined;
+    const dispatchStartedAt = Date.now();
     try {
       response = await sendPostMessageWhenReady(tab.id, message);
     } catch (err) {
@@ -277,18 +321,26 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
             type: 'POST_RESULT',
             platform: adapter.id,
             success: false,
+            userAction: 'sign-in',
+            flow: {
+              ...baseFlow,
+              tabUrlBefore,
+              failedStep: 'verify-login',
+              submitReached: false,
+            },
             error: loginError,
           };
         }
       }
-      const recovered = await recoverFromMaybeLandedChannelClose(err, adapter.id, tab.id, text, expectedUser, dryRun);
-      if (recovered) return recovered;
+      const recovered = await recoverFromMaybeLandedChannelClose(err, adapter.id, tab.id, text, expectedUser, dryRun, dispatchStartedAt);
+      if (recovered) return withFlow(recovered, { ...baseFlow, tabUrlBefore });
       throw err;
     }
 
     if (!response) {
       throw new Error(t('runtimeSnsPageNoResponse'));
     }
+    response = withFlow(response, { ...baseFlow, tabUrlBefore });
     if (!response.success) {
       if (response.uncertain) return response;
       throw new Error(response.error ?? t('runtimePostFailed'));
@@ -297,8 +349,12 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
 
     const withUrl = await ensurePostUrl(response, adapter.id, tab.id, text, expectedUser);
     if (withUrl.url) return { ...withUrl, confirmed: true };
-    if (withUrl.confirmed && adapter.id !== 'threads') return withUrl;
-    return unconfirmedPostResult(adapter.id);
+    return unconfirmedPostResult(adapter.id, {
+      ...withUrl.flow,
+      tabUrlBefore,
+      failedStep: withUrl.flow?.failedStep ?? 'capture-url',
+      submitReached: withUrl.flow?.submitReached ?? true,
+    });
   }
 
   async function recoverFromMaybeLandedChannelClose(
@@ -308,6 +364,7 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
     text: string,
     expectedUser: string | undefined,
     dryRun: boolean,
+    minCapturedAt?: number,
   ): Promise<PostResultMessage | null> {
     const msg = err instanceof Error ? err.message : String(err);
     const maybeLanded =
@@ -317,10 +374,20 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
     if (dryRun || !maybeLanded) return null;
 
     log.warn(`${platform}: post 後に channel closed - ${msg.slice(0, 80)}`);
-    const capturedUrl = await captureUrl(platform, tabId, text, expectedUser);
-    return capturedUrl
-      ? { type: 'POST_RESULT', platform, success: true, confirmed: true, url: capturedUrl }
-      : unconfirmedPostResult(platform);
+    const captured = await captureUrl(platform, tabId, text, expectedUser, minCapturedAt);
+    return captured.url
+      ? withFlow({ type: 'POST_RESULT', platform, success: true, confirmed: true, url: captured.url }, {
+          mode: dryRun ? 'preview' : 'post',
+          submitReached: true,
+          lastCompletedStep: 'capture-url',
+          urlCaptureTrace: captured.trace,
+        })
+      : unconfirmedPostResult(platform, {
+          mode: dryRun ? 'preview' : 'post',
+          submitReached: true,
+          failedStep: 'capture-url',
+          urlCaptureTrace: captured.trace,
+        });
   }
 
   async function ensurePostUrl(
@@ -331,8 +398,21 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
     expectedUser: string | undefined,
   ): Promise<PostResultMessage> {
     if (response.url) return response;
-    const capturedUrl = await captureUrl(platform, tabId, text, expectedUser);
-    return capturedUrl ? { ...response, url: capturedUrl } : response;
+    const captured = await captureUrl(platform, tabId, text, expectedUser, response.flow?.submissionStartedAt);
+    const tabUrlAfter = await browser.tabs.get(tabId)
+      .then((tab) => tab.url ?? tab.pendingUrl)
+      .catch(() => undefined);
+    return captured.url
+      ? withFlow({ ...response, url: captured.url }, {
+          lastCompletedStep: 'capture-url',
+          tabUrlAfter,
+          urlCaptureTrace: captured.trace,
+        })
+      : withFlow(response, {
+          failedStep: response.flow?.failedStep ?? 'capture-url',
+          tabUrlAfter,
+          urlCaptureTrace: captured.trace,
+        });
   }
 
   async function captureUrl(
@@ -340,17 +420,24 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
     tabId: number,
     text: string,
     expectedUser: string | undefined,
-  ): Promise<string | undefined> {
-    return await capturePostUrlFromTabWithRetry({
+    minCapturedAt?: number,
+  ): Promise<{ url?: string; trace: string[] }> {
+    const trace: string[] = [];
+    const url = await capturePostUrlFromTabWithRetry({
       platform,
       tabId,
       text,
       expectedUser,
-      onDebug: (message) => options.appendBackgroundLog?.(message),
+      minCapturedAt,
+      onDebug: (message) => {
+        trace.push(message);
+        options.appendBackgroundLog?.(message);
+      },
     }).catch((e) => {
       log.warn(`${platform}: post URL capture failed: ${e instanceof Error ? e.message : String(e)}`);
       return undefined;
     });
+    return { url, trace };
   }
 
   return { postToPlatform };
@@ -410,6 +497,30 @@ export function shouldReuseExistingTabForAttempt(
   return dryRun && adapter.requiresForegroundTab !== true;
 }
 
+export function buildFinalChunkResult(
+  platform: PlatformId,
+  autoPost: boolean,
+  allConfirmed: boolean,
+  postUrl?: string,
+  flow?: PostResultMessage['flow'],
+): PostResultMessage {
+  const mode = autoPost ? 'post' : 'preview';
+  const lastCompletedStep = flow?.lastCompletedStep ?? (autoPost ? 'post-flow' : 'preview-flow');
+  return {
+    type: 'POST_RESULT',
+    platform,
+    success: true,
+    confirmed: allConfirmed,
+    url: postUrl,
+    flow: {
+      ...flow,
+      mode: flow?.mode ?? mode,
+      submitReached: flow?.submitReached ?? autoPost,
+      lastCompletedStep,
+    },
+  };
+}
+
 async function attachVerifyResult(
   result: PostResultMessage,
   platform: PlatformId,
@@ -424,6 +535,11 @@ async function attachVerifyResult(
     hasVideo: !!images?.some((image) => image.type.startsWith('video/')),
   };
   try {
+    result.flow = {
+      ...result.flow,
+      submitReached: result.flow?.submitReached ?? true,
+      lastCompletedStep: 'verify-post',
+    };
     const verify = await runVerify(platform, postUrl, expectation);
     result.verify = {
       verified: verify.verified,
@@ -434,6 +550,11 @@ async function attachVerifyResult(
       log.warn(`${platform} verify: ${hardErrors.length} error - ${hardErrors[0]!.message}`);
     }
   } catch (e) {
+    result.flow = {
+      ...result.flow,
+      submitReached: result.flow?.submitReached ?? true,
+      failedStep: 'verify-post',
+    };
     log.warn(`${platform} verify failed (post 自体は成功): ${e instanceof Error ? e.message : String(e)}`);
   }
 }
@@ -457,13 +578,33 @@ async function maybeAutoOpenPostUrl(
   }
 }
 
-function unconfirmedPostResult(platform: PlatformId): PostResultMessage {
+function unconfirmedPostResult(platform: PlatformId, flow: Partial<PostFlowTrace> = {}): PostResultMessage {
   return {
     type: 'POST_RESULT',
     platform,
     success: false,
     uncertain: true,
+    userAction: 'check-post-before-retry',
+    flow: {
+      submitReached: true,
+      ...flow,
+    },
     error: t('runtimePostUncertain'),
+  };
+}
+
+function withFlow(result: PostResultMessage, flow: Partial<PostFlowTrace>): PostResultMessage {
+  return {
+    ...result,
+    flow: {
+      submitReached: result.flow?.submitReached ?? flow.submitReached ?? false,
+      ...flow,
+      ...result.flow,
+      urlCaptureTrace: result.flow?.urlCaptureTrace ?? flow.urlCaptureTrace,
+      submissionStartedAt: result.flow?.submissionStartedAt ?? flow.submissionStartedAt,
+      tabUrlBefore: result.flow?.tabUrlBefore ?? flow.tabUrlBefore,
+      tabUrlAfter: result.flow?.tabUrlAfter ?? flow.tabUrlAfter,
+    },
   };
 }
 

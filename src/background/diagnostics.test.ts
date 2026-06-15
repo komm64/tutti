@@ -67,6 +67,13 @@ describe('diagnostic redaction helpers', () => {
         x: {
           success: false,
           uncertain: true,
+          userAction: 'check-post-before-retry',
+          flow: {
+            mode: 'post',
+            submitReached: true,
+            lastCompletedStep: 'click-submit',
+            failedStep: 'capture-url',
+          },
           url: 'https://x.com/alice/status/123',
           error: 'private error',
         },
@@ -77,7 +84,19 @@ describe('diagnostic redaction helpers', () => {
       id: 'entry1',
       textPreview: '<redacted 12 chars>',
       platforms: ['x'],
-      results: { x: { success: false, uncertain: true } },
+      results: {
+        x: {
+          success: false,
+          uncertain: true,
+          userAction: 'check-post-before-retry',
+          flow: {
+            mode: 'post',
+            submitReached: true,
+            lastCompletedStep: 'click-submit',
+            failedStep: 'capture-url',
+          },
+        },
+      },
       hasMedia: true,
       timestamp: 123,
     }]);

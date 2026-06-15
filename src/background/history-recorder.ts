@@ -4,7 +4,7 @@ import { releaseAttachmentTransfers, resolveAttachmentToBytes } from '../utils/a
 import { computeBodyHash, sha256Hex } from '../utils/body-hash';
 import { compressImageForHistory, putMedia } from '../utils/history-media';
 import { extractPostId } from '../utils/post-id';
-import { postedResults } from './post-result-policy';
+import { postedResults, realPostResults } from './post-result-policy';
 
 export async function recordHistoryEntry(
   text: string,
@@ -12,7 +12,7 @@ export async function recordHistoryEntry(
   adjustedImages?: ImageAttachment[],
 ): Promise<void> {
   try {
-    const resultsToRecord = postedResults(results);
+    const resultsToRecord = realPostResults(results);
     if (resultsToRecord.length === 0) return;
 
     const hasMedia = (adjustedImages?.length ?? 0) > 0;

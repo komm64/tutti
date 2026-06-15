@@ -17,8 +17,8 @@
  */
 
 import { chromium } from 'playwright';
-import { readFile } from 'node:fs/promises';
-import { basename, resolve } from 'node:path';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { basename, dirname, resolve } from 'node:path';
 
 const ALL_PLATFORMS = [
   'x',
@@ -95,7 +95,14 @@ const UNSUPPORTED_CASES = {
 };
 
 const args = process.argv.slice(2);
-const positional = args.filter((arg) => !arg.startsWith('-'));
+const positional = positionalArgs(args, [
+  '--mode',
+  '--platforms',
+  '--cases',
+  '--repeat',
+  '--case-timeout-ms',
+  '--summary-json',
+]);
 const mode = argValue('--mode') ?? positional[0] ?? 'preview';
 if (!['preview', 'post'].includes(mode)) {
   console.error(`[matrix] invalid --mode: ${mode}`);
@@ -119,12 +126,14 @@ const skipExtensionReload = args.includes('--skip-extension-reload');
 const cdp = process.env.E2E_CDP ?? 'http://127.0.0.1:9223';
 const imagePath = resolve(process.env.IMAGE_PATH ?? 'scripts/e2e/fixtures/test-image.png');
 const videoPath = resolve(process.env.VIDEO_PATH ?? 'scripts/e2e/fixtures/test-video.mp4');
+const summaryPath = resolve(argValue('--summary-json') ?? '.tmp/surface-posting-matrix-last.json');
 
 console.log(`[matrix] mode=${mode} repeat=${repeat}`);
 console.log(`[matrix] cdp=${cdp}`);
 console.log(`[matrix] platforms=${requestedPlatforms.join(',')}`);
 console.log(`[matrix] cases=${requestedCases.join(',')}`);
 console.log(`[matrix] caseTimeoutMs=${caseTimeoutMs}`);
+console.log(`[matrix] summaryJson=${summaryPath}`);
 
 for (const platform of requestedPlatforms) {
   if (!ALL_PLATFORMS.includes(platform)) {
@@ -155,6 +164,7 @@ if (!skipExtensionReload) {
   console.log('[matrix] extension reloaded');
 }
 await wakeServiceWorker(ctx, extensionId);
+await closeNonExtensionPages(ctx, extensionId);
 console.log(`[matrix] extension=${extensionId}`);
 
 let popup = await openPopupPage(ctx, extensionId);
@@ -186,6 +196,7 @@ for (const caseName of requestedCases) {
     const text = caseDef.text(stamp);
     const images = buildMedia(caseDef.media, imageFixture, videoFixture, stamp);
     popup = await ensurePopupPage(ctx, extensionId, popup);
+    await closeNonExtensionPages(ctx, extensionId);
     let beforeHistory;
     try {
       beforeHistory = await readHistory(popup);
@@ -216,6 +227,7 @@ for (const caseName of requestedCases) {
         error: message,
       });
       await reloadExtension(ctx, extensionId).catch(() => {});
+      await closeNonExtensionPages(ctx, extensionId).catch(() => {});
       popup = await openPopupPage(ctx, extensionId).catch(() => popup);
       continue;
     }
@@ -237,6 +249,11 @@ for (const caseName of requestedCases) {
         failures.push(`${caseName}/${platform}: missing result`);
         continue;
       }
+      if (!result.flow) {
+        failures.push(`${caseName}/${platform}: result missing flow trace`);
+      } else if (!result.flow.lastCompletedStep && !result.flow.failedStep) {
+        failures.push(`${caseName}/${platform}: flow trace has no completed or failed step`);
+      }
       if (!result.success) {
         failures.push(`${caseName}/${platform}: success=false (${result.error ?? 'no error message'})`);
         continue;
@@ -244,10 +261,12 @@ for (const caseName of requestedCases) {
       if (mode === 'preview') {
         if (result.preview !== true) failures.push(`${caseName}/${platform}: preview result missing preview=true`);
         if (result.url) failures.push(`${caseName}/${platform}: preview returned URL ${result.url}`);
+        if (result.flow?.submitReached) failures.push(`${caseName}/${platform}: preview reached submit action`);
       } else {
         if (result.preview) failures.push(`${caseName}/${platform}: post result was marked preview`);
         if (!result.confirmed) failures.push(`${caseName}/${platform}: post result was not confirmed`);
         if (!result.url) failures.push(`${caseName}/${platform}: post URL was not captured`);
+        if (result.flow?.submitReached !== true) failures.push(`${caseName}/${platform}: post result did not record submitReached=true`);
       }
       if (result.verify?.issues?.some((issue) => issue.severity === 'error')) {
         failures.push(`${caseName}/${platform}: verify hard error ${JSON.stringify(result.verify.issues)}`);
@@ -273,11 +292,22 @@ for (const caseName of requestedCases) {
       platforms,
       results: results.map(compactResult),
     });
+    await closeNonExtensionPages(ctx, extensionId);
   }
 }
 
 console.log('\n[matrix] summary');
 console.log(JSON.stringify(summary, null, 2));
+await writeSummary(summaryPath, {
+  mode,
+  version,
+  platforms: requestedPlatforms,
+  cases: requestedCases,
+  repeat,
+  failures,
+  summary,
+  generatedAt: new Date().toISOString(),
+});
 
 await popup.close().catch(() => {});
 await browser.close();
@@ -294,6 +324,21 @@ function argValue(name) {
   const idx = args.indexOf(name);
   if (idx < 0) return undefined;
   return args[idx + 1];
+}
+
+function positionalArgs(values, optionsWithValues) {
+  const optionSet = new Set(optionsWithValues);
+  const out = [];
+  for (let i = 0; i < values.length; i += 1) {
+    const value = values[i];
+    if (optionSet.has(value)) {
+      i += 1;
+      continue;
+    }
+    if (value.startsWith('-')) continue;
+    out.push(value);
+  }
+  return out;
 }
 
 function splitArg(name) {
@@ -434,6 +479,29 @@ async function openPopupPage(ctx, extensionId) {
   return page;
 }
 
+async function closeNonExtensionPages(ctx, extensionId) {
+  const extensionPrefix = `chrome-extension://${extensionId}/`;
+  const pages = ctx.pages();
+  const hasExtensionPage = pages.some((page) => page.url().startsWith(extensionPrefix));
+  let keptFallback = false;
+  let closed = 0;
+  await Promise.all(pages.map(async (page) => {
+    const url = page.url();
+    if (url.startsWith(extensionPrefix)) return;
+    if (!hasExtensionPage && !keptFallback) {
+      keptFallback = true;
+      return;
+    }
+    try {
+      await page.close({ runBeforeUnload: false });
+      closed += 1;
+    } catch {
+      // Best-effort cleanup only; a detached tab should not fail the matrix.
+    }
+  }));
+  if (closed > 0) console.log(`[matrix] closed ${closed} non-extension tab(s)`);
+}
+
 async function ensurePopupPage(ctx, extensionId, page) {
   if (page && !page.isClosed()) return page;
   return await openPopupPage(ctx, extensionId);
@@ -506,8 +574,15 @@ function compactResult(result) {
     preview: result.preview,
     confirmed: result.confirmed,
     uncertain: result.uncertain,
+    userAction: result.userAction,
+    flow: result.flow,
     url: result.url,
     error: result.error,
     verify: result.verify,
   };
+}
+
+async function writeSummary(path, payload) {
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, JSON.stringify(payload, null, 2), 'utf8');
 }

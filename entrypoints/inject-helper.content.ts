@@ -78,6 +78,8 @@ interface InjectRequest {
   files: InjectFileSpec[];
   /** mode === 'text' 専用: 挿入するテキスト */
   text?: string;
+  /** mode === 'x-post-url' 専用: この時刻より古い capture record を拒否する */
+  minCapturedAt?: number;
   /** mode === 'tag-list' 専用: 順次 commit する tag 列 */
   tags?: string[];
   /** mode === 'click' 専用: 候補が複数ある場合に許可する完全一致テキスト */
@@ -321,15 +323,18 @@ export default defineContentScript({
 
       const captureTumblrPost = (payload: unknown, blogName?: string): void => {
         let textHash: string | undefined;
+        let pendingBlogName: string | undefined;
         try {
           textHash = localStorage.getItem('tutti:tumblr-pending-text-hash') ?? undefined;
+          pendingBlogName = localStorage.getItem('tutti:tumblr-pending-blog') ?? undefined;
         } catch { /* ignore storage failures */ }
-        const record = extractTumblrPostRecord(payload, blogName, textHash);
+        const record = extractTumblrPostRecord(payload, pendingBlogName ?? blogName, textHash);
         if (!record?.url) return;
         window.__tuttiTumblrLatestPost = record;
         try {
           localStorage.setItem('tutti:tumblr-latest-post', JSON.stringify(record));
           localStorage.removeItem('tutti:tumblr-pending-text-hash');
+          localStorage.removeItem('tutti:tumblr-pending-blog');
         } catch { /* in-memory capture remains available */ }
         console.log('[Tutti inject-helper] Tumblr post URL captured: ' + record.url);
       };
@@ -1319,11 +1324,12 @@ export default defineContentScript({
       } catch { /* ignore malformed or unavailable storage */ }
       const handle = req.text?.replace(/^@/, '');
       const fresh = captured && Date.now() - captured.capturedAt < 60_000;
+      const afterStart = !req.minCapturedAt || (captured?.capturedAt ?? 0) >= req.minCapturedAt;
       return {
         source: RES_TAG,
         id: req.id,
         ok: true,
-        url: fresh && handle && captured ? `https://x.com/${handle}/status/${captured.id}` : undefined,
+        url: fresh && afterStart && handle && captured ? `https://x.com/${handle}/status/${captured.id}` : undefined,
       };
     }
 
@@ -1388,6 +1394,7 @@ export default defineContentScript({
         selector: data.selector,
         files: data.files,
         text: typeof data.text === 'string' ? data.text : undefined,
+        minCapturedAt: typeof data.minCapturedAt === 'number' ? data.minCapturedAt : undefined,
         tags: Array.isArray(data.tags) ? data.tags.filter((t): t is string => typeof t === 'string') : undefined,
         texts: Array.isArray(data.texts) ? data.texts.filter((t): t is string => typeof t === 'string') : undefined,
         uploadTimeoutMs: typeof data.uploadTimeoutMs === 'number' ? data.uploadTimeoutMs : undefined,

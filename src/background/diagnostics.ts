@@ -1,5 +1,5 @@
 import type { DiagnosePlatformResult, PlatformId } from '../messages';
-import type { HistoryEntry } from '../storage';
+import type { HistoryEntry, HistoryPlatformResult } from '../storage';
 import { getLastSeenUsers, getPostHistory, getSettings } from '../storage';
 import { adapters, getAdapter } from '../adapters/registry';
 import { isKnownComposeUrl } from '../utils/compose-url';
@@ -16,7 +16,12 @@ export interface DiagnosticsReport {
     id: string;
     textPreview: string;
     platforms: PlatformId[];
-    results: Partial<Record<PlatformId, { success: boolean; uncertain?: boolean; url?: string; error?: string }>>;
+    results: Partial<Record<PlatformId, {
+      success: boolean;
+      uncertain?: boolean;
+      userAction?: HistoryPlatformResult['userAction'];
+      flow?: HistoryPlatformResult['flow'];
+    }>>;
     hasMedia: boolean;
     timestamp: number;
   }>;
@@ -100,7 +105,12 @@ export function redactHistoryForDiagnostics(
     // v0.4.88: results に url / error が入るようになったので diagnostics 経路では redact
     // url / error は PII を含み得る (post id / handle) ので public Issue に流さない
     results: Object.fromEntries(
-      Object.entries(h.results).map(([k, v]) => [k, { success: v?.success ?? false, uncertain: v?.uncertain ?? false }]),
+      Object.entries(h.results).map(([k, v]) => [k, {
+        success: v?.success ?? false,
+        uncertain: v?.uncertain ?? false,
+        userAction: v?.userAction,
+        flow: v?.flow,
+      }]),
     ) as DiagnosticsReport['recentHistory'][number]['results'],
     hasMedia: h.hasMedia,
     timestamp: h.timestamp,

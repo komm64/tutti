@@ -6,6 +6,7 @@ import { executePostFlow } from '../src/utils/post-flow';
 import { clickElementInMainWorld } from '../src/utils/image';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
+import { getPostSubmissionStartedAt } from '../src/utils/post-submission-state';
 
 function detectMisskeyUser(): string | null {
   type Strategy = { name: string; fn: () => string | null };
@@ -96,7 +97,7 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
   // my account の latest を引く。
   let url: string | undefined;
   if (!dryRun) {
-    url = await fetchMisskeyRecentNoteUrl(text);
+    url = await fetchMisskeyRecentNoteUrl(text, getPostSubmissionStartedAt());
   }
 
   return {
@@ -113,7 +114,7 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
  * - /api/i/notes で my account の latest 5 件を取得
  * - text 一致するものを探す
  */
-async function fetchMisskeyRecentNoteUrl(text: string): Promise<string | undefined> {
+async function fetchMisskeyRecentNoteUrl(text: string, minCreatedAt?: number): Promise<string | undefined> {
   try {
     // Misskey は localStorage の 'account' key に { id, i, ... } を保存
     let token: string | null = null;
@@ -141,13 +142,17 @@ async function fetchMisskeyRecentNoteUrl(text: string): Promise<string | undefin
       const res = await fetch('/api/i/notes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ i: token, limit: 5 }),
+        body: JSON.stringify({ i: token, limit: 10 }),
       });
       if (!res.ok) continue;
-      const notes = (await res.json()) as Array<{ id?: string; text?: string }>;
+      const notes = (await res.json()) as Array<{ id?: string; text?: string; createdAt?: string }>;
       for (const n of notes) {
         const noteText = (n.text ?? '').replace(/\s+/g, ' ').trim();
-        if (noteText.startsWith(target) && n.id) {
+        const createdAt = Date.parse(n.createdAt ?? '');
+        const afterStart = !minCreatedAt ||
+          (Number.isFinite(createdAt) && createdAt >= minCreatedAt - 5000);
+        if (!n.id || !afterStart) continue;
+        if ((target ? noteText.startsWith(target) : true)) {
           const url = `${location.origin}/notes/${n.id}`;
           log.info(`misskey: URL captured via API: ${url}`);
           return url;

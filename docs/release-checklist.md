@@ -24,7 +24,12 @@ recommending to the broader audience. Track here, not in scattered TODOs.
   image + video input normalized to video-only, long text + image, and repeated
   posting/preview
 - [ ] Affected Surface real-post matrix cases return confirmed post URLs for
-  every selected SNS before CWS upload
+  every selected SNS before CWS upload. A green status without a post URL is not
+  sufficient evidence for release.
+- [ ] Video real-post cases are verified after publish. If a platform reports
+  success but the published post has no attached video, the release is blocked.
+- [ ] Repeated preview -> real post and real post -> next real post flows start
+  from a fresh compose surface and do not reuse stale draft/result state.
 - [ ] auto-triage pipeline has processed ≥ 3 selector breakage reports
   end-to-end without manual escalation
 

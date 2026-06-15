@@ -119,6 +119,23 @@ describe('post capture records', () => {
     expect(record?.url).toBe('https://www.tumblr.com/komm64/789');
   });
 
+  it('uses the pending Tumblr blog name when the create response only has an id', () => {
+    const record = extractTumblrPostRecord(
+      { response: { id_string: '9876543210' } },
+      'komm64',
+      'hash',
+      100,
+    );
+
+    expect(record).toEqual({
+      url: 'https://www.tumblr.com/komm64/9876543210',
+      id: '9876543210',
+      blogName: 'komm64',
+      capturedAt: 100,
+      textHash: 'hash',
+    });
+  });
+
   it('extracts Threads post URLs from GraphQL-like responses', () => {
     const record = extractThreadsPostRecord(
       {

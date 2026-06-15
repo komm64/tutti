@@ -8,8 +8,18 @@ describe('post URL capture retry plan', () => {
     ]);
   });
 
-  it('adds a late pass for profile based capture platforms without repeating every intermediate pass', () => {
-    for (const platform of ['threads', 'tumblr', 'x', 'pixiv', 'tiktok'] as const) {
+  it('adds a final settle pass for Threads and Tumblr because their post URLs can lag', () => {
+    for (const platform of ['threads', 'tumblr'] as const) {
+      expect(buildPostUrlCaptureRetryPlan(platform)).toEqual([
+        { label: 'immediate', delayMs: 0 },
+        { label: 'late-api-or-profile', delayMs: 10000 },
+        { label: 'final-profile-settle', delayMs: 30000 },
+      ]);
+    }
+  });
+
+  it('adds a late pass for other profile based capture platforms without repeating every intermediate pass', () => {
+    for (const platform of ['x', 'pixiv', 'tiktok'] as const) {
       expect(buildPostUrlCaptureRetryPlan(platform)).toEqual([
         { label: 'immediate', delayMs: 0 },
         { label: 'late-api-or-profile', delayMs: 10000 },

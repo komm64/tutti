@@ -58,9 +58,10 @@ The matrix must cover, where supported by each SNS:
 - immediate repeated posting or preview (`--repeat 2` or higher)
 
 Preview results must be `success=true`, `preview=true`, have no post URL, and
-must not add post history. Real post checks may be narrower, but every selected
-SNS must return `success=true`, `confirmed=true`, and a captured post URL before
-a CWS upload.
+must not add post history. They must also include a flow trace with
+`submitReached=false`. Real post checks may be narrower, but every selected SNS
+must return `success=true`, `confirmed=true`, `flow.submitReached=true`, no hard
+verify errors, and a captured post URL before a CWS upload.
 
 Tutti currently does not support simultaneous image + video output from the
 popup. If a user supplies mixed image/video files, the popup normalizes that

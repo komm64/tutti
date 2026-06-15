@@ -8,8 +8,10 @@
  * popup の失敗行から呼ばれて tooltip / inline で表示する。
  */
 
-import type { PlatformId } from '../messages';
+import type { PlatformId, PostResultMessage } from '../messages';
 import { t } from './i18n';
+
+type RecoveryAction = NonNullable<PostResultMessage['userAction']>;
 
 export type FailureHintCta =
   | { kind: 'open-sns'; label: string; url: string }
@@ -34,8 +36,14 @@ export function classifyFailure(
   error: string,
   platform: PlatformId,
   loginUrl: string | undefined,
+  userAction?: RecoveryAction,
 ): FailureHint {
   const e = error.toLowerCase();
+
+  if (userAction) {
+    const structured = classifyUserAction(userAction, platform, loginUrl);
+    if (structured) return structured;
+  }
 
   // ── ログイン必要 ─────────────────────────────────────────────
   if (
@@ -45,6 +53,43 @@ export function classifyFailure(
     return {
       reason: t('failureReasonLogin'),
       guidance: t('failureGuidanceLogin', platform),
+      ctas: [
+        ...(loginUrl ? [{ kind: 'open-sns' as const, label: t('failureCtaOpenSns', platform), url: loginUrl }] : []),
+        { kind: 'retry' as const, label: t('failureCtaRetry') },
+        { kind: 'report' as const, label: t('errorReportButton') },
+      ],
+    };
+  }
+
+  // ── post action 後の確認不能 ────────────────────────────────
+  if (/could not confirm|confirm the resulting post|投稿後の確認|重複投稿を避ける/.test(e)) { // allow-jp
+    return {
+      reason: t('failureReasonPostUncertain'),
+      guidance: t('failureGuidancePostUncertain', platform),
+      ctas: [
+        ...(loginUrl ? [{ kind: 'open-sns' as const, label: t('failureCtaOpenSns', platform), url: loginUrl }] : []),
+        { kind: 'report' as const, label: t('errorReportButton') },
+      ],
+    };
+  }
+
+  // ── ユーザーがタブを前面化 / 手動確認する必要がある ───────────────
+  if (/active tab|foreground|bring.*tab|focus.*tab|background tab|タブ.*前面|アクティブ/.test(e)) { // allow-jp
+    return {
+      reason: t('failureReasonManualAction'),
+      guidance: t('failureGuidanceActiveTab', platform),
+      ctas: [
+        ...(loginUrl ? [{ kind: 'open-sns' as const, label: t('failureCtaOpenSns', platform), url: loginUrl }] : []),
+        { kind: 'retry' as const, label: t('failureCtaRetry') },
+        { kind: 'report' as const, label: t('errorReportButton') },
+      ],
+    };
+  }
+
+  if (/confirmation|confirm|manual action|操作が必要|確認操作/.test(e)) { // allow-jp
+    return {
+      reason: t('failureReasonManualAction'),
+      guidance: t('failureGuidanceConfirmation', platform),
       ctas: [
         ...(loginUrl ? [{ kind: 'open-sns' as const, label: t('failureCtaOpenSns', platform), url: loginUrl }] : []),
         { kind: 'retry' as const, label: t('failureCtaRetry') },
@@ -136,4 +181,76 @@ export function classifyFailure(
       { kind: 'report' as const, label: t('errorReportButton') },
     ],
   };
+}
+
+function classifyUserAction(
+  action: RecoveryAction,
+  platform: PlatformId,
+  loginUrl: string | undefined,
+): FailureHint | null {
+  const open = loginUrl ? [{ kind: 'open-sns' as const, label: t('failureCtaOpenSns', platform), url: loginUrl }] : [];
+  if (action === 'sign-in') {
+    return {
+      reason: t('failureReasonLogin'),
+      guidance: t('failureGuidanceLogin', platform),
+      ctas: [...open, { kind: 'retry' as const, label: t('failureCtaRetry') }, { kind: 'report' as const, label: t('errorReportButton') }],
+    };
+  }
+  if (action === 'check-account') {
+    return {
+      reason: t('failureReasonAccountMismatch'),
+      guidance: t('failureGuidanceAccountMismatch', platform),
+      ctas: [...open, { kind: 'retry' as const, label: t('failureCtaRetryAfterAccount') }, { kind: 'report' as const, label: t('errorReportButton') }],
+    };
+  }
+  if (action === 'complete-captcha') {
+    return {
+      reason: t('failureReasonCaptcha'),
+      guidance: t('failureGuidanceCaptcha', platform),
+      ctas: [...open, { kind: 'retry' as const, label: t('failureCtaRetryAfterCaptcha') }, { kind: 'report' as const, label: t('errorReportButton') }],
+    };
+  }
+  if (action === 'complete-confirmation') {
+    return {
+      reason: t('failureReasonManualAction'),
+      guidance: t('failureGuidanceConfirmation', platform),
+      ctas: [...open, { kind: 'retry' as const, label: t('failureCtaRetry') }, { kind: 'report' as const, label: t('errorReportButton') }],
+    };
+  }
+  if (action === 'activate-tab') {
+    return {
+      reason: t('failureReasonManualAction'),
+      guidance: t('failureGuidanceActiveTab', platform),
+      ctas: [...open, { kind: 'retry' as const, label: t('failureCtaRetry') }, { kind: 'report' as const, label: t('errorReportButton') }],
+    };
+  }
+  if (action === 'check-post-before-retry') {
+    return {
+      reason: t('failureReasonPostUncertain'),
+      guidance: t('failureGuidancePostUncertain', platform),
+      ctas: [...open, { kind: 'report' as const, label: t('errorReportButton') }],
+    };
+  }
+  if (action === 'fix-media') {
+    return {
+      reason: t('failureReasonMediaLimit'),
+      guidance: t('failureGuidanceMediaLimit'),
+      ctas: [{ kind: 'retry' as const, label: t('failureCtaRetry') }, { kind: 'report' as const, label: t('errorReportButton') }],
+    };
+  }
+  if (action === 'wait') {
+    return {
+      reason: t('failureReasonDuplicate'),
+      guidance: t('failureGuidanceDuplicate'),
+      ctas: [{ kind: 'wait' as const, label: t('failureCtaWaitFiveMinutes') }, { kind: 'report' as const, label: t('errorReportButton') }],
+    };
+  }
+  if (action === 'report-ui-change') {
+    return {
+      reason: t('failureReasonSelector'),
+      guidance: t('failureGuidanceSelector'),
+      ctas: [{ kind: 'report' as const, label: t('errorReportButton') }, { kind: 'retry' as const, label: t('failureCtaRetry') }],
+    };
+  }
+  return null;
 }

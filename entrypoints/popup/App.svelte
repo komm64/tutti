@@ -202,6 +202,7 @@
       cw,
       visibility,
       trimToS,
+      lastResults,
     };
   }
 

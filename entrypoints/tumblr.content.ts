@@ -306,7 +306,10 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
   const sel = await resolveSelectors('tumblr', TUMBLR_SELECTORS);
   const postingUser = dryRun ? null : await detectTumblrUser();
   const blogName = postingUser?.slice(1);
-  const shouldUseLatestDiff = !dryRun && !!blogName && !text.trim();
+  const hasMedia = !!images?.length;
+  const hasVideo = !!images?.some((image) => image.type.startsWith('video/'));
+  const postSettleTimeoutMs = hasVideo ? 120_000 : hasMedia ? 60_000 : 30_000;
+  const shouldUseLatestDiff = !dryRun && !!blogName;
   const preSubmitSnapshot = shouldUseLatestDiff && blogName
     ? await fetchTumblrLatestPostSnapshot(blogName)
     : { ok: false, url: undefined };
@@ -320,6 +323,8 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     try {
       localStorage.removeItem('tutti:tumblr-latest-post');
       localStorage.setItem('tutti:tumblr-pending-text-hash', hashCaptureText(text));
+      if (blogName) localStorage.setItem('tutti:tumblr-pending-blog', blogName);
+      else localStorage.removeItem('tutti:tumblr-pending-blog');
     } catch { /* ignore storage failures */ }
   }
 
@@ -370,7 +375,7 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
   if (!dryRun) {
     confirmed = !!await waitForCondition<boolean>(
       () => document.querySelector(sel.textarea) ? null : true,
-      { timeoutMs: 15_000, intervalMs: 300 },
+      { timeoutMs: postSettleTimeoutMs, intervalMs: 300 },
     );
     if (confirmed) log.info('Tumblr: post confirmed (composer closed)');
     if (!confirmed) log.warn('Tumblr: composer did not close after Post click');
@@ -379,11 +384,12 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
       url = captured.url;
       log.info(`Tumblr: URL captured via post API response: ${url}`);
     } else if (confirmed && blogName) {
-      url = text.trim()
-        ? await fetchTumblrRecentPostUrl(blogName, text)
-        : shouldUseLatestDiff && preSubmitSnapshot.ok
-          ? await fetchTumblrLatestPostUrlAfterSubmit(blogName, preSubmitSnapshot.url)
-          : undefined;
+      if (text.trim()) {
+        url = await fetchTumblrRecentPostUrl(blogName, text);
+      }
+      if (!url && shouldUseLatestDiff && preSubmitSnapshot.ok) {
+        url = await fetchTumblrLatestPostUrlAfterSubmit(blogName, preSubmitSnapshot.url, Math.max(30_000, Math.min(postSettleTimeoutMs, 90_000)));
+      }
     }
   }
 
@@ -464,8 +470,9 @@ async function fetchTumblrLatestPostSnapshot(blogName: string): Promise<{ ok: bo
 async function fetchTumblrLatestPostUrlAfterSubmit(
   blogName: string,
   preSubmitLatestUrl: string | undefined,
+  timeoutMs = 30_000,
 ): Promise<string | undefined> {
-  const deadline = Date.now() + 30_000;
+  const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const latest = await fetchTumblrLatestPostUrl(blogName);
     if (latest && latest !== preSubmitLatestUrl) {

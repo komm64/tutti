@@ -159,7 +159,7 @@
     {@const error = result?.error ?? ''}
     {@const adapter = getAdapter(p.id)}
     {@const loginUrl = adapter?.getLoginUrl?.()}
-    {@const hint = classifyFailure(error, p.id, loginUrl)}
+    {@const hint = classifyFailure(error, p.id, loginUrl, result?.userAction)}
     {@const ctas = result?.uncertain ? hint.ctas.filter((cta) => cta.kind !== 'retry') : hint.ctas}
     <div class="col-span-2 border border-red-200 bg-red-50/70 rounded p-2 text-[11px]">
       <p class="font-medium text-red-800 mb-1">{p.name}: {hint.reason}</p>

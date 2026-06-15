@@ -31,7 +31,12 @@
 import { findClickableByText, sleep, waitForCondition, waitForElement } from './dom';
 import { maybeConfirmDialog } from './post-flow';
 import { t } from './i18n';
-import { markPostSubmissionStarted } from './post-submission-state';
+import {
+  markPostStepCompleted,
+  markPostStepFailed,
+  markPostStepStarted,
+  markPostSubmissionStarted,
+} from './post-submission-state';
 
 /**
  * wizard の 1 ページ分。`action` で input を埋め、`advance` で次へ進む。
@@ -115,18 +120,23 @@ export async function executeMultiStepFlow(options: MultiStepFlowOptions): Promi
   }
 
   for (const step of steps) {
+    markPostStepStarted(step.name);
     try {
       await step.action();
     } catch (err) {
+      markPostStepFailed(step.name);
       const msg = err instanceof Error ? err.message : String(err);
       throw new Error(t('runtimeStepActionFailed', step.name, msg));
     }
     await sleep(step.settleMs ?? 300);
+    markPostStepCompleted(step.name);
 
     if (!step.advance) continue;
 
+    markPostStepStarted(`${step.name}:advance`);
     const advanceBtn = await waitForStepButton(step.advance, step.advance.timeoutMs ?? 8000);
     if (!advanceBtn) {
+      markPostStepFailed(`${step.name}:advance`);
       // v0.5.11〜 diagnostics: dialog 内に見えた button text を error message に
       // 含める。 auto-triage が SNS UI 変更で出てくる新 button text を patch
       // しやすくなる (= "Next" を期待してたが実際は "Continue" だった、等)。
@@ -137,26 +147,33 @@ export async function executeMultiStepFlow(options: MultiStepFlowOptions): Promi
       );
     }
     advanceBtn.click();
+    markPostStepCompleted(`${step.name}:advance`);
 
     if (step.awaitNextDom) {
+      markPostStepStarted(`${step.name}:await-next`);
       const next = await waitForElement<HTMLElement>(
         step.awaitNextDom.selector,
         step.awaitNextDom.timeoutMs ?? 8000,
       );
       if (!next) {
+        markPostStepFailed(`${step.name}:await-next`);
         throw new Error(
           t('runtimeStepNextDomMissing', step.name, step.awaitNextDom.selector),
         );
       }
+      markPostStepCompleted(`${step.name}:await-next`);
     } else {
       await sleep(step.settleMs ?? 300);
     }
   }
 
+  markPostStepStarted('wait-submit');
   const finalizeBtn = await waitForStepButton(finalize, finalize.timeoutMs ?? 8000);
   if (!finalizeBtn) {
+    markPostStepFailed('wait-submit');
     throw new Error(t('runtimeFinalPostButtonMissing'));
   }
+  markPostStepCompleted('wait-submit');
 
   if (dryRun) {
     console.log('[Tutti] dry-run: finalize button found and enabled, skipping click', finalizeBtn);
@@ -170,10 +187,14 @@ export async function executeMultiStepFlow(options: MultiStepFlowOptions): Promi
   finalizeBtn.click();
 
   if (finalize.confirmDialogButtonTexts && finalize.confirmDialogButtonTexts.length > 0) {
+    markPostStepStarted('complete-confirmation');
     await maybeConfirmDialog(finalize.confirmDialogButtonTexts, finalize.confirmDialogGraceMs);
+    markPostStepCompleted('complete-confirmation');
   }
 
+  markPostStepStarted('post-processing');
   await sleep(finalize.afterClickDelayMs ?? 250);
+  markPostStepCompleted('post-processing');
 }
 
 /**

@@ -46,7 +46,11 @@ export function shouldClearDraftAfterSubmit(
   autoPost: boolean,
   results: readonly PostResultMessage[] | null,
 ): boolean {
-  return autoPost && !!results?.length && results.every((result) => result.success && !result.preview);
+  return autoPost && !!results?.length && results.every(isDurablePostedResult);
+}
+
+export function isDurablePostedResult(result: PostResultMessage): boolean {
+  return result.success === true && result.preview !== true && !!result.url;
 }
 
 export function failedRetryPlatforms(results: readonly PostResultMessage[] | null): PlatformId[] {

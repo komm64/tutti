@@ -7,7 +7,11 @@ import {
 } from './dom';
 import { dropImages, injectImages, injectTextIntoElement } from './image';
 import { t } from './i18n';
-import { markPostSubmissionStarted } from './post-submission-state';
+import {
+  markPostStepCompleted,
+  markPostStepStarted,
+  markPostSubmissionStarted,
+} from './post-submission-state';
 
 const VIDEO_POST_BUTTON_TIMEOUT_MS = 120_000;
 
@@ -64,6 +68,11 @@ export interface PostFlowOptions {
   requireMediaPreview?: boolean;
   /** drag/drop 型の添付で、drop target 出現後に待つ時間(ms) */
   beforeDropDelayMs?: number;
+  /**
+   * media attach strategy order. Default keeps the historical behavior:
+   * drop target first when present, otherwise file input.
+   */
+  mediaAttachOrder?: ('input' | 'drop')[];
 }
 
 /**
@@ -94,6 +103,7 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
     requireMediaAccepted,
     requireMediaPreview,
     beforeDropDelayMs,
+    mediaAttachOrder,
   } = options;
   if (!postButtonSelector && !postButtonTexts?.length && !postButtonFinder) {
     throw new Error('postButtonSelector, postButtonTexts, or postButtonFinder is required');
@@ -104,40 +114,53 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
     if (!injectSelector) {
       throw new Error('textareaSelector is required for DOM injection');
     }
+    markPostStepStarted('verify-compose');
     const composeInput = await waitForElement<HTMLElement>(injectSelector, composeInputTimeoutMs);
     if (!composeInput) {
       throw new Error(t('runtimeComposeInputMissing'));
     }
+    markPostStepCompleted('verify-compose');
     // 本文がある場合のみ MAIN world 経由でテキスト挿入。空文字 inject は
     // (一部 framework で) editor の placeholder structure を壊すリスクが
     // あるので skip (画像のみ投稿のための path、v0.4.59)。
     if (text) {
+      markPostStepStarted('inject-text');
       await textInjector(text, injectSelector);
       await sleep(300);
+      markPostStepCompleted('inject-text');
+      markPostStepCompleted('verify-text');
     }
   }
 
   if (images && images.length > 0) {
-    if (dropTargetSelector) {
-      await dropImages(images, dropTargetSelector, { requireMediaAccepted, requireMediaPreview, beforeDropDelayMs });
-    } else if (fileInputSelector) {
-      await injectImages(images, fileInputSelector, { requireMediaAccepted, requireMediaPreview });
-    } else {
-      throw new Error(t('runtimeImageUnsupported'));
-    }
+    markPostStepStarted('attach-media');
+    await attachMedia(images, {
+      fileInputSelector,
+      dropTargetSelector,
+      requireMediaAccepted,
+      requireMediaPreview,
+      beforeDropDelayMs,
+      mediaAttachOrder,
+    });
+    markPostStepCompleted('attach-media');
+    markPostStepCompleted('verify-media');
   }
 
   // tag chip 注入など、 各 SNS 固有の追加 step (v0.4.72〜)
   if (beforeSubmit) {
+    markPostStepStarted('pre-submit-checks');
     await beforeSubmit();
+    markPostStepCompleted('pre-submit-checks');
   }
 
   if (dryRun && prefillsViaUrl && textareaSelector) {
+    markPostStepStarted('verify-compose');
     const composeInput = await waitForCondition<HTMLElement>(
       () => findComposeInput(textareaSelector),
       { timeoutMs: composeInputTimeoutMs, intervalMs: 150 },
     );
     if (composeInput) {
+      markPostStepCompleted('verify-compose');
       console.log('[Tutti] dry-run: URL-prefill compose input found, skipping post button check', composeInput);
       if (composeInput.style) {
         const orig = composeInput.style.outline;
@@ -187,6 +210,7 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
   const hasVideo = (images ?? []).some((m) => m.type.startsWith('video/'));
   const effectiveTimeoutMs = resolvePostButtonTimeoutMs(postButtonTimeoutMs, hasVideo);
 
+  markPostStepStarted('wait-submit');
   let lastFound: HTMLElement | null = null;
   const button = await waitForCondition<HTMLElement>(() => {
     const candidate = findButton();
@@ -211,6 +235,7 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
       t('runtimePostButtonDisabled'),
     );
   }
+  markPostStepCompleted('wait-submit');
 
   if (dryRun) {
     console.log('[Tutti] dry-run: post button found and enabled, skipping click', button);
@@ -226,10 +251,67 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
   else button.click();
 
   if (confirmDialogButtonTexts && confirmDialogButtonTexts.length > 0) {
+    markPostStepStarted('complete-confirmation');
     await maybeConfirmDialog(confirmDialogButtonTexts, confirmDialogGraceMs);
+    markPostStepCompleted('complete-confirmation');
   }
 
+  markPostStepStarted('post-processing');
   await sleep(afterClickDelayMs);
+  markPostStepCompleted('post-processing');
+}
+
+async function attachMedia(
+  images: ImageAttachment[],
+  options: Pick<PostFlowOptions,
+    'fileInputSelector' |
+    'dropTargetSelector' |
+    'requireMediaAccepted' |
+    'requireMediaPreview' |
+    'beforeDropDelayMs' |
+    'mediaAttachOrder'
+  >,
+): Promise<void> {
+  const defaultOrder: ('input' | 'drop')[] = options.dropTargetSelector
+    ? ['drop', 'input']
+    : ['input', 'drop'];
+  const order = options.mediaAttachOrder ?? defaultOrder;
+  let lastError: unknown;
+
+  for (const strategy of order) {
+    try {
+      if (strategy === 'input' && options.fileInputSelector) {
+        await injectImages(images, options.fileInputSelector, {
+          requireMediaAccepted: options.requireMediaAccepted,
+          requireMediaPreview: options.requireMediaPreview,
+        });
+        return;
+      }
+      if (strategy === 'drop' && options.dropTargetSelector) {
+        await dropImages(images, options.dropTargetSelector, {
+          requireMediaAccepted: options.requireMediaAccepted,
+          requireMediaPreview: options.requireMediaPreview,
+          beforeDropDelayMs: options.beforeDropDelayMs,
+        });
+        return;
+      }
+    } catch (e) {
+      lastError = e;
+      if (!isMissingAttachTargetError(e)) throw e;
+      console.warn(
+        `[Tutti] media attach ${strategy} target missing; trying next strategy: ` +
+        `${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+  }
+
+  if (lastError) throw lastError;
+  throw new Error(t('runtimeImageUnsupported'));
+}
+
+function isMissingAttachTargetError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /(?:file input|drop target) not found/i.test(msg);
 }
 
 export function resolvePostButtonTimeoutMs(postButtonTimeoutMs: number, hasVideo: boolean): number {

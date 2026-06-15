@@ -149,13 +149,24 @@ The matrix must pass the common draft shapes for every supported SNS: text only,
 image only, text + image, video only, text + video, image + video input
 normalized to video-only, long text + image, and an immediate repeated run.
 Preview must never write history or return post URLs.
+Every result must include a flow trace. Preview results must record
+`flow.submitReached=false`; if preview reaches submit, the gate fails.
 
 Before CWS upload, run at least the affected real-post cases in post mode. For a
 media or URL-capture fix, every selected SNS in that run must return
-`success=true`, `confirmed=true`, and a captured post URL:
+`success=true`, `confirmed=true`, `flow.submitReached=true`, no hard verify
+errors, and a captured post URL:
 
 ```powershell
 node scripts/e2e/surface-posting-matrix.mjs --mode post --cases image-only,text-image,video-only,text-video --platforms x,bluesky,threads,mastodon,misskey,tumblr,instagram
+```
+
+The matrix writes a pasteable JSON report to
+`.tmp/surface-posting-matrix-last.json` by default. Override it when collecting
+release evidence:
+
+```powershell
+node scripts/e2e/surface-posting-matrix.mjs --mode preview --repeat 2 --summary-json .tmp/surface-preview-vX.Y.Z.json
 ```
 
 For URL capture checks:

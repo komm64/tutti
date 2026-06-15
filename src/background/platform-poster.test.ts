@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { PlatformAdapter } from '../adapters/types';
 import {
+  buildFinalChunkResult,
   buildDomPostAttempts,
   buildReplyOverrideUrl,
   shouldReuseExistingTabForAttempt,
@@ -88,5 +89,31 @@ describe('platform poster helpers', () => {
     expect(shouldReuseExistingTabForAttempt(adapter(), false, {
       reuseExistingTab: false,
     })).toBe(false);
+  });
+
+  it('preserves the final chunk flow trace on aggregated preview results', () => {
+    const result = buildFinalChunkResult('x', false, true, undefined, {
+      mode: 'preview',
+      attempt: 'default',
+      submitReached: false,
+      lastCompletedStep: 'wait-submit',
+    });
+
+    expect(result.flow).toMatchObject({
+      mode: 'preview',
+      attempt: 'default',
+      submitReached: false,
+      lastCompletedStep: 'wait-submit',
+    });
+  });
+
+  it('adds a fallback flow trace when a successful chunk omitted it', () => {
+    const result = buildFinalChunkResult('x', false, true);
+
+    expect(result.flow).toMatchObject({
+      mode: 'preview',
+      submitReached: false,
+      lastCompletedStep: 'preview-flow',
+    });
   });
 });

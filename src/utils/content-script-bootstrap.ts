@@ -33,7 +33,14 @@ import { initLogLevelFromSettings, log } from './logger';
 import { buildDiagnosis } from './diagnose';
 import { detectAndReportUser } from './user-detect';
 import { t } from './i18n';
-import { hasPostSubmissionStarted, resetPostSubmissionState } from './post-submission-state';
+import {
+  getPostSubmissionTrace,
+  hasPostSubmissionStarted,
+  markPostStepCompleted,
+  markPostStepFailed,
+  markPostStepStarted,
+  resetPostSubmissionState,
+} from './post-submission-state';
 
 export interface BootstrapOptions<S extends Record<string, string>> {
   /** 'x' / 'bluesky' / etc */
@@ -113,27 +120,49 @@ export function bootstrapContentScript<S extends Record<string, string>>(
         // 切替わってたら abort。 detection が null (= 未検出 / 検出失敗) の場合は
         // false-positive 防止のため check skip し post を続行。
         if (msg.expectedUser) {
+          markPostStepStarted('verify-login');
           const current = await Promise.resolve(detectUser());
           if (current && current !== msg.expectedUser) {
+            markPostStepFailed('verify-login');
             log.warn(`${platform}: account mismatch ${msg.expectedUser} → ${current}、 post abort`);
             sendResponse({
               type: 'POST_RESULT',
               platform,
               success: false,
+              userAction: 'check-account',
+              flow: getPostSubmissionTrace({
+                mode: msg.dryRun ? 'preview' : 'post',
+                failedStep: 'verify-login',
+              }),
               error: t('runtimeAccountMismatch', platform, msg.expectedUser, current),
             } satisfies PostResultMessage);
             return;
           }
+          markPostStepCompleted('verify-login');
         }
         const result = await runPost(msg.text, msg.images, msg.dryRun, msg.textChunks);
-        sendResponse(result);
+        sendResponse({
+          ...result,
+          flow: {
+            ...getPostSubmissionTrace({
+              mode: msg.dryRun ? 'preview' : 'post',
+            }),
+            ...result.flow,
+            submitReached: result.flow?.submitReached ?? getPostSubmissionTrace().submitReached,
+          },
+        } satisfies PostResultMessage);
       } catch (err) {
+        markPostStepFailed();
         const message = err instanceof Error ? err.message : String(err);
         sendResponse({
           type: 'POST_RESULT',
           platform,
           success: false,
           uncertain: hasPostSubmissionStarted() || undefined,
+          userAction: hasPostSubmissionStarted() ? 'check-post-before-retry' : undefined,
+          flow: getPostSubmissionTrace({
+            mode: msg.dryRun ? 'preview' : 'post',
+          }),
           error: message,
         } satisfies PostResultMessage);
       }

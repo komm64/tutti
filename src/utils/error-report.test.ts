@@ -36,6 +36,19 @@ describe('buildCurrentDraftReportSection', () => {
       cw: 'spoiler',
       visibility: 'public',
       trimToS: null,
+      lastResults: [{
+        type: 'POST_RESULT',
+        platform: 'threads',
+        success: false,
+        uncertain: true,
+        userAction: 'check-post-before-retry',
+        flow: {
+          mode: 'post',
+          submitReached: true,
+          lastCompletedStep: 'click-submit',
+          failedStep: 'capture-url',
+        },
+      }],
     });
 
     expect(section).toContain('## Current draft (redacted)');
@@ -43,6 +56,7 @@ describe('buildCurrentDraftReportSection', () => {
     expect(section).toContain('- Platform chunks: x:2, bluesky:2');
     expect(section).toContain('- Media: images=1, video=0');
     expect(section).toContain('- image[0]: type=image/jpeg, bytes=2048 (2KB), altLength=9');
+    expect(section.join('\n')).toContain('threads: success=false uncertain=true userAction=check-post-before-retry submitReached=true lastCompletedStep=click-submit failedStep=capture-url');
     expect(section.join('\n')).not.toContain('hello');
   });
 
