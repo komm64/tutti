@@ -27,6 +27,8 @@ import { maybeResizeImagesForPlatform } from './media-preprocess';
 import { downgradeHardVerifyFailures, toPreviewResult } from './post-result-policy';
 import type { OpenedTabRegistry } from './opened-tab-registry';
 import { retryTransientTabAction } from './tab-action-retry';
+import { continuationNeedsReplyUrl } from '../utils/reply-compose';
+import type { VerifyExpectation } from '../utils/post-verify';
 
 const CHUNK_INTERVAL_MS = 2000;
 const PRE_SUBMIT_LOAD_RETRY_PLATFORMS = new Set<PlatformId>(['mastodon']);
@@ -89,6 +91,15 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
     for (let i = 0; i < chunks.length; i++) {
       if (i > 0) await sleep(CHUNK_INTERVAL_MS);
       const chunkImages = i === 0 ? images : undefined;
+      const replyToUrl = i > 0 ? prevPostUrl : undefined;
+      if (autoPost && i > 0 && continuationNeedsReplyUrl(adapter.id) && !replyToUrl) {
+        return unconfirmedPostResult(adapter.id, {
+          mode: 'post',
+          submitReached: true,
+          failedStep: 'capture-url',
+          lastCompletedStep: finalChunkFlow?.lastCompletedStep,
+        });
+      }
       const overrideUrl = buildReplyOverrideUrl(adapter.id, i, prevPostUrl);
 
       try {
@@ -101,6 +112,7 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
           cw,
           visibility,
           autoPost,
+          replyToUrl,
         );
 
         if (!result.success) {
@@ -164,6 +176,7 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
     cw?: string,
     visibility?: Visibility,
     autoPost = true,
+    replyToUrl?: string,
   ): Promise<PostResultMessage> {
     const attempts = buildDomPostAttempts(adapter, autoPost);
     let lastError: unknown;
@@ -181,6 +194,7 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
           visibility,
           autoPost,
           attempt,
+          replyToUrl,
         );
       } catch (err) {
         lastError = err;
@@ -205,6 +219,7 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
     visibility?: Visibility,
     autoPost = true,
     attempt: DomPostAttempt = { label: 'default' },
+    replyToUrl?: string,
   ): Promise<PostResultMessage> {
     const images = rawImages ? await maybeResizeImagesForPlatform(adapter, rawImages) : undefined;
     const baseFlow: Partial<PostFlowTrace> = {
@@ -214,8 +229,9 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
       lastCompletedStep: 'preflight',
     };
 
-    if (autoPost && !overrideUrl && !textChunks && !attempt.skipApi) {
-      const apiResult = await tryApiPath(adapter.id, text, images, cw, visibility);
+    const canUseApiWithReplyUrl = adapter.id === 'mastodon' && !!replyToUrl;
+    if (autoPost && (!overrideUrl || canUseApiWithReplyUrl) && !textChunks && !attempt.skipApi) {
+      const apiResult = await tryApiPath(adapter.id, text, images, cw, visibility, replyToUrl);
       if (apiResult === 'no-credentials') {
         // Fall through to DOM path.
       } else if (apiResult.success) {
@@ -448,7 +464,9 @@ export function buildReplyOverrideUrl(
   chunkIndex: number,
   prevPostUrl: string | undefined,
 ): string | undefined {
-  if (platform !== 'x' || chunkIndex === 0 || !prevPostUrl) return undefined;
+  if (chunkIndex === 0 || !prevPostUrl) return undefined;
+  if (platform === 'mastodon' || platform === 'threads') return prevPostUrl;
+  if (platform !== 'x') return undefined;
   const match = prevPostUrl.match(/\/status\/(\d+)/);
   return match?.[1] ? `https://x.com/intent/post?in_reply_to=${match[1]}` : undefined;
 }
@@ -529,11 +547,7 @@ async function attachVerifyResult(
   text: string,
   images?: ImageAttachment[],
 ): Promise<void> {
-  const expectation = {
-    text: chunks.length > 1 ? chunks[chunks.length - 1]! : text,
-    hasImages: !!images?.some((image) => image.type.startsWith('image/')),
-    hasVideo: !!images?.some((image) => image.type.startsWith('video/')),
-  };
+  const expectation = buildVerifyExpectationForChunk(chunks, text, images, chunks.length - 1);
   try {
     result.flow = {
       ...result.flow,
@@ -557,6 +571,21 @@ async function attachVerifyResult(
     };
     log.warn(`${platform} verify failed (post 自体は成功): ${e instanceof Error ? e.message : String(e)}`);
   }
+}
+
+export function buildVerifyExpectationForChunk(
+  chunks: readonly string[],
+  text: string,
+  images: ImageAttachment[] | undefined,
+  chunkIndex: number,
+): VerifyExpectation {
+  const chunkText = chunks.length > 1 ? chunks[chunkIndex] ?? chunks[chunks.length - 1] ?? text : text;
+  const mediaBelongsToThisChunk = chunks.length <= 1 || chunkIndex === 0;
+  return {
+    text: chunkText,
+    hasImages: mediaBelongsToThisChunk && !!images?.some((image) => image.type.startsWith('image/')),
+    hasVideo: mediaBelongsToThisChunk && !!images?.some((image) => image.type.startsWith('video/')),
+  };
 }
 
 async function maybeAutoOpenPostUrl(

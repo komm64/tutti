@@ -67,6 +67,7 @@ export async function postViaApi(
     if (mediaIds.length > 0) body['media_ids'] = mediaIds;
     if (input.cw) body['spoiler_text'] = input.cw;
     if (input.visibility) body['visibility'] = input.visibility;
+    if (input.replyToId) body['in_reply_to_id'] = input.replyToId;
 
     statusRequestInFlight = true;
     const res = await fetch(`${creds.instance}/api/v1/statuses`, {

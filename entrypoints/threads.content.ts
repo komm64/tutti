@@ -8,6 +8,7 @@ import { waitForPostUrl } from '../src/utils/url-capture';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
 import { hashCaptureText, readFreshCapturedPost } from '../src/utils/post-capture-record';
+import { openReplyComposerIfOnPostPage } from '../src/utils/reply-compose';
 
 function detectThreadsUser(): string | null {
   type Strategy = { name: string; fn: () => string | null };
@@ -180,14 +181,24 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
       else localStorage.removeItem('tutti:threads-pending-user');
     } catch { /* ignore storage failures */ }
   }
+  const replyTextareaSelector =
+    '[role="dialog"] div[contenteditable="true"][role="textbox"], [role="dialog"] div[contenteditable="plaintext-only"]';
+  const replyContinuation = await openReplyComposerIfOnPostPage('threads', replyTextareaSelector, {
+    timeoutMs: 20_000,
+    clickInMainWorld: true,
+  });
+  const textareaSelector = replyContinuation ? replyTextareaSelector : sel.textarea;
+  const dropTargetSelector = replyContinuation
+    ? '[role="dialog"] [role="textbox"]'
+    : sel.dropTarget;
   await executePostFlow({
-    prefillsViaUrl: threadsAdapter.prefillsViaUrl,
-    textareaSelector: sel.textarea,
+    prefillsViaUrl: replyContinuation ? false : threadsAdapter.prefillsViaUrl,
+    textareaSelector,
     // Threads の post button は React Native Web で aria-label / data-testid が
     // 不安定。テキスト「投稿」「Post」で探す finder を使う。
     postButtonFinder: findThreadsPostButton,
     fileInputSelector: sel.fileInput,
-    dropTargetSelector: sel.dropTarget,
+    dropTargetSelector,
     mediaAttachOrder: ['input', 'drop'],
     text,
     images,
@@ -203,10 +214,10 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
   });
   if (!dryRun) {
     const closed = await waitForCondition<boolean>(
-      () => isThreadsDraftOpen(text, sel.textarea) ? null : true,
+      () => isThreadsDraftOpen(text, textareaSelector) ? null : true,
       { timeoutMs: postSettleTimeoutMs, intervalMs: 500 },
     );
-    if (!closed && isThreadsDraftOpen(text, sel.textarea)) {
+    if (!closed && isThreadsDraftOpen(text, textareaSelector)) {
       const button = findThreadsPostButton();
       if (button && !isDisabled(button)) {
         log.warn('Threads: composer still open after submit; enabled Post button returned, retrying click once');
@@ -215,7 +226,7 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
           ['Post', '投稿', '投稿する', 'Post now'],
         );
         await waitForCondition<boolean>(
-          () => isThreadsDraftOpen(text, sel.textarea) ? null : true,
+          () => isThreadsDraftOpen(text, textareaSelector) ? null : true,
           { timeoutMs: Math.min(postSettleTimeoutMs, 60_000), intervalMs: 500 },
         );
       } else {

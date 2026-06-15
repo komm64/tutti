@@ -17,6 +17,8 @@ export interface ApiPostInput {
   cw?: string;
   /** visibility (Mastodon / Misskey、 v0.4.87〜)。 default 'public'。 */
   visibility?: 'public' | 'unlisted' | 'private' | 'direct';
+  /** Reply target status id for API clients that support threaded posting. */
+  replyToId?: string;
 }
 
 export interface ApiPostResult {

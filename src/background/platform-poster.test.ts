@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { PlatformAdapter } from '../adapters/types';
 import {
+  buildVerifyExpectationForChunk,
   buildFinalChunkResult,
   buildDomPostAttempts,
   buildReplyOverrideUrl,
@@ -28,10 +29,19 @@ describe('platform poster helpers', () => {
     );
   });
 
-  it('does not build reply URLs outside X continuation chunks', () => {
+  it('does not build reply URLs without a continuation target or for unsupported platforms', () => {
     expect(buildReplyOverrideUrl('x', 0, 'https://x.com/alice/status/123456')).toBeUndefined();
     expect(buildReplyOverrideUrl('bluesky', 1, 'https://bsky.app/profile/alice/post/abc')).toBeUndefined();
     expect(buildReplyOverrideUrl('x', 1, 'https://x.com/home')).toBeUndefined();
+  });
+
+  it('opens Mastodon and Threads continuation chunks from the previous post URL', () => {
+    expect(buildReplyOverrideUrl('mastodon', 1, 'https://mastodon.social/@alice/1234567890')).toBe(
+      'https://mastodon.social/@alice/1234567890',
+    );
+    expect(buildReplyOverrideUrl('threads', 1, 'https://www.threads.com/@alice/post/ABC123')).toBe(
+      'https://www.threads.com/@alice/post/ABC123',
+    );
   });
 
   it('builds safe pre-submit fallback attempts for normal SNS posting', () => {
@@ -114,6 +124,22 @@ describe('platform poster helpers', () => {
       mode: 'preview',
       submitReached: false,
       lastCompletedStep: 'preview-flow',
+    });
+  });
+
+  it('expects media only on the first chunk of a split post', () => {
+    const image = {
+      name: 'photo.png',
+      type: 'image/png',
+      data: 'AA==',
+    };
+    expect(buildVerifyExpectationForChunk(['first', 'second'], 'first second', [image], 0)).toMatchObject({
+      text: 'first',
+      hasImages: true,
+    });
+    expect(buildVerifyExpectationForChunk(['first', 'second'], 'first second', [image], 1)).toMatchObject({
+      text: 'second',
+      hasImages: false,
     });
   });
 });

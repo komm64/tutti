@@ -4,6 +4,7 @@ import { postViaApi as postMastodonApi } from '../api/mastodon';
 import { postViaApi as postMisskeyApi } from '../api/misskey';
 import type { ApiPostResult } from '../api/types';
 import { getApiCredentials } from '../utils/api-credentials';
+import { parseMastodonStatusIdFromUrl } from '../utils/reply-compose';
 
 export type ApiPostingVisibility = 'public' | 'unlisted' | 'private' | 'direct';
 
@@ -17,6 +18,7 @@ export async function tryApiPath(
   images?: ImageAttachment[],
   cw?: string,
   visibility?: ApiPostingVisibility,
+  replyToUrl?: string,
 ): Promise<ApiPostResult | 'no-credentials'> {
   const creds = await getApiCredentials();
   const hasVideo = !!images?.some((image) => image.type.startsWith('video/'));
@@ -27,7 +29,13 @@ export async function tryApiPath(
     return await postBlueskyApi(creds.bluesky, { text, images });
   }
   if (platform === 'mastodon' && creds.mastodon) {
-    return await postMastodonApi(creds.mastodon, { text, images, cw, visibility });
+    return await postMastodonApi(creds.mastodon, {
+      text,
+      images,
+      cw,
+      visibility,
+      replyToId: replyToUrl ? parseMastodonStatusIdFromUrl(replyToUrl) : undefined,
+    });
   }
   if (platform === 'misskey' && creds.misskey) {
     return await postMisskeyApi(creds.misskey, { text, images, cw, visibility });

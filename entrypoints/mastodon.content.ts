@@ -10,6 +10,7 @@ import {
   hashCaptureText,
   readFreshCapturedPost,
 } from '../src/utils/post-capture-record';
+import { openReplyComposerIfOnPostPage } from '../src/utils/reply-compose';
 
 function detectMastodonUser(): string | null {
   type Strategy = { name: string; fn: () => string | null };
@@ -115,6 +116,10 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
       localStorage.setItem('tutti:mastodon-pending-text-hash', hashCaptureText(text));
     } catch { /* ignore storage failures */ }
   }
+
+  await openReplyComposerIfOnPostPage('mastodon', sel.textarea, {
+    timeoutMs: 20_000,
+  });
 
   await executePostFlow({
     // /share?text= の prefill は Mastodon Web の hydration 状態に左右される。

@@ -42,6 +42,16 @@ describe('mastodon postViaApi (v0.4.87)', () => {
     expect(body.visibility).toBe('unlisted');
   });
 
+  it('sends in_reply_to_id for continuation posts', async () => {
+    await postViaApi(creds, {
+      text: 'reply chunk',
+      replyToId: '1234567890',
+    });
+    const statusesCall = fetchSpy.mock.calls.find(([u]) => String(u).endsWith('/api/v1/statuses'));
+    const body = JSON.parse(String(statusesCall![1]!.body));
+    expect(body.in_reply_to_id).toBe('1234567890');
+  });
+
   it('omits cw / visibility when not provided (default public)', async () => {
     await postViaApi(creds, { text: 'plain' });
     const statusesCall = fetchSpy.mock.calls.find(([u]) => String(u).endsWith('/api/v1/statuses'));

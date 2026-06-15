@@ -1290,7 +1290,7 @@ export default defineContentScript({
       const texts = req.texts ?? [];
       for (const part of req.selector.split(',').map((s) => s.trim()).filter(Boolean)) {
         for (const el of document.querySelectorAll<HTMLElement>(part)) {
-          if (texts.length > 0 && !texts.includes((el.textContent ?? '').trim())) continue;
+          if (texts.length > 0 && !clickTextMatches(el, texts)) continue;
           if (el.getAttribute('aria-disabled') === 'true' || (el as HTMLButtonElement).disabled) continue;
           console.log(`[Tutti inject-helper] click target matched "${part}"`);
           if (
@@ -1315,6 +1315,15 @@ export default defineContentScript({
         }
       }
       return { source: RES_TAG, id: req.id, ok: false, error: 'click target not found' };
+    }
+
+    function clickTextMatches(el: HTMLElement, texts: string[]): boolean {
+      const values = [
+        el.textContent,
+        el.getAttribute('aria-label'),
+        el.getAttribute('title'),
+      ].map((value) => (value ?? '').replace(/\s+/g, ' ').trim());
+      return values.some((value) => value && texts.includes(value));
     }
 
     async function readLatestXPostUrl(req: InjectRequest): Promise<InjectResponse> {
