@@ -8,11 +8,51 @@ describe('maybeConfirmDialog', () => {
 
   it('returns after the short grace period when no dialog appears', async () => {
     vi.stubGlobal('document', {
+      body: {},
       querySelector: () => null,
+      querySelectorAll: () => [],
     });
+    vi.stubGlobal('MutationObserver', undefined);
     const start = Date.now();
     await maybeConfirmDialog(['Post anyway'], 10);
     expect(Date.now() - start).toBeLessThan(500);
+  });
+
+  it('ignores the original compose dialog and clicks a new Tumblr no-tags confirmation', async () => {
+    const submitButton = {
+      textContent: 'Post',
+      getAttribute: vi.fn(() => null),
+      disabled: false,
+      click: vi.fn(),
+    } as unknown as HTMLElement;
+    const confirmButton = {
+      textContent: 'Post without tags',
+      getAttribute: vi.fn(() => null),
+      disabled: false,
+      click: vi.fn(),
+    } as unknown as HTMLElement;
+    const composeDialog = {
+      querySelectorAll: vi.fn(() => [submitButton]),
+    } as unknown as HTMLElement;
+    const confirmDialog = {
+      querySelectorAll: vi.fn(() => [confirmButton]),
+    } as unknown as HTMLElement;
+    vi.stubGlobal('document', {
+      body: {},
+      querySelector: () => null,
+      querySelectorAll: vi.fn((selector: string) => selector === '[role="dialog"]'
+        ? [composeDialog, confirmDialog]
+        : []),
+    });
+    vi.stubGlobal('MutationObserver', undefined);
+
+    await expect(maybeConfirmDialog(['Post without tags'], 10, {
+      ignoredDialogs: [composeDialog],
+      excludedButtons: [submitButton],
+    })).resolves.toBe(true);
+
+    expect(confirmButton.click).toHaveBeenCalledOnce();
+    expect(submitButton.click).not.toHaveBeenCalled();
   });
 });
 

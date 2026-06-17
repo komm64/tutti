@@ -334,12 +334,29 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     postButtonSelector: sel.postButton,
     postButtonTexts: ['Post now', 'Post', '投稿', 'Publish', '今すぐ投稿', '投稿する'],
     dropTargetSelector: sel.dropTarget,
-    // タグなしで投稿時に出る "Post without tags?" ダイアログを自動承認
-    confirmDialogButtonTexts: ['Post', '投稿'],
+    // タグなしで投稿時に出る "Post without tags?" ダイアログを自動承認。
+    // Tumblr は A/B で button text が揺れるため、compose 本体の Post button は
+    // executePostFlow 側で除外し、確認 dialog 側の候補を広めに持つ。
+    confirmDialogButtonTexts: [
+      'Post without tags',
+      'Post anyway',
+      'Post',
+      'Publish',
+      'Continue',
+      'タグなしで投稿',
+      'このまま投稿',
+      '投稿',
+      '投稿する',
+      '続行',
+    ],
+    confirmDialogGraceMs: 5000,
     text,
     images,
     postButtonTimeoutMs: 10000,
     textInjector: injectTumblrTextIntoElement,
+    requireMediaAccepted: hasVideo || undefined,
+    requireMediaPreview: hasVideo || undefined,
+    beforeDropDelayMs: hasVideo ? 500 : undefined,
     beforeSubmit: async () => {
       // Gutenberg editor は画像 block 追加時に本文 block を re-mount することがある。
       // drop 前に注入した本文が消えた / 古い本文が混ざった / 重複した場合は
@@ -383,7 +400,7 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     if (captured?.url) {
       url = captured.url;
       log.info(`Tumblr: URL captured via post API response: ${url}`);
-    } else if (confirmed && blogName) {
+    } else if (blogName) {
       if (text.trim()) {
         url = await fetchTumblrRecentPostUrl(blogName, text);
       }

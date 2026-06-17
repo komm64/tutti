@@ -5,6 +5,7 @@ import { closeTabSafely } from './tab-management';
 export interface OpenedTabRegistry {
   clear(): void;
   record(platform: PlatformId, tabId: number): void;
+  forget(platform: PlatformId, tabId: number): void;
   cleanup(results: readonly PostResultMessage[]): Promise<void>;
 }
 
@@ -23,10 +24,16 @@ export function createOpenedTabRegistry(): OpenedTabRegistry {
       }
       set.add(tabId);
     },
+    forget(platform, tabId): void {
+      const set = openedTabsByPlatform.get(platform);
+      if (!set) return;
+      set.delete(tabId);
+      if (set.size === 0) openedTabsByPlatform.delete(platform);
+    },
     async cleanup(results): Promise<void> {
       try {
         for (const result of results) {
-          if (!result.success) continue;
+          if (!shouldCloseOwnedTabs(result)) continue;
           const set = openedTabsByPlatform.get(result.platform);
           if (!set) continue;
           for (const tabId of set) {
@@ -42,4 +49,10 @@ export function createOpenedTabRegistry(): OpenedTabRegistry {
       }
     },
   };
+}
+
+function shouldCloseOwnedTabs(result: PostResultMessage): boolean {
+  if (result.preview) return false;
+  if (result.success) return true;
+  return result.uncertain === true || result.userAction === 'check-post-before-retry';
 }

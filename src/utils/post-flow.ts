@@ -1,5 +1,6 @@
 import type { ImageAttachment } from '../messages';
 import {
+  elementTextMatches,
   findClickableByText,
   sleep,
   waitForCondition,
@@ -14,6 +15,26 @@ import {
 } from './post-submission-state';
 
 const VIDEO_POST_BUTTON_TIMEOUT_MS = 120_000;
+const CONFIRM_DIALOG_SELECTORS = [
+  '[role="dialog"]',
+  '[role="alertdialog"]',
+  '.modal-root__container', // Mastodon
+  '.components-modal__frame', // Gutenberg / Tumblr
+  'ytcp-dialog', // YouTube Studio custom dialog (role="dialog" も付くが念のため)
+  'tp-yt-paper-dialog', // YouTube Studio polymer dialog
+];
+
+export interface ConfirmDialogOptions {
+  /**
+   * Compose 本体も role=dialog の SNS があるため、post click 前から存在していた
+   * dialog は確認 dialog として扱わない。
+   */
+  ignoredDialogs?: readonly HTMLElement[];
+  /** click した元の submit button を confirmation 候補から除外する。 */
+  excludedButtons?: readonly HTMLElement[];
+  /** Compose 本体 dialog を除外するための入力欄 selector。 */
+  composeInputSelector?: string;
+}
 
 export interface PostFlowOptions {
   /** URL pre-fill 方式なら true、DOM injection が必要なら false */
@@ -246,13 +267,18 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
     return;
   }
 
+  const preClickDialogs = collectConfirmDialogs();
   markPostSubmissionStarted();
   if (clickPostButton) await clickPostButton();
   else button.click();
 
   if (confirmDialogButtonTexts && confirmDialogButtonTexts.length > 0) {
     markPostStepStarted('complete-confirmation');
-    await maybeConfirmDialog(confirmDialogButtonTexts, confirmDialogGraceMs);
+    await maybeConfirmDialog(confirmDialogButtonTexts, confirmDialogGraceMs, {
+      ignoredDialogs: preClickDialogs,
+      excludedButtons: [button],
+      composeInputSelector: textareaSelector,
+    });
     markPostStepCompleted('complete-confirmation');
   }
 
@@ -330,28 +356,28 @@ function findComposeInput(selector: string | undefined): HTMLElement | null {
  *
  * step-runner.ts の finalize からも再利用するため export してある。
  */
-export async function maybeConfirmDialog(texts: string[], graceMs = 800): Promise<void> {
-  const DIALOG_SELECTORS = [
-    '[role="dialog"]',
-    '[role="alertdialog"]',
-    '.modal-root__container', // Mastodon
-    '.components-modal__frame', // Gutenberg / Tumblr
-    'ytcp-dialog', // YouTube Studio custom dialog (role="dialog" も付くが念のため)
-    'tp-yt-paper-dialog', // YouTube Studio polymer dialog
-  ];
+export async function maybeConfirmDialog(
+  texts: string[],
+  graceMs = 800,
+  options: ConfirmDialogOptions = {},
+): Promise<boolean> {
   const start = Date.now();
+  const ignoredDialogs = new Set(options.ignoredDialogs ?? []);
+  const excludedButtons = new Set(options.excludedButtons ?? []);
   let lastSeenDialog: HTMLElement | null = null;
   let lastSeenButtonTexts: string[] = [];
-  await waitForCondition<boolean>(() => {
-    for (const sel of DIALOG_SELECTORS) {
-      const dialog = document.querySelector<HTMLElement>(sel);
-      if (!dialog) continue;
+  const confirmed = await waitForCondition<boolean>(() => {
+    for (const dialog of collectConfirmDialogs()) {
+      if (ignoredDialogs.has(dialog)) continue;
+      if (options.composeInputSelector && dialog.querySelector(options.composeInputSelector)) continue;
       lastSeenDialog = dialog;
       // ダイアログ内の button のうち、テキストが完全一致するもの(部分一致だと "Post anyway" が "Post" に弾かれる)
-      const buttons = Array.from(dialog.querySelectorAll<HTMLButtonElement>('button, ytcp-button[role="button"], [role="button"]')) as HTMLElement[];
+      const buttons = (Array.from(
+        dialog.querySelectorAll<HTMLButtonElement>('button, ytcp-button[role="button"], [role="button"]'),
+      ) as HTMLElement[]).filter((button) => !excludedButtons.has(button));
       lastSeenButtonTexts = buttons.map((b) => (b.textContent ?? '').trim()).filter((t) => t.length > 0);
       for (const wanted of texts) {
-        const target = buttons.find((b) => (b.textContent ?? '').trim() === wanted);
+        const target = buttons.find((b) => elementTextMatches(b, [wanted]));
         if (target && !(target as HTMLButtonElement).disabled) {
           console.log(`[Tutti] confirm dialog: clicking "${wanted}"`);
           target.click();
@@ -374,4 +400,13 @@ export async function maybeConfirmDialog(texts: string[], graceMs = 800): Promis
       `Saw: [${lastSeenButtonTexts.join(', ')}]`,
     );
   }
+  return confirmed === true;
+}
+
+function collectConfirmDialogs(): HTMLElement[] {
+  const dialogs: HTMLElement[] = [];
+  for (const sel of CONFIRM_DIALOG_SELECTORS) {
+    dialogs.push(...Array.from(document.querySelectorAll<HTMLElement>(sel)));
+  }
+  return dialogs.filter((dialog, index, all) => all.indexOf(dialog) === index);
 }

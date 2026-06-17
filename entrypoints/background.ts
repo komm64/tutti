@@ -247,14 +247,11 @@ export default defineBackground(() => {
 });
 
 /**
- * v0.4.63: 投稿の並列度上限。旧コードは `Promise.all` で全 SNS を完全並列に
- * 投げていた (11 SNS 選択時は 11 tab 同時 open) ため Chrome のリソース上限を
- * 突き、各 SNS の content script 初期化 / file upload / network が互いに
- * 干渉して「全 SNS 成功することがまずない」状態だった。並列度 3 に絞ると
- * 各 SNS が落ち着いて処理される。所要時間は 11 SNS × 各 10s ≒ 40s と
- * 実用的な範囲に収まる。
+ * 実投稿は foreground tab の奪い合いを避けるため 1 件ずつ処理する。
+ * preview は post click しないので、従来どおり最大 3 件まで並列にして待ち時間を抑える。
  */
-const POST_CONCURRENCY = 3;
+const REAL_POST_CONCURRENCY = 1;
+const PREVIEW_POST_CONCURRENCY = 3;
 
 async function handlePostRequest(
   text: string,
@@ -281,7 +278,7 @@ async function handlePostRequest(
     });
     const results = await runPostWorkerPool({
       platforms,
-      concurrency: POST_CONCURRENCY,
+      concurrency: autoPost ? REAL_POST_CONCURRENCY : PREVIEW_POST_CONCURRENCY,
       post: async (platform) => normalizePostEvidence(
         await platformPoster.postToPlatform(platform, text, adjustedImages, cw, visibility, autoPost),
       ),

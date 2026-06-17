@@ -141,7 +141,7 @@ declare global {
 export default defineContentScript({
   matches: SNS_HOSTS,
   world: 'MAIN',
-  runAt: 'document_idle',
+  runAt: 'document_start',
   main() {
     /**
      * SNS のメディアアップロード API URL を判定する正規表現。
@@ -346,7 +346,9 @@ export default defineContentScript({
         const shouldCapture = isTumblrPostCreateUrl(url, method);
         const response = await origFetch(input as RequestInfo, init);
         if (shouldCapture) {
-          void response.clone().json().then((data) => captureTumblrPost(data, blogNameFromUrl(url))).catch(() => {});
+          void response.clone().json()
+            .then((data) => captureTumblrPost(data, blogNameFromUrl(url)))
+            .catch((e) => console.warn('[Tutti inject-helper] Tumblr post capture failed:', e));
         }
         return response;
       };
@@ -366,7 +368,11 @@ export default defineContentScript({
         const url = req?.url ?? '';
         if (isTumblrPostCreateUrl(url, req?.method)) {
           this.addEventListener('load', () => {
-            try { captureTumblrPost(JSON.parse(this.responseText), blogNameFromUrl(url)); } catch { /* best-effort */ }
+            try {
+              captureTumblrPost(JSON.parse(this.responseText), blogNameFromUrl(url));
+            } catch (e) {
+              console.warn('[Tutti inject-helper] Tumblr XHR post capture failed:', e);
+            }
           }, { once: true });
         }
         return origSend.call(this, body as Document | XMLHttpRequestBodyInit | null);

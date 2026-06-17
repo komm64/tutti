@@ -5,6 +5,7 @@ import {
   buildFinalChunkResult,
   buildDomPostAttempts,
   buildReplyOverrideUrl,
+  shouldOpenActive,
   shouldReuseExistingTabForAttempt,
 } from './platform-poster';
 
@@ -85,6 +86,15 @@ describe('platform poster helpers', () => {
       label: 'fresh foreground compose',
       delayBeforeMs: 250,
     });
+  });
+
+  it('opens all real DOM posting attempts in the foreground', () => {
+    expect(shouldOpenActive(adapter(), false, undefined, true)).toBe(true);
+  });
+
+  it('keeps normal preview attempts in the background unless the platform needs foreground', () => {
+    expect(shouldOpenActive(adapter(), true, undefined, false)).toBe(false);
+    expect(shouldOpenActive(adapter({ requiresForegroundTab: true }), true, undefined, false)).toBe(true);
   });
 
   it('does not reuse existing tabs for foreground-only preview flows', () => {

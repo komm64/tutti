@@ -121,6 +121,12 @@ export async function openOrFocusTab(
     throw new Error(t('runtimeSnsTabOpenFailed'));
   }
   const createdTabId = created.id;
+  const createdWindowId = created.windowId;
+  if (active && typeof createdWindowId === 'number') {
+    await retryTransientTabAction('focus new SNS window', () => (
+      browser.windows.update(createdWindowId, { focused: true })
+    ));
+  }
   await retryPreSubmitLoadWait(
     () => waitForTabComplete(createdTabId),
     options,

@@ -113,16 +113,17 @@ export async function capturePostUrlFromTab(options: CapturePostUrlOptions): Pro
 
   const storedApiUrl = await captureStoredApiPostUrl(platform, tabId, text, dbg, minCapturedAt);
   if (storedApiUrl) return storedApiUrl;
+  const profileExpectedUser = await resolveExpectedUserForCapture(platform, expectedUser, dbg);
 
   if (platform === 'mastodon') {
-    const publicApiUrl = await captureMastodonPostViaPublicApi(tabId, text, expectedUser, dbg);
+    const publicApiUrl = await captureMastodonPostViaPublicApi(tabId, text, profileExpectedUser, dbg);
     if (publicApiUrl) return publicApiUrl;
   }
 
   let triedRenderedProfileFallback = false;
-  if (platform === 'threads' && expectedUser) {
+  if (platform === 'threads' && profileExpectedUser) {
     triedRenderedProfileFallback = true;
-    const renderedUrl = await captureRenderedProfilePostUrl(platform, tabId, text, dbg, expectedUser);
+    const renderedUrl = await captureRenderedProfilePostUrl(platform, tabId, text, dbg, profileExpectedUser);
     if (renderedUrl) return renderedUrl;
   }
 
@@ -305,7 +306,7 @@ export async function capturePostUrlFromTab(options: CapturePostUrlOptions): Pro
         }
         return await tryFetch();
       },
-      args: [platform, target, expectedUser, minCapturedAt],
+      args: [platform, target, profileExpectedUser, minCapturedAt],
       world: 'MAIN',
     });
 
@@ -320,7 +321,7 @@ export async function capturePostUrlFromTab(options: CapturePostUrlOptions): Pro
     }
 
     if (isRenderedProfileFallbackPlatform(platform) && !triedRenderedProfileFallback) {
-      const renderedUrl = await captureRenderedProfilePostUrl(platform, tabId, text, dbg, expectedUser);
+      const renderedUrl = await captureRenderedProfilePostUrl(platform, tabId, text, dbg, profileExpectedUser);
       if (renderedUrl) return renderedUrl;
     }
     dbg('URL not found');
@@ -340,6 +341,27 @@ export async function capturePostUrlFromTab(options: CapturePostUrlOptions): Pro
         frameRetry: frameRetry + 1,
       });
     }
+  }
+  return undefined;
+}
+
+async function resolveExpectedUserForCapture(
+  platform: PlatformId,
+  expectedUser: string | undefined,
+  dbg: (message: string) => void,
+): Promise<string | undefined> {
+  const direct = expectedUser?.trim();
+  if (direct) return direct;
+  try {
+    const stored = await browser.storage.local.get('lastSeenUsers');
+    const users = stored['lastSeenUsers'] as Partial<Record<PlatformId, string>> | undefined;
+    const fromStorage = users?.[platform]?.trim();
+    if (fromStorage) {
+      dbg(`expected user resolved from storage: ${fromStorage}`);
+      return fromStorage;
+    }
+  } catch (e) {
+    dbg(`expected user storage lookup failed: ${e instanceof Error ? e.message : String(e)}`);
   }
   return undefined;
 }

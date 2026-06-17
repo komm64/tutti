@@ -12,7 +12,7 @@ import { isVerifySupported } from '../utils/post-verify';
 import { log } from '../utils/logger';
 import { t } from '../utils/i18n';
 import { runVerify } from './verify-dispatcher';
-import { openOrFocusTab } from './tab-management';
+import { closeTabSafely, openOrFocusTab } from './tab-management';
 import { tryApiPath } from './api-posting';
 import { capturePostUrlFromTabWithRetry } from './post-url-capture';
 import {
@@ -45,7 +45,7 @@ export interface DomPostAttempt {
 }
 
 export interface PlatformPosterOptions {
-  openedTabs: Pick<OpenedTabRegistry, 'record'>;
+  openedTabs: Pick<OpenedTabRegistry, 'record' | 'forget'>;
   appendBackgroundLog?: (message: string) => void;
 }
 
@@ -270,7 +270,7 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
     }
 
     const dryRun = !autoPost;
-    const active = attempt.forceActive === true || shouldOpenActive(adapter, dryRun, textChunks);
+    const active = attempt.forceActive === true || shouldOpenActive(adapter, dryRun, textChunks, autoPost);
     const reuseExistingTab = shouldReuseExistingTabForAttempt(adapter, autoPost, attempt);
     const openOptions = PRE_SUBMIT_LOAD_RETRY_PLATFORMS.has(adapter.id)
       ? { loadRetries: 1, relaxedComposeUrlReady: true }
@@ -293,84 +293,103 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
     if (typeof tab.id !== 'number') {
       throw new Error(t('runtimeSnsTabOpenFailed'));
     }
-    const currentTab = await browser.tabs.get(tab.id).catch(() => tab);
-    const tabUrlBefore = currentTab.url ?? currentTab.pendingUrl;
-    const loginRedirectError = buildLoginRedirectErrorForUrl(currentTab.url ?? currentTab.pendingUrl ?? '');
-    if (loginRedirectError) {
-      return withFlow({
-        type: 'POST_RESULT',
-        platform: adapter.id,
-        success: false,
-        userAction: 'sign-in',
-        error: loginRedirectError,
-      }, {
-        ...baseFlow,
-        tabUrlBefore,
-        failedStep: 'verify-login',
-      });
-    }
-    if (wasCreated && !dryRun) options.openedTabs.record(adapter.id, tab.id);
-
-    const lastSeenUsers = await getLastSeenUsers();
-    const expectedUser = lastSeenUsers[adapter.id] ?? undefined;
-    const message: PostToPlatformMessage = {
-      type: 'POST_TO_PLATFORM',
-      platform: adapter.id,
-      text,
-      textChunks,
-      images,
-      dryRun,
-      expectedUser,
-      cw,
-      visibility,
-    };
-
+    const ownedTabId = wasCreated && !dryRun ? tab.id : undefined;
+    if (typeof ownedTabId === 'number') options.openedTabs.record(adapter.id, ownedTabId);
     let response: PostResultMessage | undefined;
-    const dispatchStartedAt = Date.now();
+
     try {
-      response = await sendPostMessageWhenReady(tab.id, message);
-    } catch (err) {
-      if (isMissingReceiverError(err)) {
-        const loginError = await buildMissingReceiverLoginError(tab.id, adapter.id);
-        if (loginError) {
-          return {
-            type: 'POST_RESULT',
-            platform: adapter.id,
-            success: false,
-            userAction: 'sign-in',
-            flow: {
-              ...baseFlow,
-              tabUrlBefore,
-              failedStep: 'verify-login',
-              submitReached: false,
-            },
-            error: loginError,
-          };
-        }
+      const currentTab = await browser.tabs.get(tab.id).catch(() => tab);
+      const tabUrlBefore = currentTab.url ?? currentTab.pendingUrl;
+      const loginRedirectError = buildLoginRedirectErrorForUrl(currentTab.url ?? currentTab.pendingUrl ?? '');
+      if (loginRedirectError) {
+        return withFlow({
+          type: 'POST_RESULT',
+          platform: adapter.id,
+          success: false,
+          userAction: 'sign-in',
+          error: loginRedirectError,
+        }, {
+          ...baseFlow,
+          tabUrlBefore,
+          failedStep: 'verify-login',
+        });
       }
-      const recovered = await recoverFromMaybeLandedChannelClose(err, adapter.id, tab.id, text, expectedUser, dryRun, dispatchStartedAt);
-      if (recovered) return withFlow(recovered, { ...baseFlow, tabUrlBefore });
+
+      const lastSeenUsers = await getLastSeenUsers();
+      const expectedUser = lastSeenUsers[adapter.id] ?? undefined;
+      const message: PostToPlatformMessage = {
+        type: 'POST_TO_PLATFORM',
+        platform: adapter.id,
+        text,
+        textChunks,
+        images,
+        dryRun,
+        expectedUser,
+        cw,
+        visibility,
+      };
+
+      const dispatchStartedAt = Date.now();
+      try {
+        response = await sendPostMessageWhenReady(tab.id, message);
+      } catch (err) {
+        if (isMissingReceiverError(err)) {
+          const loginError = await buildMissingReceiverLoginError(tab.id, adapter.id);
+          if (loginError) {
+            return {
+              type: 'POST_RESULT',
+              platform: adapter.id,
+              success: false,
+              userAction: 'sign-in',
+              flow: {
+                ...baseFlow,
+                tabUrlBefore,
+                failedStep: 'verify-login',
+                submitReached: false,
+              },
+              error: loginError,
+            };
+          }
+        }
+        const recovered = await recoverFromMaybeLandedChannelClose(err, adapter.id, tab.id, text, expectedUser, dryRun, dispatchStartedAt);
+        if (recovered) return withFlow(recovered, { ...baseFlow, tabUrlBefore });
+        throw err;
+      }
+
+      if (!response) {
+        throw new Error(t('runtimeSnsPageNoResponse'));
+      }
+      response = withFlow(response, { ...baseFlow, tabUrlBefore });
+      if (!response.success) {
+        if (response.uncertain) return response;
+        throw new Error(response.error ?? t('runtimePostFailed'));
+      }
+      if (dryRun) return toPreviewResult(response);
+
+      const withUrl = await ensurePostUrl(response, adapter.id, tab.id, text, expectedUser);
+      if (withUrl.url) return { ...withUrl, confirmed: true };
+      return unconfirmedPostResult(adapter.id, {
+        ...withUrl.flow,
+        tabUrlBefore,
+        failedStep: withUrl.flow?.failedStep ?? 'capture-url',
+        submitReached: withUrl.flow?.submitReached ?? true,
+      });
+    } catch (err) {
+      if (typeof ownedTabId === 'number' && response?.flow?.submitReached !== true) {
+        await closeOwnedAttemptTab(adapter.id, ownedTabId, attempt.label);
+      }
       throw err;
     }
+  }
 
-    if (!response) {
-      throw new Error(t('runtimeSnsPageNoResponse'));
-    }
-    response = withFlow(response, { ...baseFlow, tabUrlBefore });
-    if (!response.success) {
-      if (response.uncertain) return response;
-      throw new Error(response.error ?? t('runtimePostFailed'));
-    }
-    if (dryRun) return toPreviewResult(response);
-
-    const withUrl = await ensurePostUrl(response, adapter.id, tab.id, text, expectedUser);
-    if (withUrl.url) return { ...withUrl, confirmed: true };
-    return unconfirmedPostResult(adapter.id, {
-      ...withUrl.flow,
-      tabUrlBefore,
-      failedStep: withUrl.flow?.failedStep ?? 'capture-url',
-      submitReached: withUrl.flow?.submitReached ?? true,
-    });
+  async function closeOwnedAttemptTab(
+    platform: PlatformId,
+    tabId: number,
+    attemptLabel: string,
+  ): Promise<void> {
+    log.info(`${platform}: closing failed pre-submit attempt tab (${attemptLabel}, tabId=${tabId}) before retry`);
+    options.openedTabs.forget(platform, tabId);
+    await closeTabSafely(tabId);
   }
 
   async function recoverFromMaybeLandedChannelClose(
@@ -471,7 +490,13 @@ export function buildReplyOverrideUrl(
   return match?.[1] ? `https://x.com/intent/post?in_reply_to=${match[1]}` : undefined;
 }
 
-function shouldOpenActive(adapter: PlatformAdapter, dryRun: boolean, textChunks?: string[]): boolean {
+export function shouldOpenActive(
+  adapter: PlatformAdapter,
+  dryRun: boolean,
+  textChunks?: string[],
+  autoPost = !dryRun,
+): boolean {
+  if (autoPost) return true;
   const forceForegroundForXThreadPreview =
     adapter.id === 'x' && dryRun && !!textChunks && textChunks.length > 1;
   return adapter.requiresForegroundTab === true || forceForegroundForXThreadPreview;

@@ -11,6 +11,23 @@ export function isRenderedProfileFallbackPlatform(platform: PlatformId): platfor
     platform === 'pixiv';
 }
 
+export function buildExpectedRenderedProfileUrl(
+  platform: RenderedProfilePlatform,
+  expectedUser?: string,
+): string | undefined {
+  const handle = expectedUser?.trim().replace(/^@/, '');
+  if (!handle) return undefined;
+
+  if (platform === 'threads') return `https://www.threads.com/@${encodeURIComponent(handle)}`;
+  if (platform === 'x') return `https://x.com/${encodeURIComponent(handle)}`;
+  if (platform === 'tumblr') {
+    const blogName = handle.replace(/\.tumblr\.com$/i, '');
+    return blogName ? `https://www.tumblr.com/blog/${encodeURIComponent(blogName)}` : undefined;
+  }
+
+  return undefined;
+}
+
 export async function captureRenderedProfilePostUrl(
   platform: RenderedProfilePlatform,
   sourceTabId: number,
@@ -18,9 +35,11 @@ export async function captureRenderedProfilePostUrl(
   dbg: (message: string) => void,
   expectedUser?: string,
 ): Promise<string | undefined> {
-  const expectedThreadsUser = platform === 'threads' ? expectedUser?.replace(/^@/, '') : undefined;
-  const expectedXUser = platform === 'x' ? expectedUser?.replace(/^@/, '') : undefined;
-  const profileResults = expectedThreadsUser || expectedXUser ? undefined : await browser.scripting.executeScript({
+  const expectedProfileUrl = buildExpectedRenderedProfileUrl(platform, expectedUser);
+  if (expectedProfileUrl) {
+    dbg(`rendered profile URL resolved from remembered user: ${expectedProfileUrl}`);
+  }
+  const profileResults = expectedProfileUrl ? undefined : await browser.scripting.executeScript({
     target: { tabId: sourceTabId },
     func: (platformName: string) => {
       if (platformName === 'threads') {
@@ -56,6 +75,19 @@ export async function captureRenderedProfilePostUrl(
         return profileHref ? new URL(profileHref, location.origin).href : undefined;
       }
 
+      if (platformName === 'tumblr') {
+        let pendingBlog: string | undefined;
+        try {
+          pendingBlog = localStorage.getItem('tutti:tumblr-pending-blog') ?? undefined;
+        } catch {
+          pendingBlog = undefined;
+        }
+        const cleanPendingBlog = pendingBlog?.trim().replace(/^@/, '').replace(/\.tumblr\.com$/i, '');
+        if (cleanPendingBlog) {
+          return `${location.origin}/blog/${encodeURIComponent(cleanPendingBlog)}`;
+        }
+      }
+
       const blogButton = Array.from(document.querySelectorAll<HTMLElement>('[aria-label]'))
         .find((el) => /current selection is|現在の選択/i.test(el.getAttribute('aria-label') ?? ''));
       const blogName = blogButton?.textContent?.trim();
@@ -64,11 +96,7 @@ export async function captureRenderedProfilePostUrl(
     args: [platform],
     world: 'MAIN',
   });
-  const profileUrl = expectedThreadsUser
-    ? `https://www.threads.com/@${encodeURIComponent(expectedThreadsUser)}`
-    : expectedXUser
-      ? `https://x.com/${encodeURIComponent(expectedXUser)}`
-      : profileResults?.[0]?.result;
+  const profileUrl = expectedProfileUrl ?? profileResults?.[0]?.result;
   if (typeof profileUrl !== 'string') {
     dbg('rendered profile URL not detected');
     return undefined;
