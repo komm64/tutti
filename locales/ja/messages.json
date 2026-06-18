@@ -12,6 +12,18 @@
   },
   "headerHistory": { "message": "履歴" },
   "headerSettings": { "message": "設定" },
+  "updateButton": { "message": "Update" },
+  "updateApplying": { "message": "更新中..." },
+  "updateAvailableTooltip": {
+    "message": "Tutti $VERSION$ に更新",
+    "placeholders": { "VERSION": { "content": "$1" } }
+  },
+  "updateApplyAfterPosting": { "message": "Tutti の更新は現在の投稿が終わってから適用してください。" },
+  "updateNoLongerAvailable": { "message": "更新はもう利用できません。" },
+  "updateApplyFailed": {
+    "message": "更新を適用できませんでした: $DETAIL$",
+    "placeholders": { "DETAIL": { "content": "$1" } }
+  },
   "textareaPlaceholder": { "message": "投稿内容を入力..." },
   "addMedia": { "message": "メディアを追加" },
   "dropMedia": { "message": "ここにファイルをドロップ" },

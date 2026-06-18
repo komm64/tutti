@@ -170,6 +170,28 @@ export interface PlatformProgressMessage {
   result: PostResultMessage;
 }
 
+export interface ExtensionUpdateState {
+  available: boolean;
+  version?: string;
+  applying?: boolean;
+}
+
+/** popup → background: downloaded extension update state を問い合わせる。 */
+export interface GetExtensionUpdateStateMessage {
+  type: 'GET_EXTENSION_UPDATE_STATE';
+}
+
+/** popup → background: user が選択したタイミングで downloaded update を適用する。 */
+export interface ApplyExtensionUpdateMessage {
+  type: 'APPLY_EXTENSION_UPDATE';
+}
+
+/** background → popup: Chrome が更新を download 済みにした。 */
+export interface ExtensionUpdateAvailableMessage {
+  type: 'EXTENSION_UPDATE_AVAILABLE';
+  state: ExtensionUpdateState;
+}
+
 /**
  * content script → background: 現在ログイン中のアカウント名。
  * v0.4.98: username に null を許容。 null は 「以前検出した値を clear する」 意味で、
@@ -404,6 +426,9 @@ export type Message =
   | PostToPlatformMessage
   | PostResultMessage
   | PlatformProgressMessage
+  | GetExtensionUpdateStateMessage
+  | ApplyExtensionUpdateMessage
+  | ExtensionUpdateAvailableMessage
   | CurrentUserMessage
   | ConvertVideoMessage
   | ConversionProgressMessage

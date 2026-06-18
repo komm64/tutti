@@ -12,6 +12,18 @@
   },
   "headerHistory": { "message": "History" },
   "headerSettings": { "message": "Settings" },
+  "updateButton": { "message": "Update" },
+  "updateApplying": { "message": "Updating..." },
+  "updateAvailableTooltip": {
+    "message": "Update to Tutti $VERSION$",
+    "placeholders": { "VERSION": { "content": "$1" } }
+  },
+  "updateApplyAfterPosting": { "message": "Finish the current post before updating Tutti." },
+  "updateNoLongerAvailable": { "message": "The update is no longer available." },
+  "updateApplyFailed": {
+    "message": "Could not apply the update: $DETAIL$",
+    "placeholders": { "DETAIL": { "content": "$1" } }
+  },
   "textareaPlaceholder": { "message": "Write your post..." },
   "addMedia": { "message": "Add media" },
   "dropMedia": { "message": "Drop files here" },

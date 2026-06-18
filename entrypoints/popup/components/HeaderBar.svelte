@@ -4,11 +4,24 @@
   interface Props {
     version: string;
     diagnosticsRunning: boolean;
+    posting: boolean;
+    updateAvailableVersion: string | null;
+    updateApplying: boolean;
     onOpenHistory: () => void;
     onRunDiagnostics: () => void;
+    onApplyUpdate: () => void | Promise<void>;
   }
 
-  let { version, diagnosticsRunning, onOpenHistory, onRunDiagnostics }: Props = $props();
+  let {
+    version,
+    diagnosticsRunning,
+    posting,
+    updateAvailableVersion,
+    updateApplying,
+    onOpenHistory,
+    onRunDiagnostics,
+    onApplyUpdate,
+  }: Props = $props();
 </script>
 
 <header class="mb-3 flex items-start justify-between">
@@ -30,6 +43,14 @@
     <p class="text-xs text-gray-500">{t('appTagline')}</p>
   </div>
   <div class="flex items-center gap-2 mt-0.5">
+    {#if updateAvailableVersion}
+      <button
+        onclick={onApplyUpdate}
+        disabled={posting || updateApplying}
+        class="text-xs px-2 py-1 rounded bg-amber-500 text-white hover:bg-amber-600 disabled:bg-gray-300 disabled:text-white disabled:cursor-not-allowed"
+        title={posting ? t('updateApplyAfterPosting') : t('updateAvailableTooltip', updateAvailableVersion)}
+      >{updateApplying ? t('updateApplying') : t('updateButton')}</button>
+    {/if}
     <button
       onclick={onOpenHistory}
       class="text-xs text-gray-400 hover:text-gray-600"

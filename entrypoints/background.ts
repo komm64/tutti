@@ -30,6 +30,7 @@ import { createOpenedTabRegistry } from '../src/background/opened-tab-registry';
 import { createPostingStateManager } from '../src/background/posting-state';
 import { createPlatformPoster } from '../src/background/platform-poster';
 import { maybeCompressVideoForBudget } from '../src/background/media-preprocess';
+import { createExtensionUpdateManager } from '../src/background/extension-update';
 
 const logBuffer = createPersistentLogBuffer();
 const userActionNotifier = createUserActionNotifier();
@@ -40,10 +41,21 @@ const platformPoster = createPlatformPoster({
   openedTabs: openedTabRegistry,
   appendBackgroundLog: (message) => logBuffer.appendBackground(message),
 });
+const extensionUpdateManager = createExtensionUpdateManager({
+  runtime: browser.runtime,
+  storage: browser.storage.local,
+  isBusy: () => postingState.snapshot().posting,
+  notifyAvailable: (state) => {
+    void browser.runtime
+      .sendMessage({ type: 'EXTENSION_UPDATE_AVAILABLE', state })
+      .catch(() => { /* popup が閉じていれば届かないので無視 */ });
+  },
+});
 
 export default defineBackground(() => {
   log.info('background started', { id: browser.runtime.id });
   void logBuffer.load();
+  void extensionUpdateManager.init().catch((e) => log.warn('extension update manager init failed', e));
   installFloatingWindowCleanup();
 
   // 拡張インストール / 起動時に selectorOverrideUrl が設定されてれば自動 fetch。
@@ -201,6 +213,26 @@ export default defineBackground(() => {
         clearBadge();
       }
       sendResponse(postingState.snapshot());
+      return true;
+    }
+
+    if (msg.type === 'GET_EXTENSION_UPDATE_STATE') {
+      void extensionUpdateManager.getState()
+        .then((state) => sendResponse({ state }))
+        .catch((err: unknown) => {
+          const message = err instanceof Error ? err.message : String(err);
+          sendResponse({ error: message });
+        });
+      return true;
+    }
+
+    if (msg.type === 'APPLY_EXTENSION_UPDATE') {
+      void extensionUpdateManager.applyUpdate()
+        .then((result) => sendResponse(result))
+        .catch((err: unknown) => {
+          const message = err instanceof Error ? err.message : String(err);
+          sendResponse({ ok: false, error: 'reload_failed', detail: message });
+        });
       return true;
     }
 

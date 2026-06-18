@@ -149,6 +149,9 @@
   let responsibleUseDialogOpen = $state(false);
   let responsibleUseAccepted = $state(false);
   let lastResultDraftKey = $state<string | null>(null);
+  let updateAvailableVersion = $state<string | null>(null);
+  let updateApplying = $state(false);
+  let updateError = $state<string | null>(null);
   const version = browser.runtime.getManifest().version;
   $effect(() => {
     void getSettings().then((s) => {
@@ -396,6 +399,46 @@
     compressionEtaS = next.compressionEtaS;
   }
 
+  async function refreshExtensionUpdateState(): Promise<void> {
+    try {
+      const res = (await browser.runtime.sendMessage({ type: 'GET_EXTENSION_UPDATE_STATE' })) as
+        | { state?: { available?: boolean; version?: string; applying?: boolean }; error?: string }
+        | undefined;
+      if (res?.state?.available) {
+        updateAvailableVersion = res.state.version ?? '';
+        updateApplying = res.state.applying === true;
+      } else {
+        updateAvailableVersion = null;
+        updateApplying = false;
+      }
+    } catch {
+      // background が sleep 中なら次回 open / update event で拾えるので無視。
+    }
+  }
+
+  function updateErrorMessage(error: string, detail?: string): string {
+    if (error === 'posting_in_progress') return t('updateApplyAfterPosting');
+    if (error === 'no_update_available') return t('updateNoLongerAvailable');
+    return t('updateApplyFailed', detail || error);
+  }
+
+  async function applyExtensionUpdate(): Promise<void> {
+    updateApplying = true;
+    updateError = null;
+    try {
+      const res = (await browser.runtime.sendMessage({ type: 'APPLY_EXTENSION_UPDATE' })) as
+        | { ok?: boolean; error?: string; detail?: string }
+        | undefined;
+      if (!res?.ok) {
+        updateApplying = false;
+        updateError = updateErrorMessage(res?.error ?? 'reload_failed', res?.detail);
+      }
+    } catch (e) {
+      updateApplying = false;
+      updateError = updateErrorMessage('reload_failed', e instanceof Error ? e.message : String(e));
+    }
+  }
+
   function currentDraftKey(): string {
     return buildDraftKey({
       text,
@@ -427,6 +470,10 @@
   });
 
   $effect(() => {
+    void refreshExtensionUpdateState();
+  });
+
+  $effect(() => {
     const key = currentDraftKey();
     if (!draftLoaded || posting || !lastResults?.length || !lastResultDraftKey) return;
     if (key === lastResultDraftKey) return;
@@ -444,6 +491,11 @@
       const msg = rawMsg as Message;
       const next = applyProgressMessage(msg, currentPostingViewState());
       if (next) applyPostingViewState(next);
+      if (msg.type === 'EXTENSION_UPDATE_AVAILABLE') {
+        updateAvailableVersion = msg.state.version ?? '';
+        updateApplying = msg.state.applying === true;
+        updateError = null;
+      }
     };
     browser.runtime.onMessage.addListener(listener);
     return () => browser.runtime.onMessage.removeListener(listener);
@@ -852,9 +904,19 @@
   <HeaderBar
     {version}
     {diagnosticsRunning}
+    {posting}
+    {updateAvailableVersion}
+    {updateApplying}
     onOpenHistory={openHistoryTab}
     onRunDiagnostics={runDiagnostics}
+    onApplyUpdate={applyExtensionUpdate}
   />
+
+  {#if updateError}
+    <div class="mb-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded p-2">
+      {updateError}
+    </div>
+  {/if}
 
   <AutoPostControl
     {autoPost}
