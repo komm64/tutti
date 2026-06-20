@@ -4,6 +4,10 @@ import { t } from '../utils/i18n';
 import { waitForTabComplete } from './tab-management';
 import { retryTransientTabAction } from './tab-action-retry';
 
+// Keep this above the longest content-script media wait (120s video upload /
+// post-button waits) so the background guard does not preempt a valid flow.
+export const POST_MESSAGE_RESPONSE_TIMEOUT_MS = 240_000;
+
 /**
  * tab complete の直後は content script の listener 登録が数百 ms 遅れる場合がある。
  * receiver 不在の間だけ短く retry し、request が消費された後の失敗は再送しない。
@@ -17,7 +21,12 @@ export async function sendPostMessageWhenReady(
   let injectedFederatedScript = false;
   while (true) {
     try {
-      return (await browser.tabs.sendMessage(tabId, message)) as PostResultMessage | undefined;
+      const response = await withTimeout(
+        browser.tabs.sendMessage(tabId, message) as Promise<PostResultMessage | undefined>,
+        POST_MESSAGE_RESPONSE_TIMEOUT_MS,
+        `${message.platform} content script response`,
+      );
+      return response;
     } catch (e) {
       if (!isMissingReceiverError(e)) throw e;
       const loginError = await buildMissingReceiverLoginError(tabId, message.platform);
@@ -126,4 +135,17 @@ async function tryInjectFederatedContentScripts(tabId: number, platform: Platfor
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  return new Promise<T>((resolve, reject) => {
+    timeout = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    promise.then(resolve, reject).finally(() => {
+      if (timeout) clearTimeout(timeout);
+    });
+  });
 }

@@ -276,7 +276,7 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
       ? { loadRetries: 1, relaxedComposeUrlReady: true }
       : undefined;
     const { tab, wasCreated } = await openOrFocusTab(
-      overrideUrl ?? adapter.getComposeUrl(text),
+      overrideUrl ?? getComposeUrlForMedia(adapter, text, images),
       adapter.matchUrl,
       active,
       {
@@ -488,6 +488,16 @@ export function buildReplyOverrideUrl(
   if (platform !== 'x') return undefined;
   const match = prevPostUrl.match(/\/status\/(\d+)/);
   return match?.[1] ? `https://x.com/intent/post?in_reply_to=${match[1]}` : undefined;
+}
+
+export function getComposeUrlForMedia(
+  adapter: PlatformAdapter,
+  text: string,
+  images?: readonly ImageAttachment[],
+): string {
+  const hasVideo = images?.some((image) => image.type.startsWith('video/')) === true;
+  if (adapter.id === 'tumblr' && hasVideo) return 'https://www.tumblr.com/new/video';
+  return adapter.getComposeUrl(text);
 }
 
 export function shouldOpenActive(

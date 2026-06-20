@@ -82,6 +82,11 @@ export interface FinalizeSpec extends AdvanceSpec {
   confirmDialogGraceMs?: number;
   /** click 後の処理猶予 (default 1500ms) */
   afterClickDelayMs?: number;
+  /**
+   * dry-run では最終ボタンをクリックしないため、保存処理待ちで disabled の
+   * finalize button も「到達確認」として許可する。
+   */
+  allowDisabledInPreview?: boolean;
 }
 
 export interface MultiStepFlowOptions {
@@ -168,7 +173,14 @@ export async function executeMultiStepFlow(options: MultiStepFlowOptions): Promi
   }
 
   markPostStepStarted('wait-submit');
-  const finalizeBtn = await waitForStepButton(finalize, finalize.timeoutMs ?? 8000);
+  let finalizeBtn = await waitForStepButton(finalize, finalize.timeoutMs ?? 8000);
+  if (!finalizeBtn && dryRun && finalize.allowDisabledInPreview === true) {
+    const candidate = findStepButton(finalize);
+    if (candidate) {
+      finalizeBtn = candidate;
+      console.log('[Tutti] dry-run: disabled finalize button found, skipping click', finalizeBtn);
+    }
+  }
   if (!finalizeBtn) {
     markPostStepFailed('wait-submit');
     throw new Error(t('runtimeFinalPostButtonMissing'));

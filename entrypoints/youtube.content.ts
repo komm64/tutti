@@ -320,6 +320,7 @@ async function runPost(
       confirmDialogGraceMs: 8000,
       timeoutMs: 30000,
       afterClickDelayMs: 250,
+      allowDisabledInPreview: true,
     },
     dryRun,
   });

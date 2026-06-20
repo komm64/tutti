@@ -42,6 +42,10 @@ export const TUMBLR_SELECTORS = {
    * を狙うこと(2026-04-30 検証で 201 + ブロック生成を確認)。
    */
   dropTarget: '[role="dialog"] .components-drop-zone, .components-drop-zone',
+  /** Tumblr の動画 post type は専用 file input を使う。text compose の drop zone は mp4 を受理しない。 */
+  fileInput:
+    '[role="dialog"] input[type="file"][accept*="video"],' +
+    'input[type="file"][accept*="video"]',
   /**
    * Tags chip 入力 (v0.4.72〜): Tumblr の compose modal 下部にある "Tags editor"。
    * **textarea 要素** (input ではない、 probe 2026-05-22 で確定)。 aria-label

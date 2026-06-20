@@ -333,6 +333,7 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     textareaSelector: sel.textarea,
     postButtonSelector: sel.postButton,
     postButtonTexts: ['Post now', 'Post', '投稿', 'Publish', '今すぐ投稿', '投稿する'],
+    fileInputSelector: hasVideo ? sel.fileInput : undefined,
     dropTargetSelector: sel.dropTarget,
     // タグなしで投稿時に出る "Post without tags?" ダイアログを自動承認。
     // Tumblr は A/B で button text が揺れるため、compose 本体の Post button は
@@ -356,7 +357,9 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     textInjector: injectTumblrTextIntoElement,
     requireMediaAccepted: hasVideo || undefined,
     requireMediaPreview: hasVideo || undefined,
+    allowDisabledPostButtonInPreview: dryRun && hasVideo && !text.trim(),
     beforeDropDelayMs: hasVideo ? 500 : undefined,
+    mediaAttachOrder: hasVideo ? ['input', 'drop'] : undefined,
     beforeSubmit: async () => {
       // Gutenberg editor は画像 block 追加時に本文 block を re-mount することがある。
       // drop 前に注入した本文が消えた / 古い本文が混ざった / 重複した場合は

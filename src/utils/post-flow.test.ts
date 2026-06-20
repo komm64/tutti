@@ -70,7 +70,7 @@ describe('executePostFlow', () => {
     });
 
     await expect(executePostFlow({
-      prefillsViaUrl: true,
+      prefillsViaUrl: false,
       textareaSelector: 'textarea',
       postButtonTexts: ['Post'],
       text: 'hello',
@@ -162,6 +162,32 @@ describe('executePostFlow', () => {
       postButtonSelector: '.post',
       text: 'hello',
       dryRun: true,
+      composeInputTimeoutMs: 10,
+      postButtonTimeoutMs: 10,
+    })).resolves.toBeUndefined();
+  });
+
+  it('allows a disabled post button only for explicit media preview dry-runs', async () => {
+    const editor = { tagName: 'DIV' } as HTMLElement;
+    const button = {
+      style: {},
+      getAttribute: vi.fn(() => null),
+      disabled: true,
+    } as unknown as HTMLElement;
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.stubGlobal('document', {
+      body: {},
+      querySelector: vi.fn((selector: string) => selector === 'textarea' ? editor : null),
+      querySelectorAll: vi.fn((selector: string) => selector === '.post' ? [button] : []),
+    });
+
+    await expect(executePostFlow({
+      prefillsViaUrl: true,
+      textareaSelector: 'textarea',
+      postButtonSelector: '.post',
+      text: '',
+      dryRun: true,
+      allowDisabledPostButtonInPreview: true,
       composeInputTimeoutMs: 10,
       postButtonTimeoutMs: 10,
     })).resolves.toBeUndefined();

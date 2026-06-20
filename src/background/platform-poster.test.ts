@@ -5,6 +5,7 @@ import {
   buildFinalChunkResult,
   buildDomPostAttempts,
   buildReplyOverrideUrl,
+  getComposeUrlForMedia,
   shouldOpenActive,
   shouldReuseExistingTabForAttempt,
 } from './platform-poster';
@@ -100,6 +101,20 @@ describe('platform poster helpers', () => {
   it('does not reuse existing tabs for foreground-only preview flows', () => {
     expect(shouldReuseExistingTabForAttempt(adapter(), false)).toBe(true);
     expect(shouldReuseExistingTabForAttempt(adapter({ requiresForegroundTab: true }), false)).toBe(false);
+  });
+
+  it('uses Tumblr video compose when posting video media', () => {
+    const tumblr = adapter({
+      id: 'tumblr',
+      getComposeUrl: () => 'https://www.tumblr.com/new/text',
+    });
+
+    expect(getComposeUrlForMedia(tumblr, '', [{
+      name: 'clip.mp4',
+      type: 'video/mp4',
+      data: 'AA==',
+    }])).toBe('https://www.tumblr.com/new/video');
+    expect(getComposeUrlForMedia(tumblr, 'hello')).toBe('https://www.tumblr.com/new/text');
   });
 
   it('honors explicit retry tab reuse overrides', () => {

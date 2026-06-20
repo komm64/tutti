@@ -120,6 +120,34 @@ describe('executeMultiStepFlow', () => {
     ).rejects.toThrow(/最終投稿ボタン/);
   });
 
+  it('dry-run は明示オプション付きなら disabled finalize ボタンを到達確認として許可する', async () => {
+    const log: string[] = [];
+    const disabledFinalize = {
+      getAttribute: (name: string) => name === 'aria-disabled' ? 'true' : null,
+      disabled: true,
+      click: () => log.push('finalize.click'),
+      style: { outline: '' },
+    } as unknown as HTMLElement;
+
+    await executeMultiStepFlow({
+      steps: [
+        {
+          name: 'visibility',
+          action: async () => { log.push('visibility.action'); },
+          settleMs: 0,
+        },
+      ],
+      finalize: {
+        finder: () => disabledFinalize,
+        timeoutMs: 10,
+        allowDisabledInPreview: true,
+      },
+      dryRun: true,
+    });
+
+    expect(log).toEqual(['visibility.action']);
+  });
+
   it('disabled な advance ボタンは clickable まで待つ (timeout で諦める)', async () => {
     const disabledBtn = {
       getAttribute: () => null,

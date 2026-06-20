@@ -90,6 +90,11 @@ export interface PostFlowOptions {
   /** drag/drop 型の添付で、drop target 出現後に待つ時間(ms) */
   beforeDropDelayMs?: number;
   /**
+   * Preview-only escape hatch for SNS where an uploaded media preview is valid
+   * but the submit button remains disabled until the user adds optional text.
+   */
+  allowDisabledPostButtonInPreview?: boolean;
+  /**
    * media attach strategy order. Default keeps the historical behavior:
    * drop target first when present, otherwise file input.
    */
@@ -124,6 +129,7 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
     requireMediaAccepted,
     requireMediaPreview,
     beforeDropDelayMs,
+    allowDisabledPostButtonInPreview,
     mediaAttachOrder,
   } = options;
   if (!postButtonSelector && !postButtonTexts?.length && !postButtonFinder) {
@@ -230,6 +236,7 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
     b.getAttribute('aria-disabled') === 'true' || (b as HTMLButtonElement).disabled;
   const hasVideo = (images ?? []).some((m) => m.type.startsWith('video/'));
   const effectiveTimeoutMs = resolvePostButtonTimeoutMs(postButtonTimeoutMs, hasVideo);
+  const acceptsDisabledPreviewButton = dryRun && allowDisabledPostButtonInPreview === true;
 
   markPostStepStarted('wait-submit');
   let lastFound: HTMLElement | null = null;
@@ -237,7 +244,7 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
     const candidate = findButton();
     if (candidate) {
       lastFound = candidate;
-      if (!isDisabled(candidate)) {
+      if (!isDisabled(candidate) || acceptsDisabledPreviewButton) {
         return candidate;
       }
     }
@@ -259,7 +266,8 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
   markPostStepCompleted('wait-submit');
 
   if (dryRun) {
-    console.log('[Tutti] dry-run: post button found and enabled, skipping click', button);
+    const disabledNote = isDisabled(button) ? ' (disabled accepted for preview)' : ' and enabled';
+    console.log(`[Tutti] dry-run: post button found${disabledNote}, skipping click`, button);
     // 視覚的にハイライトして検証しやすく
     const orig = button.style.outline;
     button.style.outline = '3px dashed #f59e0b';

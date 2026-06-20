@@ -18,6 +18,7 @@ import {
 import { fetchOverridesFrom } from '../src/utils/selector-overrides';
 import { notifyResults, clearBadge, updateProgressBadge } from '../src/background/post-status-ui';
 import { runPostWorkerPool } from '../src/background/post-worker-pool';
+import { resolvePostConcurrency } from '../src/background/post-concurrency';
 import { buildDiagnosticsReport } from '../src/background/diagnostics';
 import { recordHistoryEntry, releasePostAttachments } from '../src/background/history-recorder';
 import { normalizePostEvidence, shouldRunPostCompletionSideEffects } from '../src/background/post-result-policy';
@@ -278,13 +279,6 @@ export default defineBackground(() => {
   });
 });
 
-/**
- * 実投稿は foreground tab の奪い合いを避けるため 1 件ずつ処理する。
- * preview は post click しないので、従来どおり最大 3 件まで並列にして待ち時間を抑える。
- */
-const REAL_POST_CONCURRENCY = 1;
-const PREVIEW_POST_CONCURRENCY = 3;
-
 async function handlePostRequest(
   text: string,
   platforms: PlatformId[],
@@ -310,7 +304,7 @@ async function handlePostRequest(
     });
     const results = await runPostWorkerPool({
       platforms,
-      concurrency: autoPost ? REAL_POST_CONCURRENCY : PREVIEW_POST_CONCURRENCY,
+      concurrency: resolvePostConcurrency(platforms, autoPost),
       post: async (platform) => normalizePostEvidence(
         await platformPoster.postToPlatform(platform, text, adjustedImages, cw, visibility, autoPost),
       ),
