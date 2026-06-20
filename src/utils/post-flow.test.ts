@@ -167,6 +167,25 @@ describe('executePostFlow', () => {
     })).resolves.toBeUndefined();
   });
 
+  it('checks the URL-prefill editor before attaching media', async () => {
+    vi.stubGlobal('document', {
+      body: {},
+      querySelector: vi.fn(() => null),
+      querySelectorAll: vi.fn(() => []),
+    });
+
+    await expect(executePostFlow({
+      prefillsViaUrl: true,
+      textareaSelector: 'textarea',
+      postButtonSelector: '.post',
+      dropTargetSelector: '.drop',
+      text: '',
+      images: [{ name: 'image.png', type: 'image/png', data: 'AAAA' }],
+      composeInputTimeoutMs: 10,
+      postButtonTimeoutMs: 10,
+    })).rejects.toThrow('投稿入力欄が見つかりません');
+  });
+
   it('allows a disabled post button only for explicit media preview dry-runs', async () => {
     const editor = { tagName: 'DIV' } as HTMLElement;
     const button = {

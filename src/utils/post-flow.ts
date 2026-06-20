@@ -159,6 +159,15 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
     }
   }
 
+  if (prefillsViaUrl && textareaSelector && images && images.length > 0) {
+    markPostStepStarted('verify-compose');
+    const composeInput = await waitForElement<HTMLElement>(textareaSelector, composeInputTimeoutMs);
+    if (!composeInput) {
+      throw new Error(t('runtimeComposeInputMissing'));
+    }
+    markPostStepCompleted('verify-compose');
+  }
+
   if (images && images.length > 0) {
     markPostStepStarted('attach-media');
     await attachMedia(images, {

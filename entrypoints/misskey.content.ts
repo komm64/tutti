@@ -7,6 +7,8 @@ import { clickElementInMainWorld } from '../src/utils/image';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
 import { getPostSubmissionStartedAt } from '../src/utils/post-submission-state';
+import { isMisskeyComposePresent, isMisskeySignInRequiredPage } from '../src/utils/misskey-page-state';
+import { t } from '../src/utils/i18n';
 
 function detectMisskeyUser(): string | null {
   type Strategy = { name: string; fn: () => string | null };
@@ -71,6 +73,16 @@ export default defineContentScript({
 
 async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolean): Promise<PostResultMessage> {
   const sel = await resolveSelectors('misskey', MISSKEY_SELECTORS);
+  const initialPageState = await waitForCondition<'compose' | 'sign-in'>(() => {
+    if (isMisskeyComposePresent(document, sel)) return 'compose';
+    if (isMisskeySignInRequiredPage(document, sel)) return 'sign-in';
+    return null;
+  }, { timeoutMs: 5000, intervalMs: 200 });
+  if (initialPageState === 'sign-in') {
+    log.warn('misskey: sign-in required page detected before post flow');
+    return buildMisskeySignInRequiredResult(dryRun);
+  }
+
   await executePostFlow({
     prefillsViaUrl: misskeyAdapter.prefillsViaUrl,
     textareaSelector: sel.textarea,
@@ -105,6 +117,21 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     platform: 'misskey',
     success: true,
     url,
+  };
+}
+
+function buildMisskeySignInRequiredResult(dryRun?: boolean): PostResultMessage {
+  return {
+    type: 'POST_RESULT',
+    platform: 'misskey',
+    success: false,
+    userAction: 'sign-in',
+    flow: {
+      mode: dryRun ? 'preview' : 'post',
+      submitReached: false,
+      failedStep: 'verify-login',
+    },
+    error: `${t('failureReasonLogin')} (Misskey)`,
   };
 }
 
