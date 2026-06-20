@@ -96,11 +96,20 @@ describe('platform poster helpers', () => {
   it('keeps normal preview attempts in the background unless the platform needs foreground', () => {
     expect(shouldOpenActive(adapter(), true, undefined, false)).toBe(false);
     expect(shouldOpenActive(adapter({ requiresForegroundTab: true }), true, undefined, false)).toBe(true);
+    expect(shouldOpenActive(adapter(), true, undefined, false, true)).toBe(true);
   });
 
   it('does not reuse existing tabs for foreground-only preview flows', () => {
     expect(shouldReuseExistingTabForAttempt(adapter(), false)).toBe(true);
     expect(shouldReuseExistingTabForAttempt(adapter({ requiresForegroundTab: true }), false)).toBe(false);
+    expect(shouldReuseExistingTabForAttempt(adapter(), false, {}, true)).toBe(false);
+  });
+
+  it('can force the first preview attempt into a foreground tab', () => {
+    expect(buildDomPostAttempts(adapter(), false, true)[0]).toMatchObject({
+      label: 'default',
+      forceActive: true,
+    });
   });
 
   it('uses Tumblr video compose when posting video media', () => {

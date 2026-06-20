@@ -49,6 +49,10 @@ export interface PlatformPosterOptions {
   appendBackgroundLog?: (message: string) => void;
 }
 
+export interface PostToPlatformOptions {
+  forceForeground?: boolean;
+}
+
 export function createPlatformPoster(options: PlatformPosterOptions) {
   async function postToPlatform(
     platform: PlatformId,
@@ -57,6 +61,7 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
     cw?: string,
     visibility?: Visibility,
     autoPost = true,
+    postOptions: PostToPlatformOptions = {},
   ): Promise<PostResultMessage> {
     const adapter = await resolveAdapter(platform);
     if (!adapter) {
@@ -113,6 +118,7 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
           visibility,
           autoPost,
           replyToUrl,
+          postOptions,
         );
 
         if (!result.success) {
@@ -177,8 +183,9 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
     visibility?: Visibility,
     autoPost = true,
     replyToUrl?: string,
+    postOptions: PostToPlatformOptions = {},
   ): Promise<PostResultMessage> {
-    const attempts = buildDomPostAttempts(adapter, autoPost);
+    const attempts = buildDomPostAttempts(adapter, autoPost, postOptions.forceForeground === true);
     let lastError: unknown;
     for (let i = 0; i < attempts.length; i += 1) {
       const attempt = attempts[i]!;
@@ -195,6 +202,7 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
           autoPost,
           attempt,
           replyToUrl,
+          postOptions,
         );
       } catch (err) {
         lastError = err;
@@ -220,6 +228,7 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
     autoPost = true,
     attempt: DomPostAttempt = { label: 'default' },
     replyToUrl?: string,
+    postOptions: PostToPlatformOptions = {},
   ): Promise<PostResultMessage> {
     const images = rawImages ? await maybeResizeImagesForPlatform(adapter, rawImages) : undefined;
     const baseFlow: Partial<PostFlowTrace> = {
@@ -270,8 +279,10 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
     }
 
     const dryRun = !autoPost;
-    const active = attempt.forceActive === true || shouldOpenActive(adapter, dryRun, textChunks, autoPost);
-    const reuseExistingTab = shouldReuseExistingTabForAttempt(adapter, autoPost, attempt);
+    const forceForeground = postOptions.forceForeground === true;
+    const active = forceForeground || attempt.forceActive === true ||
+      shouldOpenActive(adapter, dryRun, textChunks, autoPost);
+    const reuseExistingTab = shouldReuseExistingTabForAttempt(adapter, autoPost, attempt, forceForeground);
     const openOptions = PRE_SUBMIT_LOAD_RETRY_PLATFORMS.has(adapter.id)
       ? { loadRetries: 1, relaxedComposeUrlReady: true }
       : undefined;
@@ -505,17 +516,23 @@ export function shouldOpenActive(
   dryRun: boolean,
   textChunks?: string[],
   autoPost = !dryRun,
+  forceForeground = false,
 ): boolean {
+  if (forceForeground) return true;
   if (autoPost) return true;
   const forceForegroundForXThreadPreview =
     adapter.id === 'x' && dryRun && !!textChunks && textChunks.length > 1;
   return adapter.requiresForegroundTab === true || forceForegroundForXThreadPreview;
 }
 
-export function buildDomPostAttempts(adapter: PlatformAdapter, autoPost: boolean): DomPostAttempt[] {
+export function buildDomPostAttempts(
+  adapter: PlatformAdapter,
+  autoPost: boolean,
+  forceForeground = false,
+): DomPostAttempt[] {
   const dryRun = !autoPost;
   const attempts: DomPostAttempt[] = [
-    { label: 'default' },
+    forceForeground ? { label: 'default', forceActive: true } : { label: 'default' },
     {
       label: 'fresh foreground compose',
       skipApi: true,
@@ -544,10 +561,11 @@ export function shouldReuseExistingTabForAttempt(
   adapter: Pick<PlatformAdapter, 'requiresForegroundTab'>,
   autoPost: boolean,
   attempt: Pick<DomPostAttempt, 'reuseExistingTab'> = {},
+  forceForeground = false,
 ): boolean {
   if (typeof attempt.reuseExistingTab === 'boolean') return attempt.reuseExistingTab;
   const dryRun = !autoPost;
-  return dryRun && adapter.requiresForegroundTab !== true;
+  return dryRun && adapter.requiresForegroundTab !== true && !forceForeground;
 }
 
 export function buildFinalChunkResult(

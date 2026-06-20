@@ -122,6 +122,7 @@ if (!Number.isInteger(caseTimeoutMs) || caseTimeoutMs < 10_000) {
   process.exit(2);
 }
 const skipExtensionReload = args.includes('--skip-extension-reload');
+const debugBgStateOnTimeout = args.includes('--debug-bg-state-on-timeout');
 
 const cdp = process.env.E2E_CDP ?? 'http://127.0.0.1:9223';
 const imagePath = resolve(process.env.IMAGE_PATH ?? 'scripts/e2e/fixtures/test-image.png');
@@ -134,6 +135,7 @@ console.log(`[matrix] platforms=${requestedPlatforms.join(',')}`);
 console.log(`[matrix] cases=${requestedCases.join(',')}`);
 console.log(`[matrix] caseTimeoutMs=${caseTimeoutMs}`);
 console.log(`[matrix] summaryJson=${summaryPath}`);
+if (debugBgStateOnTimeout) console.log('[matrix] debugBgStateOnTimeout=true');
 
 for (const platform of requestedPlatforms) {
   if (!ALL_PLATFORMS.includes(platform)) {
@@ -218,6 +220,14 @@ for (const caseName of requestedCases) {
       }), caseTimeoutMs, `${caseName}/${platforms.join(',')}`);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      const backgroundState = debugBgStateOnTimeout
+        ? await readBackgroundState(popup).then(compactBackgroundState).catch((stateErr) => ({
+            error: stateErr instanceof Error ? stateErr.message : String(stateErr),
+          }))
+        : undefined;
+      if (backgroundState) {
+        console.log(`[matrix] bg-state-on-timeout ${caseName}: ${JSON.stringify(backgroundState)}`);
+      }
       failures.push(`${caseName}: ${message}`);
       summary.push({
         caseName,
@@ -225,6 +235,7 @@ for (const caseName of requestedCases) {
         platforms,
         timedOut: true,
         error: message,
+        ...(backgroundState ? { backgroundState } : {}),
       });
       await reloadExtension(ctx, extensionId).catch(() => {});
       await closeNonExtensionPages(ctx, extensionId).catch(() => {});
@@ -551,6 +562,33 @@ async function readHistory(popup) {
   return await popup.evaluate(async () => {
     return (await chrome.storage.local.get('postHistory'))['postHistory'] ?? [];
   });
+}
+
+async function readBackgroundState(popup) {
+  return await popup.evaluate(async () => {
+    return await chrome.runtime.sendMessage({ type: 'GET_BG_STATE' });
+  });
+}
+
+function compactBackgroundState(state) {
+  const postingState = state?.postingState;
+  if (!postingState) {
+    return {
+      posting: state?.posting,
+      postingState: null,
+    };
+  }
+  return {
+    posting: state?.posting,
+    postingState: {
+      platforms: postingState.platforms,
+      pending: postingState.pending,
+      done: postingState.done,
+      results: Array.isArray(postingState.results)
+        ? postingState.results.map(compactResult)
+        : [],
+    },
+  };
 }
 
 async function waitForHistoryEntry(popup, { startedAt, platforms }) {

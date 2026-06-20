@@ -17,8 +17,7 @@ import {
 } from '../src/utils/interaction-notify';
 import { fetchOverridesFrom } from '../src/utils/selector-overrides';
 import { notifyResults, clearBadge, updateProgressBadge } from '../src/background/post-status-ui';
-import { runPostWorkerPool } from '../src/background/post-worker-pool';
-import { resolvePostConcurrency } from '../src/background/post-concurrency';
+import { runPostScheduler } from '../src/background/post-scheduler';
 import { buildDiagnosticsReport } from '../src/background/diagnostics';
 import { recordHistoryEntry, releasePostAttachments } from '../src/background/history-recorder';
 import { normalizePostEvidence, shouldRunPostCompletionSideEffects } from '../src/background/post-result-policy';
@@ -302,11 +301,15 @@ async function handlePostRequest(
         postingState.setCompression(null);
       },
     });
-    const results = await runPostWorkerPool({
+    const hasVideo = adjustedImages?.some((image) => image.type.startsWith('video/')) === true;
+    const results = await runPostScheduler({
       platforms,
-      concurrency: resolvePostConcurrency(platforms, autoPost),
-      post: async (platform) => normalizePostEvidence(
-        await platformPoster.postToPlatform(platform, text, adjustedImages, cw, visibility, autoPost),
+      autoPost,
+      planOptions: { hasVideo },
+      post: async (platform, execution) => normalizePostEvidence(
+        await platformPoster.postToPlatform(platform, text, adjustedImages, cw, visibility, autoPost, {
+          forceForeground: execution.forceForeground,
+        }),
       ),
       onResult: recordPlatformProgress,
     });
