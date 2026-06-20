@@ -64,4 +64,23 @@ describe('buildSelectedCompatibilityErrors', () => {
       expect(compatibility[platform], platform).toBeNull();
     }
   });
+
+  it('does not block oversized videos in the popup because background compression handles size', () => {
+    const compatibility = buildVideoCompatibility(
+      [{ id: 'bluesky', name: 'Bluesky', limit: 300, available: true }],
+      {
+        name: 'large.mp4',
+        type: 'video/mp4',
+        data: {
+          length: Math.ceil((90 * 1024 * 1024 * 4) / 3),
+          endsWith: () => false,
+        } as unknown as string,
+        durationS: 30,
+        previewUrl: 'blob:large',
+      },
+    );
+
+    expect(compatibility.bluesky).toBeNull();
+    expect(buildSelectedCompatibilityErrors(['bluesky'], compatibility, {})).toEqual([]);
+  });
 });

@@ -1,6 +1,5 @@
 import type { PlatformId } from '../messages';
 import { checkVideoConstraint, getAdapter } from '../adapters/registry';
-import { base64ByteLength } from '../utils/base64';
 import { splitTextForPlatform } from '../utils/platform-text';
 import type { ImagePreview, PlatformOption, VideoPreview } from './types';
 
@@ -32,7 +31,9 @@ export function buildVideoCompatibility(
   return Object.fromEntries(
     platforms.map((platform) => [
       platform.id,
-      checkVideoConstraint(platform.id, video.durationS, base64ByteLength(video.data)),
+      // 動画サイズは background 側で選択中 SNS の最小上限まで自動圧縮する。
+      // popup は「圧縮前サイズ」では止めず、非対応/尺超過だけを事前エラーにする。
+      checkVideoConstraint(platform.id, video.durationS, 0),
     ]),
   );
 }
