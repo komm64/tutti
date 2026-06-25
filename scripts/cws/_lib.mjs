@@ -27,7 +27,7 @@ export function loadEnv() {
   }
   const text = readFileSync(path, 'utf8');
   const env = {};
-  for (const line of text.split('\n')) {
+  for (const line of text.split(/\r?\n/)) {
     const m = line.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*)$/);
     if (!m) continue;
     let value = m[2].trim();
