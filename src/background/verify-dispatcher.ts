@@ -53,7 +53,8 @@ export async function runVerify(
   const needsDomFallback =
     !r1.verified ||
     r1.issues.some((issue) => issue.severity === 'error') ||
-    ((platform === 'x' || platform === 'tiktok') && r1.issues.length > 0);
+    ((platform === 'x' || platform === 'tiktok') && r1.issues.length > 0) ||
+    (platform === 'threads' && expected.hasImages);
   if (!needsDomFallback) return r1;
 
   // server-side fetch が失敗、 または public HTML が本文を省略した場合は DOM fallback。
@@ -97,7 +98,9 @@ async function verifyViaDomTab(
         // public OG が一部だけ残る SNS がある。DOM fallback では body も結合し、
         // hydration 後の実本文を比較対象に含める。
         const text = [cleaner(desc), resp.bodyExcerpt ?? ''].filter(Boolean).join('\n');
-        const hasImages = judgeImg ? judgeImg(img) : !!img;
+        const hasImages = platform === 'threads' && expected.hasImages && typeof resp.hasImage === 'boolean'
+          ? resp.hasImage
+          : judgeImg ? judgeImg(img) : !!img;
         const hasVideo = expected.hasVideo ? resp.hasVideo === true : undefined;
         latestResult = buildVerifyResult(expected, { text, hasImages, hasVideo });
         const hasHardIssue = latestResult.issues.some((issue) => issue.severity === 'error');

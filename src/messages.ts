@@ -410,6 +410,8 @@ export interface VerifyPostDomResult {
   type: 'VERIFY_POST_DOM_RESULT';
   ogDescription: string;
   ogImage: string;
+  /** true when the hydrated post page exposes a non-avatar image/media element. */
+  hasImage?: boolean;
   /** true when the hydrated post page exposes a video/player element. */
   hasVideo?: boolean;
   /** og:* が無い場合の fallback として、 ページ本文の text 抜粋 */

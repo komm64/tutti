@@ -38,6 +38,44 @@ export default defineContentScript({
   ],
   runAt: 'document_idle',
   main() {
+    const isVisibleElement = (el: HTMLElement): boolean => {
+      const rect = el.getBoundingClientRect();
+      const style = window.getComputedStyle(el);
+      return rect.width > 4 &&
+        rect.height > 4 &&
+        el.getClientRects().length > 0 &&
+        style.display !== 'none' &&
+        style.visibility !== 'hidden' &&
+        style.opacity !== '0';
+    };
+
+    const isAvatarishImage = (img: HTMLImageElement): boolean => {
+      const text = [
+        img.getAttribute('alt'),
+        img.getAttribute('aria-label'),
+        img.getAttribute('data-testid'),
+        img.getAttribute('class'),
+        img.getAttribute('src'),
+      ].filter(Boolean).join(' ').toLowerCase();
+      if (/profile|avatar|profile_pic|user avatar|プロフィール/.test(text)) return true;
+      const rect = img.getBoundingClientRect();
+      return !!img.closest('a[href*="/@"]') && rect.width <= 120 && rect.height <= 120;
+    };
+
+    const hasImageEvidence = (): boolean => {
+      const scopes = Array.from(document.querySelectorAll<HTMLElement>('article, main, [role="main"]'));
+      const searchRoots = scopes.length > 0 ? scopes : [document.body].filter(Boolean) as HTMLElement[];
+      for (const scope of searchRoots) {
+        const images = Array.from(scope.querySelectorAll<HTMLImageElement>('img'));
+        if (images.some((img) => {
+          if (!isVisibleElement(img) || isAvatarishImage(img)) return false;
+          const rect = img.getBoundingClientRect();
+          return rect.width >= 80 && rect.height >= 80;
+        })) return true;
+      }
+      return false;
+    };
+
     const hasVideoEvidence = (): boolean => {
       const videoMeta =
         document.querySelector<HTMLMetaElement>('meta[property="og:video"]')?.content ||
@@ -64,6 +102,7 @@ export default defineContentScript({
         type: 'VERIFY_POST_DOM_RESULT',
         ogDescription,
         ogImage,
+        hasImage: hasImageEvidence(),
         hasVideo: hasVideoEvidence(),
         bodyExcerpt,
       });

@@ -10,6 +10,7 @@ import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
 import { hashCaptureText, readFreshCapturedPost } from '../src/utils/post-capture-record';
 import { openReplyComposerIfOnPostPage } from '../src/utils/reply-compose';
 import { detectThreadsUserFromDocument } from '../src/utils/threads-user-detect';
+import { findThreadsMediaRejection, hasThreadsMediaPreview } from '../src/utils/threads-media-preview';
 
 function detectThreadsUser(): string | null {
   return detectThreadsUserFromDocument(document);
@@ -69,6 +70,7 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     requireMediaAccepted: hasMedia,
     requireMediaPreview: hasMedia,
     beforeDropDelayMs: hasMedia ? 5000 : undefined,
+    beforeSubmit: hasMedia ? () => assertThreadsMediaAttached(hasVideo ? 30_000 : 10_000) : undefined,
     clickPostButton: () => clickElementInMainWorld(
       '[role="dialog"] [role="button"], [role="dialog"] button',
       ['Post', '投稿', '投稿する', 'Post now'],
@@ -149,6 +151,17 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     confirmed,
     url,
   };
+}
+
+async function assertThreadsMediaAttached(timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const rejection = findThreadsMediaRejection(document);
+    if (rejection) throw new Error(`Threads rejected the media: ${rejection}`);
+    if (hasThreadsMediaPreview(document)) return;
+    await sleep(150);
+  }
+  throw new Error('Threads media attachment was not accepted; refusing to publish without media.');
 }
 
 async function waitForLatestThreadsCapturedPost(text: string, timeoutMs: number): Promise<string | null> {
