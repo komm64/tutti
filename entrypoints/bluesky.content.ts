@@ -122,6 +122,7 @@ async function executeBlueskyInlineThread(
       beforeDropDelayMs: hasVideo ? 500 : undefined,
     });
     await sleep(1500);
+    if (hasVideo) await assertBlueskyVideoAttached();
   }
 
   // 各 chunk を 「+」 click → wait → inject の繰り返し
@@ -282,6 +283,7 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
       requireMediaAccepted: hasVideo || undefined,
       requireMediaPreview: hasVideo || undefined,
       beforeDropDelayMs: hasVideo ? 500 : undefined,
+      beforeSubmit: hasVideo ? assertBlueskyVideoAttached : undefined,
       clickPostButton: () => clickElementInMainWorld(sel.postButton),
     });
   }
@@ -332,6 +334,76 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     confirmed: true,
     url,
   };
+}
+
+async function assertBlueskyVideoAttached(): Promise<void> {
+  const deadline = Date.now() + 3000;
+  while (Date.now() < deadline) {
+    const rejection = findBlueskyMediaRejection();
+    if (rejection) throw new Error(`Bluesky rejected the video: ${rejection}`);
+    if (hasBlueskyMediaPreview()) return;
+    await sleep(150);
+  }
+  throw new Error('Bluesky video attachment was not accepted; refusing to publish text-only.');
+}
+
+function blueskyComposerScope(): ParentNode {
+  return document.querySelector('[data-testid="composer"], [role="dialog"]') ?? document.body;
+}
+
+function hasBlueskyMediaPreview(): boolean {
+  const scope = blueskyComposerScope();
+  const candidates = Array.from(scope.querySelectorAll<HTMLElement>(
+    'video, canvas, img[src^="blob:"], img[src^="data:"], [aria-label*="Remove" i], [aria-label*="削除"]',
+  ));
+  return candidates.some((el) => {
+    const rect = el.getBoundingClientRect();
+    const style = window.getComputedStyle(el);
+    if (rect.width <= 4 || rect.height <= 4 || style.display === 'none' || style.visibility === 'hidden') {
+      return false;
+    }
+    if (el.tagName.toLowerCase() === 'img') {
+      const text = [
+        el.getAttribute('alt'),
+        el.getAttribute('aria-label'),
+        el.getAttribute('data-testid'),
+        el.getAttribute('class'),
+      ].filter(Boolean).join(' ').toLowerCase();
+      return !/profile|avatar/.test(text);
+    }
+    return true;
+  });
+}
+
+function findBlueskyMediaRejection(): string | undefined {
+  const scope = blueskyComposerScope();
+  const text = scope instanceof HTMLElement
+    ? visibleTextWithoutEditable(scope)
+    : '';
+  const patterns = [
+    /unsupported/i,
+    /not supported/i,
+    /can't upload/i,
+    /cannot upload/i,
+    /could not process/i,
+    /file type/i,
+    /file format/i,
+    /対応していません/,
+    /サポートされていません/,
+    /アップロードできません/,
+    /扱えません/,
+    /処理できません/,
+  ];
+  if (patterns.some((pattern) => pattern.test(text))) return text.slice(0, 220);
+  return undefined;
+}
+
+function visibleTextWithoutEditable(scope: HTMLElement): string {
+  const clone = scope.cloneNode(true) as HTMLElement;
+  for (const el of Array.from(clone.querySelectorAll('textarea, input, [contenteditable="true"]'))) {
+    el.remove();
+  }
+  return (clone.innerText ?? clone.textContent ?? '').replace(/\s+/g, ' ').trim();
 }
 
 /**

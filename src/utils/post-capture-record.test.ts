@@ -108,6 +108,17 @@ describe('post capture records', () => {
     expect(record?.url).toBe('https://www.tumblr.com/komm64/456');
   });
 
+  it('normalizes Tumblr dashboard blog URLs to public permalinks', () => {
+    const record = extractTumblrPostRecord(
+      { response: { post_url: 'https://www.tumblr.com/blog/komm64/456/example' } },
+      undefined,
+      undefined,
+      100,
+    );
+
+    expect(record?.url).toBe('https://www.tumblr.com/komm64/456');
+  });
+
   it('extracts Tumblr post IDs from alternate API response keys', () => {
     const record = extractTumblrPostRecord(
       { response: { post_id_string: '789' } },
@@ -134,6 +145,17 @@ describe('post capture records', () => {
       capturedAt: 100,
       textHash: 'hash',
     });
+  });
+
+  it('does not treat Tumblr blog metadata ids as post ids', () => {
+    const record = extractTumblrPostRecord(
+      { response: { blog: { id: 111, name: 'komm64' }, post: { id: 222 } } },
+      undefined,
+      undefined,
+      100,
+    );
+
+    expect(record?.url).toBe('https://www.tumblr.com/komm64/222');
   });
 
   it('extracts Threads post URLs from GraphQL-like responses', () => {

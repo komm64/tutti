@@ -18,7 +18,14 @@ const KEY = 'current';
 export interface DraftMediaRecord {
   /** 画像 0..N + 動画 0/1。schema は src/storage.ts の Draft と整合 */
   images?: Array<{ name: string; type: string; data: string }>;
-  video?: { name: string; type: string; data: string; durationS?: number } | null;
+  video?: {
+    name: string;
+    type: string;
+    data: string;
+    durationS?: number;
+    videoCodec?: string;
+    videoCodecParameters?: string;
+  } | null;
 }
 
 function openDb(): Promise<IDBDatabase> {

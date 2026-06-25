@@ -55,6 +55,10 @@ export interface ImageAttachment {
   bytes?: number;
   /** 動画の場合の尺(秒)。background での制約チェックに使う */
   durationS?: number;
+  /** 動画の場合の codec 名 (mediabunny: "avc", "hevc" など)。 */
+  videoCodec?: string;
+  /** MP4/WebM の codec parameter string (例: "avc1.64001f", "hev1.1.6.L93.90")。 */
+  videoCodecParameters?: string;
   /**
    * 画像 alt text (v0.4.87〜)。 Bluesky / Mastodon の API path で送信される。
    * DOM 経路は対応してない (該当 SNS の compose UI に alt input が無い場合あり)。

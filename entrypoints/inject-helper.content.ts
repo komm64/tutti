@@ -562,8 +562,9 @@ export default defineContentScript({
         requireMediaAccepted?: boolean;
         requirePreviewAccepted?: boolean;
         isMediaPreviewVisible?: () => boolean;
+        getMediaRejectionMessage?: () => string | undefined;
       } = {},
-    ): Promise<{ uploadCount: number; timedOut: boolean; acceptedByPreview: boolean }> {
+    ): Promise<{ uploadCount: number; timedOut: boolean; acceptedByPreview: boolean; error?: string }> {
       const tracker = window.__tuttiUpload!;
       const startCount = tracker.successCount;
       const start = Date.now();
@@ -576,6 +577,15 @@ export default defineContentScript({
       while (Date.now() < deadline) {
         const newSuccess = tracker.successCount - startCount;
         const elapsed = Date.now() - start;
+        const rejection = options.getMediaRejectionMessage?.();
+        if (rejection) {
+          return {
+            uploadCount: newSuccess,
+            timedOut: false,
+            acceptedByPreview: false,
+            error: rejection,
+          };
+        }
         const acceptedByPreview = !!options.isMediaPreviewVisible?.();
 
         if (newSuccess > 0) {
@@ -639,11 +649,10 @@ export default defineContentScript({
       const text = mediaPreviewText(el);
       if (text.includes('attach media') || text.includes('add media')) return false;
       if (text.includes('attach video') || text.includes('add video')) return false;
-      return text.includes('media') ||
-        text.includes('video') ||
-        text.includes('attachment') ||
-        text.includes('remove') ||
-        text.includes('削除');
+      if (el.querySelector('video, canvas, img')) return true;
+      const isRemoveControl = /remove|delete|削除|取り除/i.test(text);
+      if (!isRemoveControl) return false;
+      return /media|image|video|attachment|画像|動画|添付/i.test(text);
     }
 
     function mediaPreviewScope(target: HTMLElement): ParentNode {
@@ -673,6 +682,47 @@ export default defineContentScript({
         const scope = target.isConnected ? mediaPreviewScope(target) : document.body;
         return countMediaPreviews(scope) > beforeCount;
       };
+    }
+
+    function mediaRejectionMessage(target: HTMLElement): string | undefined {
+      const scope = target.isConnected ? mediaPreviewScope(target) : document.body;
+      const selectors = [
+        '[role="alert"]',
+        '[aria-live]',
+        '[data-testid*="toast" i]',
+        '[data-testid*="error" i]',
+        '[class*="toast" i]',
+        '[class*="error" i]',
+        '[class*="notice" i]',
+        '[class*="banner" i]',
+      ].join(',');
+      const candidates = Array.from(scope.querySelectorAll<HTMLElement>(selectors));
+      for (const el of candidates) {
+        if (!isVisibleMediaElement(el)) continue;
+        const text = (el.innerText ?? el.textContent ?? '').replace(/\s+/g, ' ').trim();
+        if (isMediaRejectionText(text)) return text.slice(0, 220);
+      }
+      const scopeText = scope instanceof HTMLElement
+        ? visibleTextWithoutEditable(scope)
+        : '';
+      if (scopeText && scopeText.length < 4000 && isMediaRejectionText(scopeText)) {
+        return scopeText.slice(0, 220);
+      }
+      return undefined;
+    }
+
+    function isMediaRejectionText(text: string): boolean {
+      if (!text) return false;
+      return /unsupported|not supported|can't upload|cannot upload|could not upload|couldn't upload|failed to upload|file type|file format|format .*not|could not process|couldn't process|one or more videos?/i.test(text) ||
+        /対応していません|サポートされていません|アップロードできません|処理できません|扱えません|ファイル形式|動画.*拒否|動画.*失敗/.test(text);
+    }
+
+    function visibleTextWithoutEditable(scope: HTMLElement): string {
+      const clone = scope.cloneNode(true) as HTMLElement;
+      for (const el of Array.from(clone.querySelectorAll('textarea, input, [contenteditable="true"]'))) {
+        el.remove();
+      }
+      return (clone.innerText ?? clone.textContent ?? '').replace(/\s+/g, ' ').trim();
     }
 
     function findEl(selector: string): { el: HTMLElement; matchedPart: string } | null {
@@ -769,13 +819,16 @@ export default defineContentScript({
         isMediaPreviewVisible: requireMediaAccepted
           ? mediaAcceptedPredicate(input, beforePreviewCount)
           : undefined,
+        getMediaRejectionMessage: requireMediaAccepted
+          ? () => mediaRejectionMessage(input)
+          : undefined,
       });
-      const ok = !wait.timedOut || wait.acceptedByPreview;
+      const ok = !wait.error && (!wait.timedOut || wait.acceptedByPreview);
       return {
         source: RES_TAG,
         id: req.id,
         ok,
-        error: ok ? undefined : 'Timed out while waiting for the media upload or preview',
+        error: ok ? undefined : (wait.error ?? 'Timed out while waiting for the media upload or preview'),
         fileCount: input.files?.length ?? 0,
         uploadCount: wait.uploadCount,
         acceptedByPreview: wait.acceptedByPreview,
@@ -1201,13 +1254,16 @@ export default defineContentScript({
         isMediaPreviewVisible: requireMediaAccepted
           ? mediaAcceptedPredicate(target, beforePreviewCount)
           : undefined,
+        getMediaRejectionMessage: requireMediaAccepted
+          ? () => mediaRejectionMessage(target)
+          : undefined,
       });
-      const ok = !wait.timedOut || wait.acceptedByPreview;
+      const ok = !wait.error && (!wait.timedOut || wait.acceptedByPreview);
       return {
         source: RES_TAG,
         id: req.id,
         ok,
-        error: ok ? undefined : 'Timed out while waiting for the media upload or preview',
+        error: ok ? undefined : (wait.error ?? 'Timed out while waiting for the media upload or preview'),
         fileCount: built.dt.files.length,
         droppedOn: target.tagName,
         uploadCount: wait.uploadCount,

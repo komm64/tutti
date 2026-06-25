@@ -39,6 +39,8 @@ export async function packAttachmentForTransfer(att: ImageAttachment): Promise<I
     name: att.name,
     type: att.type,
     durationS: att.durationS,
+    ...(att.videoCodec ? { videoCodec: att.videoCodec } : {}),
+    ...(att.videoCodecParameters ? { videoCodecParameters: att.videoCodecParameters } : {}),
     dataRef: id,
     bytes: bytes.length,
   };
@@ -56,6 +58,8 @@ export async function resolveAttachmentToBase64(att: ImageAttachment): Promise<I
     name: att.name,
     type: att.type,
     durationS: att.durationS,
+    ...(att.videoCodec ? { videoCodec: att.videoCodec } : {}),
+    ...(att.videoCodecParameters ? { videoCodecParameters: att.videoCodecParameters } : {}),
     bytes: bytes.length,
     data: arrayBufferToBase64(buf),
   };
@@ -109,6 +113,8 @@ export async function resolveAttachmentToBase64ViaMessage(
     name: att.name,
     type: att.type,
     durationS: att.durationS,
+    ...(att.videoCodec ? { videoCodec: att.videoCodec } : {}),
+    ...(att.videoCodecParameters ? { videoCodecParameters: att.videoCodecParameters } : {}),
     bytes: combined.length,
     data: arrayBufferToBase64(combined.buffer as ArrayBuffer),
   };

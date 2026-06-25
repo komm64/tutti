@@ -33,10 +33,29 @@ export function shouldTranscodeVideoForBudget(
   minLimitBytes: number,
   needsVerticalLetterbox: boolean,
   needsTrim: boolean,
+  needsCodecTranscode = false,
+  needsSafeFormatNormalize = false,
 ): boolean {
-  if (needsVerticalLetterbox || needsTrim) return true;
+  if (needsVerticalLetterbox || needsTrim || needsCodecTranscode || needsSafeFormatNormalize) return true;
   if (!Number.isFinite(minLimitBytes)) return false;
   return currentBytes > resolveSafeVideoTargetBytes(currentBytes, minLimitBytes);
+}
+
+export function shouldNormalizeVideoForSafePosting(video: ImageAttachment): boolean {
+  return video.type.startsWith('video/');
+}
+
+export function needsVideoCodecTranscodeForPlatforms(
+  platforms: readonly PlatformId[],
+  video: ImageAttachment,
+): boolean {
+  if (!platforms.includes('bluesky')) return false;
+  const codec = (video.videoCodec ?? '').toLowerCase();
+  const codecParams = (video.videoCodecParameters ?? '').toLowerCase();
+  return codec === 'hevc' ||
+    codec === 'h265' ||
+    codecParams.startsWith('hev1') ||
+    codecParams.startsWith('hvc1');
 }
 
 export async function maybeResizeImagesForPlatform(
@@ -104,12 +123,23 @@ export async function maybeCompressVideoForBudget(
 
   // v0.4.90: trim opt-in
   const needsTrim = !!(trimToSeconds && trimToSeconds > 0 && (video.durationS ?? 0) > trimToSeconds);
+  const needsCodecTranscode = needsVideoCodecTranscodeForPlatforms(platforms, video);
+  const needsSafeFormatNormalize = shouldNormalizeVideoForSafePosting(video);
 
-  if (!shouldTranscodeVideoForBudget(currentBytes, minBytes, needsVerticalLetterbox, needsTrim)) return images;
+  if (!shouldTranscodeVideoForBudget(
+    currentBytes,
+    minBytes,
+    needsVerticalLetterbox,
+    needsTrim,
+    needsCodecTranscode,
+    needsSafeFormatNormalize,
+  )) {
+    return images;
+  }
 
   const targetBytes = resolveSafeVideoTargetBytes(currentBytes, minBytes);
   const aspectMode: 'passthrough' | 'vertical9x16' = needsVerticalLetterbox ? 'vertical9x16' : 'passthrough';
-  log.info(`P16/P81: video ${(currentBytes / 1024 / 1024).toFixed(1)}MB → 目標 ${(targetBytes / 1024 / 1024).toFixed(1)}MB${Number.isFinite(minBytes) ? ` (limit ${(minBytes / 1024 / 1024).toFixed(1)}MB)` : ''}${needsVerticalLetterbox ? ' + 9:16 letterbox' : ''}${needsTrim ? ` + trim to ${trimToSeconds}s` : ''}`);
+  log.info(`P16/P81: video ${(currentBytes / 1024 / 1024).toFixed(1)}MB → 目標 ${(targetBytes / 1024 / 1024).toFixed(1)}MB${Number.isFinite(minBytes) ? ` (limit ${(minBytes / 1024 / 1024).toFixed(1)}MB)` : ''}${needsSafeFormatNormalize ? ' + safe mp4/h264/aac' : ''}${needsVerticalLetterbox ? ' + 9:16 letterbox' : ''}${needsTrim ? ` + trim to ${trimToSeconds}s` : ''}${needsCodecTranscode ? ` + codec ${video.videoCodec ?? video.videoCodecParameters ?? 'unknown'}→h264` : ''}`);
 
   let inputRef = video.dataRef;
   let inputRefOwned = false;
@@ -139,6 +169,7 @@ export async function maybeCompressVideoForBudget(
       name: video.name,
       type: 'video/mp4',
       durationS: video.durationS,
+      videoCodec: 'avc',
       dataRef: compressed.outputRef,
       bytes: compressed.outputBytes,
     };

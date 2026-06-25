@@ -152,17 +152,22 @@ export function extractTumblrPostRecord(
   let id: string | undefined;
   let blogName = fallbackBlogName ? cleanTumblrBlogName(fallbackBlogName) : undefined;
 
-  walkObject(payload, (key, value) => {
+  walkObject(payload, (key, value, path = []) => {
     const lowerKey = key.toLowerCase();
+    const lowerPath = path.map((part) => part.toLowerCase());
     if (typeof value === 'string') {
       const normalizedUrl = normalizeTumblrUrl(value);
       if (!url && normalizedUrl) url = normalizedUrl;
-      if (!id && isTumblrPostIdKey(lowerKey) && /^\d+$/.test(value)) id = value;
+      if (!id && isTumblrPostIdKey(lowerKey) && /^\d+$/.test(value) && !isTumblrBlogMetadataIdPath(lowerPath)) {
+        id = value;
+      }
       if (!blogName && isTumblrBlogNameKey(lowerKey) && /^[\w-]+$/.test(value)) {
         blogName = cleanTumblrBlogName(value);
       }
     } else if (typeof value === 'number' && Number.isFinite(value)) {
-      if (!id && isTumblrPostIdKey(lowerKey)) id = String(Math.trunc(value));
+      if (!id && isTumblrPostIdKey(lowerKey) && !isTumblrBlogMetadataIdPath(lowerPath)) {
+        id = String(Math.trunc(value));
+      }
     }
   });
 
@@ -365,6 +370,12 @@ function normalizeTumblrUrl(value: string): string | undefined {
     if (subdomain?.[1] && subdomainPost?.[1]) {
       return `https://www.tumblr.com/${subdomain[1]}/${subdomainPost[1]}`;
     }
+    const blogPost = url.hostname.match(/^(?:www\.)?tumblr\.com$/i)
+      ? url.pathname.match(/^\/blog\/([^/]+)\/(\d+)(?:[/?#]|$)/)
+      : null;
+    if (blogPost?.[1] && blogPost[2]) {
+      return `https://www.tumblr.com/${cleanTumblrBlogName(blogPost[1])}/${blogPost[2]}`;
+    }
     if (!TUMBLR_POST_URL_RE.test(url.href)) return undefined;
     url.search = '';
     url.hash = '';
@@ -428,6 +439,13 @@ function isTumblrBlogNameKey(lowerKey: string): boolean {
     lowerKey === 'blogname';
 }
 
+function isTumblrBlogMetadataIdPath(lowerPath: readonly string[]): boolean {
+  const parent = lowerPath[lowerPath.length - 2];
+  if (!parent) return false;
+  if (parent === 'blog' || parent === 'blogs' || parent === 'tumblelog' || parent === 'user') return true;
+  return lowerPath.includes('blog') && !lowerPath.includes('post') && !lowerPath.includes('posts');
+}
+
 function isThreadsCodeKey(lowerKey: string): boolean {
   return lowerKey === 'code' ||
     lowerKey === 'shortcode' ||
@@ -460,22 +478,26 @@ function decodeFormValue(value: string): string {
 
 function walkObject(
   value: unknown,
-  visit: (key: string, value: unknown) => void,
+  visit: (key: string, value: unknown, path?: readonly string[]) => void,
   key = '',
   depth = 0,
   seen = new Set<unknown>(),
+  path: readonly string[] = key ? [key] : [],
 ): void {
   if (depth > 10 || value == null) return;
-  visit(key, value);
+  visit(key, value, path);
   if (typeof value !== 'object') return;
   if (seen.has(value)) return;
   seen.add(value);
   if (Array.isArray(value)) {
-    value.forEach((child, index) => walkObject(child, visit, String(index), depth + 1, seen));
+    value.forEach((child, index) => {
+      const childKey = String(index);
+      walkObject(child, visit, childKey, depth + 1, seen, [...path, childKey]);
+    });
     return;
   }
   for (const [childKey, child] of Object.entries(value as Record<string, unknown>)) {
-    walkObject(child, visit, childKey, depth + 1, seen);
+    walkObject(child, visit, childKey, depth + 1, seen, [...path, childKey]);
   }
 }
 

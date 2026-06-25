@@ -11,7 +11,14 @@ export async function preparePostMedia(
   imageAlts: readonly string[],
 ): Promise<ImageAttachment[]> {
   if (video) {
-    return [{ name: video.name, type: video.type, data: video.data, durationS: video.durationS }];
+    return [{
+      name: video.name,
+      type: video.type,
+      data: video.data,
+      durationS: video.durationS,
+      ...(video.videoCodec ? { videoCodec: video.videoCodec } : {}),
+      ...(video.videoCodecParameters ? { videoCodecParameters: video.videoCodecParameters } : {}),
+    }];
   }
   if (images.length === 0) return [];
 

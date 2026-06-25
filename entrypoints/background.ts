@@ -295,7 +295,8 @@ async function handlePostRequest(
   // v0.4.97: 新規 post 開始 = 前回 state を完全上書き
   postingState.start(platforms);
   try {
-    // P16: 動画があり、いずれかの選択中 SNS の maxBytes を超える場合は事前に圧縮
+    // P16/P81: 投稿前に動画を安全な MP4/H.264/AAC へ正規化し、
+    // 必要に応じて size/trim/letterbox も同じ経路で処理する。
     const adjustedImages = await maybeCompressVideoForBudget(platforms, images, trimVideoToSeconds, {
       onConversionFinished: () => {
         postingState.setCompression(null);

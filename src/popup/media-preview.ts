@@ -9,6 +9,8 @@ export interface DraftImageMedia {
 
 export interface DraftVideoMedia extends DraftImageMedia {
   durationS?: number;
+  videoCodec?: string;
+  videoCodecParameters?: string;
 }
 
 export async function createImagePreview(file: File): Promise<ImagePreview> {
@@ -21,12 +23,15 @@ export async function createImagePreview(file: File): Promise<ImagePreview> {
 }
 
 export async function createVideoPreview(file: File): Promise<VideoPreview> {
+  const metadata = await getVideoMetadata(file);
   return {
     name: file.name,
     type: file.type,
     data: arrayBufferToBase64(await file.arrayBuffer()),
     previewUrl: URL.createObjectURL(file),
-    durationS: await getVideoDuration(file),
+    durationS: metadata.durationS,
+    ...(metadata.videoCodec ? { videoCodec: metadata.videoCodec } : {}),
+    ...(metadata.videoCodecParameters ? { videoCodecParameters: metadata.videoCodecParameters } : {}),
   };
 }
 
@@ -51,6 +56,8 @@ export function restoreVideoPreview(video: DraftVideoMedia | null | undefined): 
     data: video.data,
     previewUrl: URL.createObjectURL(blob),
     durationS: video.durationS ?? 0,
+    ...(video.videoCodec ? { videoCodec: video.videoCodec } : {}),
+    ...(video.videoCodecParameters ? { videoCodecParameters: video.videoCodecParameters } : {}),
   };
 }
 
@@ -64,7 +71,14 @@ export function serializeImagesForDraft(images: readonly ImagePreview[]): DraftI
 
 export function serializeVideoForDraft(video: VideoPreview | null): DraftVideoMedia | null {
   return video
-    ? { name: video.name, type: video.type, data: video.data, durationS: video.durationS }
+    ? {
+        name: video.name,
+        type: video.type,
+        data: video.data,
+        durationS: video.durationS,
+        ...(video.videoCodec ? { videoCodec: video.videoCodec } : {}),
+        ...(video.videoCodecParameters ? { videoCodecParameters: video.videoCodecParameters } : {}),
+      }
     : null;
 }
 
@@ -112,4 +126,39 @@ function getVideoDuration(file: File): Promise<number> {
     video.onerror = () => resolve(0);
     video.src = URL.createObjectURL(file);
   });
+}
+
+async function getVideoMetadata(file: File): Promise<{
+  durationS: number;
+  videoCodec?: string;
+  videoCodecParameters?: string;
+}> {
+  const fallbackDuration = () => getVideoDuration(file);
+  try {
+    const { ALL_FORMATS, BlobSource, Input } = await import('mediabunny');
+    const input = new Input({
+      source: new BlobSource(file),
+      formats: ALL_FORMATS,
+    });
+    const [track, duration] = await Promise.all([
+      input.getPrimaryVideoTrack(),
+      input.computeDuration().catch(() => null),
+    ]);
+    const [videoCodec, videoCodecParameters] = track
+      ? await Promise.all([
+          track.getCodec().catch(() => null),
+          track.getCodecParameterString().catch(() => null),
+        ])
+      : [null, null];
+    const durationS = typeof duration === 'number' && Number.isFinite(duration)
+      ? duration
+      : await fallbackDuration();
+    return {
+      durationS,
+      ...(videoCodec ? { videoCodec } : {}),
+      ...(videoCodecParameters ? { videoCodecParameters } : {}),
+    };
+  } catch {
+    return { durationS: await fallbackDuration() };
+  }
 }
