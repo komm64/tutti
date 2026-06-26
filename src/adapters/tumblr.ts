@@ -29,11 +29,14 @@ export const TUMBLR_SELECTORS = {
   /** post button: 現代 Tumblr は class="TRX6J VxmZd" の "Post now" だが、aria/testid 無い。
    *  text fallback (postButtonTexts) で拾う */
   postButton: '[data-testid="postFormPostButton"], button[aria-label="Post"], button[aria-label="Post now"]',
-  /** 本文の contenteditable: Gutenberg-style block editor の p 要素(h1=title 除外) */
+  /** 本文の contenteditable: Gutenberg-style block editor の body block(h1=title 除外) */
   textarea:
     '[role="dialog"] [data-testid="gutenberg-editor"] p[contenteditable="true"],' +
+    '[role="dialog"] [data-testid="gutenberg-editor"] [role="document"][contenteditable="true"]:not(h1),' +
+    '[role="dialog"] [data-testid="gutenberg-editor"] [contenteditable="true"]:not(h1),' +
     '[role="dialog"] p.block-editor-rich-text__editable[role="document"][contenteditable="true"]:not(h1),' +
-    '[data-testid="gutenberg-editor"] p[contenteditable="true"]',
+    '[data-testid="gutenberg-editor"] p[contenteditable="true"],' +
+    '[data-testid="gutenberg-editor"] [contenteditable="true"]:not(h1)',
   /**
    * 画像添付の drop target。Tumblr の Gutenberg block editor 内に元から
    * 存在する `.components-drop-zone` に drop すると `/api/v2/media/image`

@@ -19,6 +19,10 @@
 
 import { validateTumblrBodyText } from '../src/utils/tumblr-text';
 import {
+  findTumblrBodyBlocks,
+  readTumblrBodyTextFromBlocks,
+} from '../src/utils/tumblr-editor';
+import {
   extractInstagramPostRecord,
   extractMastodonPostRecord,
   extractThreadsPostRecord,
@@ -733,44 +737,6 @@ export default defineContentScript({
       return null;
     }
 
-    function findAllBySelector(selector: string): HTMLElement[] {
-      const seen = new Set<HTMLElement>();
-      const matches: HTMLElement[] = [];
-      for (const part of selector.split(',').map((s) => s.trim()).filter(Boolean)) {
-        for (const el of document.querySelectorAll<HTMLElement>(part)) {
-          if (seen.has(el)) continue;
-          seen.add(el);
-          matches.push(el);
-        }
-      }
-      return matches;
-    }
-
-    function isTumblrBodyBlock(el: HTMLElement): boolean {
-      return el.tagName !== 'H1' &&
-        el.getAttribute('contenteditable') === 'true' &&
-        !el.closest('[aria-label*="tag" i]');
-    }
-
-    function tumblrBodyBlocks(selector: string, fallback: HTMLElement): HTMLElement[] {
-      const scope = fallback.closest('[data-testid="gutenberg-editor"]') ??
-        fallback.closest('[role="dialog"]') ??
-        document;
-      const scoped = Array
-        .from(scope.querySelectorAll<HTMLElement>(
-          '[data-testid="gutenberg-editor"] p[contenteditable="true"], p.block-editor-rich-text__editable[role="document"][contenteditable="true"], p[contenteditable="true"]',
-        ))
-        .filter(isTumblrBodyBlock);
-      return scoped.length > 0 ? scoped : findAllBySelector(selector).filter(isTumblrBodyBlock);
-    }
-
-    function readTumblrBodyText(blocks: readonly HTMLElement[]): string {
-      return blocks
-        .map((block) => (block.innerText ?? block.textContent ?? '').trim())
-        .filter(Boolean)
-        .join('\n');
-    }
-
     function base64ToUint8Array(b64: string): Uint8Array {
       const binary = atob(b64);
       const bytes = new Uint8Array(binary.length);
@@ -1174,7 +1140,7 @@ export default defineContentScript({
         return { source: RES_TAG, id: req.id, ok: false, error: 'Tumblr text target not found' };
       }
       const text = req.text ?? '';
-      const blocks = tumblrBodyBlocks(req.selector, found.el);
+      const blocks = findTumblrBodyBlocks(req.selector, { anchor: found.el });
       const target = blocks[0] ?? found.el;
       console.log(`[Tutti inject-helper] Tumblr text target matched "${found.matchedPart}" (${blocks.length} body blocks)`);
 
@@ -1193,7 +1159,7 @@ export default defineContentScript({
         }));
         const expectedSnippet = text.slice(0, Math.min(20, text.length)).trim();
         const pasted = await waitFor(
-          () => readTumblrBodyText(tumblrBodyBlocks(req.selector, target)).includes(expectedSnippet),
+          () => readTumblrBodyTextFromBlocks(findTumblrBodyBlocks(req.selector, { anchor: target })).includes(expectedSnippet),
           700,
         );
         if (!pasted) {
@@ -1207,8 +1173,8 @@ export default defineContentScript({
         }
       }
 
-      const afterBlocks = tumblrBodyBlocks(req.selector, target);
-      const bodyText = readTumblrBodyText(afterBlocks);
+      const afterBlocks = findTumblrBodyBlocks(req.selector, { anchor: target });
+      const bodyText = readTumblrBodyTextFromBlocks(afterBlocks);
       const validation = validateTumblrBodyText(bodyText, text);
       return {
         source: RES_TAG,

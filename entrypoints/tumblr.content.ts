@@ -8,6 +8,7 @@ import { extractHashtags } from '../src/utils/hashtags';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
 import { validateTumblrBodyText } from '../src/utils/tumblr-text';
+import { readTumblrBodyText } from '../src/utils/tumblr-editor';
 import {
   findLatestTumblrPostUrlInDocument,
   findTumblrPostUrlInDocument,
@@ -420,23 +421,6 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     confirmed,
     url,
   };
-}
-
-function readTumblrBodyText(textareaSelector: string): string {
-  const candidates: HTMLElement[] = [];
-  for (const part of textareaSelector.split(',').map((s) => s.trim()).filter(Boolean)) {
-    candidates.push(...Array.from(document.querySelectorAll<HTMLElement>(part)));
-  }
-  const bodyBlocks = candidates.filter((el, index, all) =>
-    all.indexOf(el) === index &&
-    el.tagName !== 'H1' &&
-    el.getAttribute('contenteditable') === 'true' &&
-    !el.closest('[aria-label*="tag" i]'),
-  );
-  return bodyBlocks
-    .map((block) => (block.innerText ?? block.textContent ?? '').trim())
-    .filter(Boolean)
-    .join('\n');
 }
 
 function readLatestTumblrCapturedPost(text: string) {
