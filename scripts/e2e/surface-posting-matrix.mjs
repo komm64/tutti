@@ -64,6 +64,11 @@ const CASES = {
     text: (stamp) => `tutti surface matrix image ${stamp} #tutti`,
     media: 'image',
   },
+  'hashtags-image': {
+    requires: ['image'],
+    text: () => '#tutti #test1',
+    media: 'image',
+  },
   'video-only': {
     requires: ['shortVideo'],
     text: () => '',

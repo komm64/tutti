@@ -365,27 +365,40 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
       // Gutenberg editor は画像 block 追加時に本文 block を re-mount することがある。
       // drop 前に注入した本文が消えた / 古い本文が混ざった / 重複した場合は
       // 送信前に置換注入で直す。直らなければ投稿せず失敗させる。
-      const validation = validateTumblrBodyText(readTumblrBodyText(sel.textarea), text);
+      const validateCurrentBody = () => validateTumblrBodyText(readTumblrBodyText(sel.textarea), text, {
+        allowHashtagStripped: tags.length > 0,
+      });
+      const validation = validateCurrentBody();
       if (text && !validation.ok) {
         log.warn(`Tumblr: body validation failed before submit; reinjecting (${validation.error ?? 'unknown'})`);
         await injectTumblrTextIntoElement(text, sel.textarea);
         await sleep(300);
-        const after = validateTumblrBodyText(readTumblrBodyText(sel.textarea), text);
+        const after = validateCurrentBody();
         if (!after.ok) {
           throw new Error(after.error ?? 'Tumblr body validation failed');
         }
       }
-      // tags input は dialog 下部、 lazy-mount される変種もあるので軽く待機
-      const tagEl = await waitForElement<HTMLInputElement>(sel.tagInput, 3000);
-      if (!tagEl) {
-        log.warn('Tumblr: tags input が見つからず skip (本文 inline #word は Tumblr が auto-link するので最低限維持)');
+
+      if (tags.length === 0) {
+        log.info('Tumblr: 抽出 hashtag なし、 tags step skip');
         return;
+      }
+
+      // tags input は dialog 下部、 lazy-mount される変種もあるので軽く待機
+      const tagEl = await waitForElement<HTMLElement>(sel.tagInput, 3000);
+      if (!tagEl) {
+        throw new Error('Tumblr tags input not found; refusing to submit because the draft contains hashtags.');
       }
       try {
         await injectTagList(tags, sel.tagInput);
         log.info(`Tumblr: ${tags.length} 個の tag を chip 化`);
       } catch (e) {
-        log.warn(`Tumblr: tag commit 失敗 (本文 inline で続行): ${e instanceof Error ? e.message : String(e)}`);
+        throw new Error(`Tumblr tag commit failed: ${e instanceof Error ? e.message : String(e)}`);
+      }
+
+      const afterTags = validateCurrentBody();
+      if (text && !afterTags.ok) {
+        throw new Error(afterTags.error ?? 'Tumblr body validation failed after tag commit');
       }
     },
     dryRun,

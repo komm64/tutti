@@ -32,4 +32,32 @@ describe('Tumblr body text validation', () => {
       'current draft',
     )).toMatchObject({ ok: false });
   });
+
+  it('keeps hashtag-only drafts strict by default', () => {
+    expect(validateTumblrBodyText('', '#tutti #test1')).toMatchObject({ ok: false });
+  });
+
+  it('allows hashtag-only drafts after Tumblr moves hashtags to tags', () => {
+    expect(validateTumblrBodyText('', '#tutti #test1', {
+      allowHashtagStripped: true,
+    })).toEqual({ ok: true });
+  });
+
+  it('allows body text after Tumblr moves trailing hashtags to tags', () => {
+    expect(validateTumblrBodyText('hello world', 'hello world #tutti', {
+      allowHashtagStripped: true,
+    })).toEqual({ ok: true });
+  });
+
+  it('rejects unexpected body text for hashtag-only drafts', () => {
+    expect(validateTumblrBodyText('old caption', '#tutti #test1', {
+      allowHashtagStripped: true,
+    })).toMatchObject({ ok: false });
+  });
+
+  it('rejects duplicated hashtag-stripped body text', () => {
+    expect(validateTumblrBodyText('hello world\n\nhello world', 'hello world #tutti', {
+      allowHashtagStripped: true,
+    })).toMatchObject({ ok: false });
+  });
 });

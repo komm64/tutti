@@ -1175,7 +1175,7 @@ export default defineContentScript({
 
       const afterBlocks = findTumblrBodyBlocks(req.selector, { anchor: target });
       const bodyText = readTumblrBodyTextFromBlocks(afterBlocks);
-      const validation = validateTumblrBodyText(bodyText, text);
+      const validation = validateTumblrBodyText(bodyText, text, { allowHashtagStripped: true });
       return {
         source: RES_TAG,
         id: req.id,

@@ -40,7 +40,8 @@ export function extractHashtags(text: string, opts: ExtractHashtagsOptions): str
  * 本文から `#hashtag` を取り除く。 別 tag field に移した後の caption から
  * 重複を消す用 (Pixiv / DA / YouTube の description は inline `#word` を
  * hashtag link 化しないので残すと見栄えが悪い)。
- * Tumblr は inline でも hashtag 化されるので、 Tumblr では使わないこと。
+ * Tumblr は通常 inline でも hashtag 化されるが、 compose remount 後の本文検証では
+ * tag field へ移動済みの状態を照合するために使う。
  */
 export function stripHashtagsFromText(text: string): string {
   return text
