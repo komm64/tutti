@@ -14,6 +14,21 @@ node scripts/cws/status.mjs
 Do not upload to CWS until the Surface real-browser check has passed on the
 same build that will be uploaded.
 
+Hard stop rule:
+
+- Use the SSH config alias `surface`, not the raw host name `surfacepro7`.
+- If `ssh surface` or the Surface CDP tunnel is unavailable, the release is
+  blocked. Do not upload or submit a CWS build based only on local tests,
+  successful build/zip, or a previous Surface run for a different case.
+- If the target case is missing from the matrix, add it first and run that exact
+  case on Surface before CWS upload. A similar case is not evidence.
+- If a CWS submission happens before this gate, immediately cancel it if
+  possible. If it is already published, run the missing Surface gate at once and
+  roll forward with a new patch version if it fails.
+- Paste release evidence into the issue or release note: command, extension
+  version, case name, PASS/FAIL, post URL when applicable, and tag/media checks
+  when the bug involved tags or media.
+
 ## Surface check
 
 Use the known-good path below. Do not rely on the Surface repo checkout or
