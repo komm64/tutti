@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   countNormalizedOccurrences,
   normalizeTumblrText,
+  stripUrlsFromText,
   validateTumblrBodyText,
 } from './tumblr-text';
 
@@ -58,6 +59,35 @@ describe('Tumblr body text validation', () => {
   it('rejects duplicated hashtag-stripped body text', () => {
     expect(validateTumblrBodyText('hello world\n\nhello world', 'hello world #tutti', {
       allowHashtagStripped: true,
+    })).toMatchObject({ ok: false });
+  });
+
+  it('strips URLs from expected text for Tumblr link cards', () => {
+    expect(stripUrlsFromText('Try Tutti:\n\nhttps://tutti.komm64.com/')).toBe('Try Tutti:');
+  });
+
+  it('allows body text after Tumblr converts a trailing URL to a link card', () => {
+    expect(validateTumblrBodyText(
+      'Tutti has been updated with several posting fixes. Try it here:',
+      'Tutti has been updated with several posting fixes. Try it here:\n\nhttps://tutti.komm64.com/',
+      { allowUrlStripped: true },
+    )).toEqual({ ok: true });
+  });
+
+  it('allows body text after Tumblr moves hashtags and converts URLs', () => {
+    expect(validateTumblrBodyText(
+      'hello world',
+      'hello world #tutti https://tutti.komm64.com/',
+      {
+        allowHashtagStripped: true,
+        allowUrlStripped: true,
+      },
+    )).toEqual({ ok: true });
+  });
+
+  it('keeps URL-only drafts strict without link-card evidence', () => {
+    expect(validateTumblrBodyText('', 'https://tutti.komm64.com/', {
+      allowUrlStripped: true,
     })).toMatchObject({ ok: false });
   });
 });

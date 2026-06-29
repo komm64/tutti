@@ -54,6 +54,15 @@ const CASES = {
     text: (stamp) => `tutti surface matrix text ${stamp}`,
     media: 'none',
   },
+  'text-url': {
+    requires: ['text'],
+    text: (stamp) => (
+      `tutti surface matrix URL card ${stamp}\n\n` +
+      'This verifies Tumblr body validation after the editor converts a URL into a link preview card.\n\n' +
+      'https://tutti.komm64.com/'
+    ),
+    media: 'none',
+  },
   'image-only': {
     requires: ['image'],
     text: () => '',

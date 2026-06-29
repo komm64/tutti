@@ -367,6 +367,7 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
       // 送信前に置換注入で直す。直らなければ投稿せず失敗させる。
       const validateCurrentBody = () => validateTumblrBodyText(readTumblrBodyText(sel.textarea), text, {
         allowHashtagStripped: tags.length > 0,
+        allowUrlStripped: true,
       });
       const validation = validateCurrentBody();
       if (text && !validation.ok) {
