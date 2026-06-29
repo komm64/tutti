@@ -292,6 +292,13 @@ for (const caseName of requestedCases) {
         if (!result.confirmed) failures.push(`${caseName}/${platform}: post result was not confirmed`);
         if (!result.url) failures.push(`${caseName}/${platform}: post URL was not captured`);
         if (result.flow?.submitReached !== true) failures.push(`${caseName}/${platform}: post result did not record submitReached=true`);
+        const expectedUrls = platform === 'tumblr' ? extractHttpUrls(text) : [];
+        if (result.url && expectedUrls.length > 0) {
+          const urlCheck = await checkPublishedUrlEvidence(result.url, expectedUrls);
+          if (!urlCheck.ok) {
+            failures.push(`${caseName}/${platform}: published post missing expected URL(s) ${urlCheck.missing.join(', ')} (${urlCheck.error ?? result.url})`);
+          }
+        }
       }
       if (result.verify?.issues?.some((issue) => issue.severity === 'error')) {
         failures.push(`${caseName}/${platform}: verify hard error ${JSON.stringify(result.verify.issues)}`);
@@ -637,4 +644,104 @@ function compactResult(result) {
 async function writeSummary(path, payload) {
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, JSON.stringify(payload, null, 2), 'utf8');
+}
+
+function extractHttpUrls(value) {
+  const urls = [];
+  const seen = new Set();
+  for (const match of value.matchAll(/\bhttps?:\/\/[^\s<>"'`]+/gi)) {
+    const url = trimUrlPunctuation(match[0] ?? '');
+    if (!url) continue;
+    const key = normalizeComparableUrl(url);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    urls.push(url);
+  }
+  return urls;
+}
+
+async function checkPublishedUrlEvidence(postUrl, expectedUrls) {
+  try {
+    const res = await fetch(postUrl, { redirect: 'follow' });
+    if (!res.ok) {
+      return { ok: false, missing: expectedUrls, error: `HTTP ${res.status}` };
+    }
+    const html = decodeHtmlEntities(await res.text());
+    const urls = extractHttpUrls(html);
+    const missing = expectedUrls.filter((url) => !hasUrlEvidence(url, { text: html, urls }));
+    return { ok: missing.length === 0, missing };
+  } catch (err) {
+    return {
+      ok: false,
+      missing: expectedUrls,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+function hasUrlEvidence(expectedUrl, found) {
+  const expected = trimUrlPunctuation(expectedUrl);
+  if (!expected) return true;
+  const comparable = normalizeComparableUrl(expected);
+  const withoutProtocol = comparable.replace(/^https?:\/\//, '');
+  const host = urlHost(expected);
+  const path = urlPath(expected);
+  const text = (found.text ?? '').toLowerCase();
+  if (text.includes(expected.toLowerCase())) return true;
+  if (text.includes(withoutProtocol)) return true;
+  for (const url of found.urls ?? []) {
+    if (normalizeComparableUrl(url) === comparable) return true;
+    if (host && urlHost(url) === host) {
+      if (!path || path === '/' || urlPath(url).startsWith(path)) return true;
+    }
+  }
+  return false;
+}
+
+function normalizeComparableUrl(value) {
+  const trimmed = trimUrlPunctuation(value);
+  try {
+    const parsed = new URL(trimmed);
+    parsed.hash = '';
+    const pathname = parsed.pathname === '/' ? '' : parsed.pathname.replace(/\/+$/, '');
+    return `${parsed.protocol.toLowerCase()}//${parsed.host.toLowerCase()}${pathname}${parsed.search}`.toLowerCase();
+  } catch {
+    return trimmed.toLowerCase().replace(/\/+$/, '');
+  }
+}
+
+function trimUrlPunctuation(value) {
+  return value.trim().replace(/[),.;!?]+$/g, '');
+}
+
+function urlHost(value) {
+  try {
+    return new URL(withUrlProtocol(value)).host.toLowerCase();
+  } catch {
+    return undefined;
+  }
+}
+
+function urlPath(value) {
+  try {
+    return new URL(withUrlProtocol(value)).pathname.replace(/\/+$/, '') || '/';
+  } catch {
+    return '';
+  }
+}
+
+function withUrlProtocol(value) {
+  const trimmed = trimUrlPunctuation(value);
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+}
+
+function decodeHtmlEntities(value) {
+  return value
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)));
 }

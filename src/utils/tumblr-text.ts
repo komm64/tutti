@@ -12,26 +12,10 @@ export interface TumblrTextValidationOptions {
    * removed, while the caller separately verifies tag commit.
    */
   allowHashtagStripped?: boolean;
-  /**
-   * Tumblr turns pasted URLs into link preview cards. When that happens, the
-   * editable body blocks keep the surrounding text but no longer expose the URL
-   * as body text.
-   */
-  allowUrlStripped?: boolean;
 }
 
 export function normalizeTumblrText(value: string): string {
   return value.replace(/\s+/g, ' ').trim();
-}
-
-export function stripUrlsFromText(value: string): string {
-  return value
-    .replace(/\bhttps?:\/\/\S+/gi, '')
-    .replace(/[ \t]{2,}/g, ' ')
-    .replace(/[ \t]+\n/g, '\n')
-    .replace(/\n[ \t]+/g, '\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
 }
 
 export function countNormalizedOccurrences(haystack: string, needle: string): number {
@@ -73,19 +57,6 @@ export function validateTumblrBodyText(
     : undefined;
   if (hashtagStrippedExpected !== undefined && normalizeTumblrText(hashtagStrippedExpected) !== normalizedExpected) {
     addCandidate('hashtag-stripped text', hashtagStrippedExpected, true);
-  }
-
-  if (options.allowUrlStripped) {
-    const urlStrippedExpected = stripUrlsFromText(expected);
-    if (normalizeTumblrText(urlStrippedExpected) !== normalizedExpected) {
-      addCandidate('URL-stripped text', urlStrippedExpected, false);
-    }
-    if (hashtagStrippedExpected !== undefined) {
-      const hashtagAndUrlStrippedExpected = stripUrlsFromText(hashtagStrippedExpected);
-      if (normalizeTumblrText(hashtagAndUrlStrippedExpected) !== normalizedExpected) {
-        addCandidate('hashtag-and-URL-stripped text', hashtagAndUrlStrippedExpected, false);
-      }
-    }
   }
 
   for (const candidate of candidates) {

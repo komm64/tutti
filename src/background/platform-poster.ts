@@ -29,6 +29,7 @@ import type { OpenedTabRegistry } from './opened-tab-registry';
 import { retryTransientTabAction } from './tab-action-retry';
 import { continuationNeedsReplyUrl } from '../utils/reply-compose';
 import type { VerifyExpectation } from '../utils/post-verify';
+import { extractHttpUrls } from '../utils/text-urls';
 
 const CHUNK_INTERVAL_MS = 2000;
 const PRE_SUBMIT_LOAD_RETRY_PLATFORMS = new Set<PlatformId>(['mastodon']);
@@ -600,7 +601,7 @@ async function attachVerifyResult(
   text: string,
   images?: ImageAttachment[],
 ): Promise<void> {
-  const expectation = buildVerifyExpectationForChunk(chunks, text, images, chunks.length - 1);
+  const expectation = buildVerifyExpectationForChunk(platform, chunks, text, images, chunks.length - 1);
   try {
     result.flow = {
       ...result.flow,
@@ -627,6 +628,7 @@ async function attachVerifyResult(
 }
 
 export function buildVerifyExpectationForChunk(
+  platform: PlatformId,
   chunks: readonly string[],
   text: string,
   images: ImageAttachment[] | undefined,
@@ -634,10 +636,12 @@ export function buildVerifyExpectationForChunk(
 ): VerifyExpectation {
   const chunkText = chunks.length > 1 ? chunks[chunkIndex] ?? chunks[chunks.length - 1] ?? text : text;
   const mediaBelongsToThisChunk = chunks.length <= 1 || chunkIndex === 0;
+  const expectedUrls = platform === 'tumblr' ? extractHttpUrls(chunkText) : [];
   return {
     text: chunkText,
     hasImages: mediaBelongsToThisChunk && !!images?.some((image) => image.type.startsWith('image/')),
     hasVideo: mediaBelongsToThisChunk && !!images?.some((image) => image.type.startsWith('video/')),
+    ...(expectedUrls.length > 0 ? { expectedUrls } : {}),
   };
 }
 

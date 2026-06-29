@@ -6,6 +6,7 @@ import {
   cleanXDescription,
   cleanYouTubeDescription,
   extractMetaContent,
+  extractUrlEvidenceFromHtml,
   hasVideoEvidenceInHtml,
   verifyViaOg,
 } from './post-verify-og';
@@ -59,6 +60,16 @@ describe('hasVideoEvidenceInHtml', () => {
   });
 });
 
+describe('extractUrlEvidenceFromHtml', () => {
+  it('extracts URL evidence from meta text and links', () => {
+    const html = '<meta property="og:description" content="Try Tutti"><a href="https://tutti.komm64.com/">Tutti</a>';
+    expect(extractUrlEvidenceFromHtml(html, 'Try https://example.com')).toEqual([
+      'https://example.com',
+      'https://tutti.komm64.com/',
+    ]);
+  });
+});
+
 describe('verifyViaOg video evidence', () => {
   function stubFetchHtml(html: string): void {
     vi.stubGlobal('fetch', vi.fn(async () => ({
@@ -95,6 +106,30 @@ describe('verifyViaOg video evidence', () => {
     });
 
     expect(result.issues.some((issue) => issue.kind === 'video-missing' && issue.severity === 'error')).toBe(true);
+  });
+
+  it('reports url-missing when expected URL is absent from public HTML', async () => {
+    stubFetchHtml('<meta property="og:description" content="Try Tutti">');
+
+    const result = await verifyViaOg('https://example.com/post/1', {
+      text: 'Try Tutti https://tutti.komm64.com/',
+      hasImages: false,
+      expectedUrls: ['https://tutti.komm64.com/'],
+    });
+
+    expect(result.issues.some((issue) => issue.kind === 'url-missing' && issue.severity === 'error')).toBe(true);
+  });
+
+  it('accepts expected URL evidence from public HTML links', async () => {
+    stubFetchHtml('<meta property="og:description" content="Try Tutti"><a href="https://tutti.komm64.com/">Tutti</a>');
+
+    const result = await verifyViaOg('https://example.com/post/1', {
+      text: 'Try Tutti https://tutti.komm64.com/',
+      hasImages: false,
+      expectedUrls: ['https://tutti.komm64.com/'],
+    });
+
+    expect(result.issues).toEqual([]);
   });
 });
 

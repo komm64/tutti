@@ -11,6 +11,7 @@
 
 import type { PlatformId } from '../messages';
 import { t } from './i18n';
+import { hasUrlEvidence } from './text-urls';
 
 /** verify に期待する投稿内容 (Tutti が送ったもの) */
 export interface VerifyExpectation {
@@ -22,6 +23,8 @@ export interface VerifyExpectation {
   hasVideo?: boolean;
   /** 期待する tag (Pixiv / DA / YouTube / Tumblr 専用 tag field 用、 inline #word は対象外) */
   expectedTags?: string[];
+  /** 期待する URL。本文 fuzzy match では落ちるため、URL は別に hard verify する。 */
+  expectedUrls?: string[];
 }
 
 /** verify 結果 */
@@ -36,11 +39,12 @@ export interface VerifyResult {
     hasImages?: boolean;
     hasVideo?: boolean;
     tags?: string[];
+    links?: string[];
   };
 }
 
 export interface VerifyIssue {
-  kind: 'caption-missing' | 'caption-mismatch' | 'image-missing' | 'video-missing' | 'tags-missing' | 'verify-error';
+  kind: 'caption-missing' | 'caption-mismatch' | 'image-missing' | 'video-missing' | 'tags-missing' | 'url-missing' | 'verify-error';
   message: string;
   /** soft (warn) / hard (error) */
   severity: 'warn' | 'error';
@@ -117,6 +121,20 @@ export function buildVerifyResult(
       message: 'Attached video was not found in the published post.',
       severity: 'error',
     });
+  }
+  // URL verify
+  if (expected.expectedUrls && expected.expectedUrls.length > 0) {
+    const missingUrls = expected.expectedUrls.filter((url) => !hasUrlEvidence(url, {
+      text: found?.text,
+      urls: found?.links,
+    }));
+    for (const url of missingUrls) {
+      issues.push({
+        kind: 'url-missing',
+        message: `Expected URL was not found in the published post: ${url}`,
+        severity: 'error',
+      });
+    }
   }
   // tag verify
   if (expected.expectedTags && expected.expectedTags.length > 0) {

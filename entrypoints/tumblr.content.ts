@@ -9,6 +9,7 @@ import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
 import { validateTumblrBodyText } from '../src/utils/tumblr-text';
 import { readTumblrBodyText } from '../src/utils/tumblr-editor';
+import { mergeStandaloneUrlParagraphs } from '../src/utils/text-urls';
 import {
   findLatestTumblrPostUrlInDocument,
   findTumblrPostUrlInDocument,
@@ -305,6 +306,7 @@ export default defineContentScript({
 
 async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolean): Promise<PostResultMessage> {
   const sel = await resolveSelectors('tumblr', TUMBLR_SELECTORS);
+  const tumblrText = mergeStandaloneUrlParagraphs(text);
   const postingUser = dryRun ? null : await detectTumblrUser();
   const blogName = postingUser?.slice(1);
   const hasMedia = !!images?.length;
@@ -319,11 +321,11 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
   // Tumblr は tags driven な culture (発見性の主役) なので、 user 入力の
   // hashtag をきちんと tag field に反映する。 0 個なら空配列 (= user 意図無視で
   // 勝手に tutti tag を付けるのは anti-user、 v0.4.93〜)。
-  const tags = extractHashtags(text, { maxCount: 30, maxLen: 140 });
+  const tags = extractHashtags(tumblrText, { maxCount: 30, maxLen: 140 });
   if (!dryRun) {
     try {
       localStorage.removeItem('tutti:tumblr-latest-post');
-      localStorage.setItem('tutti:tumblr-pending-text-hash', hashCaptureText(text));
+      localStorage.setItem('tutti:tumblr-pending-text-hash', hashCaptureText(tumblrText));
       if (blogName) localStorage.setItem('tutti:tumblr-pending-blog', blogName);
       else localStorage.removeItem('tutti:tumblr-pending-blog');
     } catch { /* ignore storage failures */ }
@@ -352,27 +354,26 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
       '続行',
     ],
     confirmDialogGraceMs: 5000,
-    text,
+    text: tumblrText,
     images,
     postButtonTimeoutMs: 10000,
     textInjector: injectTumblrTextIntoElement,
     requireMediaAccepted: hasVideo || undefined,
     requireMediaPreview: hasVideo || undefined,
-    allowDisabledPostButtonInPreview: dryRun && hasVideo && !text.trim(),
+    allowDisabledPostButtonInPreview: dryRun && hasVideo && !tumblrText.trim(),
     beforeDropDelayMs: hasVideo ? 500 : undefined,
     mediaAttachOrder: hasVideo ? ['input', 'drop'] : undefined,
     beforeSubmit: async () => {
       // Gutenberg editor は画像 block 追加時に本文 block を re-mount することがある。
       // drop 前に注入した本文が消えた / 古い本文が混ざった / 重複した場合は
       // 送信前に置換注入で直す。直らなければ投稿せず失敗させる。
-      const validateCurrentBody = () => validateTumblrBodyText(readTumblrBodyText(sel.textarea), text, {
+      const validateCurrentBody = () => validateTumblrBodyText(readTumblrBodyText(sel.textarea), tumblrText, {
         allowHashtagStripped: tags.length > 0,
-        allowUrlStripped: true,
       });
       const validation = validateCurrentBody();
-      if (text && !validation.ok) {
+      if (tumblrText && !validation.ok) {
         log.warn(`Tumblr: body validation failed before submit; reinjecting (${validation.error ?? 'unknown'})`);
-        await injectTumblrTextIntoElement(text, sel.textarea);
+        await injectTumblrTextIntoElement(tumblrText, sel.textarea);
         await sleep(300);
         const after = validateCurrentBody();
         if (!after.ok) {
@@ -398,7 +399,7 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
       }
 
       const afterTags = validateCurrentBody();
-      if (text && !afterTags.ok) {
+      if (tumblrText && !afterTags.ok) {
         throw new Error(afterTags.error ?? 'Tumblr body validation failed after tag commit');
       }
     },
@@ -414,13 +415,13 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     );
     if (confirmed) log.info('Tumblr: post confirmed (composer closed)');
     if (!confirmed) log.warn('Tumblr: composer did not close after Post click');
-    const captured = readLatestTumblrCapturedPost(text);
+    const captured = readLatestTumblrCapturedPost(tumblrText);
     if (captured?.url) {
       url = captured.url;
       log.info(`Tumblr: URL captured via post API response: ${url}`);
     } else if (blogName) {
-      if (text.trim()) {
-        url = await fetchTumblrRecentPostUrl(blogName, text);
+      if (tumblrText.trim()) {
+        url = await fetchTumblrRecentPostUrl(blogName, tumblrText);
       }
       if (!url && shouldUseLatestDiff && preSubmitSnapshot.ok) {
         url = await fetchTumblrLatestPostUrlAfterSubmit(blogName, preSubmitSnapshot.url, Math.max(30_000, Math.min(postSettleTimeoutMs, 90_000)));

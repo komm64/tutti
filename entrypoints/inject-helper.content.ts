@@ -18,6 +18,7 @@
  */
 
 import { validateTumblrBodyText } from '../src/utils/tumblr-text';
+import { extractHttpUrls, mergeStandaloneUrlParagraphs } from '../src/utils/text-urls';
 import {
   findTumblrBodyBlocks,
   readTumblrBodyTextFromBlocks,
@@ -1134,12 +1135,54 @@ export default defineContentScript({
       await new Promise((r) => setTimeout(r, 50));
     }
 
+    async function insertTumblrPlainText(selector: string, anchor: HTMLElement, text: string): Promise<void> {
+      const blocks = findTumblrBodyBlocks(selector, { anchor });
+      for (const block of blocks) {
+        await clearEditableBlock(block);
+      }
+      const target = blocks[0] ?? anchor;
+      target.focus();
+      const sel = window.getSelection();
+      if (sel) {
+        try {
+          sel.removeAllRanges();
+          const range = document.createRange();
+          range.selectNodeContents(target);
+          sel.addRange(range);
+        } catch { /* ignore */ }
+      }
+      target.dispatchEvent(new InputEvent('beforeinput', {
+        bubbles: true,
+        cancelable: true,
+        inputType: 'insertText',
+        data: text,
+      }));
+      let inserted = false;
+      try {
+        inserted = document.execCommand('insertText', false, text);
+      } catch { /* fallback below */ }
+      const expectedSnippet = text.slice(0, Math.min(20, text.length)).trim();
+      const visible = () => readTumblrBodyTextFromBlocks(findTumblrBodyBlocks(selector, { anchor: target }));
+      if (!inserted || (expectedSnippet && !visible().includes(expectedSnippet))) {
+        target.textContent = text;
+      }
+      target.dispatchEvent(new InputEvent('input', {
+        bubbles: true,
+        data: text,
+        inputType: 'insertText',
+      }));
+      target.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: text.slice(-1) || 'a' }));
+      await new Promise((r) => setTimeout(r, 250));
+    }
+
     async function injectTumblrText(req: InjectRequest): Promise<InjectResponse> {
       const found = findEl(req.selector);
       if (!found) {
         return { source: RES_TAG, id: req.id, ok: false, error: 'Tumblr text target not found' };
       }
-      const text = req.text ?? '';
+      const originalText = req.text ?? '';
+      const text = mergeStandaloneUrlParagraphs(originalText);
+      const expectedUrls = extractHttpUrls(originalText);
       const blocks = findTumblrBodyBlocks(req.selector, { anchor: found.el });
       const target = blocks[0] ?? found.el;
       console.log(`[Tutti inject-helper] Tumblr text target matched "${found.matchedPart}" (${blocks.length} body blocks)`);
@@ -1173,12 +1216,20 @@ export default defineContentScript({
         }
       }
 
-      const afterBlocks = findTumblrBodyBlocks(req.selector, { anchor: target });
-      const bodyText = readTumblrBodyTextFromBlocks(afterBlocks);
-      const validation = validateTumblrBodyText(bodyText, text, {
+      let afterBlocks = findTumblrBodyBlocks(req.selector, { anchor: target });
+      let bodyText = readTumblrBodyTextFromBlocks(afterBlocks);
+      let validation = validateTumblrBodyText(bodyText, text, {
         allowHashtagStripped: true,
-        allowUrlStripped: true,
       });
+      if (!validation.ok && expectedUrls.length > 0) {
+        console.warn(`[Tutti inject-helper] Tumblr paste validation failed with URL text; retrying plain insert (${validation.error ?? 'unknown'})`);
+        await insertTumblrPlainText(req.selector, target, text);
+        afterBlocks = findTumblrBodyBlocks(req.selector, { anchor: target });
+        bodyText = readTumblrBodyTextFromBlocks(afterBlocks);
+        validation = validateTumblrBodyText(bodyText, text, {
+          allowHashtagStripped: true,
+        });
+      }
       return {
         source: RES_TAG,
         id: req.id,

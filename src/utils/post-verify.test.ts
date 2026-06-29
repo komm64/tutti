@@ -84,4 +84,20 @@ describe('buildVerifyResult', () => {
     );
     expect(r.issues).toEqual([]);
   });
+
+  it('reports missing expected URL as a hard error', () => {
+    const r = buildVerifyResult(
+      { text: 'Try Tutti https://tutti.komm64.com/', hasImages: false, expectedUrls: ['https://tutti.komm64.com/'] },
+      { text: 'Try Tutti', hasImages: false },
+    );
+    expect(r.issues.some((i) => i.kind === 'url-missing' && i.severity === 'error')).toBe(true);
+  });
+
+  it('accepts expected URL evidence from links', () => {
+    const r = buildVerifyResult(
+      { text: 'Try Tutti https://tutti.komm64.com/', hasImages: false, expectedUrls: ['https://tutti.komm64.com/'] },
+      { text: 'Try Tutti', hasImages: false, links: ['https://tutti.komm64.com/?ref=tumblr'] },
+    );
+    expect(r.issues).toEqual([]);
+  });
 });

@@ -167,13 +167,32 @@ describe('platform poster helpers', () => {
       type: 'image/png',
       data: 'AA==',
     };
-    expect(buildVerifyExpectationForChunk(['first', 'second'], 'first second', [image], 0)).toMatchObject({
+    expect(buildVerifyExpectationForChunk('x', ['first', 'second'], 'first second', [image], 0)).toMatchObject({
       text: 'first',
       hasImages: true,
     });
-    expect(buildVerifyExpectationForChunk(['first', 'second'], 'first second', [image], 1)).toMatchObject({
+    expect(buildVerifyExpectationForChunk('x', ['first', 'second'], 'first second', [image], 1)).toMatchObject({
       text: 'second',
       hasImages: false,
     });
+  });
+
+  it('adds expected URLs only for Tumblr verify', () => {
+    expect(buildVerifyExpectationForChunk(
+      'tumblr',
+      ['Try https://tutti.komm64.com/'],
+      'Try https://tutti.komm64.com/',
+      undefined,
+      0,
+    )).toMatchObject({
+      expectedUrls: ['https://tutti.komm64.com/'],
+    });
+    expect(buildVerifyExpectationForChunk(
+      'x',
+      ['Try https://tutti.komm64.com/'],
+      'Try https://tutti.komm64.com/',
+      undefined,
+      0,
+    ).expectedUrls).toBeUndefined();
   });
 });

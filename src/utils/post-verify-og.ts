@@ -18,6 +18,7 @@
  */
 
 import { buildVerifyResult, verifyError, type VerifyExpectation, type VerifyResult } from './post-verify';
+import { extractHttpUrls } from './text-urls';
 
 /** 各 SNS の og:description format を caption text に正規化する optional cleaner */
 export type DescriptionCleaner = (desc: string, html?: string) => string;
@@ -52,6 +53,10 @@ export function hasVideoEvidenceInHtml(html: string): boolean {
     /<meta\s+[^>]*?content=["'][^"']*video[^"']*["'][^>]*?(?:property|name)=["']og:type["']/i.test(html) ||
     /<video\b/i.test(html)
   );
+}
+
+export function extractUrlEvidenceFromHtml(html: string, visibleText = ''): string[] {
+  return extractHttpUrls(`${visibleText}\n${decodeHtmlEntities(html)}`);
 }
 
 function decodeHtmlEntities(s: string): string {
@@ -107,7 +112,12 @@ export async function verifyViaOg(
     const hasImages = judgeImage ? judgeImage(ogImage, html) : !!ogImage;
     const hasVideo = expected.hasVideo ? hasVideoEvidenceInHtml(html) : undefined;
 
-    return buildVerifyResult(expected, { text, hasImages, hasVideo });
+    return buildVerifyResult(expected, {
+      text,
+      hasImages,
+      hasVideo,
+      links: expected.expectedUrls?.length ? extractUrlEvidenceFromHtml(html, text) : undefined,
+    });
   } catch (e) {
     return verifyError(`og verify 例外: ${e instanceof Error ? e.message : String(e)}`);
   }

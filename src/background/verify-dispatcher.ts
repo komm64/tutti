@@ -26,6 +26,7 @@ import {
   judgeXImage,
 } from '../utils/post-verify-og';
 import { buildVerifyResult, type VerifyExpectation, type VerifyResult } from '../utils/post-verify';
+import { extractHttpUrls } from '../utils/text-urls';
 import { log } from '../utils/logger';
 import { retryTransientTabAction } from './tab-action-retry';
 
@@ -102,7 +103,12 @@ async function verifyViaDomTab(
           ? resp.hasImage
           : judgeImg ? judgeImg(img) : !!img;
         const hasVideo = expected.hasVideo ? resp.hasVideo === true : undefined;
-        latestResult = buildVerifyResult(expected, { text, hasImages, hasVideo });
+        latestResult = buildVerifyResult(expected, {
+          text,
+          hasImages,
+          hasVideo,
+          links: expected.expectedUrls?.length ? extractHttpUrls(text) : undefined,
+        });
         const hasHardIssue = latestResult.issues.some((issue) => issue.severity === 'error');
         if (!hasHardIssue && (platform !== 'x' || latestResult.issues.length === 0)) {
           return latestResult;
