@@ -1513,6 +1513,13 @@
       "entryCommand": "node scripts/trace-misskey-tumblr.mjs"
     },
     {
+      "path": "scripts/validate-selector-feed.mjs",
+      "class": "supported-cli",
+      "usage": "Validates a selectors.json feed against the frozen schema-v1 wire contract.",
+      "entryCommand": "npm run selectors:validate",
+      "owner": "release"
+    },
+    {
       "path": "scripts/verify-3sns-posts.mjs",
       "class": "e2e",
       "usage": "Repeatable browser or end-to-end behavior check.",
