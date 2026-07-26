@@ -1,0 +1,15 @@
+{
+  "postHistory": [
+    {
+      "id": "legacy-boolean-results",
+      "textPreview": "legacy post",
+      "platforms": ["x", "bluesky"],
+      "results": {
+        "x": true,
+        "bluesky": false
+      },
+      "hasMedia": false,
+      "timestamp": 1700000000000
+    }
+  ]
+}

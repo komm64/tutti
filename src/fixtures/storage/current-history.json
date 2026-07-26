@@ -1,0 +1,33 @@
+{
+  "postHistory": [
+    {
+      "version": 1,
+      "id": "current-additive-fields",
+      "textPreview": "current post",
+      "text": "current post with full text",
+      "bodyHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "platforms": ["mastodon"],
+      "results": {
+        "mastodon": {
+          "success": false,
+          "confirmed": false,
+          "uncertain": true,
+          "userAction": "check-post-before-retry",
+          "flow": {
+            "mode": "post",
+            "attempt": "default",
+            "submitReached": true,
+            "failedStep": "capture-url"
+          },
+          "futureResultField": {
+            "revision": 2
+          }
+        }
+      },
+      "hasMedia": true,
+      "mediaRefs": ["current-additive-fields-0"],
+      "timestamp": 1700000001000,
+      "futureEntryField": "preserve-me"
+    }
+  ]
+}

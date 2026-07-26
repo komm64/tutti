@@ -1,0 +1,10 @@
+{
+  "settings": {
+    "dryRun": false,
+    "mastodonInstance": "https://social.example",
+    "selectorOverrideUrl": "https://komm64.github.io/tutti/selectors.json?legacy=1",
+    "logLevel": "DEBUG",
+    "autoOpenPostUrl": "never",
+    "uiLanguage": "ja-JP"
+  }
+}
