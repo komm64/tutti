@@ -50,6 +50,8 @@ console.log('=== POST_REQUEST 送信 ===');
 const postResult = await popupPage.evaluate(async () => {
   return await chrome.runtime.sendMessage({
     type: 'POST_REQUEST',
+    requestId: crypto.randomUUID(),
+    intent: 'new',
     text: 'v0.4.96 state persist verify',
     platforms: ['bluesky'],
   });

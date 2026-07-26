@@ -184,6 +184,8 @@ const tinyPng = keepMedia
 const postResult = await extPage.evaluate(async ({ text, image }) => {
   return await chrome.runtime.sendMessage({
     type: 'POST_REQUEST',
+    requestId: crypto.randomUUID(),
+    intent: 'new',
     text,
     platforms: ['bluesky'],
     images: image ? [image] : undefined,

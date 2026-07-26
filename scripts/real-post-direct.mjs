@@ -103,6 +103,8 @@ const dispatchResult = await popupCdp.evalJs(`(async () => {
   if (!s?.autoPost) return { err: 'autoPost still false' };
   const message = {
     type: 'POST_REQUEST',
+    requestId: crypto.randomUUID(),
+    intent: 'new',
     text: ${JSON.stringify(testText)},
     platforms: [${JSON.stringify(platform)}],
     images: [{ name: ${JSON.stringify(mediaName)}, type: ${JSON.stringify(mediaType)}, data: ${JSON.stringify(b64)}${isVideo ? ', durationS: 5' : ''} }],

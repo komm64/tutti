@@ -61,7 +61,13 @@ const t0 = Date.now();
 const resp = await page.evaluate(async ({ text, platforms }) => {
   return new Promise((res) => {
     chrome.runtime.sendMessage(
-      { type: 'POST_REQUEST', text, platforms },
+      {
+        type: 'POST_REQUEST',
+        requestId: crypto.randomUUID(),
+        intent: 'new',
+        text,
+        platforms,
+      },
       (r) => res(r ?? { err: chrome.runtime.lastError?.message }),
     );
   });

@@ -1,6 +1,7 @@
-import type { PlatformId, PostResultMessage } from '../messages';
+import type { PlatformId, PostRequestIntent, PostResultMessage } from '../messages';
 import type { ImagePreview, VideoPreview, Visibility } from './types';
 import { buildPostRequest } from './post-media';
+import { createPostRequestId } from '../utils/post-request-id';
 
 export interface PostSubmissionInput {
   text: string;
@@ -12,6 +13,7 @@ export interface PostSubmissionInput {
   cw: string;
   visibility: Visibility;
   trimToS: number | null;
+  intent: Extract<PostRequestIntent, 'new' | 'retry'>;
 }
 
 export interface PostSubmissionResponse {
@@ -25,7 +27,10 @@ export async function sendPostRequest(
   input: PostSubmissionInput,
   sendMessage: RuntimeSendMessage = (message) => browser.runtime.sendMessage(message),
 ): Promise<PostSubmissionResponse | undefined> {
-  const message = await buildPostRequest(input);
+  const message = await buildPostRequest({
+    ...input,
+    requestId: createPostRequestId(),
+  });
   return await sendMessage(message) as PostSubmissionResponse | undefined;
 }
 

@@ -1,4 +1,11 @@
-import type { ImageAttachment, Message, PlatformId, PostResultMessage } from '../messages';
+import type {
+  ImageAttachment,
+  Message,
+  PlatformId,
+  PostRequestIntent,
+  PostResultMessage,
+} from '../messages';
+import { createPostRequestId } from './post-request-id';
 
 type UnknownRecord = Record<string, unknown>;
 type Validator = (value: UnknownRecord) => boolean;
@@ -30,6 +37,7 @@ const USER_ACTIONS = new Set([
   'report-ui-change',
 ]);
 const LOG_LEVELS = new Set(['OFF', 'ERROR', 'WARN', 'INFO', 'DEBUG']);
+const POST_REQUEST_INTENTS = new Set<PostRequestIntent>(['new', 'retry', 'history-repost']);
 
 const MESSAGE_VALIDATORS = {
   POST_REQUEST: (value) =>
@@ -39,7 +47,8 @@ const MESSAGE_VALIDATORS = {
     optional(value, 'autoPost', isBoolean) &&
     optional(value, 'cw', isString) &&
     optional(value, 'visibility', (item) => isString(item) && VISIBILITIES.has(item)) &&
-    optional(value, 'trimVideoToSeconds', isFiniteNumber),
+    optional(value, 'trimVideoToSeconds', isFiniteNumber) &&
+    optional(value, 'sourceHistoryEntryId', isString),
   POST_TO_PLATFORM: (value) =>
     isPlatformId(value.platform) &&
     isString(value.text) &&
@@ -115,10 +124,46 @@ const MESSAGE_VALIDATORS = {
  * remain on the original object for forward compatibility.
  */
 export function decodeMessage(value: unknown): Message | undefined {
+  return decodeMessageWithDiagnostics(value)?.message;
+}
+
+export interface MessageDecodeDiagnostics {
+  requestIdDefaulted?: true;
+  intentDefaulted?: true;
+  receivedIntent?: string;
+}
+
+export interface DecodedMessage {
+  message: Message;
+  diagnostics: MessageDecodeDiagnostics;
+}
+
+export function decodeMessageWithDiagnostics(value: unknown): DecodedMessage | undefined {
   if (!isRecord(value) || !isString(value.type)) return undefined;
   const validator = MESSAGE_VALIDATORS[value.type as Message['type']];
   if (!validator || !validator(value)) return undefined;
-  return value as unknown as Message;
+  if (value.type !== 'POST_REQUEST') {
+    return { message: value as unknown as Message, diagnostics: {} };
+  }
+
+  const diagnostics: MessageDecodeDiagnostics = {};
+  const requestId = isString(value.requestId) && value.requestId.trim()
+    ? value.requestId
+    : createPostRequestId();
+  if (requestId !== value.requestId) diagnostics.requestIdDefaulted = true;
+
+  const intent = isPostRequestIntent(value.intent)
+    ? value.intent
+    : value.autoPost === false ? 'new' : 'retry';
+  if (intent !== value.intent) {
+    diagnostics.intentDefaulted = true;
+    if (isString(value.intent)) diagnostics.receivedIntent = value.intent;
+  }
+
+  const message = requestId === value.requestId && intent === value.intent
+    ? value
+    : { ...value, requestId, intent };
+  return { message: message as unknown as Message, diagnostics };
 }
 
 function isPostResult(value: unknown): value is PostResultMessage {
@@ -197,6 +242,10 @@ function isAttachment(value: unknown): value is ImageAttachment {
 
 function isPlatformArray(value: unknown): value is PlatformId[] {
   return Array.isArray(value) && value.every(isPlatformId);
+}
+
+function isPostRequestIntent(value: unknown): value is PostRequestIntent {
+  return isString(value) && POST_REQUEST_INTENTS.has(value as PostRequestIntent);
 }
 
 function isPlatformId(value: unknown): value is PlatformId {

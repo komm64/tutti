@@ -3,7 +3,7 @@ import postRequestFixture from '../fixtures/messages/post-request-additive.json'
 import postResultFixture from '../fixtures/messages/post-result-additive.json';
 import postToPlatformFixture from '../fixtures/messages/post-to-platform-additive.json';
 import type { Message, PostResultMessage } from '../messages';
-import { decodeMessage } from './message-decoder';
+import { decodeMessage, decodeMessageWithDiagnostics } from './message-decoder';
 
 const postResult: PostResultMessage = {
   type: 'POST_RESULT',
@@ -12,7 +12,13 @@ const postResult: PostResultMessage = {
 };
 
 const currentMessageSamples: Message[] = [
-  { type: 'POST_REQUEST', text: 'sample', platforms: ['x'] },
+  {
+    type: 'POST_REQUEST',
+    requestId: 'sample-request-id',
+    intent: 'new',
+    text: 'sample',
+    platforms: ['x'],
+  },
   { type: 'POST_TO_PLATFORM', platform: 'x', text: 'sample' },
   postResult,
   { type: 'PLATFORM_PROGRESS', result: postResult },
@@ -96,6 +102,51 @@ describe('runtime message decoder', () => {
       type: 'FUTURE_MESSAGE_TYPE',
       futurePayload: { revision: 2 },
     })).toBeUndefined();
+  });
+
+  it.each([
+    ['missing intent', undefined],
+    ['unknown intent', 'future-intent'],
+  ])('defaults %s conservatively for a potentially real post', (_label, intent) => {
+    const decoded = decodeMessageWithDiagnostics({
+      type: 'POST_REQUEST',
+      text: 'legacy real post',
+      platforms: ['x'],
+      autoPost: true,
+      intent,
+    });
+
+    expect(decoded?.message).toMatchObject({
+      type: 'POST_REQUEST',
+      intent: 'retry',
+    });
+    expect((decoded?.message as { requestId?: string }).requestId).toEqual(expect.any(String));
+    expect(decoded?.diagnostics).toMatchObject({
+      requestIdDefaulted: true,
+      intentDefaulted: true,
+    });
+  });
+
+  it('defaults a legacy preview intent to new without treating it as a real post', () => {
+    const decoded = decodeMessageWithDiagnostics({
+      type: 'POST_REQUEST',
+      text: 'legacy preview',
+      platforms: ['x'],
+      autoPost: false,
+    });
+
+    expect(decoded?.message).toMatchObject({
+      type: 'POST_REQUEST',
+      intent: 'new',
+    });
+    expect(decoded?.diagnostics.intentDefaulted).toBe(true);
+  });
+
+  it('preserves explicit request identity and intent without diagnostics', () => {
+    const decoded = decodeMessageWithDiagnostics(postRequestFixture);
+
+    expect(decoded?.message).toBe(postRequestFixture);
+    expect(decoded?.diagnostics).toEqual({});
   });
 
   it.each([

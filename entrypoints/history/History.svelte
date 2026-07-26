@@ -5,6 +5,7 @@
   import { formatRelTime } from '../../src/utils/formatters';
   import { getMedia } from '../../src/utils/history-media';
   import { t } from '../../src/utils/i18n';
+  import { createPostRequestId } from '../../src/utils/post-request-id';
 
   interface TimelineMedia {
     name: string;
@@ -131,6 +132,9 @@
       })));
       const req: PostRequestMessage = {
         type: 'POST_REQUEST',
+        requestId: createPostRequestId(),
+        intent: 'history-repost',
+        sourceHistoryEntryId: entry.id,
         text,
         platforms: targets,
         images: images.length > 0 ? images : undefined,

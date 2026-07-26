@@ -245,6 +245,8 @@ for (const caseName of requestedCases) {
     try {
       response = await withTimeout(sendPostRequest(popup, {
         type: 'POST_REQUEST',
+        requestId: crypto.randomUUID(),
+        intent: 'new',
         text,
         platforms,
         images,

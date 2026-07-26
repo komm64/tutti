@@ -160,6 +160,8 @@ for (const sc of scenarios) {
   const startedAt = Date.now();
   const payload = {
     type: 'POST_REQUEST',
+    requestId: crypto.randomUUID(),
+    intent: 'new',
     text: sc.text,
     platforms: [sc.platform],
     images: sc.withImage ? [{

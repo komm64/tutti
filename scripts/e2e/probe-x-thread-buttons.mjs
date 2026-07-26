@@ -33,6 +33,8 @@ await popup.evaluate(async () => {
 const text = 'あ'.repeat(141);
 const response = await popup.evaluate(async (body) => chrome.runtime.sendMessage({
   type: 'POST_REQUEST',
+  requestId: crypto.randomUUID(),
+  intent: 'new',
   text: body,
   platforms: ['x'],
   images: [],

@@ -214,7 +214,14 @@ const image = png
 const postResp = await popup.evaluate(async ({ text, image }) => {
   return new Promise((resolve) => {
     chrome.runtime.sendMessage(
-      { type: 'POST_REQUEST', text, platforms: ['x'], images: image ? [image] : undefined },
+      {
+        type: 'POST_REQUEST',
+        requestId: crypto.randomUUID(),
+        intent: 'new',
+        text,
+        platforms: ['x'],
+        images: image ? [image] : undefined,
+      },
       (resp) => resolve(resp ?? { error: chrome.runtime.lastError?.message ?? 'no response' }),
     );
   });

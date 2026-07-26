@@ -23,12 +23,19 @@ describe('popup post submit policy', () => {
       cw: '',
       visibility: 'public',
       trimToS: null,
+      intent: 'new',
     }, async (message) => {
       sent.push(message);
       return { results: [{ type: 'POST_RESULT', platform: 'x', success: true, preview: true }] };
     });
 
-    expect(sent[0]).toMatchObject({ type: 'POST_REQUEST', text: 'hello', autoPost: false });
+    expect(sent[0]).toMatchObject({
+      type: 'POST_REQUEST',
+      requestId: expect.any(String),
+      intent: 'new',
+      text: 'hello',
+      autoPost: false,
+    });
     expect(response?.results?.[0]).toMatchObject({ platform: 'x', preview: true });
   });
 

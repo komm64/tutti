@@ -160,6 +160,8 @@ async function runRuntimePreviewSmoke(page) {
   const response = await withTimeout(
     page.evaluate((text) => chrome.runtime.sendMessage({
       type: 'POST_REQUEST',
+      requestId: crypto.randomUUID(),
+      intent: 'new',
       text,
       platforms: ['x'],
       autoPost: false,

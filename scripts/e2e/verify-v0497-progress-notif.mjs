@@ -53,6 +53,8 @@ console.log('badge before post:', JSON.stringify(await getBadgeText()));
 const postPromise = popupPage.evaluate(async () => {
   return await chrome.runtime.sendMessage({
     type: 'POST_REQUEST',
+    requestId: crypto.randomUUID(),
+    intent: 'new',
     text: 'v0.4.97 progress + notif verify',
     platforms: ['bluesky'],
   });
