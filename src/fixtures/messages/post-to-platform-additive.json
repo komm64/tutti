@@ -1,0 +1,19 @@
+{
+  "type": "POST_TO_PLATFORM",
+  "platform": "x",
+  "text": "additive contract",
+  "images": [
+    {
+      "name": "fixture.png",
+      "type": "image/png",
+      "data": "AA==",
+      "futureAttachmentField": {
+        "revision": 2
+      }
+    }
+  ],
+  "dryRun": true,
+  "futureRequestField": {
+    "traceId": "fixture-trace"
+  }
+}
