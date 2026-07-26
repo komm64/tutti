@@ -13,6 +13,7 @@
     "compile": "tsc --noEmit",
     "test": "vitest run",
     "test:stability": "node scripts/test-stability.mjs",
+    "selectors:validate": "node scripts/validate-selector-feed.mjs",
     "scripts:check": "node scripts/scripts-catalog.mjs check",
     "scripts:list": "node scripts/scripts-catalog.mjs list",
     "scripts:inventory": "node scripts/scripts-catalog.mjs inventory --write docs/generated/scripts-inventory.md",

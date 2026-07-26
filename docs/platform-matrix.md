@@ -105,14 +105,18 @@ Every DOM-driven network honors **the public `selectors.json` override feed**:
 
 1. SNS UI changes and selectors stop matching.
 2. User sends a diagnostics-attached issue via the popup's Report button.
-3. `auto-triage.yml` in the private `komm64/tutti-issues` repo hands off to
-   Codex, which proposes a public PR patching both
-   `src/adapters/<network>.ts` and `tutti-site/selectors.json`.
-4. Human review → merge → public site publish.
-5. Reaches every user whose `Settings.selectorOverrideUrl` is enabled,
+3. `auto-triage.yml` in the private `komm64/tutti-issues` repo classifies the
+   redacted report deterministically. It does not invoke Codex, create a public
+   PR, or update the feed.
+4. A maintainer patches public `src/adapters/<network>.ts`; when a remote
+   hot-fix is needed, the maintainer separately updates private
+   `komm64/tutti-site/selectors.json` and validates it with
+   `npm run selectors:validate -- ..\tutti-site\selectors.json`.
+5. Human review → merge → public site publish.
+6. Reaches every user whose `Settings.selectorOverrideUrl` is enabled,
    within minutes.
 
-Details: `CLAUDE.md` P13 section, memory `auto_triage_pipeline.md`.
+Details: `docs/ci-setup.md`.
 
 ## Known instabilities / caveats
 

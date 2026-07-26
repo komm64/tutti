@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "platforms": {
+    "bluesky": [
+      "dropTarget",
+      "fileInput",
+      "postButton",
+      "textarea"
+    ],
+    "deviantart": [
+      "descriptionEditor",
+      "fileInput",
+      "nextButton",
+      "submitButton",
+      "tagInput",
+      "titleInput"
+    ],
+    "instagram": [
+      "captionEditor",
+      "fileInput"
+    ],
+    "mastodon": [
+      "fileInput",
+      "postButton",
+      "textarea"
+    ],
+    "misskey": [
+      "dropTarget",
+      "postButton",
+      "textarea"
+    ],
+    "pixiv": [
+      "aiTypeNo",
+      "aiTypeYes",
+      "captionTextarea",
+      "fileInput",
+      "postButton",
+      "sexualNo",
+      "tagInput",
+      "titleInput",
+      "visibilityAllAges",
+      "visibilityR18",
+      "visibilityR18g"
+    ],
+    "threads": [
+      "dropTarget",
+      "fileInput",
+      "postButton",
+      "textarea"
+    ],
+    "tiktok": [
+      "captionEditor",
+      "fileInput",
+      "postButton"
+    ],
+    "tumblr": [
+      "dropTarget",
+      "fileInput",
+      "postButton",
+      "tagInput",
+      "textarea"
+    ],
+    "x": [
+      "fileInput",
+      "postButton",
+      "postButtonInline",
+      "textarea"
+    ],
+    "youtube": [
+      "descriptionEditor",
+      "fileInput",
+      "notMadeForKidsRadio",
+      "publicVisibilityRadio",
+      "publishButton",
+      "showMoreButton",
+      "tagInput",
+      "titleInput"
+    ]
+  }
+}

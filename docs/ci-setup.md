@@ -1,12 +1,22 @@
 # CI / E2E setup for Tutti
 
 Documents how to bootstrap the two test runners and the secrets needed for
-nightly runs. Once these are set up, GitHub Actions workflows in
-`.github/workflows/` will keep the selector override path and the API path honest.
+nightly runs. GitHub Actions workflows in `.github/workflows/` exercise the API
+and DOM paths; selector feed changes also require the manual validation below.
 
 The live selector hot-fix feed is served from
 `https://tutti.komm64.com/selectors.json`. Its source file lives in the
 separate `komm64/tutti-site` repository.
+
+Before publishing a feed change, validate the private source file against the
+extension's frozen schema-v1 wire contract:
+
+```powershell
+npm run selectors:validate -- ..\tutti-site\selectors.json
+```
+
+Published schema-v1 selector keys are persistent wire IDs. Add new keys when
+needed; never rename, repurpose, or delete an existing key.
 
 ## 1. API E2E (GitHub-hosted runner)
 
@@ -163,22 +173,25 @@ If you're standing this up from zero:
 3. Add the **Surface runner** last, as a manual-debug counterpart for
    inspecting selector-PR proposals visually.
 
-Then turn on auto-triage gating: auto-triage PRs only merge if both the API
-E2E and the relevant DOM smoke jobs pass on that PR.
+Selector fixes should merge only after the relevant API E2E and DOM smoke jobs
+pass on that PR.
 
-## 4. Auto-triage (private issue repo -> public selector PR)
+## 4. Auto-triage (private issue classification)
 
 User reports are filed into the private `komm64/tutti-issues` repository, not
-this public repository. That workflow uses `openai/codex-action@v1` to analyze
-the private diagnostic payload, edit a checkout of public `komm64/tutti`, and
-then create a public selector PR from a trusted shell step.
+this public repository. Its `auto-triage.yml` workflow classifies the redacted
+diagnostic payload deterministically and records the result on the private
+issue. It does not invoke Codex, edit this repository, create a public PR, or
+publish `selectors.json`.
 
-Required secrets on `komm64/tutti-issues`:
+A maintainer handles the classification result manually:
 
-| Secret | Purpose |
-|---|---|
-| `OPENAI_API_KEY` | Used by `openai/codex-action@v1` to run Codex in CI. |
-| `TUTTI_PUBLIC_REPO_PAT` | Fine-grained PAT for `komm64/tutti` with Contents: Write and Pull requests: Write. |
+1. Patch `src/adapters/<network>.ts` in this repository and run the relevant
+   tests.
+2. If a remote hot-fix is needed, update private
+   `komm64/tutti-site/selectors.json`.
+3. Run `npm run selectors:validate -- ..\tutti-site\selectors.json` before
+   publishing the site.
 
 Keep the report workflow in the private repo. Do not move it back into
 `komm64/tutti`; even redacted DOM snapshots should not pass through public
