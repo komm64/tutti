@@ -140,6 +140,10 @@ export function bootstrapContentScript<S extends Record<string, string>>(
           }
           markPostStepCompleted('verify-login');
         }
+        log.info(
+          `${platform}: POST_TO_PLATFORM received ` +
+          `dryRun=${msg.dryRun === true} media=${msg.images?.length ?? 0} chunks=${msg.textChunks?.length ?? 1}`,
+        );
         const result = await runPost(msg.text, msg.images, msg.dryRun, msg.textChunks);
         sendResponse({
           ...result,
@@ -154,6 +158,7 @@ export function bootstrapContentScript<S extends Record<string, string>>(
       } catch (err) {
         markPostStepFailed();
         const message = err instanceof Error ? err.message : String(err);
+        log.warn(`${platform}: POST_TO_PLATFORM failed: ${message}`);
         sendResponse({
           type: 'POST_RESULT',
           platform,

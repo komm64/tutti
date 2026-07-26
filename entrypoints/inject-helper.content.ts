@@ -570,7 +570,11 @@ export default defineContentScript({
         getMediaRejectionMessage?: () => string | undefined;
       } = {},
     ): Promise<{ uploadCount: number; timedOut: boolean; acceptedByPreview: boolean; error?: string }> {
-      const tracker = window.__tuttiUpload!;
+      if (!window.__tuttiUpload) {
+        console.warn('[Tutti inject-helper] upload tracker was missing; recreating');
+        window.__tuttiUpload = { successCount: 0, lastSuccessAt: 0 };
+      }
+      const tracker = window.__tuttiUpload;
       const startCount = tracker.successCount;
       const start = Date.now();
       const deadline = start + timeoutMs;
@@ -718,7 +722,11 @@ export default defineContentScript({
 
     function isMediaRejectionText(text: string): boolean {
       if (!text) return false;
-      return /unsupported|not supported|can't upload|cannot upload|could not upload|couldn't upload|failed to upload|file type|file format|format .*not|could not process|couldn't process|one or more videos?/i.test(text) ||
+      return /unsupported|not supported|can't upload|cannot upload|could not upload|couldn't upload|failed to upload|could not process|couldn't process/i.test(text) ||
+        /(?:file type|file format|format).*(?:unsupported|not supported|invalid|not allowed|could not|couldn't|can't|cannot|failed|rejected)/i.test(text) ||
+        /(?:unsupported|not supported|invalid|not allowed|could not|couldn't|can't|cannot|failed|rejected).*(?:file type|file format|format)/i.test(text) ||
+        /one or more videos?.*(?:failed|could not|couldn't|cannot|can't|not uploaded|rejected|invalid)/i.test(text) ||
+        /(?:failed|could not|couldn't|cannot|can't|rejected|invalid).*one or more videos?/i.test(text) ||
         /対応していません|サポートされていません|アップロードできません|処理できません|扱えません|ファイル形式|動画.*拒否|動画.*失敗/.test(text);
     }
 
@@ -730,12 +738,22 @@ export default defineContentScript({
       return (clone.innerText ?? clone.textContent ?? '').replace(/\s+/g, ' ').trim();
     }
 
-    function findEl(selector: string): { el: HTMLElement; matchedPart: string } | null {
+    function findEl(
+      selector: string,
+      options: { preferVisible?: boolean } = {},
+    ): { el: HTMLElement; matchedPart: string } | null {
+      let fallback: { el: HTMLElement; matchedPart: string } | null = null;
       for (const part of selector.split(',').map((s) => s.trim()).filter(Boolean)) {
-        const el = document.querySelector<HTMLElement>(part);
-        if (el) return { el, matchedPart: part };
+        const elements = Array.from(document.querySelectorAll<HTMLElement>(part));
+        if (!fallback && elements[0]) fallback = { el: elements[0], matchedPart: part };
+        if (options.preferVisible) {
+          const visible = elements.find(isVisibleMediaElement);
+          if (visible) return { el: visible, matchedPart: part };
+        } else if (elements[0]) {
+          return { el: elements[0], matchedPart: part };
+        }
       }
-      return null;
+      return fallback;
     }
 
     function base64ToUint8Array(b64: string): Uint8Array {
@@ -759,7 +777,7 @@ export default defineContentScript({
     }
 
     async function injectIntoInput(req: InjectRequest): Promise<InjectResponse> {
-      const found = findEl(req.selector);
+      const found = findEl(req.selector, { preferVisible: true });
       if (!found) {
         return { source: RES_TAG, id: req.id, ok: false, error: 'file input not found' };
       }
@@ -810,6 +828,7 @@ export default defineContentScript({
       }
       const el = found.el;
       const text = req.text ?? '';
+      let frameworkTextVerified = false;
       console.log(`[Tutti inject-helper] text target matched "${found.matchedPart}" (${el.tagName})`);
 
       // v0.4.59: 空文字 inject は no-op で成功扱い (画像のみ投稿の正常 path)。
@@ -884,7 +903,12 @@ export default defineContentScript({
             cur = cur.parentElement;
           }
 
-          const shouldUseDirectLexicalState = /instagram\.com/.test(location.host);
+          // Threads の intent URL text prefill は非BMP文字を U+FFFD に壊す。
+          // Lexical state を直接置換すれば emoji / ZWJ sequence を保持でき、
+          // synthetic beforeinput + input の二重処理も避けられる。
+          const shouldUseDirectLexicalState =
+            /instagram\.com/.test(location.host) ||
+            /threads\.(?:com|net)$/.test(location.host);
           if (shouldUseDirectLexicalState && editor && typeof editor.parseEditorState === 'function' && typeof editor.setEditorState === 'function') {
             try {
               console.log('[Tutti inject-helper] Lexical: using editor.setEditorState path');
@@ -922,11 +946,16 @@ export default defineContentScript({
               // verify state has text via editor.getEditorState
               try {
                 const stateNow = editor.getEditorState();
-                const txt = stateNow.read(() => {
-                  const root = stateNow.toJSON();
-                  return JSON.stringify(root).slice(0, 200);
-                });
-                console.log('[Tutti inject-helper] Lexical state after setEditorState:', txt);
+                const stateJson = stateNow.toJSON();
+                const stateRoot = (stateJson as { root?: unknown }).root ?? stateJson;
+                const stateText = readLexicalStateText(stateRoot);
+                frameworkTextVerified = stateText.includes(text);
+                console.log(
+                  '[Tutti inject-helper] Lexical state after setEditorState:',
+                  JSON.stringify(stateJson).slice(0, 200),
+                  'textVerified=',
+                  frameworkTextVerified,
+                );
               } catch (e) {
                 console.log('[Tutti inject-helper] state read err:', e);
               }
@@ -966,10 +995,10 @@ export default defineContentScript({
             el.dispatchEvent(beforeEv);
             if (!beforeEv.defaultPrevented) {
               try { document.execCommand('insertText', false, text); } catch { /* ignore */ }
+              el.dispatchEvent(new InputEvent('input', {
+                bubbles: true, data: text, inputType: 'insertText',
+              }));
             }
-            el.dispatchEvent(new InputEvent('input', {
-              bubbles: true, data: text, inputType: 'insertText',
-            }));
             await new Promise((r) => setTimeout(r, 800));
           }
         } else if (
@@ -1099,7 +1128,8 @@ export default defineContentScript({
         // innerText を優先 (Lexical 等が span ネストする場合に textContent より確実)
         const visible = (el.innerText ?? el.textContent ?? '').trim();
         const expectedSnippet = text.slice(0, Math.min(20, text.length)).trim();
-        ok = expectedSnippet === '' ||
+        ok = frameworkTextVerified ||
+          expectedSnippet === '' ||
           visible.includes(expectedSnippet) ||
           visible.replace(/\s+/g, ' ').includes(expectedSnippet.replace(/\s+/g, ' '));
       }
@@ -1109,6 +1139,16 @@ export default defineContentScript({
         ok,
         error: ok ? undefined : 'text injection seems to have failed (textContent / value mismatch)',
       };
+    }
+
+    function readLexicalStateText(value: unknown): string {
+      if (!value || typeof value !== 'object') return '';
+      const node = value as { text?: unknown; children?: unknown };
+      const ownText = typeof node.text === 'string' ? node.text : '';
+      const childText = Array.isArray(node.children)
+        ? node.children.map(readLexicalStateText).join('')
+        : '';
+      return `${ownText}${childText}`;
     }
 
     async function clearEditableBlock(el: HTMLElement): Promise<void> {
@@ -1493,11 +1533,22 @@ export default defineContentScript({
         requireMediaAccepted: typeof data.requireMediaAccepted === 'boolean' ? data.requireMediaAccepted : undefined,
         requireMediaPreview: typeof data.requireMediaPreview === 'boolean' ? data.requireMediaPreview : undefined,
       };
-      void handle(req).then((res) => {
-        if (!res.ok) console.warn('[Tutti inject-helper] failed:', res.error);
-        else if (res.uploadTimedOut) console.warn('[Tutti inject-helper] upload timeout');
-        window.postMessage(res, '*');
-      });
+      void handle(req)
+        .then((res) => {
+          if (!res.ok) console.warn('[Tutti inject-helper] failed:', res.error);
+          else if (res.uploadTimedOut) console.warn('[Tutti inject-helper] upload timeout');
+          window.postMessage(res, '*');
+        })
+        .catch((err: unknown) => {
+          const message = err instanceof Error ? err.message : String(err);
+          console.warn('[Tutti inject-helper] unhandled request error:', message);
+          window.postMessage({
+            source: RES_TAG,
+            id: req.id,
+            ok: false,
+            error: `inject-helper exception: ${message}`,
+          } satisfies InjectResponse, '*');
+        });
     });
   },
 });

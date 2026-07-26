@@ -48,11 +48,25 @@ const PLATFORM_KINDS = {
   youtube: ['shortVideo'],
 };
 
+const PREVIEW_DRAFT_READERS = {
+  threads: {
+    pageUrl: /^https:\/\/(?:www\.)?threads\.(?:com|net)\//,
+    selector: 'div[contenteditable="true"][role="textbox"], div[contenteditable="plaintext-only"]',
+  },
+};
+
 const CASES = {
   'text-only': {
     requires: ['text'],
     text: (stamp) => `tutti surface matrix text ${stamp}`,
     media: 'none',
+  },
+  'text-emoji': {
+    requires: ['text'],
+    text: (stamp) => `tutti surface matrix emoji ${stamp} 😀 🎮 🧑‍💻 ❤️‍🔥 日本語`,
+    media: 'none',
+    verifyPreviewDraftText: true,
+    verifyPublishedText: true,
   },
   'text-url': {
     requires: ['text'],
@@ -87,6 +101,7 @@ const CASES = {
     requires: ['shortVideo'],
     text: (stamp) => `tutti surface matrix video ${stamp}`,
     media: 'video',
+    verifyPublishedMedia: true,
   },
   'image-video': {
     requires: ['shortVideo'],
@@ -173,6 +188,7 @@ const browser = await chromium.connectOverCDP(cdp, { timeout: 120_000 });
 const ctx = browser.contexts()[0];
 if (!ctx) throw new Error('no browser context');
 attachDialogHandlers(ctx);
+if (process.env.E2E_TRACE_CONSOLE === '1') attachConsoleHandlers(ctx);
 
 const extensionId = process.env.E2E_EXTENSION_ID ?? await detectExtensionId(ctx);
 if (!skipExtensionReload) {
@@ -221,6 +237,8 @@ for (const caseName of requestedCases) {
       beforeHistory = await readHistory(popup);
     }
     const startedAt = Date.now();
+    const publishedTextEvidence = {};
+    const publishedMediaEvidence = {};
     console.log(`[matrix] run case=${caseName} iteration=${i}/${repeat} platforms=${platforms.join(',')}`);
 
     let response;
@@ -287,6 +305,18 @@ for (const caseName of requestedCases) {
         if (result.preview !== true) failures.push(`${caseName}/${platform}: preview result missing preview=true`);
         if (result.url) failures.push(`${caseName}/${platform}: preview returned URL ${result.url}`);
         if (result.flow?.submitReached) failures.push(`${caseName}/${platform}: preview reached submit action`);
+        if (caseDef.verifyPreviewDraftText && PREVIEW_DRAFT_READERS[platform]) {
+          const draft = await readPreviewDraftText(ctx, platform);
+          if (!draft.found) {
+            failures.push(`${caseName}/${platform}: preview draft editor was not found`);
+          } else if (draft.text !== text) {
+            failures.push(
+              `${caseName}/${platform}: preview draft text mismatch ` +
+              `(expected=${JSON.stringify(text)}, actual=${JSON.stringify(draft.text)}, ` +
+              `candidates=${JSON.stringify(draft.candidates)})`,
+            );
+          }
+        }
       } else {
         if (result.preview) failures.push(`${caseName}/${platform}: post result was marked preview`);
         if (!result.confirmed) failures.push(`${caseName}/${platform}: post result was not confirmed`);
@@ -297,6 +327,27 @@ for (const caseName of requestedCases) {
           const urlCheck = await checkPublishedUrlEvidence(result.url, expectedUrls);
           if (!urlCheck.ok) {
             failures.push(`${caseName}/${platform}: published post missing expected URL(s) ${urlCheck.missing.join(', ')} (${urlCheck.error ?? result.url})`);
+          }
+        }
+        if (result.url && caseDef.verifyPublishedText) {
+          const textCheck = await checkPublishedTextEvidence(ctx, result.url, text);
+          publishedTextEvidence[platform] = textCheck;
+          if (!textCheck.ok) {
+            failures.push(
+              `${caseName}/${platform}: published post text mismatch ` +
+              `(expected=${JSON.stringify(text)}, error=${textCheck.error ?? 'exact text not found'}, url=${result.url})`,
+            );
+          }
+        }
+        if (result.url && caseDef.verifyPublishedMedia) {
+          const mediaCheck = await checkPublishedMediaEvidence(ctx, result.url, text);
+          publishedMediaEvidence[platform] = mediaCheck;
+          if (!mediaCheck.ok) {
+            failures.push(
+              `${caseName}/${platform}: published video evidence missing ` +
+              `(textFound=${mediaCheck.textFound ?? false}, visibleVideoCount=${mediaCheck.visibleVideoCount ?? 0}, ` +
+              `error=${mediaCheck.error ?? 'none'}, url=${result.url})`,
+            );
           }
         }
       }
@@ -323,6 +374,8 @@ for (const caseName of requestedCases) {
       iteration: i,
       platforms,
       results: results.map(compactResult),
+      ...(Object.keys(publishedTextEvidence).length > 0 ? { publishedTextEvidence } : {}),
+      ...(Object.keys(publishedMediaEvidence).length > 0 ? { publishedMediaEvidence } : {}),
     });
     await closeNonExtensionPages(ctx, extensionId);
   }
@@ -379,6 +432,58 @@ function splitArg(name) {
   return value.split(',').map((item) => item.trim()).filter(Boolean);
 }
 
+async function readPreviewDraftText(ctx, platform) {
+  const reader = PREVIEW_DRAFT_READERS[platform];
+  if (!reader) return { found: false };
+  for (const page of ctx.pages()) {
+    if (!reader.pageUrl.test(page.url())) continue;
+    const drafts = page.locator(reader.selector);
+    const count = await drafts.count();
+    if (count === 0) continue;
+    const candidates = [];
+    for (let i = 0; i < count; i += 1) {
+      const draft = drafts.nth(i);
+      const domText = await draft.innerText();
+      const lexicalText = await draft.evaluate((element) => {
+        let current = element;
+        let editor = null;
+        while (current) {
+          if (current.__lexicalEditor) {
+            editor = current.__lexicalEditor;
+            break;
+          }
+          current = current.parentElement;
+        }
+        if (!editor || typeof editor.getEditorState !== 'function') return '';
+
+        const readText = (value) => {
+          if (!value || typeof value !== 'object') return '';
+          if (typeof value.text === 'string') return value.text;
+          return Array.isArray(value.children)
+            ? value.children.map(readText).join('')
+            : '';
+        };
+        const state = editor.getEditorState().toJSON();
+        return readText(state.root ?? state);
+      }).catch(() => '');
+      candidates.push({
+        text: lexicalText || domText,
+        domText,
+        lexicalText,
+        visible: await draft.isVisible(),
+      });
+    }
+    candidates.sort((a, b) => Number(b.visible) - Number(a.visible) || b.text.length - a.text.length);
+    return {
+      found: true,
+      text: candidates[0]?.text ?? '',
+      url: page.url(),
+      candidates,
+    };
+  }
+  return { found: false };
+}
+
 function supportsCase(platform, caseDef) {
   const caseName = Object.entries(CASES).find(([, value]) => value === caseDef)?.[0];
   if (caseName && UNSUPPORTED_CASES[platform]?.includes(caseName)) return false;
@@ -398,6 +503,21 @@ function attachDialogHandlers(ctx) {
         const message = err instanceof Error ? err.message : String(err);
         console.warn(`[matrix] ignored dialog after page detach: ${message}`);
       }
+    });
+  };
+  for (const page of ctx.pages()) attach(page);
+  ctx.on('page', attach);
+}
+
+function attachConsoleHandlers(ctx) {
+  const attached = new WeakSet();
+  const attach = (page) => {
+    if (!page || attached.has(page)) return;
+    attached.add(page);
+    page.on('console', (message) => {
+      const value = message.text();
+      if (!/\[Tutti(?: inject-helper)?\]/.test(value)) return;
+      console.log(`[matrix] page-console ${page.url()} ${message.type()}: ${value}`);
     });
   };
   for (const page of ctx.pages()) attach(page);
@@ -676,6 +796,89 @@ async function checkPublishedUrlEvidence(postUrl, expectedUrls) {
       missing: expectedUrls,
       error: err instanceof Error ? err.message : String(err),
     };
+  }
+}
+
+async function checkPublishedTextEvidence(ctx, postUrl, expectedText) {
+  const page = await ctx.newPage();
+  try {
+    await page.goto(postUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+    const deadline = Date.now() + 60_000;
+    let bodyText = '';
+    while (Date.now() < deadline) {
+      bodyText = await page.locator('body').innerText().catch(() => '');
+      if (bodyText.includes(expectedText)) {
+        return {
+          ok: true,
+          url: page.url(),
+          expectedText,
+        };
+      }
+      await page.waitForTimeout(2_000);
+    }
+    return {
+      ok: false,
+      url: page.url(),
+      expectedText,
+      replacementCharacterFound: bodyText.includes('\uFFFD'),
+      error: 'exact text not found within 60 seconds',
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      url: page.url() || postUrl,
+      expectedText,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  } finally {
+    await page.close().catch(() => {});
+  }
+}
+
+async function checkPublishedMediaEvidence(ctx, postUrl, expectedText) {
+  const page = await ctx.newPage();
+  try {
+    await page.goto(postUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+    const deadline = Date.now() + 60_000;
+    let textFound = false;
+    let visibleVideoCount = 0;
+    while (Date.now() < deadline) {
+      const bodyText = await page.locator('body').innerText().catch(() => '');
+      textFound = bodyText.includes(expectedText);
+      const videos = page.locator('video');
+      const count = await videos.count();
+      visibleVideoCount = 0;
+      for (let i = 0; i < count; i += 1) {
+        if (await videos.nth(i).isVisible().catch(() => false)) visibleVideoCount += 1;
+      }
+      if (textFound && visibleVideoCount > 0) {
+        return {
+          ok: true,
+          url: page.url(),
+          expectedText,
+          textFound,
+          visibleVideoCount,
+        };
+      }
+      await page.waitForTimeout(2_000);
+    }
+    return {
+      ok: false,
+      url: page.url(),
+      expectedText,
+      textFound,
+      visibleVideoCount,
+      error: 'expected text and visible video were not both found within 60 seconds',
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      url: page.url() || postUrl,
+      expectedText,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  } finally {
+    await page.close().catch(() => {});
   }
 }
 

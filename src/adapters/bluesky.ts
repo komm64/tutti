@@ -42,9 +42,19 @@ export const BLUESKY_SELECTORS = {
   /** 投稿入力欄。現 UI は TipTap / ProseMirror で role="textbox" を持たない。 */
   textarea: BLUESKY_EDITOR_SELECTOR,
   /**
-   * 画像添付の drop target。Bluesky は「Add image」ボタンから OS picker が
-   * 直接開くので file input が DOM に出てこない。compose の textbox に
-   * drop を dispatch すると React が反応してプレビュー表示する(2026-04-30 検証)。
+   * 画像添付の drop target。compose の textbox に drop を dispatch すると
+   * React が反応してプレビュー表示する(2026-04-30 検証)。
    */
   dropTarget: `${BLUESKY_EDITOR_SELECTOR}, [data-testid="composer"]`,
+  /**
+   * 2026-06 の動画投稿では hidden file input が出る variant があり、drop のみだと
+   * video attach が沈黙するケースがある。composer/dialog scope を優先しつつ
+   * hidden input fallback も許可する。
+   */
+  fileInput: [
+    '[data-testid="composer"] input[type="file"]',
+    '[role="dialog"] input[type="file"]',
+    'input[type="file"][accept*="video" i]',
+    'input[type="file"][accept*="image" i]',
+  ].join(','),
 } as const;

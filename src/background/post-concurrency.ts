@@ -41,6 +41,17 @@ export function buildPostExecutionPlan(
     };
   }
 
+  if (options.hasVideo) {
+    return {
+      lanes: [{
+        id: 'foreground',
+        platforms: [...platforms],
+        concurrency: PREVIEW_FOREGROUND_CONCURRENCY,
+        forceForeground: true,
+      }],
+    };
+  }
+
   const foreground: PlatformId[] = [];
   const background: PlatformId[] = [];
   for (const platform of platforms) {

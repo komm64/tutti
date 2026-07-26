@@ -54,6 +54,13 @@ export interface PostToPlatformOptions {
   forceForeground?: boolean;
 }
 
+class PostFlowError extends Error {
+  constructor(message: string, readonly flow?: PostFlowTrace) {
+    super(message);
+    this.name = 'PostFlowError';
+  }
+}
+
 export function createPlatformPoster(options: PlatformPosterOptions) {
   async function postToPlatform(
     platform: PlatformId,
@@ -135,14 +142,16 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
         finalChunkFlow = result.flow;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
+        const flow = err instanceof PostFlowError ? err.flow : undefined;
         return {
           type: 'POST_RESULT',
           platform,
           success: false,
           flow: {
             mode: autoPost ? 'post' : 'preview',
-            submitReached: false,
-            failedStep: 'pre-submit-attempt',
+            submitReached: flow?.submitReached ?? false,
+            lastCompletedStep: flow?.lastCompletedStep,
+            failedStep: flow?.failedStep ?? 'pre-submit-attempt',
           },
           error: chunks.length > 1 ? t('runtimeChunkFailed', i + 1, chunks.length, msg) : msg,
         };
@@ -374,7 +383,7 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
       response = withFlow(response, { ...baseFlow, tabUrlBefore });
       if (!response.success) {
         if (response.uncertain) return response;
-        throw new Error(response.error ?? t('runtimePostFailed'));
+        throw new PostFlowError(response.error ?? t('runtimePostFailed'), response.flow);
       }
       if (dryRun) return toPreviewResult(response);
 

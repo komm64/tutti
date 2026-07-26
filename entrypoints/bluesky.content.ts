@@ -5,7 +5,7 @@ import { executePostFlow, resolvePostButtonTimeoutMs } from '../src/utils/post-f
 import { sleep, waitForCondition, waitForElement } from '../src/utils/dom';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
-import { clickElementInMainWorld, dropImages, injectTextIntoElement } from '../src/utils/image';
+import { clickElementInMainWorld, dropImages, injectImages, injectTextIntoElement } from '../src/utils/image';
 import { t } from '../src/utils/i18n';
 import { markPostSubmissionStarted } from '../src/utils/post-submission-state';
 
@@ -114,15 +114,9 @@ async function executeBlueskyInlineThread(
   }
   await sleep(500);
 
-  // images は最初の chunk にだけ attach (drop target に drop)
+  // images は最初の chunk にだけ attach
   if (images && images.length > 0) {
-    await dropImages(images, sel.dropTarget, {
-      requireMediaAccepted: hasVideo || undefined,
-      requireMediaPreview: hasVideo || undefined,
-      beforeDropDelayMs: hasVideo ? 500 : undefined,
-    });
-    await sleep(1500);
-    if (hasVideo) await assertBlueskyVideoAttached();
+    await attachBlueskyMedia(images, sel, hasVideo);
   }
 
   // 各 chunk を 「+」 click → wait → inject の繰り返し
@@ -263,6 +257,8 @@ export default defineContentScript({
 
 async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolean, textChunks?: string[]): Promise<PostResultMessage> {
   const sel = await resolveSelectors('bluesky', BLUESKY_SELECTORS);
+  const hasVideo = !!images?.some((image) => image.type.startsWith('video/'));
+  log.info(`Bluesky runPost: dryRun=${dryRun} media=${images?.length ?? 0} video=${hasVideo}`);
 
   // v0.4.94: textChunks > 1 のとき Bluesky の inline thread compose UI を使う。
   // compose modal の 「+」 button で reply block を追加して、 全 chunks を 1 click
@@ -270,19 +266,16 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
   if (textChunks && textChunks.length > 1) {
     await executeBlueskyInlineThread(sel, textChunks, images, dryRun);
   } else {
-    const hasVideo = !!images?.some((image) => image.type.startsWith('video/'));
+    if (images && images.length > 0) {
+      await attachBlueskyMedia(images, sel, hasVideo);
+    }
     await executePostFlow({
       prefillsViaUrl: blueskyAdapter.prefillsViaUrl,
       textareaSelector: sel.textarea,
       postButtonSelector: sel.postButton,
       postButtonTexts: ['Publish', 'Post', '投稿', 'Publish post'],
-      dropTargetSelector: sel.dropTarget,
       text,
-      images,
       dryRun,
-      requireMediaAccepted: hasVideo || undefined,
-      requireMediaPreview: hasVideo || undefined,
-      beforeDropDelayMs: hasVideo ? 500 : undefined,
       beforeSubmit: hasVideo ? assertBlueskyVideoAttached : undefined,
       clickPostButton: () => clickElementInMainWorld(sel.postButton),
     });
@@ -336,8 +329,48 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
   };
 }
 
-async function assertBlueskyVideoAttached(): Promise<void> {
-  const deadline = Date.now() + 3000;
+async function attachBlueskyMedia(
+  images: ImageAttachment[],
+  sel: typeof BLUESKY_SELECTORS,
+  hasVideo: boolean,
+): Promise<void> {
+  const order: Array<'input' | 'drop'> = hasVideo ? ['input', 'drop'] : ['drop', 'input'];
+  let lastError: unknown;
+
+  for (const strategy of order) {
+    try {
+      log.info(`Bluesky: media attach via ${strategy} start (files=${images.length}, video=${hasVideo})`);
+      if (strategy === 'input') {
+        await injectImages(images, sel.fileInput, {
+          requireVideoAccepted: hasVideo ? false : undefined,
+          requireMediaAccepted: hasVideo ? false : undefined,
+        });
+      } else {
+        await dropImages(images, sel.dropTarget, {
+          requireVideoAccepted: hasVideo ? false : undefined,
+          requireMediaAccepted: hasVideo ? false : undefined,
+          beforeDropDelayMs: hasVideo ? 500 : undefined,
+        });
+      }
+      if (hasVideo) await assertBlueskyVideoAttached(30_000);
+      log.info(`Bluesky: media attach via ${strategy} accepted`);
+      return;
+    } catch (e) {
+      lastError = e;
+      const message = e instanceof Error ? e.message : String(e);
+      log.warn(`Bluesky: media attach via ${strategy} failed: ${message}`);
+      if (hasVideo && hasBlueskyMediaPreview()) {
+        log.warn(`Bluesky: media preview detected after ${strategy} failure; continuing`);
+        return;
+      }
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(String(lastError ?? t('runtimeImageAttachFailed')));
+}
+
+async function assertBlueskyVideoAttached(timeoutMs = 3000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const rejection = findBlueskyMediaRejection();
     if (rejection) throw new Error(`Bluesky rejected the video: ${rejection}`);
@@ -347,39 +380,36 @@ async function assertBlueskyVideoAttached(): Promise<void> {
   throw new Error('Bluesky video attachment was not accepted; refusing to publish text-only.');
 }
 
-function blueskyComposerScope(): ParentNode {
-  return document.querySelector('[data-testid="composer"], [role="dialog"]') ?? document.body;
+function blueskyComposerScopes(): ParentNode[] {
+  const scopes = Array.from(document.querySelectorAll<HTMLElement>('[data-testid="composer"], [role="dialog"]'));
+  return scopes.length > 0 ? scopes : [document.body];
 }
 
 function hasBlueskyMediaPreview(): boolean {
-  const scope = blueskyComposerScope();
-  const candidates = Array.from(scope.querySelectorAll<HTMLElement>(
-    'video, canvas, img[src^="blob:"], img[src^="data:"], [aria-label*="Remove" i], [aria-label*="削除"]',
-  ));
-  return candidates.some((el) => {
-    const rect = el.getBoundingClientRect();
-    const style = window.getComputedStyle(el);
-    if (rect.width <= 4 || rect.height <= 4 || style.display === 'none' || style.visibility === 'hidden') {
-      return false;
+  for (const scope of blueskyComposerScopes()) {
+    const scopeText = scope instanceof HTMLElement ? visibleTextWithoutEditable(scope) : '';
+    if (/(uploading|processing).{0,20}video|video.{0,20}(uploading|processing)|動画.{0,20}(アップロード|処理)|アップロード中|処理中/i.test(scopeText)) {
+      return true;
     }
-    if (el.tagName.toLowerCase() === 'img') {
-      const text = [
-        el.getAttribute('alt'),
-        el.getAttribute('aria-label'),
-        el.getAttribute('data-testid'),
-        el.getAttribute('class'),
-      ].filter(Boolean).join(' ').toLowerCase();
-      return !/profile|avatar/.test(text);
-    }
-    return true;
-  });
+    const candidates = Array.from(scope.querySelectorAll<HTMLElement>([
+      'video',
+      'canvas',
+      'img[src^="blob:"]',
+      'img[src^="data:"]',
+      '[aria-label*="video" i]',
+      '[aria-label*="media" i]',
+      '[aria-label*="Remove" i]',
+      '[aria-label*="削除"]',
+      '[data-testid*="video" i]',
+      '[data-testid*="media" i]',
+      '[data-testid*="attachment" i]',
+    ].join(',')));
+    if (candidates.some(isBlueskyMediaPreviewElement)) return true;
+  }
+  return false;
 }
 
 function findBlueskyMediaRejection(): string | undefined {
-  const scope = blueskyComposerScope();
-  const text = scope instanceof HTMLElement
-    ? visibleTextWithoutEditable(scope)
-    : '';
   const patterns = [
     /unsupported/i,
     /not supported/i,
@@ -394,8 +424,34 @@ function findBlueskyMediaRejection(): string | undefined {
     /扱えません/,
     /処理できません/,
   ];
-  if (patterns.some((pattern) => pattern.test(text))) return text.slice(0, 220);
+  for (const scope of blueskyComposerScopes()) {
+    const text = scope instanceof HTMLElement
+      ? visibleTextWithoutEditable(scope)
+      : '';
+    if (patterns.some((pattern) => pattern.test(text))) return text.slice(0, 220);
+  }
   return undefined;
+}
+
+function isBlueskyMediaPreviewElement(el: HTMLElement): boolean {
+  const rect = el.getBoundingClientRect();
+  const style = window.getComputedStyle(el);
+  if (rect.width <= 4 || rect.height <= 4 || style.display === 'none' || style.visibility === 'hidden') {
+    return false;
+  }
+  const text = [
+    el.getAttribute('alt'),
+    el.getAttribute('aria-label'),
+    el.getAttribute('data-testid'),
+    el.getAttribute('class'),
+    el.getAttribute('src'),
+    el.textContent,
+  ].filter(Boolean).join(' ').toLowerCase();
+  if (/profile|avatar/.test(text)) return false;
+  if (/add (image|video|media)|attach (image|video|media)|画像を追加|動画を追加|メディアを追加/.test(text)) return false;
+  if (el.tagName.toLowerCase() === 'img') return true;
+  if (el.tagName.toLowerCase() === 'video' || el.tagName.toLowerCase() === 'canvas') return true;
+  return /remove|delete|削除|video|media|attachment|画像|動画|添付/.test(text);
 }
 
 function visibleTextWithoutEditable(scope: HTMLElement): string {

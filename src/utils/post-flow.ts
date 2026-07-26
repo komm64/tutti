@@ -340,9 +340,9 @@ async function attachMedia(
       }
     } catch (e) {
       lastError = e;
-      if (!isMissingAttachTargetError(e)) throw e;
+      if (!isRecoverableAttachStrategyError(e)) throw e;
       console.warn(
-        `[Tutti] media attach ${strategy} target missing; trying next strategy: ` +
+        `[Tutti] media attach ${strategy} did not complete; trying next strategy: ` +
         `${e instanceof Error ? e.message : String(e)}`,
       );
     }
@@ -352,9 +352,10 @@ async function attachMedia(
   throw new Error(t('runtimeImageUnsupported'));
 }
 
-function isMissingAttachTargetError(err: unknown): boolean {
+function isRecoverableAttachStrategyError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err);
-  return /(?:file input|drop target) not found/i.test(msg);
+  return /(?:file input|drop target) not found/i.test(msg) ||
+    /Timed out while waiting for the media upload or preview/i.test(msg);
 }
 
 export function resolvePostButtonTimeoutMs(postButtonTimeoutMs: number, hasVideo: boolean): number {

@@ -1,6 +1,7 @@
 import type { ImageAttachment } from '../messages';
 import { sleep, waitForElement } from './dom';
 import { t } from './i18n';
+import { log } from './logger';
 
 const REQ_TAG = 'tutti-inject-req-v1';
 const RES_TAG = 'tutti-inject-res-v1';
@@ -29,6 +30,7 @@ interface InjectResponse {
   fileCount?: number;
   droppedOn?: string;
   uploadCount?: number;
+  acceptedByPreview?: boolean;
   uploadTimedOut?: boolean;
   url?: string;
 }
@@ -47,7 +49,9 @@ async function sendInjectRequest(req: Omit<InjectRequest, 'source' | 'id'>): Pro
     );
     const timeout = setTimeout(() => {
       window.removeEventListener('message', onMessage);
-      reject(new Error('画像注入のタイムアウト(MAIN world ヘルパ未応答)'));
+      reject(new Error(
+        `画像注入のタイムアウト(MAIN world ヘルパ未応答): mode=${req.mode} selector=${req.selector.slice(0, 160)}`,
+      ));
     }, responseTimeoutMs);
 
     const onMessage = (ev: MessageEvent) => {
@@ -82,6 +86,7 @@ export async function injectImages(
 ): Promise<void> {
   await waitForElement<HTMLInputElement>(fileInputSelector, 5000);
   const hasVideo = rawImages.some((m) => m.type.startsWith('video/'));
+  log.info(`media attach input start: files=${rawImages.length} video=${hasVideo}`);
 
   // 大きな media は dataRef 経由 (background→content の 64MB cap 回避)。
   // ここで chunked sendMessage で base64 を組み立てる。
@@ -110,7 +115,10 @@ export async function injectImages(
   if (!result.ok) {
     throw new Error(result.error ?? t('runtimeImageAttachFailed'));
   }
-  console.log(`[Tutti] image upload complete (count=${result.uploadCount ?? 0})`);
+  log.info(
+    `media attach input accepted: files=${result.fileCount ?? rawImages.length} ` +
+    `uploads=${result.uploadCount ?? 0} preview=${result.acceptedByPreview === true}`,
+  );
   // helper が in-flight = 0 + quiet 800ms を確認した直後。少し追加で
   // SNS フロントエンドの thumbnail 描画反映を待つ
   await sleep(300);
@@ -224,6 +232,7 @@ export async function dropImages(
     await sleep(options.beforeDropDelayMs);
   }
   const hasVideo = rawImages.some((m) => m.type.startsWith('video/'));
+  log.info(`media attach drop start: files=${rawImages.length} video=${hasVideo}`);
 
   const { resolveAttachmentToBase64ViaMessage } = await import('./attachment');
   const images = await Promise.all(
@@ -250,6 +259,9 @@ export async function dropImages(
   if (!result.ok) {
     throw new Error(result.error ?? t('runtimeImageAttachFailed'));
   }
-  console.log(`[Tutti] image upload complete via drop (count=${result.uploadCount ?? 0})`);
+  log.info(
+    `media attach drop accepted: files=${result.fileCount ?? rawImages.length} ` +
+    `uploads=${result.uploadCount ?? 0} preview=${result.acceptedByPreview === true}`,
+  );
   await sleep(300);
 }

@@ -23,6 +23,13 @@ export interface CapturePostUrlRetryStep {
   delayMs: number;
 }
 
+export type PostUrlCaptureScriptArgs = [
+  platform: PlatformId,
+  targetText: string,
+  expectedUserName: string | null,
+  minCapturedAt: number | null,
+];
+
 const CAPTURE_SUPPORTED_PLATFORMS = new Set<PlatformId>([
   'mastodon',
   'misskey',
@@ -41,7 +48,13 @@ export function buildPostUrlCaptureRetryPlan(platform: PlatformId): CapturePostU
   if (!CAPTURE_SUPPORTED_PLATFORMS.has(platform)) return [];
 
   const steps: CapturePostUrlRetryStep[] = [{ label: 'immediate', delayMs: 0 }];
-  if (platform === 'youtube') return steps;
+  if (platform === 'youtube') {
+    return [
+      ...steps,
+      { label: 'processing-settle', delayMs: 15000 },
+      { label: 'final-dashboard-refresh', delayMs: 30000 },
+    ];
+  }
 
   if (platform === 'instagram') {
     return [
@@ -72,6 +85,60 @@ export function buildPostUrlCaptureRetryPlan(platform: PlatformId): CapturePostU
 
   steps.push({ label: 'settled-page', delayMs: 3000 });
   return steps;
+}
+
+export function buildPostUrlCaptureScriptArgs(
+  platform: PlatformId,
+  targetText: string,
+  expectedUserName?: string,
+  minCapturedAt?: number,
+): PostUrlCaptureScriptArgs {
+  return [
+    platform,
+    targetText,
+    expectedUserName ?? null,
+    typeof minCapturedAt === 'number' && Number.isFinite(minCapturedAt) ? minCapturedAt : null,
+  ];
+}
+
+export async function captureYouTubeStudioPostUrlInPage(
+  targetText: string,
+  root: ParentNode = document,
+): Promise<{ url?: string; trace: string[] }> {
+  const trace: string[] = [];
+  if (!targetText) return { trace };
+
+  const normalize = (value: string | null | undefined): string => (
+    (value ?? '').replace(/\s+/g, ' ').trim()
+  );
+  const titleSelector = 'h1, h2, h3, [id*="title"], ytcp-thumbnail-with-title';
+
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    const titleNodes = Array.from(root.querySelectorAll<HTMLElement>(titleSelector))
+      .filter((element) => normalize(element.textContent).includes(targetText))
+      .sort((a, b) => normalize(a.textContent).length - normalize(b.textContent).length);
+
+    for (const titleNode of titleNodes) {
+      let scope: Element | null = titleNode;
+      for (let depth = 0; scope && depth < 8; depth += 1, scope = scope.parentElement) {
+        const links = Array.from(scope.querySelectorAll<HTMLAnchorElement>('a[href*="/video/"]'));
+        for (const link of links) {
+          const id = link.href.match(/\/video\/([\w-]+)(?:\/|$)/)?.[1];
+          if (id) {
+            trace.push(`matched target title in scoped video card (attempt=${attempt}, depth=${depth})`);
+            return { url: `https://www.youtube.com/watch?v=${id}`, trace };
+          }
+        }
+      }
+    }
+
+    if (attempt === 0) {
+      trace.push(`target title matches=${titleNodes.length}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+
+  return { trace };
 }
 
 export async function capturePostUrlFromTabWithRetry(
@@ -141,13 +208,42 @@ export async function capturePostUrlFromTab(options: CapturePostUrlOptions): Pro
     }
 
     const target = text.replace(/\s+/g, ' ').trim().slice(0, 60);
+    if (platform === 'youtube') {
+      const youtubeResults = await browser.scripting.executeScript({
+        target: { tabId },
+        func: captureYouTubeStudioPostUrlInPage,
+        args: [target],
+        world: 'MAIN',
+      });
+      dbg(`scripting result count=${youtubeResults?.length}`);
+      const youtubeResult = youtubeResults?.[0]?.result as {
+        url?: string;
+        trace?: string[];
+      } | null | undefined;
+      for (const line of youtubeResult?.trace?.slice(0, 30) ?? []) {
+        dbg(`  ${line}`);
+      }
+      if (typeof youtubeResult?.url === 'string') {
+        dbg(`URL captured: ${youtubeResult.url}`);
+        return youtubeResult.url;
+      }
+      dbg('URL not found');
+      return undefined;
+    }
+
+    const scriptArgs = buildPostUrlCaptureScriptArgs(
+      platform,
+      target,
+      profileExpectedUser,
+      minCapturedAt,
+    );
     const results = await browser.scripting.executeScript({
       target: { tabId },
       func: async (
         platformName: string,
         targetText: string,
-        expectedUserName?: string,
-        minCapturedAtValue?: number,
+        expectedUserName: string | null,
+        minCapturedAtValue: number | null,
       ) => {
         const trace: string[] = [];
         async function tryFetch(): Promise<{ url?: string; trace: string[] }> {
@@ -170,18 +266,6 @@ export async function capturePostUrlFromTab(options: CapturePostUrlOptions): Pro
             for (let i = 0; i < 20; i += 1) {
               const link = document.querySelector<HTMLAnchorElement>('a[href*="/video/"]');
               if (link && /\/@[^/]+\/video\/\d+/.test(link.href)) return { url: link.href, trace };
-              await new Promise((resolve) => setTimeout(resolve, 500));
-            }
-          }
-          if (platformName === 'youtube') {
-            if (!targetText) return { trace };
-            for (let i = 0; i < 120; i += 1) {
-              const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href*="/video/"]'));
-              const body = (document.body?.innerText ?? '').replace(/\s+/g, ' ');
-              const id = body.includes(`Latest YouTube Short performance ${targetText}`)
-                ? links[0]?.href.match(/\/video\/([\w-]+)/)?.[1]
-                : undefined;
-              if (id) return { url: `https://www.youtube.com/watch?v=${id}`, trace };
               await new Promise((resolve) => setTimeout(resolve, 500));
             }
           }
@@ -306,7 +390,7 @@ export async function capturePostUrlFromTab(options: CapturePostUrlOptions): Pro
         }
         return await tryFetch();
       },
-      args: [platform, target, profileExpectedUser, minCapturedAt],
+      args: scriptArgs,
       world: 'MAIN',
     });
 

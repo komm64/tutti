@@ -1,11 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { postViaApi as postBlueskyApi } from '../api/bluesky';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { postViaApi as postBlueskyApi, postViaSession as postBlueskySessionApi } from '../api/bluesky';
 import { postViaApi as postMastodonApi } from '../api/mastodon';
 import { getApiCredentials } from '../utils/api-credentials';
 import { tryApiPath } from './api-posting';
 
 vi.mock('../api/bluesky', () => ({
   postViaApi: vi.fn(async () => ({ success: true, postUrl: 'https://bsky.app/profile/alice/post/abc' })),
+  postViaSession: vi.fn(async () => ({ success: true, postUrl: 'https://bsky.app/profile/alice/post/session-abc' })),
 }));
 
 vi.mock('../api/mastodon', () => ({
@@ -23,6 +24,7 @@ vi.mock('../utils/api-credentials', () => ({
 describe('tryApiPath', () => {
   const getCreds = vi.mocked(getApiCredentials);
   const postBluesky = vi.mocked(postBlueskyApi);
+  const postBlueskySession = vi.mocked(postBlueskySessionApi);
   const postMastodon = vi.mocked(postMastodonApi);
 
   beforeEach(() => {
@@ -32,7 +34,11 @@ describe('tryApiPath', () => {
     });
   });
 
-  it('bypasses the Bluesky API path for video attachments', async () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('uses the Bluesky API path for video attachments', async () => {
     const result = await tryApiPath('bluesky', 'hello', [{
       name: 'clip.mp4',
       type: 'video/mp4',
@@ -40,8 +46,19 @@ describe('tryApiPath', () => {
       durationS: 1,
     }]);
 
-    expect(result).toBe('no-credentials');
-    expect(postBluesky).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ success: true });
+    expect(postBluesky).toHaveBeenCalledWith(
+      { identifier: 'alice.test', appPassword: 'xxxx-xxxx-xxxx-xxxx' },
+      {
+        text: 'hello',
+        images: [{
+          name: 'clip.mp4',
+          type: 'video/mp4',
+          data: 'AA==',
+          durationS: 1,
+        }],
+      },
+    );
   });
 
   it('keeps the Bluesky API path for image attachments', async () => {
@@ -53,6 +70,46 @@ describe('tryApiPath', () => {
 
     expect(result).toMatchObject({ success: true });
     expect(postBluesky).toHaveBeenCalledOnce();
+  });
+
+  it('uses an open Bluesky web session when API credentials are not saved', async () => {
+    getCreds.mockResolvedValue({});
+    const query = vi.fn(async () => [{ id: 42, url: 'https://bsky.app/profile/alice.test' }]);
+    const sendMessage = vi.fn(async () => ({
+      type: 'BLUESKY_SESSION_RESULT',
+      accessJwt: 'jwt',
+      did: 'did:plc:alice',
+      handle: 'alice.test',
+      pdsHost: 'https://bsky.social',
+    }));
+    vi.stubGlobal('browser', { tabs: { query, sendMessage } });
+
+    const result = await tryApiPath('bluesky', 'hello', [{
+      name: 'clip.mp4',
+      type: 'video/mp4',
+      data: 'AA==',
+      durationS: 1,
+    }]);
+
+    expect(result).toMatchObject({ success: true });
+    expect(postBluesky).not.toHaveBeenCalled();
+    expect(postBlueskySession).toHaveBeenCalledWith(
+      {
+        accessJwt: 'jwt',
+        did: 'did:plc:alice',
+        handle: 'alice.test',
+        pdsHost: 'https://bsky.social',
+      },
+      {
+        text: 'hello',
+        images: [{
+          name: 'clip.mp4',
+          type: 'video/mp4',
+          data: 'AA==',
+          durationS: 1,
+        }],
+      },
+    );
   });
 
   it('passes Mastodon continuation reply ids to the API client', async () => {

@@ -1,6 +1,19 @@
 export function hasThreadsMediaPreview(doc: Document = document): boolean {
   return findThreadsComposeScopes(doc).some((scope) => (
-    Array.from(scope.querySelectorAll<HTMLElement>('video, canvas, img, [style]'))
+    Array.from(scope.querySelectorAll<HTMLElement>([
+      'video',
+      'canvas',
+      'img',
+      '[style]',
+      '[data-testid*="media" i]',
+      '[data-testid*="attachment" i]',
+      '[aria-label*="media" i]',
+      '[aria-label*="image" i]',
+      '[aria-label*="photo" i]',
+      '[aria-label*="video" i]',
+      '[aria-label*="Remove" i]',
+      '[aria-label*="削除"]',
+    ].join(',')))
       .some(isLikelyThreadsMediaPreview)
   ));
 }
@@ -32,19 +45,28 @@ export function findThreadsMediaRejection(doc: Document = document): string | un
 }
 
 function findThreadsComposeScopes(doc: Document): HTMLElement[] {
-  const dialogs = Array.from(doc.querySelectorAll<HTMLElement>('[role="dialog"], [role="alertdialog"]'))
-    .filter((dialog) => isVisibleElement(dialog) && isThreadsComposeScope(dialog));
-  if (dialogs.length > 0) return dialogs;
+  const visibleDialogs = Array.from(doc.querySelectorAll<HTMLElement>('[role="dialog"], [role="alertdialog"]'))
+    .filter((dialog) => isVisibleElement(dialog));
+  const composeDialogs = visibleDialogs.filter(isThreadsComposeScope);
+  if (composeDialogs.length > 0) return composeDialogs;
+
+  const likelyComposeDialogs = visibleDialogs.filter(isLikelyThreadsComposeDialog);
+  if (likelyComposeDialogs.length > 0) return likelyComposeDialogs;
 
   const main = doc.querySelector<HTMLElement>('main');
   if (main && isThreadsComposeScope(main)) return [main];
-  return [];
+  return doc.body instanceof HTMLElement ? [doc.body] : [];
 }
 
 function isThreadsComposeScope(scope: HTMLElement): boolean {
   return !!scope.querySelector(
     'div[contenteditable="true"][role="textbox"], div[contenteditable="plaintext-only"], input[type="file"]',
   );
+}
+
+function isLikelyThreadsComposeDialog(scope: HTMLElement): boolean {
+  const text = (scope.innerText ?? scope.textContent ?? '').replace(/\s+/g, ' ').trim();
+  return /\b(Post|Reply)\b|投稿|返信/.test(text) || !!scope.querySelector('[aria-label*="Post" i], [aria-label*="投稿"]');
 }
 
 function isLikelyThreadsMediaPreview(el: HTMLElement): boolean {
@@ -55,10 +77,29 @@ function isLikelyThreadsMediaPreview(el: HTMLElement): boolean {
   if (tag === 'video' || tag === 'canvas') return true;
   if (tag === 'img') return isLikelyThreadsAttachmentImage(el as HTMLImageElement);
 
+  const text = mediaPreviewText(el);
+  if (/add (media|image|photo|video)|attach (media|image|photo|video)|メディアを追加|画像を追加|写真を追加|動画を追加/i.test(text)) {
+    return false;
+  }
+  if (hasNonAvatarMediaDescendant(el)) return true;
+  if (/remove|delete|削除|取り除/.test(text) && /media|image|photo|video|attachment|画像|写真|動画|添付/.test(text)) {
+    return true;
+  }
+
+  const rect = el.getBoundingClientRect();
+  if (/media|image|photo|video|attachment|画像|写真|動画|添付/.test(text) && rect.width >= 80 && rect.height >= 80) {
+    return true;
+  }
+
   const background = getComputedStyleSafe(el)?.backgroundImage ?? '';
   if (!/url\(["']?(?:blob:|data:image|https?:\/\/)/i.test(background)) return false;
-  const rect = el.getBoundingClientRect();
   return rect.width >= 80 && rect.height >= 80;
+}
+
+function hasNonAvatarMediaDescendant(el: HTMLElement): boolean {
+  if (el.querySelector('video, canvas')) return true;
+  return Array.from(el.querySelectorAll<HTMLImageElement>('img'))
+    .some((img) => !isAvatarish(img) && isLikelyThreadsAttachmentImage(img));
 }
 
 function isLikelyThreadsAttachmentImage(img: HTMLImageElement): boolean {
@@ -70,14 +111,19 @@ function isLikelyThreadsAttachmentImage(img: HTMLImageElement): boolean {
 }
 
 function isAvatarish(el: HTMLElement): boolean {
-  const text = [
+  const text = mediaPreviewText(el);
+  return /profile|avatar|profile_pic|user avatar|プロフィール/.test(text);
+}
+
+function mediaPreviewText(el: HTMLElement): string {
+  return [
     el.getAttribute('alt'),
     el.getAttribute('aria-label'),
     el.getAttribute('data-testid'),
     el.getAttribute('class'),
     el.getAttribute('src'),
+    el.textContent,
   ].filter(Boolean).join(' ').toLowerCase();
-  return /profile|avatar|profile_pic|user avatar|プロフィール/.test(text);
 }
 
 function isProfileLinkImage(el: HTMLElement): boolean {

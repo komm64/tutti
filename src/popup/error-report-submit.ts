@@ -4,7 +4,7 @@ import {
   buildCurrentDraftReportSection,
   buildErrorReportPayload,
   buildGitHubIssueUrl,
-  formatLogExcerpt,
+  formatReportLogs,
   type CurrentDraftReportInput,
   type ErrorReportLogEntry,
 } from '../utils/error-report';
@@ -22,8 +22,9 @@ export async function buildPopupReportPayload(
   errorText: string,
   context: PopupReportContext,
 ): Promise<{ title: string; body: string }> {
-  const logsExcerpt = await loadLogsExcerpt();
-  const diagnosticsJson = await loadDiagnosticsJson(selectedPlatformIds(context));
+  const platforms = selectedPlatformIds(context);
+  const logsExcerpt = await loadLogsExcerpt(platforms);
+  const diagnosticsJson = await loadDiagnosticsJson(platforms);
   return buildErrorReportPayload({
     errorText,
     version: context.version,
@@ -83,12 +84,12 @@ export async function openPopupGitHubIssue(input: {
   window.open(url, '_blank');
 }
 
-async function loadLogsExcerpt(): Promise<string> {
+async function loadLogsExcerpt(platforms: ReturnType<typeof selectedPlatformIds>): Promise<string> {
   try {
     const res = (await browser.runtime.sendMessage({ type: 'LOG_EXPORT_REQUEST' })) as
       | { entries?: ErrorReportLogEntry[] }
       | undefined;
-    return formatLogExcerpt((res?.entries ?? []).slice(-30));
+    return formatReportLogs(res?.entries ?? [], platforms);
   } catch {
     return '';
   }

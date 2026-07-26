@@ -37,10 +37,42 @@ export interface ErrorReportPayloadInput {
 
 export type ErrorReportLogEntry = Pick<LogEntry, 'ts' | 'level' | 'context' | 'message'>;
 
-export function formatLogExcerpt(entries: readonly ErrorReportLogEntry[]): string {
+export function formatLogExcerpt(
+  entries: readonly ErrorReportLogEntry[],
+  options: { maxMessageChars?: number } = {},
+): string {
   return entries
-    .map((e) => `[${new Date(e.ts).toISOString()}] ${e.level} (${e.context}) ${e.message}`)
+    .map((e) => {
+      const message = typeof options.maxMessageChars === 'number'
+        ? truncateLogMessage(e.message, options.maxMessageChars)
+        : e.message;
+      return `[${new Date(e.ts).toISOString()}] ${e.level} (${e.context}) ${message}`;
+    })
     .join('\n');
+}
+
+export function formatReportLogs(
+  entries: readonly ErrorReportLogEntry[],
+  platforms: readonly PlatformId[] = [],
+): string {
+  const sections: string[] = [];
+  const uniquePlatforms = Array.from(new Set(platforms));
+  if (uniquePlatforms.length > 0) {
+    sections.push('### Selected platform logs');
+    for (const platform of uniquePlatforms) {
+      const matched = entries.filter((entry) => logEntryMatchesPlatform(entry, platform)).slice(-5);
+      sections.push(
+        `#### ${platform}`,
+        matched.length > 0 ? formatLogExcerpt(matched, { maxMessageChars: 240 }) : '(no matching logs captured)',
+      );
+    }
+    sections.push('');
+  }
+  sections.push(
+    '### Overall last 30',
+    formatLogExcerpt(entries.slice(-30), { maxMessageChars: 240 }) || '(no logs captured)',
+  );
+  return sections.join('\n').trim();
 }
 
 export function mediaBytesForReport(media: ImageAttachment): string {
@@ -113,9 +145,9 @@ export function buildErrorReportPayload(input: ErrorReportPayloadInput): { title
     '',
     ...input.draftSection,
     '',
-    '## Recent logs (last 30 entries)',
+    '## Recent logs',
     '```',
-    redactPII((input.logsExcerpt ?? '').slice(0, 6000)) || '(no logs captured)',
+    redactPII((input.logsExcerpt ?? '').slice(0, 20_000)) || '(no logs captured)',
     '```',
   ];
   if (input.diagnosticsJson) {
@@ -209,6 +241,11 @@ function truncateString(value: string, maxChars: number): string {
   return `${value.slice(0, keep)}${TRUNCATION_MARKER}`;
 }
 
+function truncateLogMessage(value: string, maxChars: number): string {
+  if (value.length <= maxChars) return value;
+  return `${value.slice(0, Math.max(0, maxChars - TRUNCATION_MARKER.length))}${TRUNCATION_MARKER}`;
+}
+
 function addReportMeta(value: unknown, meta: Record<string, unknown>): unknown {
   if (isRecord(value) && !Array.isArray(value)) {
     return {
@@ -258,5 +295,34 @@ function safeChunkCount(input: CurrentDraftReportInput, platform: PlatformId): n
     return splitTextForPlatform(platform, input.text, adapter.limit).length;
   } catch {
     return 'error';
+  }
+}
+
+function logEntryMatchesPlatform(entry: ErrorReportLogEntry, platform: PlatformId): boolean {
+  const context = entry.context.toLowerCase();
+  const message = entry.message.toLowerCase();
+  switch (platform) {
+    case 'x':
+      return context === 'x.com' || context === 'twitter.com' || /\bx\b|twitter|tweet/.test(message);
+    case 'bluesky':
+      return context === 'bsky.app' || /bluesky|bsky/.test(message);
+    case 'threads':
+      return /threads\.(?:com|net)$/.test(context) || /threads/.test(message);
+    case 'mastodon':
+      return context.includes('mastodon') || /mastodon/.test(message);
+    case 'misskey':
+      return context.includes('misskey') || /misskey/.test(message);
+    case 'tumblr':
+      return context.includes('tumblr') || /tumblr/.test(message);
+    case 'pixiv':
+      return context.includes('pixiv') || /pixiv/.test(message);
+    case 'deviantart':
+      return context.includes('deviantart') || /deviantart|deviation|\bda\b/.test(message);
+    case 'instagram':
+      return context.includes('instagram') || /\big\b|instagram/.test(message);
+    case 'tiktok':
+      return context.includes('tiktok') || /tiktok/.test(message);
+    case 'youtube':
+      return context.includes('youtube') || /youtube|\byt\b/.test(message);
   }
 }

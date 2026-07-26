@@ -80,10 +80,10 @@ describe('runPostScheduler', () => {
     expect(forceForegroundFlags).toEqual([false, false, false]);
   });
 
-  it('keeps interactive platforms in a throttled background lane for video previews', async () => {
+  it('serializes video previews in the foreground lane', async () => {
     const seen = new Map<PlatformId, string>();
-    let activeBackground = 0;
-    let maxBackground = 0;
+    let activeForeground = 0;
+    let maxForeground = 0;
 
     await runPostScheduler({
       platforms: ['x', 'bluesky', 'tumblr', 'instagram'],
@@ -91,21 +91,21 @@ describe('runPostScheduler', () => {
       planOptions: { hasVideo: true },
       post: async (platform, execution): Promise<PostResultMessage> => {
         seen.set(platform, `${execution.lane}:${execution.forceForeground}`);
-        if (!execution.forceForeground) {
-          activeBackground += 1;
-          maxBackground = Math.max(maxBackground, activeBackground);
+        if (execution.forceForeground) {
+          activeForeground += 1;
+          maxForeground = Math.max(maxForeground, activeForeground);
           await sleep(5);
-          activeBackground -= 1;
+          activeForeground -= 1;
         }
         return { type: 'POST_RESULT', platform, success: true };
       },
     });
 
     expect(seen.get('instagram')).toBe('foreground:true');
-    expect(seen.get('x')).toBe('background:false');
-    expect(seen.get('tumblr')).toBe('background:false');
-    expect(seen.get('bluesky')).toBe('background:false');
-    expect(maxBackground).toBe(1);
+    expect(seen.get('x')).toBe('foreground:true');
+    expect(seen.get('tumblr')).toBe('foreground:true');
+    expect(seen.get('bluesky')).toBe('foreground:true');
+    expect(maxForeground).toBe(1);
   });
 });
 

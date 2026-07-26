@@ -52,7 +52,7 @@ describe('post execution plan', () => {
     expect(resolvePostConcurrency(['tiktok', 'youtube'], false)).toBe(1);
   });
 
-  it('keeps X and Tumblr out of the foreground lane for video previews', () => {
+  it('serializes video previews in the foreground lane', () => {
     expect(needsForegroundPreview('x', { hasVideo: true })).toBe(false);
     expect(needsForegroundPreview('tumblr', { hasVideo: true })).toBe(false);
     expect(needsForegroundPreview('instagram', { hasVideo: true })).toBe(true);
@@ -60,17 +60,11 @@ describe('post execution plan', () => {
       .toEqual([
         {
           id: 'foreground',
-          platforms: ['instagram'],
+          platforms: ['x', 'bluesky', 'tumblr', 'instagram'],
           concurrency: 1,
           forceForeground: true,
         },
-        {
-          id: 'background',
-          platforms: ['x', 'bluesky', 'tumblr'],
-          concurrency: 1,
-          forceForeground: false,
-        },
       ]);
-    expect(resolvePostConcurrency(['x', 'bluesky', 'tumblr', 'instagram'], false, { hasVideo: true })).toBe(2);
+    expect(resolvePostConcurrency(['x', 'bluesky', 'tumblr', 'instagram'], false, { hasVideo: true })).toBe(1);
   });
 });

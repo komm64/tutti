@@ -4,6 +4,7 @@ import {
   buildErrorReportPayload,
   buildGitHubIssueUrl,
   formatLogExcerpt,
+  formatReportLogs,
   mediaBytesForReport,
 } from './error-report';
 
@@ -189,6 +190,29 @@ describe('formatLogExcerpt', () => {
     expect(formatLogExcerpt([
       { ts: 0, level: 'INFO', context: 'popup', message: 'ready' },
     ])).toBe('[1970-01-01T00:00:00.000Z] INFO (popup) ready');
+  });
+});
+
+describe('formatReportLogs', () => {
+  it('keeps selected platform logs even when they are older than the overall tail', () => {
+    const entries = [
+      { ts: 1, level: 'INFO' as const, context: 'bsky.app', message: 'Bluesky attach start' },
+      ...Array.from({ length: 35 }, (_, i) => ({
+        ts: 2 + i,
+        level: 'INFO' as const,
+        context: 'www.tumblr.com',
+        message: `tumblr noisy ${i}`,
+      })),
+      { ts: 40, level: 'INFO' as const, context: 'studio.youtube.com', message: 'YouTube runPost' },
+    ];
+
+    const logs = formatReportLogs(entries, ['bluesky', 'youtube']);
+
+    expect(logs).toContain('#### bluesky');
+    expect(logs).toContain('Bluesky attach start');
+    expect(logs).toContain('#### youtube');
+    expect(logs).toContain('YouTube runPost');
+    expect(logs).toContain('### Overall last 30');
   });
 });
 

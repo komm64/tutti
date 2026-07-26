@@ -44,6 +44,34 @@ describe('threads media preview detection', () => {
 
     expect(findThreadsMediaRejection(doc)).toContain('Could not upload');
   });
+
+  it('detects a remove-media control after Threads remounts the compose input', () => {
+    const doc = createDocument();
+    doc.body.innerHTML = `
+      <div role="dialog">
+        <div aria-label="Remove photo" role="button"></div>
+        <div>Post</div>
+      </div>
+    `;
+    markVisible(doc.querySelector<HTMLElement>('[role="dialog"]')!, 600, 500);
+    markVisible(doc.querySelector<HTMLElement>('[aria-label="Remove photo"]')!, 32, 32);
+
+    expect(hasThreadsMediaPreview(doc)).toBe(true);
+  });
+
+  it('does not treat the add-media button as an attached preview', () => {
+    const doc = createDocument();
+    doc.body.innerHTML = `
+      <div role="dialog">
+        <div aria-label="Add media" role="button"></div>
+        <div>Post</div>
+      </div>
+    `;
+    markVisible(doc.querySelector<HTMLElement>('[role="dialog"]')!, 600, 500);
+    markVisible(doc.querySelector<HTMLElement>('[aria-label="Add media"]')!, 32, 32);
+
+    expect(hasThreadsMediaPreview(doc)).toBe(false);
+  });
 });
 
 function createDocument(): Document {
