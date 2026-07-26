@@ -1,0 +1,16 @@
+{
+  "results": [
+    {
+      "type": "POST_RESULT",
+      "platform": "x",
+      "success": true,
+      "preview": true,
+      "futureResultField": {
+        "implementationRevision": 2
+      }
+    }
+  ],
+  "futureResponseField": {
+    "protocolRevision": 2
+  }
+}

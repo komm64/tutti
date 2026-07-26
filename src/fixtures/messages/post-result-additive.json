@@ -1,0 +1,14 @@
+{
+  "type": "POST_RESULT",
+  "platform": "x",
+  "success": true,
+  "preview": true,
+  "flow": {
+    "mode": "preview",
+    "submitReached": false,
+    "futureFlowField": "preserve-me"
+  },
+  "futureResultField": {
+    "implementationRevision": 2
+  }
+}
