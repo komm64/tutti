@@ -6,6 +6,9 @@ import {
   buildDomPostAttempts,
   buildReplyOverrideUrl,
   getComposeUrlForMedia,
+  isAmbiguousPostDispatchError,
+  resolveApiPostOutcome,
+  shouldRetryPostAttempt,
   shouldOpenActive,
   shouldReuseExistingTabForAttempt,
 } from './platform-poster';
@@ -194,5 +197,92 @@ describe('platform poster helpers', () => {
       undefined,
       0,
     ).expectedUrls).toBeUndefined();
+  });
+});
+
+describe('posting transport safety policy', () => {
+  it('falls through to DOM only when the selected API path has no credentials', () => {
+    expect(resolveApiPostOutcome('bluesky', 'no-credentials')).toBeNull();
+  });
+
+  it('keeps definitive API failures on the selected API transport', () => {
+    expect(resolveApiPostOutcome('mastodon', {
+      success: false,
+      error: 'statuses 403: forbidden',
+    })).toMatchObject({
+      type: 'POST_RESULT',
+      platform: 'mastodon',
+      success: false,
+      error: 'statuses 403: forbidden',
+      flow: {
+        attempt: 'api',
+        submitReached: false,
+        failedStep: 'api-post',
+      },
+    });
+  });
+
+  it('maps ambiguous or URL-less API outcomes to uncertain without another transport', () => {
+    expect(resolveApiPostOutcome('bluesky', {
+      success: false,
+      uncertain: true,
+      error: 'network interrupted',
+    })).toMatchObject({
+      success: false,
+      uncertain: true,
+      userAction: 'check-post-before-retry',
+      flow: {
+        attempt: 'api',
+        submitReached: true,
+        failedStep: 'capture-url',
+      },
+    });
+    expect(resolveApiPostOutcome('misskey', {
+      success: true,
+    })).toMatchObject({
+      success: false,
+      uncertain: true,
+      flow: {
+        attempt: 'api',
+        submitReached: true,
+      },
+    });
+  });
+
+  it('confirms API success only when a post URL is present', () => {
+    expect(resolveApiPostOutcome('bluesky', {
+      success: true,
+      postUrl: 'https://bsky.app/profile/alice.test/post/abc',
+    })).toMatchObject({
+      success: true,
+      confirmed: true,
+      url: 'https://bsky.app/profile/alice.test/post/abc',
+      flow: {
+        attempt: 'api',
+        submitReached: true,
+        lastCompletedStep: 'api-create-post',
+      },
+    });
+  });
+
+  it('stops real-post retries after submit but keeps preview and pre-submit retries', () => {
+    expect(shouldRetryPostAttempt(true, { submitReached: true })).toBe(false);
+    expect(shouldRetryPostAttempt(true, { submitReached: false })).toBe(true);
+    expect(shouldRetryPostAttempt(true)).toBe(true);
+    expect(shouldRetryPostAttempt(false, { submitReached: true })).toBe(true);
+  });
+
+  it('classifies channel-close and timeout failures as ambiguous after dispatch', () => {
+    for (const message of [
+      'A listener indicated an asynchronous response but the message channel closed',
+      'The message port closed before a response was received.',
+      'page entered the back/forward cache',
+      'youtube content script response timed out after 240000ms',
+    ]) {
+      expect(isAmbiguousPostDispatchError(new Error(message)), message).toBe(true);
+    }
+    expect(isAmbiguousPostDispatchError(
+      new Error('Could not establish connection. Receiving end does not exist.'),
+    )).toBe(false);
   });
 });
