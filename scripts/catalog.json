@@ -1,0 +1,1593 @@
+{
+  "schemaVersion": 1,
+  "entries": [
+    {
+      "path": "scripts/_paths.mjs",
+      "class": "supported-cli",
+      "usage": "Shared module imported by maintained repository scripts."
+    },
+    {
+      "path": "scripts/build-chrome-locales.mjs",
+      "class": "supported-cli",
+      "usage": "Invoked by npm run dev, npm run dev:firefox, npm run build, npm run build:firefox.",
+      "entryCommand": "npm run dev"
+    },
+    {
+      "path": "scripts/build-readme.mjs",
+      "class": "supported-cli",
+      "usage": "Maintained repository developer tool.",
+      "entryCommand": "node scripts/build-readme.mjs"
+    },
+    {
+      "path": "scripts/check-blog-anchors.mjs",
+      "class": "supported-cli",
+      "usage": "Maintained repository developer tool.",
+      "entryCommand": "node scripts/check-blog-anchors.mjs"
+    },
+    {
+      "path": "scripts/check-extensions-page.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/check-extensions-page.mjs"
+    },
+    {
+      "path": "scripts/check-extensions.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/check-extensions.mjs"
+    },
+    {
+      "path": "scripts/check-storage-full.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/check-storage-full.mjs"
+    },
+    {
+      "path": "scripts/check-storage.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/check-storage.mjs"
+    },
+    {
+      "path": "scripts/check-tiktok-posts.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/check-tiktok-posts.mjs"
+    },
+    {
+      "path": "scripts/check-tumblr-login.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/check-tumblr-login.mjs"
+    },
+    {
+      "path": "scripts/check-x-post-content.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/check-x-post-content.mjs"
+    },
+    {
+      "path": "scripts/check-x-timeline.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/check-x-timeline.mjs"
+    },
+    {
+      "path": "scripts/check-yt-videos.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/check-yt-videos.mjs"
+    },
+    {
+      "path": "scripts/clean-chrome-locales.mjs",
+      "class": "supported-cli",
+      "usage": "Invoked by npm run build, npm run build:firefox.",
+      "entryCommand": "npm run build"
+    },
+    {
+      "path": "scripts/cleanup-and-mark.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/cleanup-and-mark.mjs"
+    },
+    {
+      "path": "scripts/cleanup-tabs-quick.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/cleanup-tabs-quick.mjs"
+    },
+    {
+      "path": "scripts/cleanup-tabs.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/cleanup-tabs.mjs"
+    },
+    {
+      "path": "scripts/click-add-image.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/click-add-image.mjs"
+    },
+    {
+      "path": "scripts/click-bottom-post.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/click-bottom-post.mjs"
+    },
+    {
+      "path": "scripts/click-google-account-v2.mjs",
+      "class": "obsolete-candidate",
+      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
+    },
+    {
+      "path": "scripts/click-google-account.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/click-google-account.mjs"
+    },
+    {
+      "path": "scripts/click-oauth-continue.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/click-oauth-continue.mjs"
+    },
+    {
+      "path": "scripts/copy-ffmpeg.mjs",
+      "class": "supported-cli",
+      "usage": "Invoked by npm run build, npm run build:firefox, npm run postinstall.",
+      "entryCommand": "npm run build"
+    },
+    {
+      "path": "scripts/cws/_lib.mjs",
+      "class": "supported-cli",
+      "usage": "Shared module imported by maintained repository scripts.",
+      "owner": "release"
+    },
+    {
+      "path": "scripts/cws/auth.mjs",
+      "class": "supported-cli",
+      "usage": "Maintained manual Chrome Web Store command or shared CWS module.",
+      "entryCommand": "node scripts/cws/auth.mjs",
+      "owner": "release"
+    },
+    {
+      "path": "scripts/cws/cancel-submission.mjs",
+      "class": "supported-cli",
+      "usage": "Maintained manual Chrome Web Store command or shared CWS module.",
+      "entryCommand": "node scripts/cws/cancel-submission.mjs",
+      "owner": "release"
+    },
+    {
+      "path": "scripts/cws/status.mjs",
+      "class": "supported-cli",
+      "usage": "Invoked by npm run cws:status.",
+      "entryCommand": "npm run cws:status",
+      "owner": "release"
+    },
+    {
+      "path": "scripts/cws/submit.mjs",
+      "class": "supported-cli",
+      "usage": "Invoked by npm run cws:submit.",
+      "entryCommand": "npm run cws:submit",
+      "owner": "release"
+    },
+    {
+      "path": "scripts/cws/upload.mjs",
+      "class": "supported-cli",
+      "usage": "Invoked by npm run cws:upload.",
+      "entryCommand": "npm run cws:upload",
+      "owner": "release"
+    },
+    {
+      "path": "scripts/cws/watch-status.mjs",
+      "class": "supported-cli",
+      "usage": "Invoked by npm run cws:watch.",
+      "entryCommand": "npm run cws:watch",
+      "owner": "release"
+    },
+    {
+      "path": "scripts/debug-tumblr.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/debug-tumblr.mjs"
+    },
+    {
+      "path": "scripts/dev-private-load.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/dev-private-load.mjs"
+    },
+    {
+      "path": "scripts/dev-private-load2.mjs",
+      "class": "obsolete-candidate",
+      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
+    },
+    {
+      "path": "scripts/diagnose-load.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/diagnose-load.mjs"
+    },
+    {
+      "path": "scripts/drag-drop-install.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/drag-drop-install.mjs"
+    },
+    {
+      "path": "scripts/drive-all-sns.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/drive-all-sns.mjs"
+    },
+    {
+      "path": "scripts/drive-mastodon.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/drive-mastodon.mjs"
+    },
+    {
+      "path": "scripts/drive-post-v2.mjs",
+      "class": "obsolete-candidate",
+      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
+    },
+    {
+      "path": "scripts/drive-post-v3.mjs",
+      "class": "obsolete-candidate",
+      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
+    },
+    {
+      "path": "scripts/drive-post.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/drive-post.mjs"
+    },
+    {
+      "path": "scripts/drive-text-only.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/drive-text-only.mjs"
+    },
+    {
+      "path": "scripts/drive-via-existing-popup.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/drive-via-existing-popup.mjs"
+    },
+    {
+      "path": "scripts/drive-via-runtime.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/drive-via-runtime.mjs"
+    },
+    {
+      "path": "scripts/dump-tutti-log.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/dump-tutti-log.mjs"
+    },
+    {
+      "path": "scripts/dump-yt-recent.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/dump-yt-recent.mjs"
+    },
+    {
+      "path": "scripts/e2e/_lib.mjs",
+      "class": "supported-cli",
+      "usage": "Shared module imported by maintained repository scripts."
+    },
+    {
+      "path": "scripts/e2e/capture-x-state.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/e2e/capture-x-state.mjs"
+    },
+    {
+      "path": "scripts/e2e/cdp-attach-instagram.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/e2e/cdp-attach-instagram.mjs"
+    },
+    {
+      "path": "scripts/e2e/cdp-attach-tiktok.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/e2e/cdp-attach-tiktok.mjs"
+    },
+    {
+      "path": "scripts/e2e/check-api-creds.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/e2e/check-api-creds.mjs"
+    },
+    {
+      "path": "scripts/e2e/check-bsky-recent.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/e2e/check-bsky-recent.mjs"
+    },
+    {
+      "path": "scripts/e2e/check-creds.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/e2e/check-creds.mjs"
+    },
+    {
+      "path": "scripts/e2e/check-ext.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/e2e/check-ext.mjs"
+    },
+    {
+      "path": "scripts/e2e/check-ig-recent.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/e2e/check-ig-recent.mjs"
+    },
+    {
+      "path": "scripts/e2e/check-x-recent.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/e2e/check-x-recent.mjs"
+    },
+    {
+      "path": "scripts/e2e/cleanup-api-text-post.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/e2e/cleanup-api-text-post.mjs"
+    },
+    {
+      "path": "scripts/e2e/cleanup-bluesky-post.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/e2e/cleanup-bluesky-post.mjs"
+    },
+    {
+      "path": "scripts/e2e/cleanup-x-post.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/e2e/cleanup-x-post.mjs"
+    },
+    {
+      "path": "scripts/e2e/debug-history-trace.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/e2e/debug-history-trace.mjs"
+    },
+    {
+      "path": "scripts/e2e/debug-history-write.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/e2e/debug-history-write.mjs"
+    },
+    {
+      "path": "scripts/e2e/diagnose-platform-message.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/e2e/diagnose-platform-message.mjs"
+    },
+    {
+      "path": "scripts/e2e/dump-history.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/e2e/dump-history.mjs"
+    },
+    {
+      "path": "scripts/e2e/dump-logs.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/e2e/dump-logs.mjs"
+    },
+    {
+      "path": "scripts/e2e/enable-ext.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/e2e/enable-ext.mjs"
+    },
+    {
+      "path": "scripts/e2e/generate-test-image.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/e2e/generate-test-image.mjs"
+    },
+    {
+      "path": "scripts/e2e/inspect-cdp-buttons.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/e2e/inspect-cdp-buttons.mjs"
+    },
+    {
+      "path": "scripts/e2e/inspect-cdp-latest.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/e2e/inspect-cdp-latest.mjs"
+    },
+    {
+      "path": "scripts/e2e/inspect-cdp-state.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/e2e/inspect-cdp-state.mjs"
+    },
+    {
+      "path": "scripts/e2e/inspect-extension-bundle.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/e2e/inspect-extension-bundle.mjs"
+    },
+    {
+      "path": "scripts/e2e/inspect-extension-path.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/e2e/inspect-extension-path.mjs"
+    },
+    {
+      "path": "scripts/e2e/inspect-instagram-profile.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/e2e/inspect-instagram-profile.mjs"
+    },
+    {
+      "path": "scripts/e2e/inspect-loaded-extensions.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/e2e/inspect-loaded-extensions.mjs"
+    },
+    {
+      "path": "scripts/e2e/inspect-log-buffer.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/e2e/inspect-log-buffer.mjs"
+    },
+    {
+      "path": "scripts/e2e/inspect-open-sns-tabs.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/e2e/inspect-open-sns-tabs.mjs"
+    },
+    {
+      "path": "scripts/e2e/inspect-pixiv-profile.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/e2e/inspect-pixiv-profile.mjs"
+    },
+    {
+      "path": "scripts/e2e/inspect-pixiv-security-check.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/e2e/inspect-pixiv-security-check.mjs"
+    },
+    {
+      "path": "scripts/e2e/inspect-text-composer.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/e2e/inspect-text-composer.mjs"
+    },
+    {
+      "path": "scripts/e2e/inspect-text-platform-latest.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/e2e/inspect-text-platform-latest.mjs"
+    },
+    {
+      "path": "scripts/e2e/inspect-tiktok-upload.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/e2e/inspect-tiktok-upload.mjs"
+    },
+    {
+      "path": "scripts/e2e/inspect-video-platform-state.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/e2e/inspect-video-platform-state.mjs"
+    },
+    {
+      "path": "scripts/e2e/inspect-x-editor-dom.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/e2e/inspect-x-editor-dom.mjs"
+    },
+    {
+      "path": "scripts/e2e/inspect-x-latest.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/e2e/inspect-x-latest.mjs"
+    },
+    {
+      "path": "scripts/e2e/inspect-x-now.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/e2e/inspect-x-now.mjs"
+    },
+    {
+      "path": "scripts/e2e/mock-browser-smoke.mjs",
+      "class": "e2e",
+      "usage": "Invoked by npm run e2e:smoke, npm run e2e:smoke:no-build.",
+      "entryCommand": "npm run e2e:smoke"
+    },
+    {
+      "path": "scripts/e2e/open-pixiv-ig.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/e2e/open-pixiv-ig.mjs"
+    },
+    {
+      "path": "scripts/e2e/platforms/bluesky.mjs",
+      "class": "supported-cli",
+      "usage": "Dynamically imported bluesky platform module; run through npm run e2e."
+    },
+    {
+      "path": "scripts/e2e/platforms/deviantart.mjs",
+      "class": "supported-cli",
+      "usage": "Dynamically imported deviantart platform module; run through npm run e2e."
+    },
+    {
+      "path": "scripts/e2e/platforms/instagram.mjs",
+      "class": "supported-cli",
+      "usage": "Dynamically imported instagram platform module; run through npm run e2e."
+    },
+    {
+      "path": "scripts/e2e/platforms/mastodon.mjs",
+      "class": "supported-cli",
+      "usage": "Dynamically imported mastodon platform module; run through npm run e2e."
+    },
+    {
+      "path": "scripts/e2e/platforms/misskey.mjs",
+      "class": "supported-cli",
+      "usage": "Dynamically imported misskey platform module; run through npm run e2e."
+    },
+    {
+      "path": "scripts/e2e/platforms/pixiv.mjs",
+      "class": "supported-cli",
+      "usage": "Dynamically imported pixiv platform module; run through npm run e2e."
+    },
+    {
+      "path": "scripts/e2e/platforms/threads.mjs",
+      "class": "supported-cli",
+      "usage": "Dynamically imported threads platform module; run through npm run e2e."
+    },
+    {
+      "path": "scripts/e2e/platforms/tiktok.mjs",
+      "class": "supported-cli",
+      "usage": "Dynamically imported tiktok platform module; run through npm run e2e."
+    },
+    {
+      "path": "scripts/e2e/platforms/tumblr.mjs",
+      "class": "supported-cli",
+      "usage": "Dynamically imported tumblr platform module; run through npm run e2e."
+    },
+    {
+      "path": "scripts/e2e/platforms/x.mjs",
+      "class": "supported-cli",
+      "usage": "Dynamically imported x platform module; run through npm run e2e."
+    },
+    {
+      "path": "scripts/e2e/platforms/youtube.mjs",
+      "class": "supported-cli",
+      "usage": "Dynamically imported youtube platform module; run through npm run e2e."
+    },
+    {
+      "path": "scripts/e2e/probe-bsky-add.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/e2e/probe-bsky-add.mjs"
+    },
+    {
+      "path": "scripts/e2e/probe-bsky-add2.mjs",
+      "class": "obsolete-candidate",
+      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
+    },
+    {
+      "path": "scripts/e2e/probe-cdp-submit.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/e2e/probe-cdp-submit.mjs"
+    },
+    {
+      "path": "scripts/e2e/probe-ig-crop.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/e2e/probe-ig-crop.mjs"
+    },
+    {
+      "path": "scripts/e2e/probe-ig-detail.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/e2e/probe-ig-detail.mjs"
+    },
+    {
+      "path": "scripts/e2e/probe-instagram-api.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/e2e/probe-instagram-api.mjs"
+    },
+    {
+      "path": "scripts/e2e/probe-pixiv-ig-user.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/e2e/probe-pixiv-ig-user.mjs"
+    },
+    {
+      "path": "scripts/e2e/probe-profile-fetch.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/e2e/probe-profile-fetch.mjs"
+    },
+    {
+      "path": "scripts/e2e/probe-x-injection-variants.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/e2e/probe-x-injection-variants.mjs"
+    },
+    {
+      "path": "scripts/e2e/probe-x-state.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/e2e/probe-x-state.mjs"
+    },
+    {
+      "path": "scripts/e2e/probe-x-thread-buttons.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/e2e/probe-x-thread-buttons.mjs"
+    },
+    {
+      "path": "scripts/e2e/probe-yt-studio-user.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/e2e/probe-yt-studio-user.mjs"
+    },
+    {
+      "path": "scripts/e2e/reload-extension.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/e2e/reload-extension.mjs"
+    },
+    {
+      "path": "scripts/e2e/run.mjs",
+      "class": "e2e",
+      "usage": "Invoked by npm run e2e.",
+      "entryCommand": "npm run e2e"
+    },
+    {
+      "path": "scripts/e2e/shot-ig-post.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/e2e/shot-ig-post.mjs"
+    },
+    {
+      "path": "scripts/e2e/show-tutti-sidepanel.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/e2e/show-tutti-sidepanel.mjs"
+    },
+    {
+      "path": "scripts/e2e/submit-current-pixiv-form.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/e2e/submit-current-pixiv-form.mjs"
+    },
+    {
+      "path": "scripts/e2e/surface-posting-matrix.mjs",
+      "class": "release-gate",
+      "usage": "Invoked by npm run e2e:surface-matrix.",
+      "entryCommand": "npm run e2e:surface-matrix",
+      "owner": "release"
+    },
+    {
+      "path": "scripts/e2e/surface-url-capture-check.mjs",
+      "class": "release-gate",
+      "usage": "Invoked by npm run e2e:surface-url-capture.",
+      "entryCommand": "npm run e2e:surface-url-capture",
+      "owner": "release"
+    },
+    {
+      "path": "scripts/e2e/switch-ig-to-professional.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/e2e/switch-ig-to-professional.mjs"
+    },
+    {
+      "path": "scripts/e2e/test-multichunk-bugs.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/e2e/test-multichunk-bugs.mjs"
+    },
+    {
+      "path": "scripts/e2e/verify-bsky-thread.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/e2e/verify-bsky-thread.mjs"
+    },
+    {
+      "path": "scripts/e2e/verify-display-mode-auto.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/e2e/verify-display-mode-auto.mjs"
+    },
+    {
+      "path": "scripts/e2e/verify-history-ui.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/e2e/verify-history-ui.mjs"
+    },
+    {
+      "path": "scripts/e2e/verify-history-v1-standalone.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/e2e/verify-history-v1-standalone.mjs"
+    },
+    {
+      "path": "scripts/e2e/verify-history-v1.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/e2e/verify-history-v1.mjs"
+    },
+    {
+      "path": "scripts/e2e/verify-interaction-poll.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/e2e/verify-interaction-poll.mjs"
+    },
+    {
+      "path": "scripts/e2e/verify-pixiv-ig-detection.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/e2e/verify-pixiv-ig-detection.mjs"
+    },
+    {
+      "path": "scripts/e2e/verify-real-multipost.mjs",
+      "class": "release-gate",
+      "usage": "Evidence-producing command used by a documented release gate.",
+      "entryCommand": "node scripts/e2e/verify-real-multipost.mjs",
+      "owner": "release"
+    },
+    {
+      "path": "scripts/e2e/verify-tags-all.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/e2e/verify-tags-all.mjs"
+    },
+    {
+      "path": "scripts/e2e/verify-v0492-dryrun.mjs",
+      "class": "obsolete-candidate",
+      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
+    },
+    {
+      "path": "scripts/e2e/verify-v0492-features.mjs",
+      "class": "obsolete-candidate",
+      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
+    },
+    {
+      "path": "scripts/e2e/verify-v0492.mjs",
+      "class": "obsolete-candidate",
+      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
+    },
+    {
+      "path": "scripts/e2e/verify-v0494-thread.mjs",
+      "class": "obsolete-candidate",
+      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
+    },
+    {
+      "path": "scripts/e2e/verify-v0495-bsky-resize.mjs",
+      "class": "obsolete-candidate",
+      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
+    },
+    {
+      "path": "scripts/e2e/verify-v0496-state-persist.mjs",
+      "class": "obsolete-candidate",
+      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
+    },
+    {
+      "path": "scripts/e2e/verify-v0497-progress-notif.mjs",
+      "class": "obsolete-candidate",
+      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
+    },
+    {
+      "path": "scripts/e2e/verify-v0497-x-image-thread.mjs",
+      "class": "obsolete-candidate",
+      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
+    },
+    {
+      "path": "scripts/e2e/verify-v0500-badge-stability.mjs",
+      "class": "obsolete-candidate",
+      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
+    },
+    {
+      "path": "scripts/e2e/verify-v0500-displaymode.mjs",
+      "class": "obsolete-candidate",
+      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
+    },
+    {
+      "path": "scripts/e2e/verify-v057.mjs",
+      "class": "obsolete-candidate",
+      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
+    },
+    {
+      "path": "scripts/e2e/verify-x-thread-existing-home.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/e2e/verify-x-thread-existing-home.mjs"
+    },
+    {
+      "path": "scripts/e2e/verify-yt-clear-stale.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/e2e/verify-yt-clear-stale.mjs"
+    },
+    {
+      "path": "scripts/e2e/video-conversion-smoke.mjs",
+      "class": "e2e",
+      "usage": "Invoked by npm run e2e:video-smoke, npm run e2e:video-smoke:no-build.",
+      "entryCommand": "npm run e2e:video-smoke"
+    },
+    {
+      "path": "scripts/enable-dev-mode.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/enable-dev-mode.mjs"
+    },
+    {
+      "path": "scripts/gen-attach-image.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/gen-attach-image.mjs"
+    },
+    {
+      "path": "scripts/gen-icons.mjs",
+      "class": "supported-cli",
+      "usage": "Maintained repository developer tool.",
+      "entryCommand": "node scripts/gen-icons.mjs"
+    },
+    {
+      "path": "scripts/gen-locale-stubs.mjs",
+      "class": "supported-cli",
+      "usage": "Maintained repository developer tool.",
+      "entryCommand": "node scripts/gen-locale-stubs.mjs"
+    },
+    {
+      "path": "scripts/gen-promo.mjs",
+      "class": "supported-cli",
+      "usage": "Maintained repository developer tool.",
+      "entryCommand": "node scripts/gen-promo.mjs"
+    },
+    {
+      "path": "scripts/gen-store-composite.mjs",
+      "class": "supported-cli",
+      "usage": "Maintained repository developer tool.",
+      "entryCommand": "node scripts/gen-store-composite.mjs"
+    },
+    {
+      "path": "scripts/gen-store-screenshots.mjs",
+      "class": "supported-cli",
+      "usage": "Maintained repository developer tool.",
+      "entryCommand": "node scripts/gen-store-screenshots.mjs"
+    },
+    {
+      "path": "scripts/getid.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/getid.mjs"
+    },
+    {
+      "path": "scripts/identify-test-chrome.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/identify-test-chrome.mjs"
+    },
+    {
+      "path": "scripts/inspect-attach-buttons.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/inspect-attach-buttons.mjs"
+    },
+    {
+      "path": "scripts/inspect-attach-flow.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/inspect-attach-flow.mjs"
+    },
+    {
+      "path": "scripts/inspect-attach-uis.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/inspect-attach-uis.mjs"
+    },
+    {
+      "path": "scripts/inspect-bsky-compose.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/inspect-bsky-compose.mjs"
+    },
+    {
+      "path": "scripts/inspect-mastodon-compose.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/inspect-mastodon-compose.mjs"
+    },
+    {
+      "path": "scripts/inspect-misskey-tumblr.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/inspect-misskey-tumblr.mjs"
+    },
+    {
+      "path": "scripts/inspect-pixiv-after-post.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/inspect-pixiv-after-post.mjs"
+    },
+    {
+      "path": "scripts/inspect-popup.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/inspect-popup.mjs"
+    },
+    {
+      "path": "scripts/inspect-tumblr-drop.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/inspect-tumblr-drop.mjs"
+    },
+    {
+      "path": "scripts/inspect-tumblr-drop2.mjs",
+      "class": "obsolete-candidate",
+      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
+    },
+    {
+      "path": "scripts/inspect-tumblr-editor.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/inspect-tumblr-editor.mjs"
+    },
+    {
+      "path": "scripts/list-all-extensions.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/list-all-extensions.mjs"
+    },
+    {
+      "path": "scripts/load-via-cdp.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/load-via-cdp.mjs"
+    },
+    {
+      "path": "scripts/load-via-developer-private.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/load-via-developer-private.mjs"
+    },
+    {
+      "path": "scripts/locale-config.mjs",
+      "class": "supported-cli",
+      "usage": "Shared module imported by maintained repository scripts."
+    },
+    {
+      "path": "scripts/login-via-google.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/login-via-google.mjs"
+    },
+    {
+      "path": "scripts/make-bigger-png.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/make-bigger-png.mjs"
+    },
+    {
+      "path": "scripts/mark-extensions-tab.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/mark-extensions-tab.mjs"
+    },
+    {
+      "path": "scripts/navigate-pixiv-fresh.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/navigate-pixiv-fresh.mjs"
+    },
+    {
+      "path": "scripts/open-cws-dashboard.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/open-cws-dashboard.mjs"
+    },
+    {
+      "path": "scripts/p2.mjs",
+      "class": "obsolete-candidate",
+      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
+    },
+    {
+      "path": "scripts/p3.mjs",
+      "class": "obsolete-candidate",
+      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
+    },
+    {
+      "path": "scripts/patch-ffmpeg-package.mjs",
+      "class": "supported-cli",
+      "usage": "Invoked by npm run build, npm run postinstall.",
+      "entryCommand": "npm run build"
+    },
+    {
+      "path": "scripts/patch-ffmpeg-worker.mjs",
+      "class": "supported-cli",
+      "usage": "Invoked by npm run build.",
+      "entryCommand": "npm run build"
+    },
+    {
+      "path": "scripts/probe-bsky-threads-upload.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/probe-bsky-threads-upload.mjs"
+    },
+    {
+      "path": "scripts/probe-confirm-dialogs.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/probe-confirm-dialogs.mjs"
+    },
+    {
+      "path": "scripts/probe-da-with-image.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/probe-da-with-image.mjs"
+    },
+    {
+      "path": "scripts/probe-deviantart-deviation.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/probe-deviantart-deviation.mjs"
+    },
+    {
+      "path": "scripts/probe-deviantart-upload.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/probe-deviantart-upload.mjs"
+    },
+    {
+      "path": "scripts/probe-ig-caption.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/probe-ig-caption.mjs"
+    },
+    {
+      "path": "scripts/probe-ig-deep.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/probe-ig-deep.mjs"
+    },
+    {
+      "path": "scripts/probe-ig-step.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/probe-ig-step.mjs"
+    },
+    {
+      "path": "scripts/probe-instagram-upload.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/probe-instagram-upload.mjs"
+    },
+    {
+      "path": "scripts/probe-pixiv-now.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/probe-pixiv-now.mjs"
+    },
+    {
+      "path": "scripts/probe-pixiv-required-fields.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/probe-pixiv-required-fields.mjs"
+    },
+    {
+      "path": "scripts/probe-pixiv-required.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/probe-pixiv-required.mjs"
+    },
+    {
+      "path": "scripts/probe-pixiv-upload.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/probe-pixiv-upload.mjs"
+    },
+    {
+      "path": "scripts/probe-threads-forms.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/probe-threads-forms.mjs"
+    },
+    {
+      "path": "scripts/probe-tiktok-caption.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/probe-tiktok-caption.mjs"
+    },
+    {
+      "path": "scripts/probe-tiktok-deep.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/probe-tiktok-deep.mjs"
+    },
+    {
+      "path": "scripts/probe-tiktok-state.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/probe-tiktok-state.mjs"
+    },
+    {
+      "path": "scripts/probe-tiktok.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/probe-tiktok.mjs"
+    },
+    {
+      "path": "scripts/probe-tumblr-addphoto.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/probe-tumblr-addphoto.mjs"
+    },
+    {
+      "path": "scripts/probe-tumblr-imageblock-v2.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/probe-tumblr-imageblock-v2.mjs"
+    },
+    {
+      "path": "scripts/probe-tumblr-imageblock.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/probe-tumblr-imageblock.mjs"
+    },
+    {
+      "path": "scripts/probe-upload-indicators.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/probe-upload-indicators.mjs"
+    },
+    {
+      "path": "scripts/probe-x-deeper.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/probe-x-deeper.mjs"
+    },
+    {
+      "path": "scripts/probe-x-two-forms.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/probe-x-two-forms.mjs"
+    },
+    {
+      "path": "scripts/probe-x-upload.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/probe-x-upload.mjs"
+    },
+    {
+      "path": "scripts/probe-youtube.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/probe-youtube.mjs"
+    },
+    {
+      "path": "scripts/probe-yt-audience.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/probe-yt-audience.mjs"
+    },
+    {
+      "path": "scripts/probe-yt-form.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/probe-yt-form.mjs"
+    },
+    {
+      "path": "scripts/probe-yt-studio.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/probe-yt-studio.mjs"
+    },
+    {
+      "path": "scripts/probe-yt-upload-modal.mjs",
+      "class": "probe",
+      "usage": "Exploratory one-off probe retained for human review.",
+      "entryCommand": "node scripts/probe-yt-upload-modal.mjs"
+    },
+    {
+      "path": "scripts/real-post-3sns.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/real-post-3sns.mjs"
+    },
+    {
+      "path": "scripts/real-post-bsky-misskey-threads.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/real-post-bsky-misskey-threads.mjs"
+    },
+    {
+      "path": "scripts/real-post-direct.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/real-post-direct.mjs"
+    },
+    {
+      "path": "scripts/real-post-pixiv-cdp.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/real-post-pixiv-cdp.mjs"
+    },
+    {
+      "path": "scripts/real-post-pixiv-direct.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/real-post-pixiv-direct.mjs"
+    },
+    {
+      "path": "scripts/real-post-pixiv-v2.mjs",
+      "class": "obsolete-candidate",
+      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
+    },
+    {
+      "path": "scripts/real-post-pixiv-v3.mjs",
+      "class": "obsolete-candidate",
+      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
+    },
+    {
+      "path": "scripts/real-post-pixiv.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/real-post-pixiv.mjs"
+    },
+    {
+      "path": "scripts/real-post-x-only.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/real-post-x-only.mjs"
+    },
+    {
+      "path": "scripts/real-post-x.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/real-post-x.mjs"
+    },
+    {
+      "path": "scripts/refresh-and-check.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/refresh-and-check.mjs"
+    },
+    {
+      "path": "scripts/reload-extension.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/reload-extension.mjs"
+    },
+    {
+      "path": "scripts/reload-extensions-page.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/reload-extensions-page.mjs"
+    },
+    {
+      "path": "scripts/screenshot-extensions.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/screenshot-extensions.mjs"
+    },
+    {
+      "path": "scripts/screenshot-tumblr.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/screenshot-tumblr.mjs"
+    },
+    {
+      "path": "scripts/scripts-catalog.mjs",
+      "class": "supported-cli",
+      "usage": "Validates, lists, filters, and generates the review inventory from this catalog.",
+      "entryCommand": "npm run scripts:list"
+    },
+    {
+      "path": "scripts/scroll-x-timeline.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/scroll-x-timeline.mjs"
+    },
+    {
+      "path": "scripts/snap-popup.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/snap-popup.mjs"
+    },
+    {
+      "path": "scripts/test-all-sns-image.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/test-all-sns-image.mjs"
+    },
+    {
+      "path": "scripts/test-api.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/test-api.mjs"
+    },
+    {
+      "path": "scripts/test-bg-tab-during-post.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/test-bg-tab-during-post.mjs"
+    },
+    {
+      "path": "scripts/test-bg-tabs-autopost.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/test-bg-tabs-autopost.mjs"
+    },
+    {
+      "path": "scripts/test-diagnose.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/test-diagnose.mjs"
+    },
+    {
+      "path": "scripts/test-draft-media-persist.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/test-draft-media-persist.mjs"
+    },
+    {
+      "path": "scripts/test-drag-drop.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/test-drag-drop.mjs"
+    },
+    {
+      "path": "scripts/test-error-dialog.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/test-error-dialog.mjs"
+    },
+    {
+      "path": "scripts/test-helper-direct.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/test-helper-direct.mjs"
+    },
+    {
+      "path": "scripts/test-image-inject.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/test-image-inject.mjs"
+    },
+    {
+      "path": "scripts/test-main-world.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/test-main-world.mjs"
+    },
+    {
+      "path": "scripts/test-progress-integrated.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/test-progress-integrated.mjs"
+    },
+    {
+      "path": "scripts/test-progress-spinner.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/test-progress-spinner.mjs"
+    },
+    {
+      "path": "scripts/test-regex.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/test-regex.mjs"
+    },
+    {
+      "path": "scripts/test-section-split.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/test-section-split.mjs"
+    },
+    {
+      "path": "scripts/test-tiktok-paste.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/test-tiktok-paste.mjs"
+    },
+    {
+      "path": "scripts/test-timing.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/test-timing.mjs"
+    },
+    {
+      "path": "scripts/test-tumblr-detection.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/test-tumblr-detection.mjs"
+    },
+    {
+      "path": "scripts/test-tumblr-paste.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/test-tumblr-paste.mjs"
+    },
+    {
+      "path": "scripts/test-tutti-bigger.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/test-tutti-bigger.mjs"
+    },
+    {
+      "path": "scripts/test-tutti-deviantart.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/test-tutti-deviantart.mjs"
+    },
+    {
+      "path": "scripts/test-tutti-image-clean.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/test-tutti-image-clean.mjs"
+    },
+    {
+      "path": "scripts/test-tutti-image-mastodon.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/test-tutti-image-mastodon.mjs"
+    },
+    {
+      "path": "scripts/test-tutti-instagram.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/test-tutti-instagram.mjs"
+    },
+    {
+      "path": "scripts/test-tutti-pixiv.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/test-tutti-pixiv.mjs"
+    },
+    {
+      "path": "scripts/test-tutti-tumblr-image.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/test-tutti-tumblr-image.mjs"
+    },
+    {
+      "path": "scripts/test-tutti-with-mainlogs.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/test-tutti-with-mainlogs.mjs"
+    },
+    {
+      "path": "scripts/test-tutti-x.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/test-tutti-x.mjs"
+    },
+    {
+      "path": "scripts/test-upload-wait.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/test-upload-wait.mjs"
+    },
+    {
+      "path": "scripts/test-x-existing-tab.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/test-x-existing-tab.mjs"
+    },
+    {
+      "path": "scripts/test-x-full-screenshot.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/test-x-full-screenshot.mjs"
+    },
+    {
+      "path": "scripts/test-x-inline.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/test-x-inline.mjs"
+    },
+    {
+      "path": "scripts/trace-bsky-flow.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/trace-bsky-flow.mjs"
+    },
+    {
+      "path": "scripts/trace-misskey-tumblr.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/trace-misskey-tumblr.mjs"
+    },
+    {
+      "path": "scripts/verify-3sns-posts.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/verify-3sns-posts.mjs"
+    },
+    {
+      "path": "scripts/verify-bsky-misskey-threads.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/verify-bsky-misskey-threads.mjs"
+    },
+    {
+      "path": "scripts/verify-detection.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/verify-detection.mjs"
+    },
+    {
+      "path": "scripts/verify-i18n-ui.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser check for localized extension UI.",
+      "entryCommand": "node scripts/verify-i18n-ui.mjs"
+    },
+    {
+      "path": "scripts/verify-locales.mjs",
+      "class": "supported-cli",
+      "usage": "Maintained repository developer tool.",
+      "entryCommand": "node scripts/verify-locales.mjs"
+    },
+    {
+      "path": "scripts/verify-misskey-only.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/verify-misskey-only.mjs"
+    },
+    {
+      "path": "scripts/verify-on-brave.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/verify-on-brave.mjs"
+    },
+    {
+      "path": "scripts/verify-popup-version.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/verify-popup-version.mjs"
+    },
+    {
+      "path": "scripts/verify-x-modal-vs-bg.mjs",
+      "class": "e2e",
+      "usage": "Repeatable browser or end-to-end behavior check.",
+      "entryCommand": "node scripts/verify-x-modal-vs-bg.mjs"
+    },
+    {
+      "path": "scripts/wait-and-debug-tumblr.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/wait-and-debug-tumblr.mjs"
+    },
+    {
+      "path": "scripts/watch-pixiv-live.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/watch-pixiv-live.mjs"
+    },
+    {
+      "path": "scripts/wide-search.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/wide-search.mjs"
+    },
+    {
+      "path": "scripts/yt-cancel-upload.mjs",
+      "class": "diagnostic",
+      "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
+      "entryCommand": "node scripts/yt-cancel-upload.mjs"
+    },
+    {
+      "path": "scripts/zip-extension.mjs",
+      "class": "supported-cli",
+      "usage": "Invoked by npm run zip.",
+      "entryCommand": "npm run zip"
+    }
+  ]
+}
