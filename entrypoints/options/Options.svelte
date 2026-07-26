@@ -8,10 +8,10 @@
     TERMS_URL,
   } from '../../src/storage';
   import {
-    fetchOverridesFrom,
     getFetchedAt,
     getOverrides,
   } from '../../src/utils/selector-overrides';
+  import { fetchOverridesFrom } from '../../src/utils/selector-feed-runtime';
   import {
     getApiCredentials,
     setApiCredentials,
@@ -147,6 +147,10 @@
       overrideCount = result.count ?? 0;
     } else {
       overrideStatus = `✗ ${result.error}`;
+      // Runtime contract: any failed refresh clears remote caches so bundled
+      // selectors win. Keep the visible state aligned with that fallback.
+      overrideFetchedAt = null;
+      overrideCount = 0;
     }
   }
 

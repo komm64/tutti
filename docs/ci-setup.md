@@ -18,6 +18,11 @@ npm run selectors:validate -- ..\tutti-site\selectors.json
 Published schema-v1 selector keys are persistent wire IDs. Add new keys when
 needed; never rename, repurpose, or delete an existing key.
 
+Runtime clients apply only schema v1. Fetch, JSON, schema, or known-value
+validation failures clear both remote selector and video-constraint caches so
+bundled defaults win. Additive unknown entries are ignored and recorded in
+manual diagnostics, while the publish command above rejects them.
+
 ## 1. API E2E (GitHub-hosted runner)
 
 The API path (`src/api/{bluesky,mastodon,misskey}.ts`) is independent of any

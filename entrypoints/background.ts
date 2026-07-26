@@ -15,7 +15,7 @@ import {
   pruneInteractionSnapshots,
   runPollCycle as runInteractionPollCycle,
 } from '../src/utils/interaction-notify';
-import { fetchOverridesFrom } from '../src/utils/selector-overrides';
+import { fetchOverridesFrom } from '../src/utils/selector-feed-runtime';
 import { notifyResults, clearBadge, updateProgressBadge } from '../src/background/post-status-ui';
 import { runPostScheduler } from '../src/background/post-scheduler';
 import { buildDiagnosticsReport } from '../src/background/diagnostics';
