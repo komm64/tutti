@@ -13,6 +13,9 @@ describe('runPostScheduler', () => {
     let maxBackground = 0;
     let releaseX!: () => void;
     const xStarted = deferred<void>();
+    const backgroundStarted = deferred<void>();
+    const releaseBackground = deferred<void>();
+    let backgroundStartedCount = 0;
     const xReleased = new Promise<void>((resolve) => {
       releaseX = resolve;
     });
@@ -33,8 +36,10 @@ describe('runPostScheduler', () => {
         if (platform === 'x') {
           xStarted.resolve();
           await xReleased;
-        } else {
-          await sleep(5);
+        } else if (!execution.forceForeground) {
+          backgroundStartedCount += 1;
+          if (backgroundStartedCount === 3) backgroundStarted.resolve();
+          await releaseBackground.promise;
         }
 
         if (execution.forceForeground) activeForeground -= 1;
@@ -45,9 +50,10 @@ describe('runPostScheduler', () => {
     });
 
     await xStarted.promise;
-    await waitUntil(() => started.some((event) => event === 'background:bluesky'));
+    await backgroundStarted.promise;
     expect(started).not.toContain('foreground:tumblr');
 
+    releaseBackground.resolve();
     releaseX();
     const results = await resultsPromise;
 
@@ -70,7 +76,6 @@ describe('runPostScheduler', () => {
         forceForegroundFlags.push(execution.forceForeground);
         active += 1;
         maxActive = Math.max(maxActive, active);
-        await sleep(5);
         active -= 1;
         return { type: 'POST_RESULT', platform, success: true };
       },
@@ -94,7 +99,6 @@ describe('runPostScheduler', () => {
         if (execution.forceForeground) {
           activeForeground += 1;
           maxForeground = Math.max(maxForeground, activeForeground);
-          await sleep(5);
           activeForeground -= 1;
         }
         return { type: 'POST_RESULT', platform, success: true };
@@ -115,16 +119,4 @@ function deferred<T>(): { promise: Promise<T>; resolve: (value: T | PromiseLike<
     resolve = r;
   });
   return { promise, resolve };
-}
-
-async function waitUntil(predicate: () => boolean): Promise<void> {
-  const startedAt = Date.now();
-  while (!predicate()) {
-    if (Date.now() - startedAt > 200) throw new Error('condition timed out');
-    await sleep(1);
-  }
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }

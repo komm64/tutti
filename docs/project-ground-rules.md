@@ -25,6 +25,20 @@ Report each check result to the user. Continue until the submitted version is
 published, or until the user explicitly stops the monitor. When asked for CWS
 status during monitoring, run `node scripts/cws/status.mjs` before answering.
 
+## High-Risk Test Stability
+
+Normal CI runs the deterministic test suite once. For high-risk refactors, run
+the opt-in stability gate locally without multiplying every CI job:
+
+```powershell
+npm run test:stability -- 5
+```
+
+An optional Vitest file/directory filter can follow the repeat count. Each run
+writes a JSON report under `.tmp/test-stability/`. On failure,
+`.tmp/test-stability/last-failure.json` records the failing iteration, report
+path, and full failed test names.
+
 ## Posting Change Commit Gate
 
 For any change that touches posting, media attach, platform capabilities, URL

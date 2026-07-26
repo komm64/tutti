@@ -8,19 +8,27 @@ describe('runPostWorkerPool', () => {
     const completed: PlatformId[] = [];
     let active = 0;
     let maxActive = 0;
+    const concurrencyReached = deferred<void>();
+    const releasePosts = deferred<void>();
 
-    const results = await runPostWorkerPool({
+    const resultsPromise = runPostWorkerPool({
       platforms,
       concurrency: 2,
       post: async (platform): Promise<PostResultMessage> => {
         active += 1;
         maxActive = Math.max(maxActive, active);
-        await sleep(5);
+        if (active === 2) concurrencyReached.resolve();
+        await releasePosts.promise;
         active -= 1;
         return { type: 'POST_RESULT', platform, success: true };
       },
       onResult: (result) => completed.push(result.platform),
     });
+
+    await concurrencyReached.promise;
+    expect(active).toBe(2);
+    releasePosts.resolve();
+    const results = await resultsPromise;
 
     expect(maxActive).toBeLessThanOrEqual(2);
     expect(results.map((r) => r.platform).sort()).toEqual([...platforms].sort());
@@ -41,6 +49,10 @@ describe('runPostWorkerPool', () => {
   });
 });
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function deferred<T>(): { promise: Promise<T>; resolve: (value: T | PromiseLike<T>) => void } {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((r) => {
+    resolve = r;
+  });
+  return { promise, resolve };
 }

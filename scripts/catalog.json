@@ -1392,6 +1392,13 @@
       "entryCommand": "node scripts/test-section-split.mjs"
     },
     {
+      "path": "scripts/test-stability.mjs",
+      "class": "supported-cli",
+      "usage": "Opt-in multi-run Vitest stability gate with structured failure-name artifacts.",
+      "entryCommand": "npm run test:stability",
+      "owner": "test"
+    },
+    {
       "path": "scripts/test-tiktok-paste.mjs",
       "class": "e2e",
       "usage": "Repeatable browser or end-to-end behavior check.",

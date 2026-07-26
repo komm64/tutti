@@ -12,6 +12,7 @@
     "zip": "npm run build && node scripts/zip-extension.mjs",
     "compile": "tsc --noEmit",
     "test": "vitest run",
+    "test:stability": "node scripts/test-stability.mjs",
     "scripts:check": "node scripts/scripts-catalog.mjs check",
     "scripts:list": "node scripts/scripts-catalog.mjs list",
     "scripts:inventory": "node scripts/scripts-catalog.mjs inventory --write docs/generated/scripts-inventory.md",
