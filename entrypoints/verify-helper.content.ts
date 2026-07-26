@@ -11,7 +11,7 @@
  * 別 file で 1 つにまとめる (per-SNS に分散させる手間を避ける)。
  */
 
-import type { Message } from '../src/messages';
+import { decodeMessage } from '../src/utils/message-decoder';
 
 export default defineContentScript({
   matches: [
@@ -88,7 +88,8 @@ export default defineContentScript({
     };
 
     browser.runtime.onMessage.addListener((rawMsg, _sender, sendResponse) => {
-      const msg = rawMsg as Message;
+      const msg = decodeMessage(rawMsg);
+      if (!msg) return;
       if (msg.type !== 'VERIFY_POST_DOM') return;
       const ogDescription =
         document.querySelector<HTMLMetaElement>('meta[property="og:description"]')?.content ??

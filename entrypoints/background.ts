@@ -1,7 +1,6 @@
 import { log } from '../src/utils/logger';
 import type {
   ImageAttachment,
-  Message,
   PlatformId,
   PostResultMessage,
 } from '../src/messages';
@@ -31,6 +30,7 @@ import { createPostingStateManager } from '../src/background/posting-state';
 import { createPlatformPoster } from '../src/background/platform-poster';
 import { maybeCompressVideoForBudget } from '../src/background/media-preprocess';
 import { createExtensionUpdateManager } from '../src/background/extension-update';
+import { decodeMessage } from '../src/utils/message-decoder';
 
 const logBuffer = createPersistentLogBuffer();
 const userActionNotifier = createUserActionNotifier();
@@ -159,7 +159,8 @@ export default defineBackground(() => {
   });
 
   browser.runtime.onMessage.addListener((rawMsg, sender, sendResponse) => {
-    const msg = rawMsg as Message;
+    const msg = decodeMessage(rawMsg);
+    if (!msg) return;
 
     if (msg.type === 'USER_ACTION_REQUIRED') {
       const tabId = sender.tab?.id;
