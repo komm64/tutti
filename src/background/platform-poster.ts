@@ -6,6 +6,7 @@ import type {
   PostToPlatformMessage,
 } from '../messages';
 import type { PlatformAdapter } from '../adapters/types';
+import type { ApiPostResult } from '../api/types';
 import { getLastSeenUsers, getSettings } from '../storage';
 import { splitTextForPlatform } from '../utils/platform-text';
 import { isVerifySupported } from '../utils/post-verify';
@@ -216,6 +217,28 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
         );
       } catch (err) {
         lastError = err;
+        const flow = err instanceof PostFlowError ? err.flow : undefined;
+        if (!shouldRetryPostAttempt(autoPost, flow)) {
+          const message = err instanceof Error ? err.message : String(err);
+          log.warn(
+            `${adapter.id}: post action may have started during "${attempt.label}"; ` +
+            'stopping automatic retries',
+          );
+          return {
+            type: 'POST_RESULT',
+            platform: adapter.id,
+            success: false,
+            uncertain: true,
+            userAction: 'check-post-before-retry',
+            flow: {
+              mode: 'post',
+              ...flow,
+              submitReached: true,
+              failedStep: flow?.failedStep ?? 'post-dispatch',
+            },
+            error: message,
+          };
+        }
         if (i >= attempts.length - 1) throw err;
         const next = attempts[i + 1]!;
         log.warn(
@@ -251,40 +274,22 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
     const canUseApiWithReplyUrl = adapter.id === 'mastodon' && !!replyToUrl;
     if (autoPost && (!overrideUrl || canUseApiWithReplyUrl) && !textChunks && !attempt.skipApi) {
       const apiResult = await tryApiPath(adapter.id, text, images, cw, visibility, replyToUrl);
-      if (apiResult === 'no-credentials') {
-        // Fall through to DOM path.
-      } else if (apiResult.success) {
-        if (!apiResult.postUrl) {
-          log.warn(`${adapter.id} via API: create response succeeded but no post URL was returned`);
-          return unconfirmedPostResult(adapter.id, {
-            ...baseFlow,
-            submitReached: true,
-            lastCompletedStep: 'api-create-post',
-            failedStep: 'capture-url',
-          });
+      const apiOutcome = resolveApiPostOutcome(adapter.id, apiResult, baseFlow);
+      if (apiOutcome) {
+        if (apiOutcome.success) {
+          log.info(`${adapter.id} via API ✓ ${apiOutcome.url ?? ''}`);
+        } else if (apiOutcome.uncertain) {
+          const detail = apiResult === 'no-credentials'
+            ? t('runtimeUnknownError')
+            : apiResult.error ?? t('runtimeUnknownError');
+          log.warn(`${adapter.id} via API: post result uncertain - ${detail}`);
+        } else {
+          log.warn(
+            `${adapter.id} via API failed; keeping this request on the selected API transport: ` +
+            `${apiOutcome.error ?? t('runtimeUnknownError')}`,
+          );
         }
-        log.info(`${adapter.id} via API ✓ ${apiResult.postUrl ?? ''}`);
-        return withFlow({
-          type: 'POST_RESULT',
-          platform: adapter.id,
-          success: true,
-          confirmed: true,
-          url: apiResult.postUrl,
-        }, {
-          ...baseFlow,
-          submitReached: true,
-          lastCompletedStep: 'api-create-post',
-        });
-      } else if (apiResult.uncertain) {
-        log.warn(`${adapter.id} via API: post result uncertain - ${apiResult.error ?? t('runtimeUnknownError')}`);
-        return unconfirmedPostResult(adapter.id, {
-          ...baseFlow,
-          submitReached: true,
-          lastCompletedStep: 'api-create-post',
-          failedStep: 'capture-url',
-        });
-      } else {
-        log.warn(`${adapter.id} via API failed before a confirmed post; falling back to DOM path: ${apiResult.error ?? t('runtimeUnknownError')}`);
+        return apiOutcome;
       }
     }
 
@@ -372,7 +377,15 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
             };
           }
         }
-        const recovered = await recoverFromMaybeLandedChannelClose(err, adapter.id, tab.id, text, expectedUser, dryRun, dispatchStartedAt);
+        const recovered = await recoverFromAmbiguousDispatchFailure(
+          err,
+          adapter.id,
+          tab.id,
+          text,
+          expectedUser,
+          dryRun,
+          dispatchStartedAt,
+        );
         if (recovered) return withFlow(recovered, { ...baseFlow, tabUrlBefore });
         throw err;
       }
@@ -413,7 +426,7 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
     await closeTabSafely(tabId);
   }
 
-  async function recoverFromMaybeLandedChannelClose(
+  async function recoverFromAmbiguousDispatchFailure(
     err: unknown,
     platform: PlatformId,
     tabId: number,
@@ -422,14 +435,10 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
     dryRun: boolean,
     minCapturedAt?: number,
   ): Promise<PostResultMessage | null> {
-    const msg = err instanceof Error ? err.message : String(err);
-    const maybeLanded =
-      msg.includes('asynchronous response') ||
-      msg.includes('message channel closed') ||
-      msg.includes('back/forward cache');
-    if (dryRun || !maybeLanded) return null;
+    if (dryRun || !isAmbiguousPostDispatchError(err)) return null;
 
-    log.warn(`${platform}: post 後に channel closed - ${msg.slice(0, 80)}`);
+    const msg = err instanceof Error ? err.message : String(err);
+    log.warn(`${platform}: post dispatch result is ambiguous - ${msg.slice(0, 80)}`);
     const captured = await captureUrl(platform, tabId, text, expectedUser, minCapturedAt);
     return captured.url
       ? withFlow({ type: 'POST_RESULT', platform, success: true, confirmed: true, url: captured.url }, {
@@ -497,6 +506,67 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
   }
 
   return { postToPlatform };
+}
+
+export function resolveApiPostOutcome(
+  platform: PlatformId,
+  apiResult: ApiPostResult | 'no-credentials',
+  baseFlow: Partial<PostFlowTrace> = {},
+): PostResultMessage | null {
+  if (apiResult === 'no-credentials') return null;
+  const flow = {
+    ...baseFlow,
+    attempt: 'api',
+  };
+  if (apiResult.success && apiResult.postUrl) {
+    return withFlow({
+      type: 'POST_RESULT',
+      platform,
+      success: true,
+      confirmed: true,
+      url: apiResult.postUrl,
+    }, {
+      ...flow,
+      submitReached: true,
+      lastCompletedStep: 'api-create-post',
+    });
+  }
+  if (apiResult.success || apiResult.uncertain) {
+    return unconfirmedPostResult(platform, {
+      ...flow,
+      submitReached: true,
+      lastCompletedStep: 'api-create-post',
+      failedStep: 'capture-url',
+    });
+  }
+  return withFlow({
+    type: 'POST_RESULT',
+    platform,
+    success: false,
+    error: apiResult.error ?? t('runtimeUnknownError'),
+  }, {
+    ...flow,
+    submitReached: false,
+    failedStep: 'api-post',
+  });
+}
+
+export function shouldRetryPostAttempt(
+  autoPost: boolean,
+  flow?: Pick<PostFlowTrace, 'submitReached'>,
+): boolean {
+  return !autoPost || flow?.submitReached !== true;
+}
+
+export function isAmbiguousPostDispatchError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return (
+    message.includes('asynchronous response') ||
+    message.includes('message channel closed') ||
+    message.includes('message port closed') ||
+    message.includes('back/forward cache') ||
+    message.includes('content script response timed out')
+  );
 }
 
 export function buildReplyOverrideUrl(
