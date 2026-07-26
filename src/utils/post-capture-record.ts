@@ -221,6 +221,19 @@ export function extractThreadsPostRecord(
   return { url, code, username: username ?? (fallbackUsername ? cleanThreadsUsername(fallbackUsername) : undefined), capturedAt: now, textHash };
 }
 
+export function extractXPostId(payload: unknown, depth = 0): string | undefined {
+  if (!payload || typeof payload !== 'object' || depth > 12) return undefined;
+  const object = payload as Record<string, unknown>;
+  if (typeof object.rest_id === 'string' && /^\d+$/.test(object.rest_id)) {
+    return object.rest_id;
+  }
+  for (const child of Object.values(object)) {
+    const found = extractXPostId(child, depth + 1);
+    if (found) return found;
+  }
+  return undefined;
+}
+
 export function readFreshCapturedPost(
   raw: string | null,
   expectedText: string,

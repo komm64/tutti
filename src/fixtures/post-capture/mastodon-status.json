@@ -1,0 +1,15 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://mastodon.social/api/v1/statuses"
+  },
+  "response": {
+    "id": "116731234567890123",
+    "uri": "https://mastodon.social/users/fixture/statuses/116731234567890123",
+    "url": "https://mastodon.social/@fixture/116731234567890123"
+  },
+  "expected": {
+    "url": "https://mastodon.social/users/fixture/statuses/116731234567890123",
+    "id": "116731234567890123"
+  }
+}

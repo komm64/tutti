@@ -1,0 +1,24 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://www.threads.com/api/graphql",
+    "body": "doc_id=fixture&variables=%7B%22text%22%3A%22fixture%22%7D&operation=create_post"
+  },
+  "response": {
+    "data": {
+      "create_post": {
+        "post": {
+          "code": "DZaBc_12345",
+          "user": {
+            "username": "fixture"
+          }
+        }
+      }
+    }
+  },
+  "expected": {
+    "url": "https://www.threads.com/@fixture/post/DZaBc_12345",
+    "code": "DZaBc_12345",
+    "username": "fixture"
+  }
+}

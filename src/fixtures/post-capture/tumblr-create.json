@@ -1,0 +1,22 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://www.tumblr.com/api/v2/blog/fixture.tumblr.com/posts"
+  },
+  "response": {
+    "meta": {
+      "status": 201
+    },
+    "response": {
+      "id_string": "789012345678",
+      "blog": {
+        "name": "fixture"
+      }
+    }
+  },
+  "expected": {
+    "url": "https://www.tumblr.com/fixture/789012345678",
+    "id": "789012345678",
+    "blogName": "fixture"
+  }
+}

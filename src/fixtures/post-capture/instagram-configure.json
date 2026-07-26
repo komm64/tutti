@@ -1,0 +1,18 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://www.instagram.com/api/v1/media/configure/",
+    "body": "upload_id=fixture-upload&caption=fixture%20caption"
+  },
+  "response": {
+    "media": {
+      "code": "DAbC_def12",
+      "product_type": "feed"
+    },
+    "status": "ok"
+  },
+  "expected": {
+    "url": "https://www.instagram.com/p/DAbC_def12/",
+    "code": "DAbC_def12"
+  }
+}
