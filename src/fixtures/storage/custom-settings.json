@@ -1,0 +1,7 @@
+{
+  "settings": {
+    "autoPost": true,
+    "selectorOverrideUrl": "https://selectors.example/custom.json",
+    "uiLanguage": "ja"
+  }
+}
