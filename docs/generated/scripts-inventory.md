@@ -125,8 +125,8 @@ Cataloged tracked/unignored `.mjs` files: **269**
 | `scripts/locale-config.mjs` | Shared module imported by maintained repository scripts. | — | scripts/build-chrome-locales.mjs:7<br>scripts/build-readme.mjs:9<br>scripts/verify-i18n-ui.mjs:11<br>scripts/verify-locales.mjs:12 | — | 2026-06-05 @ b7a23c7 |
 | `scripts/patch-ffmpeg-package.mjs` | Invoked by npm run build, npm run postinstall.<br>Entry: npm run build | package.json:10<br>package.json:32 | — | — | 2026-06-01 @ 813de36 |
 | `scripts/patch-ffmpeg-worker.mjs` | Invoked by npm run build.<br>Entry: npm run build | package.json:10 | — | — | 2026-06-01 @ 813de36 |
-| `scripts/scripts-catalog.mjs` | Validates, lists, filters, and generates the review inventory from this catalog.<br>Entry: npm run scripts:list | package.json:15<br>package.json:16<br>package.json:17 | — | 97: const allowedKeys = new Set(['path', 'class', 'usage', 'entryCommand', 'owner']);<br>133: if (typeof entry.usage !== 'string' \|\| !entry.usage.trim()) {<br>134: errors.push('${label}: usage must be a non-empty string'); | 2026-07-27 @ 15ea9e0 |
-| `scripts/verify-locales.mjs` | Maintained repository developer tool.<br>Entry: node scripts/verify-locales.mjs | — | — | 6: // - Placeholder $NAME$ usage matches en<br>7: // Run: node scripts/verify-locales.mjs | 2026-06-05 @ b7a23c7 |
+| `scripts/scripts-catalog.mjs` | Validates, lists, filters, and generates the review inventory from this catalog.<br>Entry: npm run scripts:list | package.json:15<br>package.json:16<br>package.json:17 | — | 298: const pattern = /\bUsage\s*:\|使い方\|(?:^\|\s)Run:\|node scripts\//i;<br>435: console.log('Usage:<br>436: node scripts/scripts-catalog.mjs check | 2026-07-27 @ bb8c47d |
+| `scripts/verify-locales.mjs` | Maintained repository developer tool.<br>Entry: node scripts/verify-locales.mjs | — | — | 7: // Run: node scripts/verify-locales.mjs | 2026-06-05 @ b7a23c7 |
 | `scripts/zip-extension.mjs` | Invoked by npm run zip.<br>Entry: npm run zip | package.json:12 | — | — | 2026-06-01 @ 813de36 |
 
 ## release-gate (3)
