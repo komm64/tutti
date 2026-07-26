@@ -3,19 +3,21 @@ import { executePostFlow, maybeConfirmDialog, resolvePostButtonTimeoutMs } from 
 
 describe('maybeConfirmDialog', () => {
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
   it('returns after the short grace period when no dialog appears', async () => {
+    vi.useFakeTimers();
     vi.stubGlobal('document', {
       body: {},
       querySelector: () => null,
       querySelectorAll: () => [],
     });
     vi.stubGlobal('MutationObserver', undefined);
-    const start = Date.now();
-    await maybeConfirmDialog(['Post anyway'], 10);
-    expect(Date.now() - start).toBeLessThan(500);
+    const result = maybeConfirmDialog(['Post anyway'], 10);
+    await vi.advanceTimersByTimeAsync(150);
+    await expect(result).resolves.toBe(true);
   });
 
   it('ignores the original compose dialog and clicks a new Tumblr no-tags confirmation', async () => {
