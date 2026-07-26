@@ -295,11 +295,18 @@ function collectModuleReferences(catalogPaths) {
 
 function collectInFileUsage(catalogPaths) {
   const usage = new Map();
-  const pattern = /\bUsage\s*:|使い方|(?:^|\s)Run:|node scripts\//i;
+  const markerPattern = /\bUsage\s*:|使い方|(?:^|\s)Run:|node scripts\//i;
   for (const file of catalogPaths) {
     const lines = readFileSync(join(repoRoot, file), 'utf8').split(/\r?\n/);
     lines.forEach((line, index) => {
-      if (pattern.test(line) && (usage.get(file)?.length ?? 0) < 3) {
+      const trimmed = line.trim();
+      const markerIndex = trimmed.search(markerPattern);
+      const quoteIndex = trimmed.search(/['"`]/);
+      const isUsageEvidence = markerIndex >= 0 && (
+        /^(?:\/\/|\/\*|\*|#)/.test(trimmed)
+        || (quoteIndex >= 0 && quoteIndex < markerIndex)
+      );
+      if (isUsageEvidence && (usage.get(file)?.length ?? 0) < 3) {
         addMapValue(usage, file, `${index + 1}: ${line.trim()}`);
       }
     });
