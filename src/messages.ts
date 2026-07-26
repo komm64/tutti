@@ -67,6 +67,19 @@ export interface ImageAttachment {
 }
 
 export type PostRequestIntent = 'new' | 'retry' | 'history-repost';
+export type SubmissionGuardDecision = 'allow' | 'blocked' | 'indeterminate';
+export type SubmissionGuardReason =
+  | 'in-flight'
+  | 'recent-success'
+  | 'recent-uncertain'
+  | 'fingerprint-unavailable'
+  | 'history-unavailable';
+
+export interface SubmissionGuardTrace {
+  decision: SubmissionGuardDecision;
+  reason?: SubmissionGuardReason;
+  requestId: string;
+}
 
 /** popup → background: 全 SNS への投稿リクエスト */
 export interface PostRequestMessage {
@@ -150,6 +163,11 @@ export interface PostResultMessage {
    * 非 idempotent な投稿を重複させないため、自動 retry 対象にしない。
    */
   uncertain?: boolean;
+  /**
+   * Background duplicate-policy result. Present when a platform is stopped
+   * before any posting side effect.
+   */
+  submissionGuard?: SubmissionGuardTrace;
   /**
    * Optional recovery category for popup guidance. This is intentionally coarse:
    * the UI should tell the user what to do next without exposing brittle

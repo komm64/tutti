@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { PostResultMessage } from '../messages';
 import {
-  buildRetryDedupSkippedResults,
   failedRetryPlatforms,
   isDurablePostedResult,
   mergePostResults,
+  normalizeRetryGuardResults,
   sendPostRequest,
   shouldClearDraftAfterSubmit,
   uncertainPlatforms,
@@ -95,13 +95,36 @@ describe('popup post submit policy', () => {
     expect(uncertainPlatforms(results)).toEqual(['threads']);
   });
 
-  it('builds synthetic retry-dedup success results', () => {
-    expect(buildRetryDedupSkippedResults(['x'], 'already landed')).toEqual([{
+  it('normalizes only recent-success guard results for the existing retry UI', () => {
+    const recentSuccess: PostResultMessage = {
       type: 'POST_RESULT',
+      platform: 'x',
+      success: false,
+      error: 'already landed',
+      submissionGuard: {
+        decision: 'blocked',
+        reason: 'recent-success',
+        requestId: 'request-1',
+      },
+    };
+    const inFlight: PostResultMessage = {
+      type: 'POST_RESULT',
+      platform: 'threads',
+      success: false,
+      error: 'still posting',
+      submissionGuard: {
+        decision: 'blocked',
+        reason: 'in-flight',
+        requestId: 'request-1',
+      },
+    };
+
+    const normalized = normalizeRetryGuardResults([recentSuccess, inFlight]);
+
+    expect(normalized[0]).toMatchObject({
       platform: 'x',
       success: true,
       error: undefined,
-      url: undefined,
       verify: {
         verified: true,
         issues: [{
@@ -110,6 +133,7 @@ describe('popup post submit policy', () => {
           severity: 'warn',
         }],
       },
-    }]);
+    });
+    expect(normalized[1]).toBe(inFlight);
   });
 });

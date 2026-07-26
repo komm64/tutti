@@ -1,7 +1,6 @@
 import { log } from '../src/utils/logger';
 import type {
-  ImageAttachment,
-  PlatformId,
+  PostRequestMessage,
   PostResultMessage,
 } from '../src/messages';
 import { getSettings, setLastSeenUser } from '../src/storage';
@@ -30,6 +29,8 @@ import { createPostingStateManager } from '../src/background/posting-state';
 import { createPlatformPoster } from '../src/background/platform-poster';
 import { maybeCompressVideoForBudget } from '../src/background/media-preprocess';
 import { createExtensionUpdateManager } from '../src/background/extension-update';
+import { createSubmissionGuard, type SubmissionGuardReservation } from '../src/background/submission-guard';
+import { executeGuardedSubmission } from '../src/background/submission-execution';
 import { decodeMessageWithDiagnostics } from '../src/utils/message-decoder';
 
 const logBuffer = createPersistentLogBuffer();
@@ -37,6 +38,7 @@ const userActionNotifier = createUserActionNotifier();
 const userRefreshBroadcaster = createUserRefreshBroadcaster();
 const openedTabRegistry = createOpenedTabRegistry();
 const postingState = createPostingStateManager({ onProgressUpdate: updateProgressBadge });
+const submissionGuard = createSubmissionGuard();
 const platformPoster = createPlatformPoster({
   openedTabs: openedTabRegistry,
   appendBackgroundLog: (message) => logBuffer.appendBackground(message),
@@ -281,7 +283,7 @@ export default defineBackground(() => {
 
     if (msg.type !== 'POST_REQUEST') return;
 
-    void handlePostRequest(msg.text, msg.platforms, msg.images, msg.cw, msg.visibility, msg.trimVideoToSeconds, msg.autoPost)
+    void handlePostRequest(msg)
       .then((results) => sendResponse({ results }))
       .catch((err: unknown) => {
         const message = err instanceof Error ? err.message : String(err);
@@ -293,62 +295,106 @@ export default defineBackground(() => {
 });
 
 async function handlePostRequest(
-  text: string,
-  platforms: PlatformId[],
-  images?: ImageAttachment[],
-  cw?: string,
-  visibility?: 'public' | 'unlisted' | 'private' | 'direct',
-  trimVideoToSeconds?: number,
-  requestAutoPost?: boolean,
+  request: PostRequestMessage,
 ): Promise<PostResultMessage[]> {
-  const settings = await getSettings();
-  const autoPost = requestAutoPost ?? settings.autoPost;
-  // POST_REQUEST ごとに tab cleanup の所有権を切る。preview で開いた tab を
-  // 後続の実投稿 cleanup が巻き込む事故を防ぐ。
-  openedTabRegistry.clear();
-  // v0.4.97: 新規 post 開始 = 前回 state を完全上書き
-  postingState.start(platforms);
-  try {
-    // P16/P81: 投稿前に動画を安全な MP4/H.264/AAC へ正規化し、
-    // 必要に応じて size/trim/letterbox も同じ経路で処理する。
-    const adjustedImages = await maybeCompressVideoForBudget(platforms, images, trimVideoToSeconds, {
-      onConversionFinished: () => {
-        postingState.setCompression(null);
-      },
-    });
-    const hasVideo = adjustedImages?.some((image) => image.type.startsWith('video/')) === true;
-    const results = await runPostScheduler({
-      platforms,
-      autoPost,
-      planOptions: { hasVideo },
-      post: async (platform, execution) => normalizePostEvidence(
-        await platformPoster.postToPlatform(platform, text, adjustedImages, cw, visibility, autoPost, {
-          forceForeground: execution.forceForeground,
-        }),
-      ),
-      onResult: recordPlatformProgress,
-    });
+  let adjustedImages: PostRequestMessage['images'];
+  let postingStateStarted = false;
+  let autoPost = false;
+  return await executeGuardedSubmission<SubmissionGuardReservation, PostResultMessage[]>({
+    reserve: async () => {
+      const settings = await getSettings();
+      autoPost = request.autoPost ?? settings.autoPost;
+      return await submissionGuard.reserve({
+        requestId: request.requestId,
+        intent: request.intent,
+        text: request.text,
+        platforms: request.platforms,
+        images: request.images,
+        autoPost,
+      });
+    },
+    run: async (reservation) => {
+      const platforms = reservation.allowedPlatforms;
+      const requestedPlatforms = reservation.decisions.map(({ platform }) => platform);
 
-    if (shouldRunPostCompletionSideEffects(autoPost, results)) {
-      notifyResults(results);
-      // v0.5.5: schema v1 用の metadata 計算 → addToPostHistory に渡す
-      await recordHistoryEntry(text, results, adjustedImages);
-      // v0.5.7: 成功 SNS の compose / share タブを cleanup (Tutti が新規 open したものに限る)
-      void openedTabRegistry.cleanup(results);
-    } else {
-      clearBadge();
+      // Guard reservation が確定するまで tab / posting side effect を開始しない。
+      // POST_REQUEST ごとに cleanup 所有権を切り、前回 state を完全上書きする。
       openedTabRegistry.clear();
-    }
-    // IndexedDB binary-transfer の cleanup (元 dataRef + 圧縮結果 dataRef 両方)
-    releasePostAttachments(images, adjustedImages);
-    return results;
-  } finally {
-    // v0.4.96: postingStateInMemory は null 化せず、 done=true + finishedAt で
-    // 「完了済結果」 として保持。 popup 再 open 時に GET_BG_STATE で結果が
-    // 戻る。 次の POST_REQUEST 起動時に上書き、 もしくは popup から
-    // CLEAR_POSTING_STATE で明示クリア。
-    postingState.markDone();
-  }
+      postingState.start(requestedPlatforms);
+      postingStateStarted = true;
+      for (const rejected of reservation.rejectedResults) {
+        const guard = rejected.submissionGuard;
+        logBuffer.appendBackground(
+          `SubmissionGuard decision=${guard?.decision ?? 'indeterminate'} ` +
+          `reason=${guard?.reason ?? 'unknown'} requestId=${request.requestId} ` +
+          `platform=${rejected.platform}`,
+        );
+        recordPlatformProgress(rejected);
+      }
+
+      if (platforms.length === 0) {
+        clearBadge();
+        openedTabRegistry.clear();
+        return reservation.rejectedResults;
+      }
+
+      // P16/P81: 投稿前に動画を安全な MP4/H.264/AAC へ正規化し、
+      // 必要に応じて size/trim/letterbox も同じ経路で処理する。
+      adjustedImages = await maybeCompressVideoForBudget(
+        platforms,
+        request.images,
+        request.trimVideoToSeconds,
+        {
+          onConversionFinished: () => {
+            postingState.setCompression(null);
+          },
+        },
+      );
+      const hasVideo = adjustedImages?.some((image) => image.type.startsWith('video/')) === true;
+      const executionResults = await runPostScheduler({
+        platforms,
+        autoPost,
+        planOptions: { hasVideo },
+        post: async (platform, execution) => normalizePostEvidence(
+          await platformPoster.postToPlatform(
+            platform,
+            request.text,
+            adjustedImages,
+            request.cw,
+            request.visibility,
+            autoPost,
+            { forceForeground: execution.forceForeground },
+          ),
+        ),
+        onResult: recordPlatformProgress,
+      });
+      const results = [...reservation.rejectedResults, ...executionResults];
+
+      if (shouldRunPostCompletionSideEffects(autoPost, executionResults)) {
+        notifyResults(results);
+        // v0.5.5: schema v1 用の metadata 計算 → addToPostHistory に渡す
+        await recordHistoryEntry(request.text, results, adjustedImages, {
+          bodyHash: reservation.fingerprint,
+        });
+        // v0.5.7: 成功 SNS の compose / share タブを cleanup (Tutti が新規 open したものに限る)
+        void openedTabRegistry.cleanup(results);
+      } else {
+        clearBadge();
+        openedTabRegistry.clear();
+      }
+      return results;
+    },
+    cleanup: async () => {
+      // IndexedDB binary-transfer の cleanup (元 dataRef + 圧縮結果 dataRef 両方)。
+      // guard block / compression failure でも必ず解放する。
+      await releasePostAttachments(request.images, adjustedImages);
+      // v0.4.96: postingStateInMemory は null 化せず、 done=true + finishedAt で
+      // 「完了済結果」 として保持。 popup 再 open 時に GET_BG_STATE で結果が
+      // 戻る。 次の POST_REQUEST 起動時に上書き、 もしくは popup から
+      // CLEAR_POSTING_STATE で明示クリア。
+      if (postingStateStarted) postingState.markDone();
+    },
+  });
 }
 
 function recordPlatformProgress(result: PostResultMessage): void {

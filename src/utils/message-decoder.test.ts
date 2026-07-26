@@ -149,6 +149,32 @@ describe('runtime message decoder', () => {
     expect(decoded?.diagnostics).toEqual({});
   });
 
+  it('accepts structured SubmissionGuard results and rejects malformed known fields', () => {
+    expect(decodeMessage({
+      ...postResult,
+      submissionGuard: {
+        decision: 'blocked',
+        reason: 'in-flight',
+        requestId: 'request-1',
+        futureEvidence: true,
+      },
+    })).toMatchObject({
+      submissionGuard: {
+        decision: 'blocked',
+        reason: 'in-flight',
+        requestId: 'request-1',
+        futureEvidence: true,
+      },
+    });
+    expect(decodeMessage({
+      ...postResult,
+      submissionGuard: {
+        decision: 'future-decision',
+        requestId: 'request-1',
+      },
+    })).toBeUndefined();
+  });
+
   it.each([
     null,
     [],

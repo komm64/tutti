@@ -1,23 +1,23 @@
 import type { ImageAttachment, PlatformId, PostResultMessage } from '../messages';
 import { addToPostHistory } from '../storage';
 import { releaseAttachmentTransfers, resolveAttachmentToBytes } from '../utils/attachment';
-import { computeBodyHash, sha256Hex } from '../utils/body-hash';
 import { compressImageForHistory, putMedia } from '../utils/history-media';
 import { extractPostId } from '../utils/post-id';
+import { computePostFingerprint } from './post-fingerprint';
 import { postedResults, realPostResults } from './post-result-policy';
 
 export async function recordHistoryEntry(
   text: string,
   results: PostResultMessage[],
   adjustedImages?: ImageAttachment[],
+  options: { bodyHash?: string } = {},
 ): Promise<void> {
   try {
     const resultsToRecord = realPostResults(results);
     if (resultsToRecord.length === 0) return;
 
     const hasMedia = (adjustedImages?.length ?? 0) > 0;
-    const mediaDigests = await computeMediaDigests(adjustedImages);
-    const bodyHash = await computeBodyHash(text, mediaDigests);
+    const bodyHash = options.bodyHash ?? await computePostFingerprint(text, adjustedImages);
     const postIds = buildPostIds(resultsToRecord);
 
     // 媒体実体を IndexedDB に保存。
@@ -45,9 +45,10 @@ export async function recordHistoryEntry(
 export function releasePostAttachments(
   originalImages: ImageAttachment[] | undefined,
   adjustedImages: ImageAttachment[] | undefined,
-): void {
-  void releaseAttachmentTransfers(adjustedImages);
-  if (adjustedImages !== originalImages) void releaseAttachmentTransfers(originalImages);
+): Promise<void> {
+  const releases = [releaseAttachmentTransfers(adjustedImages)];
+  if (adjustedImages !== originalImages) releases.push(releaseAttachmentTransfers(originalImages));
+  return Promise.allSettled(releases).then(() => undefined);
 }
 
 export function buildPostIds(results: readonly PostResultMessage[]): Partial<Record<PlatformId, string>> {
@@ -57,18 +58,6 @@ export function buildPostIds(results: readonly PostResultMessage[]): Partial<Rec
     if (pid) postIds[r.platform] = pid;
   }
   return postIds;
-}
-
-async function computeMediaDigests(images?: ImageAttachment[]): Promise<string[]> {
-  if (!images || images.length === 0) return [];
-  const bytesList = await Promise.all(
-    images.map((img) => resolveAttachmentToBytes(img).catch(() => null)),
-  );
-  const mediaDigests: string[] = [];
-  for (const bytes of bytesList) {
-    if (bytes) mediaDigests.push(await sha256Hex(bytes));
-  }
-  return mediaDigests;
 }
 
 async function saveHistoryMedia(entryId: string, images: ImageAttachment[]): Promise<string[]> {

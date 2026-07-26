@@ -70,23 +70,25 @@ export function uncertainPlatforms(results: readonly PostResultMessage[] | null)
     .map((result) => result.platform);
 }
 
-export function buildRetryDedupSkippedResults(
-  platforms: readonly PlatformId[],
-  message: string,
+export function normalizeRetryGuardResults(
+  results: readonly PostResultMessage[],
 ): PostResultMessage[] {
-  return platforms.map((platform) => ({
-    type: 'POST_RESULT',
-    platform,
-    success: true,
-    error: undefined,
-    url: undefined,
-    verify: {
-      verified: true,
-      issues: [{
-        kind: 'retry-dedup-skipped',
-        message,
-        severity: 'warn',
-      }],
-    },
-  }));
+  return results.map((result) => {
+    if (result.submissionGuard?.reason !== 'recent-success') return result;
+    return {
+      ...result,
+      success: true,
+      uncertain: undefined,
+      userAction: undefined,
+      error: undefined,
+      verify: {
+        verified: true,
+        issues: [{
+          kind: 'retry-dedup-skipped',
+          message: result.error ?? '',
+          severity: 'warn',
+        }],
+      },
+    };
+  });
 }
