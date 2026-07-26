@@ -22,9 +22,10 @@
  */
 
 import { FFmpeg } from '@ffmpeg/ffmpeg';
-import type { ConvertVideoMessage, Message } from '../../src/messages';
+import type { ConvertVideoMessage } from '../../src/messages';
 import { getBinary, putBinary } from '../../src/utils/binary-transfer';
 import { initLogLevelFromSettings, log } from '../../src/utils/logger';
+import { decodeMessage } from '../../src/utils/message-decoder';
 
 void initLogLevelFromSettings();
 
@@ -299,7 +300,8 @@ function even(value: number): number {
 }
 
 browser.runtime.onMessage.addListener((rawMsg, _sender, sendResponse) => {
-  const msg = rawMsg as Message;
+  const msg = decodeMessage(rawMsg);
+  if (!msg) return;
   if (msg.type !== 'CONVERT_VIDEO') return;
 
   void compressVideo(msg)

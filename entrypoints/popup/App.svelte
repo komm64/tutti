@@ -1,11 +1,11 @@
 <script lang="ts">
   import type {
-    Message,
     PlatformId,
     PostResultMessage,
   } from '../../src/messages';
   import { getAdapter } from '../../src/adapters/registry';
   import { initLogLevelFromSettings } from '../../src/utils/logger';
+  import { decodeMessage } from '../../src/utils/message-decoder';
   import {
     clearDraft,
     getDraft,
@@ -488,7 +488,8 @@
   // background からの進捗ストリームを受信
   $effect(() => {
     const listener = (rawMsg: unknown) => {
-      const msg = rawMsg as Message;
+      const msg = decodeMessage(rawMsg);
+      if (!msg) return;
       const next = applyProgressMessage(msg, currentPostingViewState());
       if (next) applyPostingViewState(next);
       if (msg.type === 'EXTENSION_UPDATE_AVAILABLE') {

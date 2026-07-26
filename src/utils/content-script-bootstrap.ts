@@ -33,6 +33,7 @@ import { initLogLevelFromSettings, log } from './logger';
 import { buildDiagnosis } from './diagnose';
 import { detectAndReportUser } from './user-detect';
 import { t } from './i18n';
+import { decodeMessage } from './message-decoder';
 import {
   getPostSubmissionTrace,
   hasPostSubmissionStarted,
@@ -77,7 +78,8 @@ export function bootstrapContentScript<S extends Record<string, string>>(
   const { platform, selectors, detectUser, runPost, extraHandler } = opts;
 
   browser.runtime.onMessage.addListener((rawMsg, _sender, sendResponse) => {
-    const msg = rawMsg as Message;
+    const msg = decodeMessage(rawMsg);
+    if (!msg) return;
 
     // 当 SNS 固有の追加 handler (bluesky の GET_BLUESKY_SESSION 等)
     if (extraHandler) {
