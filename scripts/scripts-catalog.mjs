@@ -295,7 +295,7 @@ function collectModuleReferences(catalogPaths) {
 
 function collectInFileUsage(catalogPaths) {
   const usage = new Map();
-  const pattern = /\bUsage\b|使い方|(?:^|\s)Run:|node scripts\//i;
+  const pattern = /\bUsage\s*:|使い方|(?:^|\s)Run:|node scripts\//i;
   for (const file of catalogPaths) {
     const lines = readFileSync(join(repoRoot, file), 'utf8').split(/\r?\n/);
     lines.forEach((line, index) => {
