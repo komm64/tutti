@@ -33,6 +33,7 @@ describe('selector feed manual diagnostics', () => {
         getManifest: vi.fn(() => ({ version: '0.5.49' })),
       },
     });
+    vi.stubGlobal('navigator', { userAgent: 'diagnostics-test-agent' });
     mocks.getSettings.mockResolvedValue({ selectorOverrideUrl: '<redacted in fixture>' });
     mocks.getLastSeenUsers.mockResolvedValue({});
     mocks.getPostHistory.mockResolvedValue([]);
