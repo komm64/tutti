@@ -36,6 +36,7 @@ describe('validateSelectorFeed', () => {
 
     expect(result).toEqual({
       ok: false,
+      kind: 'unsupported-schema',
       errors: ['_meta.schemaVersion: unsupported schema 2; expected 1'],
     });
   });
@@ -51,6 +52,7 @@ describe('validateSelectorFeed', () => {
 
     expect(result).toEqual({
       ok: false,
+      kind: 'invalid-feed',
       errors: [
         '_meta.description: required non-empty string is missing',
         '_meta.homepage: required HTTPS URL is missing',
@@ -68,10 +70,65 @@ describe('validateSelectorFeed', () => {
 
     expect(result).toEqual({
       ok: false,
+      kind: 'invalid-feed',
       errors: [
         'unknownNetwork: unknown platform',
         'x.renamedTextarea: unknown schema-v1 selector wire key',
         '_futureMetadata: unknown reserved namespace',
+      ],
+    });
+  });
+
+  it('keeps known entries and reports additive unknown entries in runtime mode', () => {
+    const result = validateSelectorFeed({
+      _meta: validMetadata,
+      x: {
+        textarea: 'textarea',
+        futureSelector: '[data-future]',
+      },
+      futureNetwork: {
+        textarea: 'textarea',
+      },
+      _futureMetadata: {},
+      _videoConstraints: {
+        bluesky: {
+          maxBytes: 200_000_000,
+          futureLimit: 1,
+        },
+      },
+    }, { unknownEntryPolicy: 'warn' });
+
+    expect(result).toEqual({
+      ok: true,
+      feed: {
+        _meta: validMetadata,
+        x: {
+          textarea: 'textarea',
+          futureSelector: '[data-future]',
+        },
+        futureNetwork: {
+          textarea: 'textarea',
+        },
+        _futureMetadata: {},
+        _videoConstraints: {
+          bluesky: {
+            maxBytes: 200_000_000,
+            futureLimit: 1,
+          },
+        },
+      },
+      selectors: {
+        x: { textarea: 'textarea' },
+      },
+      videoConstraints: {
+        bluesky: { maxBytes: 200_000_000 },
+      },
+      selectorCount: 1,
+      warnings: [
+        'x.futureSelector: unknown schema-v1 selector wire key',
+        'futureNetwork: unknown platform',
+        '_futureMetadata: unknown reserved namespace',
+        '_videoConstraints.bluesky.futureLimit: unknown constraint',
       ],
     });
   });
@@ -87,6 +144,7 @@ describe('validateSelectorFeed', () => {
 
     expect(result).toEqual({
       ok: false,
+      kind: 'invalid-feed',
       errors: [
         '_meta: required metadata object is missing',
         'x.textarea: selector must be a non-empty string',

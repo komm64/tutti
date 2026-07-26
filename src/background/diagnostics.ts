@@ -3,6 +3,10 @@ import type { HistoryEntry, HistoryPlatformResult } from '../storage';
 import { getLastSeenUsers, getPostHistory, getSettings } from '../storage';
 import { adapters, getAdapter } from '../adapters/registry';
 import { isKnownComposeUrl } from '../utils/compose-url';
+import {
+  getSelectorFeedDiagnostics,
+  type SelectorFeedDiagnostics,
+} from '../utils/selector-feed-runtime';
 
 export interface DiagnosticsReport {
   version: string;
@@ -27,6 +31,8 @@ export interface DiagnosticsReport {
   }>;
   /** PII 除去済。detectedUser は '<present>' or null */
   platforms: DiagnosePlatformResult[];
+  /** URL や selector 値を含まない remote feed の最終適用結果 */
+  selectorFeed: SelectorFeedDiagnostics | null;
 }
 
 export interface DiagnosticsReportOptions {
@@ -71,6 +77,7 @@ export async function buildDiagnosticsReport(
     lastSeenUsers: redactLastSeenUsers(await getLastSeenUsers()),
     recentHistory: redactHistoryForDiagnostics((await getPostHistory()).slice(0, 5)),
     platforms: redactDiagnosticPlatformResults(platformResults),
+    selectorFeed: await getSelectorFeedDiagnostics(),
   };
 }
 

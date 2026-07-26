@@ -11,7 +11,6 @@
  * ```
  */
 import type { PlatformId } from '../messages';
-import { t } from './i18n';
 
 export type SelectorOverrides = Partial<Record<PlatformId, Record<string, string>>>;
 
@@ -22,25 +21,30 @@ export type SelectorOverrides = Partial<Record<PlatformId, Record<string, string
  */
 export type VideoConstraintsOverrides = Partial<Record<PlatformId, { maxBytes?: number; maxDurationS?: number }>>;
 
-const STORAGE_KEY = 'selectorOverrides';
-const STORAGE_FETCHED_AT_KEY = 'selectorOverridesFetchedAt';
-const STORAGE_VIDEO_CONSTRAINTS_KEY = 'videoConstraintsOverrides';
+export const SELECTOR_OVERRIDE_STORAGE_KEYS = {
+  selectors: 'selectorOverrides',
+  fetchedAt: 'selectorOverridesFetchedAt',
+  videoConstraints: 'videoConstraintsOverrides',
+  diagnostics: 'selectorFeedDiagnostics',
+} as const;
 
 export async function getOverrides(): Promise<SelectorOverrides> {
-  const stored = await browser.storage.local.get(STORAGE_KEY);
-  return (stored[STORAGE_KEY] as SelectorOverrides | undefined) ?? {};
+  const stored = await browser.storage.local.get(SELECTOR_OVERRIDE_STORAGE_KEYS.selectors);
+  return (
+    stored[SELECTOR_OVERRIDE_STORAGE_KEYS.selectors] as SelectorOverrides | undefined
+  ) ?? {};
 }
 
 export async function setOverrides(overrides: SelectorOverrides): Promise<void> {
   await browser.storage.local.set({
-    [STORAGE_KEY]: overrides,
-    [STORAGE_FETCHED_AT_KEY]: Date.now(),
+    [SELECTOR_OVERRIDE_STORAGE_KEYS.selectors]: overrides,
+    [SELECTOR_OVERRIDE_STORAGE_KEYS.fetchedAt]: Date.now(),
   });
 }
 
 export async function getFetchedAt(): Promise<number | null> {
-  const stored = await browser.storage.local.get(STORAGE_FETCHED_AT_KEY);
-  const v = stored[STORAGE_FETCHED_AT_KEY];
+  const stored = await browser.storage.local.get(SELECTOR_OVERRIDE_STORAGE_KEYS.fetchedAt);
+  const v = stored[SELECTOR_OVERRIDE_STORAGE_KEYS.fetchedAt];
   return typeof v === 'number' ? v : null;
 }
 
@@ -63,62 +67,10 @@ export async function resolveSelectors<T extends Record<string, string>>(
   return merged;
 }
 
-/**
- * リモート URL から override JSON を取得して保存。
- * URL が無効・JSON が不正な場合は false を返して overrides を変更しない(安全側)。
- */
-export async function fetchOverridesFrom(url: string): Promise<{ ok: boolean; error?: string; count?: number }> {
-  if (!url || !/^https:\/\//.test(url)) {
-    return { ok: false, error: t('runtimeSelectorUrlHttpsRequired') };
-  }
-  try {
-    const res = await fetch(url, { cache: 'no-store' });
-    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
-    const data = (await res.json()) as unknown;
-    if (typeof data !== 'object' || data === null || Array.isArray(data)) {
-      return { ok: false, error: t('runtimeSelectorJsonObjectRequired') };
-    }
-    // 簡易バリデーション: 各 platform のオブジェクトの値はすべて string。
-    // `_` プレフィックスの key (`_meta`, `_videoConstraints`) は selector ではなく
-    // メタ情報として扱い、selector parser から除外する
-    const valid: SelectorOverrides = {};
-    let count = 0;
-    for (const [platform, val] of Object.entries(data as Record<string, unknown>)) {
-      if (platform.startsWith('_')) continue;
-      if (!val || typeof val !== 'object' || Array.isArray(val)) continue;
-      const inner: Record<string, string> = {};
-      for (const [k, v] of Object.entries(val as Record<string, unknown>)) {
-        if (typeof v === 'string' && v.length > 0) {
-          inner[k] = v;
-          count++;
-        }
-      }
-      if (Object.keys(inner).length > 0) valid[platform as PlatformId] = inner;
-    }
-    await setOverrides(valid);
-
-    // P17: 動画 constraint override の取り込み
-    const vcRaw = (data as Record<string, unknown>)['_videoConstraints'];
-    const vc: VideoConstraintsOverrides = {};
-    if (vcRaw && typeof vcRaw === 'object' && !Array.isArray(vcRaw)) {
-      for (const [platform, val] of Object.entries(vcRaw as Record<string, unknown>)) {
-        if (!val || typeof val !== 'object' || Array.isArray(val)) continue;
-        const c: { maxBytes?: number; maxDurationS?: number } = {};
-        const v = val as Record<string, unknown>;
-        if (typeof v['maxBytes'] === 'number' && v['maxBytes']! > 0) c.maxBytes = v['maxBytes'] as number;
-        if (typeof v['maxDurationS'] === 'number' && v['maxDurationS']! > 0) c.maxDurationS = v['maxDurationS'] as number;
-        if (Object.keys(c).length > 0) vc[platform as PlatformId] = c;
-      }
-    }
-    await browser.storage.local.set({ [STORAGE_VIDEO_CONSTRAINTS_KEY]: vc });
-
-    return { ok: true, count };
-  } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : String(e) };
-  }
-}
-
 export async function getVideoConstraintsOverrides(): Promise<VideoConstraintsOverrides> {
-  const stored = await browser.storage.local.get(STORAGE_VIDEO_CONSTRAINTS_KEY);
-  return (stored[STORAGE_VIDEO_CONSTRAINTS_KEY] as VideoConstraintsOverrides | undefined) ?? {};
+  const stored = await browser.storage.local.get(
+    SELECTOR_OVERRIDE_STORAGE_KEYS.videoConstraints,
+  );
+  const overrides = stored[SELECTOR_OVERRIDE_STORAGE_KEYS.videoConstraints] as VideoConstraintsOverrides | undefined;
+  return overrides ?? {};
 }

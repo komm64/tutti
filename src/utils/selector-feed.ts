@@ -17,14 +17,32 @@ export interface SelectorFeedV1 {
   [platform: string]: unknown;
 }
 
+export interface SelectorFeedValidationOptions {
+  /**
+   * Publish validation rejects unknown entries. Runtime parsing keeps schema-v1
+   * additive by ignoring them while surfacing a diagnostic warning.
+   */
+  unknownEntryPolicy?: 'error' | 'warn';
+}
+
+export type SelectorFeedSelectorOverrides = Record<string, Record<string, string>>;
+export type SelectorFeedVideoConstraints = Record<string, {
+  maxBytes?: number;
+  maxDurationS?: number;
+}>;
+
 export type SelectorFeedValidationResult =
   | {
     ok: true;
     feed: SelectorFeedV1;
+    selectors: SelectorFeedSelectorOverrides;
+    videoConstraints: SelectorFeedVideoConstraints;
     selectorCount: number;
+    warnings: string[];
   }
   | {
     ok: false;
+    kind: 'unsupported-schema' | 'invalid-feed';
     errors: string[];
   };
 
@@ -34,29 +52,40 @@ const selectorKeysByPlatform = new Map(
 );
 const videoConstraintKeys = new Set(['maxBytes', 'maxDurationS']);
 
-export function validateSelectorFeed(value: unknown): SelectorFeedValidationResult {
+export function validateSelectorFeed(
+  value: unknown,
+  options: SelectorFeedValidationOptions = {},
+): SelectorFeedValidationResult {
   const errors: string[] = [];
+  const warnings: string[] = [];
+  const unknownEntries = options.unknownEntryPolicy === 'warn' ? warnings : errors;
   if (!isRecord(value)) {
-    return { ok: false, errors: ['feed must be a JSON object'] };
+    return {
+      ok: false,
+      kind: 'invalid-feed',
+      errors: ['feed must be a JSON object'],
+    };
   }
 
-  validateMetadata(value._meta, errors);
+  const unsupportedSchema = validateMetadata(value._meta, errors);
+  const selectors: SelectorFeedSelectorOverrides = {};
+  const videoConstraints: SelectorFeedVideoConstraints = {};
   let selectorCount = 0;
 
   for (const [platform, platformValue] of Object.entries(value)) {
     if (platform === '_meta') continue;
     if (platform === '_videoConstraints') {
-      validateVideoConstraints(platformValue, errors);
+      validateVideoConstraints(platformValue, videoConstraints, errors, unknownEntries);
       continue;
     }
     if (platform.startsWith('_')) {
-      errors.push(`${platform}: unknown reserved namespace`);
+      unknownEntries.push(`${platform}: unknown reserved namespace`);
       continue;
     }
 
     const allowedKeys = selectorKeysByPlatform.get(platform);
     if (!allowedKeys) {
-      errors.push(`${platform}: unknown platform`);
+      unknownEntries.push(`${platform}: unknown platform`);
       continue;
     }
     if (!isRecord(platformValue)) {
@@ -65,32 +94,46 @@ export function validateSelectorFeed(value: unknown): SelectorFeedValidationResu
     }
     for (const [key, selector] of Object.entries(platformValue)) {
       if (!allowedKeys.has(key)) {
-        errors.push(`${platform}.${key}: unknown schema-v1 selector wire key`);
+        unknownEntries.push(`${platform}.${key}: unknown schema-v1 selector wire key`);
         continue;
       }
       if (typeof selector !== 'string' || selector.trim().length === 0) {
         errors.push(`${platform}.${key}: selector must be a non-empty string`);
         continue;
       }
+      (selectors[platform] ??= {})[key] = selector;
       selectorCount += 1;
     }
   }
 
   return errors.length > 0
-    ? { ok: false, errors }
-    : { ok: true, feed: value as SelectorFeedV1, selectorCount };
+    ? {
+      ok: false,
+      kind: unsupportedSchema ? 'unsupported-schema' : 'invalid-feed',
+      errors,
+    }
+    : {
+      ok: true,
+      feed: value as SelectorFeedV1,
+      selectors,
+      videoConstraints,
+      selectorCount,
+      warnings,
+    };
 }
 
-function validateMetadata(value: unknown, errors: string[]): void {
+function validateMetadata(value: unknown, errors: string[]): boolean {
   if (!isRecord(value)) {
     errors.push('_meta: required metadata object is missing');
-    return;
+    return false;
   }
+  let unsupportedSchema = false;
   if (value.schemaVersion !== SELECTOR_FEED_SCHEMA_VERSION) {
     errors.push(
       `_meta.schemaVersion: unsupported schema ${JSON.stringify(value.schemaVersion)}; ` +
       `expected ${SELECTOR_FEED_SCHEMA_VERSION}`,
     );
+    unsupportedSchema = Object.hasOwn(value, 'schemaVersion');
   }
   if (typeof value.description !== 'string' || value.description.trim().length === 0) {
     errors.push('_meta.description: required non-empty string is missing');
@@ -98,16 +141,22 @@ function validateMetadata(value: unknown, errors: string[]): void {
   if (!isHttpsUrl(value.homepage)) {
     errors.push('_meta.homepage: required HTTPS URL is missing');
   }
+  return unsupportedSchema;
 }
 
-function validateVideoConstraints(value: unknown, errors: string[]): void {
+function validateVideoConstraints(
+  value: unknown,
+  parsed: SelectorFeedVideoConstraints,
+  errors: string[],
+  unknownEntries: string[],
+): void {
   if (!isRecord(value)) {
     errors.push('_videoConstraints: must be an object');
     return;
   }
   for (const [platform, constraints] of Object.entries(value)) {
     if (!selectorKeysByPlatform.has(platform)) {
-      errors.push(`_videoConstraints.${platform}: unknown platform`);
+      unknownEntries.push(`_videoConstraints.${platform}: unknown platform`);
       continue;
     }
     if (!isRecord(constraints)) {
@@ -116,13 +165,17 @@ function validateVideoConstraints(value: unknown, errors: string[]): void {
     }
     for (const [key, constraint] of Object.entries(constraints)) {
       if (!videoConstraintKeys.has(key)) {
-        errors.push(`_videoConstraints.${platform}.${key}: unknown constraint`);
+        unknownEntries.push(`_videoConstraints.${platform}.${key}: unknown constraint`);
       } else if (
         typeof constraint !== 'number'
         || !Number.isFinite(constraint)
         || constraint <= 0
       ) {
         errors.push(`_videoConstraints.${platform}.${key}: must be a positive finite number`);
+      } else {
+        const platformConstraints = parsed[platform] ??= {};
+        if (key === 'maxBytes') platformConstraints.maxBytes = constraint;
+        if (key === 'maxDurationS') platformConstraints.maxDurationS = constraint;
       }
     }
   }
