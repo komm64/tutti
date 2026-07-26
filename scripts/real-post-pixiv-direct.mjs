@@ -85,6 +85,8 @@ const dispatchResult = await popupCdp.evalJs(`(async () => {
   // ImageAttachment は base64 string
   const message = {
     type: 'POST_REQUEST',
+    requestId: crypto.randomUUID(),
+    intent: 'new',
     text: ${JSON.stringify(testText)},
     platforms: ['pixiv'],
     images: [{ name: 'realpost.png', type: 'image/png', data: ${JSON.stringify(b64)} }],

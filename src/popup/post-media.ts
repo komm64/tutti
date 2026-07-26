@@ -1,4 +1,9 @@
-import type { ImageAttachment, PlatformId, PostRequestMessage } from '../messages';
+import type {
+  ImageAttachment,
+  PlatformId,
+  PostRequestIntent,
+  PostRequestMessage,
+} from '../messages';
 import { getAdapter } from '../adapters/registry';
 import { packAttachmentForTransfer } from '../utils/attachment';
 import { resizeImage } from '../utils/image-resize';
@@ -58,11 +63,15 @@ export async function buildPostRequest(input: {
   cw: string;
   visibility: Visibility;
   trimToS: number | null;
+  requestId: string;
+  intent: Extract<PostRequestIntent, 'new' | 'retry'>;
 }): Promise<PostRequestMessage> {
   const media = await preparePostMedia(input.platforms, input.images, input.video, input.imageAlts);
   const wireMedia = await Promise.all(media.map((m) => packAttachmentForTransfer(m)));
   return {
     type: 'POST_REQUEST',
+    requestId: input.requestId,
+    intent: input.intent,
     text: input.text,
     platforms: input.platforms,
     images: wireMedia.length > 0 ? wireMedia : undefined,

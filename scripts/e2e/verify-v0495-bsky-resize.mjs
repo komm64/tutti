@@ -92,6 +92,8 @@ console.log('\n=== Bluesky big image preview ===');
 const result = await popupPage.evaluate(async ({ base64 }) => {
   return await chrome.runtime.sendMessage({
     type: 'POST_REQUEST',
+    requestId: crypto.randomUUID(),
+    intent: 'new',
     text: 'big-image v0.4.95 verify',
     platforms: ['bluesky'],
     images: [{

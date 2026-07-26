@@ -35,7 +35,13 @@ console.log('storage cleared');
 const resp = await page.evaluate(async () => {
   return await new Promise((res) => {
     chrome.runtime.sendMessage(
-      { type: 'POST_REQUEST', text: 'TRACE_MARKER', platforms: [] },
+      {
+        type: 'POST_REQUEST',
+        requestId: crypto.randomUUID(),
+        intent: 'new',
+        text: 'TRACE_MARKER',
+        platforms: [],
+      },
       (r) => res(r ?? { err: chrome.runtime.lastError?.message }),
     );
   });

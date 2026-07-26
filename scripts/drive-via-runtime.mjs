@@ -34,7 +34,14 @@ if (swTarget) {
 
   // Trigger POST_REQUEST via service worker (background's onMessage handler)
   const postResult = await worker.evaluate(() => new Promise((resolve) => {
-    chrome.runtime.sendMessage({ type: 'POST_REQUEST', text: 'Tutti SW direct test ' + Date.now(), platforms: ['tumblr'], images: [] }, (response) => {
+    chrome.runtime.sendMessage({
+      type: 'POST_REQUEST',
+      requestId: crypto.randomUUID(),
+      intent: 'new',
+      text: 'Tutti SW direct test ' + Date.now(),
+      platforms: ['tumblr'],
+      images: [],
+    }, (response) => {
       resolve({ response, lastError: chrome.runtime.lastError?.message });
     });
   }));

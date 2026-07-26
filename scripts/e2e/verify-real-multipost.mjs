@@ -169,7 +169,14 @@ const t0 = Date.now();
 const postResp = await popup.evaluate(async ({ text, platforms, image }) => {
   return new Promise((resolve) => {
     chrome.runtime.sendMessage(
-      { type: 'POST_REQUEST', text, platforms, images: image ? [image] : [] },
+      {
+        type: 'POST_REQUEST',
+        requestId: crypto.randomUUID(),
+        intent: 'new',
+        text,
+        platforms,
+        images: image ? [image] : [],
+      },
       (resp) => resolve(resp ?? { ok: false, error: chrome.runtime.lastError?.message ?? 'no response' }),
     );
   });

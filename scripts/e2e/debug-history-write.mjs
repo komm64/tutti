@@ -72,7 +72,14 @@ console.log('=== bg cleared ===', directCall);
 const resp = await page.evaluate(async () => {
   return await new Promise((res) => {
     chrome.runtime.sendMessage(
-      { type: 'POST_REQUEST', text: 'DEBUG_TEXT_MARKER', platforms: [], images: undefined },
+      {
+        type: 'POST_REQUEST',
+        requestId: crypto.randomUUID(),
+        intent: 'new',
+        text: 'DEBUG_TEXT_MARKER',
+        platforms: [],
+        images: undefined,
+      },
       (r) => res(r ?? { err: chrome.runtime.lastError?.message }),
     );
   });

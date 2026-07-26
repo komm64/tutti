@@ -844,6 +844,7 @@
         cw,
         visibility,
         trimToS,
+        intent: isRetry ? 'retry' : 'new',
       });
       if (!response) {
         errorMessage = t('backgroundNoResponse');

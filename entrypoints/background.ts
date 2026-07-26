@@ -30,7 +30,7 @@ import { createPostingStateManager } from '../src/background/posting-state';
 import { createPlatformPoster } from '../src/background/platform-poster';
 import { maybeCompressVideoForBudget } from '../src/background/media-preprocess';
 import { createExtensionUpdateManager } from '../src/background/extension-update';
-import { decodeMessage } from '../src/utils/message-decoder';
+import { decodeMessageWithDiagnostics } from '../src/utils/message-decoder';
 
 const logBuffer = createPersistentLogBuffer();
 const userActionNotifier = createUserActionNotifier();
@@ -159,8 +159,21 @@ export default defineBackground(() => {
   });
 
   browser.runtime.onMessage.addListener((rawMsg, sender, sendResponse) => {
-    const msg = decodeMessage(rawMsg);
-    if (!msg) return;
+    const decoded = decodeMessageWithDiagnostics(rawMsg);
+    if (!decoded) return;
+    const { message: msg, diagnostics } = decoded;
+    if (msg.type === 'POST_REQUEST' &&
+        (diagnostics.requestIdDefaulted || diagnostics.intentDefaulted)) {
+      const detail = [
+        diagnostics.requestIdDefaulted ? 'requestId' : '',
+        diagnostics.intentDefaulted
+          ? `intent${diagnostics.receivedIntent ? `(${diagnostics.receivedIntent})` : ''}`
+          : '',
+      ].filter(Boolean).join(',');
+      logBuffer.appendBackground(
+        `POST_REQUEST contract defaulted ${detail}; requestId=${msg.requestId} intent=${msg.intent}`,
+      );
+    }
 
     if (msg.type === 'USER_ACTION_REQUIRED') {
       const tabId = sender.tab?.id;

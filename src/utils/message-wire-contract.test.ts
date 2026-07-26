@@ -128,6 +128,7 @@ describe('additive message wire fixtures', () => {
       cw: '',
       visibility: 'public',
       trimToS: null,
+      intent: 'new',
     }, async (message) => {
       sent.push(message);
       return postResponseFixture;
@@ -135,6 +136,8 @@ describe('additive message wire fixtures', () => {
 
     expect(sent[0]).toMatchObject({
       type: 'POST_REQUEST',
+      requestId: expect.any(String),
+      intent: 'new',
       text: 'additive contract',
       autoPost: false,
     });

@@ -142,6 +142,8 @@ const postResponse = await popup.evaluate(
     return await new Promise((resolveResponse) => {
       chrome.runtime.sendMessage({
         type: 'POST_REQUEST',
+        requestId: crypto.randomUUID(),
+        intent: 'new',
         text: postText,
         platforms: targetPlatforms,
         images: [imagePayload],

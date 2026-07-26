@@ -54,6 +54,8 @@ console.log('badge before:', JSON.stringify(await getBadge()));
 const postPromise = popupPage.evaluate(async () => {
   return await chrome.runtime.sendMessage({
     type: 'POST_REQUEST',
+    requestId: crypto.randomUUID(),
+    intent: 'new',
     text: 'badge stability verify',
     platforms: ['bluesky'],
   });

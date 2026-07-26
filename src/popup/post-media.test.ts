@@ -4,6 +4,8 @@ import { buildPostRequest } from './post-media';
 describe('buildPostRequest', () => {
   it('builds a text-only request without optional fields', async () => {
     await expect(buildPostRequest({
+      requestId: 'request-1',
+      intent: 'new',
       text: 'hello',
       platforms: ['x'],
       images: [],
@@ -15,6 +17,8 @@ describe('buildPostRequest', () => {
       trimToS: null,
     })).resolves.toEqual({
       type: 'POST_REQUEST',
+      requestId: 'request-1',
+      intent: 'new',
       text: 'hello',
       platforms: ['x'],
       images: undefined,
@@ -27,6 +31,8 @@ describe('buildPostRequest', () => {
 
   it('builds an image-only request with alt text', async () => {
     await expect(buildPostRequest({
+      requestId: 'request-2',
+      intent: 'new',
       text: '',
       platforms: ['x'],
       images: [{
@@ -52,6 +58,8 @@ describe('buildPostRequest', () => {
 
   it('builds a text and image request without leaking default options', async () => {
     await expect(buildPostRequest({
+      requestId: 'request-3',
+      intent: 'new',
       text: 'caption',
       platforms: ['threads'],
       images: [{
@@ -80,6 +88,8 @@ describe('buildPostRequest', () => {
 
   it('keeps video metadata and explicit posting options', async () => {
     await expect(buildPostRequest({
+      requestId: 'request-4',
+      intent: 'retry',
       text: '',
       platforms: ['youtube'],
       images: [],
@@ -97,6 +107,8 @@ describe('buildPostRequest', () => {
       trimToS: 10,
     })).resolves.toMatchObject({
       type: 'POST_REQUEST',
+      requestId: 'request-4',
+      intent: 'retry',
       platforms: ['youtube'],
       images: [{ name: 'clip.mp4', type: 'video/mp4', data: 'AA==', durationS: 12, bytes: 1 }],
       autoPost: true,

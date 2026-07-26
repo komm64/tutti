@@ -66,9 +66,17 @@ export interface ImageAttachment {
   alt?: string;
 }
 
+export type PostRequestIntent = 'new' | 'retry' | 'history-repost';
+
 /** popup → background: 全 SNS への投稿リクエスト */
 export interface PostRequestMessage {
   type: 'POST_REQUEST';
+  /** A unique identity for one user-triggered background submission attempt. */
+  requestId: string;
+  /** Why this request may create a post. Used by the background submission guard. */
+  intent: PostRequestIntent;
+  /** Required context for a History-originated repost. */
+  sourceHistoryEntryId?: string;
   text: string;
   platforms: PlatformId[];
   images?: ImageAttachment[];
