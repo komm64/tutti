@@ -28,6 +28,7 @@ import {
   extractMastodonPostRecord,
   extractThreadsPostRecord,
   extractTumblrPostRecord,
+  extractXPostId,
   isInstagramConfigureUrl,
   prepareInstagramConfigureBody,
 } from '../src/utils/post-capture-record';
@@ -499,17 +500,7 @@ export default defineContentScript({
       if (!/^(?:x|twitter)\.com$/.test(location.host) || window.__tuttiXPostCaptureInstalled) return;
       window.__tuttiXPostCaptureInstalled = true;
       const captureRestId = (body: unknown): void => {
-        const findRestId = (value: unknown, depth = 0): string | undefined => {
-          if (!value || typeof value !== 'object' || depth > 12) return undefined;
-          const obj = value as Record<string, unknown>;
-          if (typeof obj.rest_id === 'string' && /^\d+$/.test(obj.rest_id)) return obj.rest_id;
-          for (const child of Object.values(obj)) {
-            const found = findRestId(child, depth + 1);
-            if (found) return found;
-          }
-          return undefined;
-        };
-        const id = findRestId(body);
+        const id = extractXPostId(body);
         if (!id) return;
         const captured = { id, capturedAt: Date.now() };
         window.__tuttiXLatestPostId = captured;

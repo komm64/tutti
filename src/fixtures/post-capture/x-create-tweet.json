@@ -1,0 +1,21 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://x.com/i/api/graphql/fixture/CreateTweet"
+  },
+  "response": {
+    "data": {
+      "create_tweet": {
+        "tweet_results": {
+          "result": {
+            "__typename": "Tweet",
+            "rest_id": "1900123456789012345"
+          }
+        }
+      }
+    }
+  },
+  "expected": {
+    "id": "1900123456789012345"
+  }
+}

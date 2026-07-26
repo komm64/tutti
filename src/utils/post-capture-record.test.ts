@@ -1,10 +1,16 @@
 import { Window } from 'happy-dom';
 import { describe, expect, it } from 'vitest';
+import instagramConfigureFixture from '../fixtures/post-capture/instagram-configure.json';
+import mastodonStatusFixture from '../fixtures/post-capture/mastodon-status.json';
+import threadsCreateFixture from '../fixtures/post-capture/threads-create.json';
+import tumblrCreateFixture from '../fixtures/post-capture/tumblr-create.json';
+import xCreateTweetFixture from '../fixtures/post-capture/x-create-tweet.json';
 import {
   extractInstagramPostRecord,
   extractMastodonPostRecord,
   extractThreadsPostRecord,
   extractTumblrPostRecord,
+  extractXPostId,
   findLatestTumblrPostUrlInDocument,
   findTumblrPostUrlInDocument,
   hashCaptureText,
@@ -13,6 +19,50 @@ import {
 } from './post-capture-record';
 
 describe('post capture records', () => {
+  it.each(['fetch', 'xhr'])('extracts the Instagram %s configure response fixture', () => {
+    const record = extractInstagramPostRecord(instagramConfigureFixture.response, 'hash', 100);
+
+    expect(record).toMatchObject({
+      ...instagramConfigureFixture.expected,
+      capturedAt: 100,
+      textHash: 'hash',
+    });
+  });
+
+  it.each(['fetch', 'xhr'])('extracts the Mastodon %s status response fixture', () => {
+    const record = extractMastodonPostRecord(mastodonStatusFixture.response, 'hash', 100);
+
+    expect(record).toMatchObject({
+      ...mastodonStatusFixture.expected,
+      capturedAt: 100,
+      textHash: 'hash',
+    });
+  });
+
+  it.each(['fetch', 'xhr'])('extracts the Tumblr %s create response fixture', () => {
+    const record = extractTumblrPostRecord(tumblrCreateFixture.response, undefined, 'hash', 100);
+
+    expect(record).toMatchObject({
+      ...tumblrCreateFixture.expected,
+      capturedAt: 100,
+      textHash: 'hash',
+    });
+  });
+
+  it.each(['fetch', 'xhr'])('extracts the Threads %s create response fixture', () => {
+    const record = extractThreadsPostRecord(threadsCreateFixture.response, undefined, 'hash', 100);
+
+    expect(record).toMatchObject({
+      ...threadsCreateFixture.expected,
+      capturedAt: 100,
+      textHash: 'hash',
+    });
+  });
+
+  it.each(['fetch', 'xhr'])('extracts the X %s CreateTweet response fixture', () => {
+    expect(extractXPostId(xCreateTweetFixture.response)).toBe(xCreateTweetFixture.expected.id);
+  });
+
   it('injects a missing Instagram caption into form configure bodies', () => {
     const prepared = prepareInstagramConfigureBody(
       'upload_id=1&caption=&children_metadata=%5B%5D',
