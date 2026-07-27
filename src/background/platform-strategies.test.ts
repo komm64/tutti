@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { extractPostId } from './post-id';
+import { adapters } from '../adapters/registry';
+import {
+  backgroundPlatformStrategies,
+  extractPostId,
+} from './platform-strategies';
+
+describe('background platform strategy registry', () => {
+  it('has exactly one post-ID strategy for every adapter', () => {
+    expect(Object.keys(backgroundPlatformStrategies).sort()).toEqual(Object.keys(adapters).sort());
+    for (const strategy of Object.values(backgroundPlatformStrategies)) {
+      expect(strategy.parsePostId).toBeTypeOf('function');
+    }
+  });
+});
 
 describe('extractPostId', () => {
   it('extracts X status id', () => {
