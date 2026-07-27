@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { postViaApi as postBlueskyApi, postViaSession as postBlueskySessionApi } from '../api/bluesky';
 import { postViaApi as postMastodonApi } from '../api/mastodon';
 import { getApiCredentials } from '../utils/api-credentials';
-import { tryApiPath } from './api-posting';
+import { backgroundPlatformStrategies, tryApiPath } from './platform-strategies';
 
 vi.mock('../api/bluesky', () => ({
   postViaApi: vi.fn(async () => ({ success: true, postUrl: 'https://bsky.app/profile/alice/post/abc' })),
@@ -36,6 +36,17 @@ describe('tryApiPath', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it('derives API support from strategy membership', () => {
+    expect(Object.entries(backgroundPlatformStrategies)
+      .filter(([, strategy]) => strategy.apiPost)
+      .map(([platform]) => platform)).toEqual(['bluesky', 'mastodon', 'misskey']);
+  });
+
+  it('returns no-credentials without credential lookup when no API strategy is registered', async () => {
+    expect(await tryApiPath('x', 'hello')).toBe('no-credentials');
+    expect(getCreds).not.toHaveBeenCalled();
   });
 
   it('uses the Bluesky API path for video attachments', async () => {

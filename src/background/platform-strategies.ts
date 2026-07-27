@@ -1,8 +1,19 @@
+import type { ImageAttachment } from '../messages';
+import type { ApiPostResult } from '../api/types';
 import type { PlatformId } from '../types/platform';
+import {
+  tryBlueskyApiPost,
+  tryMastodonApiPost,
+  tryMisskeyApiPost,
+  type ApiPostingStrategy,
+  type ApiPostingVisibility,
+} from './api-posting';
 
 export interface BackgroundPlatformStrategy {
   /** 投稿 URL から platform 固有の安定 post ID を抽出する。 */
   parsePostId: (url: URL) => string | null;
+  /** credentials / borrowed session がある場合だけ使う API posting 手続き。 */
+  apiPost?: ApiPostingStrategy;
 }
 
 /**
@@ -15,6 +26,7 @@ export const backgroundPlatformStrategies: Record<PlatformId, BackgroundPlatform
   },
   bluesky: {
     parsePostId: ({ pathname }) => pathname.match(/\/post\/([a-zA-Z0-9]+)/)?.[1] ?? null,
+    apiPost: tryBlueskyApiPost,
   },
   threads: {
     parsePostId: ({ pathname }) => pathname.match(/\/post\/([A-Za-z0-9_-]+)/)?.[1] ?? null,
@@ -25,9 +37,11 @@ export const backgroundPlatformStrategies: Record<PlatformId, BackgroundPlatform
       ?? pathname.match(/\/users\/\w+\/statuses\/(\d+)/)?.[1]
       ?? null
     ),
+    apiPost: tryMastodonApiPost,
   },
   misskey: {
     parsePostId: ({ pathname }) => pathname.match(/\/notes\/([a-zA-Z0-9]+)/)?.[1] ?? null,
+    apiPost: tryMisskeyApiPost,
   },
   tumblr: {
     parsePostId: ({ pathname }) => (
@@ -77,4 +91,21 @@ export function extractPostId(platform: PlatformId, rawUrl: string | undefined):
   } catch {
     return null;
   }
+}
+
+/**
+ * 設定された API credentials / session があれば登録済み API strategy で投稿する。
+ * strategy 未登録または credentials 不在なら、post action 前の DOM path 選択へ戻す。
+ */
+export async function tryApiPath(
+  platform: PlatformId,
+  text: string,
+  images?: ImageAttachment[],
+  cw?: string,
+  visibility?: ApiPostingVisibility,
+  replyToUrl?: string,
+): Promise<ApiPostResult | 'no-credentials'> {
+  const strategy = getBackgroundPlatformStrategy(platform).apiPost;
+  if (!strategy) return 'no-credentials';
+  return await strategy({ text, images, cw, visibility, replyToUrl });
 }
