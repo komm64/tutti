@@ -125,6 +125,16 @@ describe('entrypoint architecture guard', () => {
     expect(observer.match(/\bxhrPrototype\.open\s*=\s*function observedOpen/g)).toHaveLength(1);
     expect(observer.match(/\bxhrPrototype\.send\s*=\s*function observedSend/g)).toHaveLength(1);
   });
+
+  it('keeps page-world request modes behind the exhaustive handler map', () => {
+    const entrypoint = readFileSync('entrypoints/inject-helper.content.ts', 'utf8');
+    const dispatch = readFileSync('src/page-world/request-mode-dispatch.ts', 'utf8');
+
+    expect(entrypoint).toContain('dispatchInjectRequest(req, requestHandlers)');
+    expect(entrypoint).toContain('mode: decodeInjectRequestMode(data.mode)');
+    expect(entrypoint).not.toMatch(/\b(?:req|data)\.mode\s*===/);
+    expect(dispatch).toContain('[Mode in InjectRequestMode]');
+  });
 });
 
 function categorize(path: string): EntrypointCategory {

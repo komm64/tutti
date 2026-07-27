@@ -34,6 +34,12 @@ import {
   type PostCapturePlatform,
   type PostCaptureResult,
 } from '../src/page-world/post-capture-rules';
+import {
+  decodeInjectRequestMode,
+  dispatchInjectRequest,
+  type InjectRequestHandlerMap,
+  type InjectRequestMode,
+} from '../src/page-world/request-mode-dispatch';
 
 const REQ_TAG = 'tutti-inject-req-v1';
 const RES_TAG = 'tutti-inject-res-v1';
@@ -81,7 +87,7 @@ interface InjectRequest {
    * 'tag-list' = Pixiv の tag input のような「value 入力 → Enter で確定 →
    *           input がクリア → 次の値」を繰り返す UI。tags[] を順次入れる
    */
-  mode: 'input' | 'drop' | 'text' | 'tumblr-text' | 'tag-list' | 'click' | 'x-post-url';
+  mode: InjectRequestMode;
   selector: string;
   files: InjectFileSpec[];
   /** mode === 'text' 専用: 挿入するテキスト */
@@ -1315,16 +1321,20 @@ export default defineContentScript({
       return false;
     }
 
+    const requestHandlers: InjectRequestHandlerMap<InjectRequest, InjectResponse> = {
+      input: injectIntoInput,
+      drop: injectViaDrop,
+      text: injectText,
+      'tumblr-text': injectTumblrText,
+      'tag-list': injectTagList,
+      click: clickElement,
+      'x-post-url': readLatestXPostUrl,
+    };
+
     async function handle(req: InjectRequest): Promise<InjectResponse> {
       try {
         installUploadHook();
-        if (req.mode === 'text') return await injectText(req);
-        if (req.mode === 'tumblr-text') return await injectTumblrText(req);
-        if (req.mode === 'drop') return await injectViaDrop(req);
-        if (req.mode === 'tag-list') return await injectTagList(req);
-        if (req.mode === 'click') return await clickElement(req);
-        if (req.mode === 'x-post-url') return await readLatestXPostUrl(req);
-        return await injectIntoInput(req);
+        return await dispatchInjectRequest(req, requestHandlers);
       } catch (e) {
         return {
           source: RES_TAG,
@@ -1344,17 +1354,10 @@ export default defineContentScript({
       const data = ev.data as Partial<InjectRequest> | undefined;
       if (!data || data.source !== REQ_TAG || typeof data.id !== 'string') return;
       if (typeof data.selector !== 'string' || !Array.isArray(data.files)) return;
-      const mode: InjectRequest['mode'] =
-        data.mode === 'drop' ? 'drop' :
-        data.mode === 'text' ? 'text' :
-        data.mode === 'tumblr-text' ? 'tumblr-text' :
-        data.mode === 'tag-list' ? 'tag-list' :
-        data.mode === 'click' ? 'click' :
-        data.mode === 'x-post-url' ? 'x-post-url' : 'input';
       const req: InjectRequest = {
         source: REQ_TAG,
         id: data.id,
-        mode,
+        mode: decodeInjectRequestMode(data.mode),
         selector: data.selector,
         files: data.files,
         text: typeof data.text === 'string' ? data.text : undefined,
