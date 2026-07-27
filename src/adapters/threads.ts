@@ -13,8 +13,9 @@ export const threadsAdapter: PlatformAdapter = {
   defaultSelected: true,
   // 2025 以降 threads.com に段階移行中。両ドメインを許容
   matchUrl: (url) => /^https:\/\/www\.threads\.(?:net|com)\//.test(url),
-  // 新ドメイン threads.com の空 composer を使う(threads.net は redirect 想定)。
-  getComposeUrl: () => 'https://www.threads.com/intent/post',
+  // /intent/post はログイン済み session だけ HTTP 429 になる場合がある。
+  // 認証済み home を開き、content script から native composer dialog を起動する。
+  getComposeUrl: () => 'https://www.threads.com/',
   getLoginUrl: () => 'https://www.threads.com/',
   prefillsViaUrl: false,
   videoConstraints: {

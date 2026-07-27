@@ -2,9 +2,9 @@
  * Threads E2E real-post test
  *
  * 流れ:
- *   1. https://www.threads.com/intent/post に navigate (= compose modal が開く)
- *   2. ログイン状態確認 (compose textarea が居る)
- *   3. POST_TO_PLATFORM 投げて投稿成功を待つ
+ *   1. https://www.threads.com/ に navigate
+ *   2. ログイン状態確認
+ *   3. POST_TO_PLATFORM を投げ、content script が native composer を開いて投稿
  *
  * Cleanup は未実装 (Threads UI 経由の delete は menu 多段で fragile)
  */
@@ -14,8 +14,10 @@ import { ensureLoggedIn, sendPostMessage, timestampedText } from '../_lib.mjs';
 // Chrome の match pattern は TLD 部分の `*` (例 'https://www.threads.*/*') を受け
 // 付けない。array で 2 個渡すと chrome.tabs.query が or 条件で検索してくれる。
 const URL_GLOB = ['https://www.threads.com/*', 'https://www.threads.net/*'];
-const COMPOSE_URL = 'https://www.threads.com/intent/post';
-const TEXTAREA = 'div[contenteditable="true"][role="textbox"], div[contenteditable="plaintext-only"]';
+const COMPOSE_URL = 'https://www.threads.com/';
+const HOME_TRIGGER =
+  'svg[aria-label="New thread"], svg[aria-label="新しいスレッド"],' +
+  '[role="button"][aria-label*="compose"]';
 
 export async function run({ ctx, debug }) {
   const text = timestampedText('threads');
@@ -25,10 +27,9 @@ export async function run({ ctx, debug }) {
   });
 
   await page.goto(COMPOSE_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
-  // intent/post は compose modal が立つので少し待つ
   await page.waitForTimeout(2000);
 
-  const auth = await ensureLoggedIn(page, TEXTAREA, 'threads');
+  const auth = await ensureLoggedIn(page, HOME_TRIGGER, 'threads');
   if (!auth.ok) return auth;
 
   const sendResult = await sendPostMessage(ctx, {

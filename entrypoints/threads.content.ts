@@ -50,6 +50,9 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     timeoutMs: 20_000,
     clickInMainWorld: true,
   });
+  if (!replyContinuation) {
+    await ensureThreadsComposerOpen(sel.textarea);
+  }
   const textareaSelector = replyContinuation ? replyTextareaSelector : sel.textarea;
   const dropTargetSelector = replyContinuation
     ? '[role="dialog"] [role="textbox"]'
@@ -151,6 +154,22 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     confirmed,
     url,
   };
+}
+
+async function ensureThreadsComposerOpen(textareaSelector: string): Promise<void> {
+  if (document.querySelector(textareaSelector)) return;
+
+  await clickElementInMainWorld(
+    '[role="button"], button',
+    ['New thread', '新しいスレッド', "What's new?", '新規投稿', '新しい投稿'],
+  );
+  const textarea = await waitForCondition<HTMLElement>(
+    () => document.querySelector<HTMLElement>(textareaSelector),
+    { timeoutMs: 12_000 },
+  );
+  if (!textarea) {
+    throw new Error('Threads composer dialog did not open from the authenticated home page.');
+  }
 }
 
 async function assertThreadsMediaAttached(timeoutMs: number): Promise<void> {

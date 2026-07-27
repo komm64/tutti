@@ -18,7 +18,8 @@ export function isKnownComposeUrl(platform: PlatformId, rawUrl: string): boolean
     case 'bluesky':
       return host === 'bsky.app' && path === '/intent/compose';
     case 'threads':
-      return /^www\.threads\.(com|net)$/.test(host) && path === '/intent/post';
+      return /^www\.threads\.(com|net)$/.test(host) &&
+        (path === '/' || path === '/intent/post');
     case 'mastodon':
     case 'misskey':
       return path === '/share';
