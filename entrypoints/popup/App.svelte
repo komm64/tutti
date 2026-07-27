@@ -6,7 +6,6 @@
   import { getAdapter } from '../../src/adapters/registry';
   import { initLogLevelFromSettings } from '../../src/utils/logger';
   import {
-    clearDraft,
     getLastSeenUsers,
     getSettings,
     saveSettings,
@@ -30,14 +29,7 @@
     VideoPreview,
     Visibility,
   } from '../../src/popup/types';
-  import {
-    failedRetryPlatforms,
-    mergePostResults,
-    normalizeRetryGuardResults,
-    sendPostRequest,
-    shouldClearDraftAfterSubmit,
-    uncertainPlatforms,
-  } from '../../src/popup/post-submit';
+  import { uncertainPlatforms } from '../../src/popup/post-submit';
   import {
     applyPresetSelection,
     createPresetFromSelection,
@@ -59,12 +51,12 @@
   import {
     filesFromClipboardItems,
     isFileDrag,
-    revokeImagePreviews,
-    revokeVideoPreview,
   } from '../../src/popup/media-preview';
   import {
     createComposerController,
     type ComposerReportContext,
+    type ComposerSubmissionInput,
+    type ComposerSubmissionPatch,
   } from '../../src/popup/composer-controller';
   import HeaderBar from './components/HeaderBar.svelte';
   import AutoPostControl from './components/AutoPostControl.svelte';
@@ -375,6 +367,41 @@
     });
   }
 
+  function currentSubmissionInput(): ComposerSubmissionInput {
+    return {
+      text,
+      selectedIds,
+      images,
+      video,
+      imageAlts,
+      cw,
+      visibility,
+      trimToS,
+      autoPost,
+      backgroundNoResponseMessage: t('backgroundNoResponse'),
+    };
+  }
+
+  function applySubmissionPatch(patch: ComposerSubmissionPatch): void {
+    if (patch.posting !== undefined) posting = patch.posting;
+    if (patch.pendingPlatforms) pendingPlatforms = patch.pendingPlatforms;
+    if ('lastResults' in patch) lastResults = patch.lastResults ?? null;
+    if ('errorMessage' in patch) errorMessage = patch.errorMessage ?? null;
+    if (patch.draft) {
+      text = patch.draft.text;
+      images = patch.draft.images;
+      video = patch.draft.video;
+    }
+    if (patch.lastResultDraftKey !== undefined) {
+      lastResultDraftKey = patch.lastResultDraftKey;
+    }
+  }
+
+  const submissionCallbacks = {
+    getLastResults: () => lastResults,
+    applyPatch: applySubmissionPatch,
+  };
+
   $effect(() => {
     void refreshExtensionUpdateState();
   });
@@ -672,73 +699,20 @@
    * 正規化する。
    */
   async function handleRetryFailed() {
-    if (!lastResults || posting) return;
-    const failedIds = failedRetryPlatforms(lastResults);
-    if (failedIds.length === 0) return;
-
-    // 既存の失敗 entry だけ消す。成功 entry は維持して result panel に表示し続ける
-    lastResults = lastResults.filter((r) => r.success);
-    await submitPostFor(failedIds, /* isRetry */ true);
+    await composerController.retryFailed(
+      currentSubmissionInput(),
+      posting,
+      submissionCallbacks,
+    );
   }
 
   async function submitPostFor(platforms: PlatformId[], isRetry: boolean) {
-    if (platforms.length === 0) return;
-    const requestAutoPost = autoPost;
-    const submissionDraftKey = currentDraftKey();
-    posting = true;
-    if (!isRetry) {
-      lastResults = [];
-    }
-    pendingPlatforms = [...platforms];
-    errorMessage = null;
-
-    try {
-      const response = await sendPostRequest({
-        text,
-        platforms,
-        images,
-        video,
-        imageAlts,
-        autoPost: requestAutoPost,
-        cw,
-        visibility,
-        trimToS,
-        intent: isRetry ? 'retry' : 'new',
-      });
-      if (!response) {
-        errorMessage = t('backgroundNoResponse');
-      } else if (response.error) {
-        errorMessage = response.error;
-      } else if (response.results) {
-        // retry の場合は既存の成功 entries を残してマージ。新規 (= 失敗だった
-        // platform の新結果) を上書き、別の platform は既存 entry を維持。
-        const normalizedResults = isRetry
-          ? normalizeRetryGuardResults(response.results)
-          : response.results;
-        lastResults = mergePostResults(lastResults, normalizedResults, isRetry);
-        pendingPlatforms = []; // 進捗ストリームの取りこぼし保険
-        // 全成功(retry 後を含む)で下書きをクリア。retry 後の lastResults に
-        // failure が 1 件でも残ってたら text / media は維持する (= 再々送可能)
-        // preview は SNS compose への投入成功であり実投稿ではないため、draft は残す。
-        if (shouldClearDraftAfterSubmit(requestAutoPost, lastResults)) {
-          text = '';
-          revokeImagePreviews(images);
-          images = [];
-          revokeVideoPreview(video);
-          video = null;
-          void clearDraft();
-          lastResultDraftKey = currentDraftKey();
-        } else {
-          lastResultDraftKey = submissionDraftKey;
-        }
-      }
-    } catch (err) {
-      errorMessage = err instanceof Error ? err.message : String(err);
-    } finally {
-      posting = false;
-      pendingPlatforms = [];
-      void composerController.refreshHistory(); // v0.5.9〜 常時表示なので必ず refresh
-    }
+    await composerController.submitPlatforms(
+      currentSubmissionInput(),
+      platforms,
+      isRetry,
+      submissionCallbacks,
+    );
   }
 </script>
 
