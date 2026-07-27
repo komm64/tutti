@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { assertArchitectureGuard } from '../../tests/architecture-guard';
 
 const CATEGORY_MODULES = [
   'diagnostics',
@@ -38,7 +39,10 @@ describe('message contract architecture', () => {
     const duplicates = [...owners.entries()]
       .filter(([, categories]) => categories.length !== 1)
       .map(([type, categories]) => `${type}: ${categories.join(',')}`);
-    expect(duplicates).toEqual([]);
+    assertArchitectureGuard({
+      guard: 'message-discriminant-ownership',
+      violations: duplicates,
+    });
 
     const decoder = readFileSync('src/utils/message-decoder.ts', 'utf8');
     const validatorBlock = decoder

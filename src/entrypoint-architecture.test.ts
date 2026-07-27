@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, relative, resolve, sep } from 'node:path';
+import { assertArchitectureGuard } from '../tests/architecture-guard';
 
 type EntrypointCategory = 'background' | 'content' | 'offscreen' | 'ui';
 
@@ -52,7 +53,10 @@ describe('entrypoint architecture guard', () => {
         violations.push(`${normalize(relative('.', path))}: ${category} -> ${resolved}`);
       }
     }
-    expect(violations).toEqual([]);
+    assertArchitectureGuard({
+      guard: 'entrypoint-import-boundaries',
+      violations,
+    });
   });
 
   it('keeps runtime message branching out of the background entrypoint', () => {
