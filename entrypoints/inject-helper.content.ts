@@ -40,6 +40,11 @@ import {
   type InjectRequestHandlerMap,
   type InjectRequestMode,
 } from '../src/page-world/request-mode-dispatch';
+import {
+  findElementBySelectorList,
+  handleClickCommand,
+  handleTagListCommand,
+} from '../src/page-world/element-commands';
 
 const REQ_TAG = 'tutti-inject-req-v1';
 const RES_TAG = 'tutti-inject-res-v1';
@@ -502,23 +507,13 @@ export default defineContentScript({
       return (clone.innerText ?? clone.textContent ?? '').replace(/\s+/g, ' ').trim();
     }
 
-    function findEl(
+    const findEl = (
       selector: string,
       options: { preferVisible?: boolean } = {},
-    ): { el: HTMLElement; matchedPart: string } | null {
-      let fallback: { el: HTMLElement; matchedPart: string } | null = null;
-      for (const part of selector.split(',').map((s) => s.trim()).filter(Boolean)) {
-        const elements = Array.from(document.querySelectorAll<HTMLElement>(part));
-        if (!fallback && elements[0]) fallback = { el: elements[0], matchedPart: part };
-        if (options.preferVisible) {
-          const visible = elements.find(isVisibleMediaElement);
-          if (visible) return { el: visible, matchedPart: part };
-        } else if (elements[0]) {
-          return { el: elements[0], matchedPart: part };
-        }
-      }
-      return fallback;
-    }
+    ): { el: HTMLElement; matchedPart: string } | null => findElementBySelectorList(selector, {
+      ...options,
+      isVisible: isVisibleMediaElement,
+    });
 
     function base64ToUint8Array(b64: string): Uint8Array {
       const binary = atob(b64);
@@ -1179,122 +1174,6 @@ export default defineContentScript({
       };
     }
 
-    async function injectTagList(req: InjectRequest): Promise<InjectResponse> {
-      const found = findEl(req.selector);
-      if (!found) {
-        return {
-          source: RES_TAG,
-          id: req.id,
-          ok: false,
-          error: `tag input not found: ${req.selector}`,
-        };
-      }
-      const input = found.el as HTMLInputElement | HTMLTextAreaElement;
-      // v0.4.73: textarea も許容 (Tumblr の "Tags editor" は textarea)。
-      const isTextarea = input instanceof HTMLTextAreaElement;
-      if (!(input instanceof HTMLInputElement) && !isTextarea) {
-        return {
-          source: RES_TAG,
-          id: req.id,
-          ok: false,
-          error: 'tag-list mode only supports <input> and <textarea> elements',
-        };
-      }
-      const tags = req.tags ?? [];
-      console.log(`[Tutti inject-helper] tag-list: ${tags.length} tags into "${found.matchedPart}" (${isTextarea ? 'textarea' : 'input'})`);
-      const setter = isTextarea
-        ? Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set
-        : Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-
-      // React は controlled input/textarea に対して内部で _valueTracker を持つ。
-      function setReactValue(el: HTMLInputElement | HTMLTextAreaElement, value: string): void {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const tracker = (el as any)._valueTracker as { setValue: (v: string) => void } | undefined;
-        if (tracker) tracker.setValue('');
-        if (setter) setter.call(el, value);
-        else el.value = value;
-      }
-      // 旧名 alias (function 内で使ってる古い名前のため)
-      const setReactInputValue = setReactValue;
-
-      let committed = 0;
-      for (const tag of tags) {
-        input.focus();
-        setReactInputValue(input, tag);
-        // input + change を両方発火。React は input イベントを listener として
-        // 登録するが、formik / react-hook-form 等は change を見ることもある
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-        await new Promise((r) => setTimeout(r, 150));
-        // Enter で commit。React 系は keydown を見るので 3 種 dispatch
-        const opts = { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true };
-        input.dispatchEvent(new KeyboardEvent('keydown', opts));
-        input.dispatchEvent(new KeyboardEvent('keypress', opts));
-        input.dispatchEvent(new KeyboardEvent('keyup', opts));
-        // Enter 後 input が空に戻れば commit 成功 (chip 化された証拠)。最大 1.5s 待つ
-        const cleared = await waitFor(() => input.value === '', 1500);
-        if (cleared) {
-          committed++;
-          console.log(`[Tutti inject-helper] tag committed: "${tag}"`);
-        } else {
-          console.warn(`[Tutti inject-helper] tag NOT committed (input not cleared): "${tag}" current="${input.value}"`);
-          // Enter が効いてない場合のフォールバック: keydown だけ再試行
-          input.dispatchEvent(new KeyboardEvent('keydown', opts));
-          await new Promise((r) => setTimeout(r, 400));
-          if (input.value === '') {
-            committed++;
-            console.log(`[Tutti inject-helper] tag committed on retry: "${tag}"`);
-          }
-        }
-      }
-      return {
-        source: RES_TAG,
-        id: req.id,
-        ok: committed > 0,
-        error: committed === 0 ? `no tags committed (tried ${tags.length})` : undefined,
-      };
-    }
-
-    async function clickElement(req: InjectRequest): Promise<InjectResponse> {
-      const texts = req.texts ?? [];
-      for (const part of req.selector.split(',').map((s) => s.trim()).filter(Boolean)) {
-        for (const el of document.querySelectorAll<HTMLElement>(part)) {
-          if (texts.length > 0 && !clickTextMatches(el, texts)) continue;
-          if (el.getAttribute('aria-disabled') === 'true' || (el as HTMLButtonElement).disabled) continue;
-          console.log(`[Tutti inject-helper] click target matched "${part}"`);
-          if (
-            /^(x|twitter)\.com$/.test(location.hostname) &&
-            (el.getAttribute('data-testid') === 'addButton' || /add post/i.test(el.getAttribute('aria-label') ?? ''))
-          ) {
-            el.focus();
-            const init = {
-              bubbles: true,
-              cancelable: true,
-              composed: true,
-              key: 'Enter',
-              code: 'Enter',
-            };
-            el.dispatchEvent(new KeyboardEvent('keydown', init));
-            el.dispatchEvent(new KeyboardEvent('keypress', init));
-            el.dispatchEvent(new KeyboardEvent('keyup', init));
-            return { source: RES_TAG, id: req.id, ok: true };
-          }
-          el.click();
-          return { source: RES_TAG, id: req.id, ok: true };
-        }
-      }
-      return { source: RES_TAG, id: req.id, ok: false, error: 'click target not found' };
-    }
-
-    function clickTextMatches(el: HTMLElement, texts: string[]): boolean {
-      const values = [
-        el.textContent,
-        el.getAttribute('aria-label'),
-        el.getAttribute('title'),
-      ].map((value) => (value ?? '').replace(/\s+/g, ' ').trim());
-      return values.some((value) => value && texts.includes(value));
-    }
-
     async function readLatestXPostUrl(req: InjectRequest): Promise<InjectResponse> {
       let captured = window.__tuttiXLatestPostId;
       try {
@@ -1326,8 +1205,8 @@ export default defineContentScript({
       drop: injectViaDrop,
       text: injectText,
       'tumblr-text': injectTumblrText,
-      'tag-list': injectTagList,
-      click: clickElement,
+      'tag-list': (request) => handleTagListCommand(request, RES_TAG),
+      click: (request) => handleClickCommand(request, RES_TAG),
       'x-post-url': readLatestXPostUrl,
     };
 
