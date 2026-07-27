@@ -10,6 +10,8 @@ Pixiv / TikTok / YouTube は画像 / 動画必須なので、E2E module は
 |---|---|---|
 | `test-image.jpg` | Pixiv image post | 1024×1024 程度の JPG、~500KB 以下。Pixiv の最小寸法に余裕で乗るサイズ |
 | `test-video.mp4` | TikTok / YouTube Shorts upload | 2〜5 秒 / 720p 程度 / mp4 (h.264) / 音声 silent でも可 |
+| `mock-mastodon-compose.html` | local browser smoke の単段 compose fixture | tracked / deterministic |
+| `mock-instagram-wizard.html` | local browser smoke の多段 wizard fixture | tracked / deterministic |
 
 ## 用意の仕方
 
@@ -31,5 +33,6 @@ ffmpeg -f lavfi -i color=c=teal:s=1024x1024:d=1 \
 
 ## .gitignore
 
-`scripts/e2e/fixtures/*` は `.gitignore` で管理外 (binary を repo に
+`scripts/e2e/fixtures/*` は原則 `.gitignore` で管理外 (binary を repo に
 含めないため)。各 dev / self-hosted runner で localに用意する。
+mock browser smoke用のHTMLと、小さいbase64 fixtureだけは再現性のためtrackする。

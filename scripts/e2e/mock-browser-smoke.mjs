@@ -2,9 +2,11 @@
  * Local, deterministic browser smoke for Tutti's most fragile posting boundary.
  *
  * This launches a fresh Chromium profile with the built MV3 extension loaded,
- * serves a mock x.com compose page via Playwright routing, then exercises:
- *   1. popup/background/content dry-run via chrome.runtime.sendMessage
- *   2. popup UI preview submission
+ * serves mock compose pages via Playwright routing, then exercises:
+ *   1. X popup/background/content preview via chrome.runtime.sendMessage
+ *   2. X popup UI preview submission
+ *   3. Mastodon executePostFlow preview
+ *   4. Instagram executeMultiStepFlow wizard preview
  *
  * It does not log in to or post to any real SNS. On failure, artifacts are
  * written under .tmp/e2e-smoke-*.
@@ -12,7 +14,7 @@
 
 import { chromium } from 'playwright';
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -22,6 +24,11 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '..', '..');
 const extensionDir = resolve(repoRoot, '.output', 'chrome-mv3');
 const artifactRoot = resolve(repoRoot, '.tmp');
+const fixtureRoot = resolve(repoRoot, 'scripts', 'e2e', 'fixtures');
+const mockMastodonHtml = await readFile(resolve(fixtureRoot, 'mock-mastodon-compose.html'), 'utf8');
+const mockInstagramHtml = await readFile(resolve(fixtureRoot, 'mock-instagram-wizard.html'), 'utf8');
+const fixtureImageData =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
 
 const selectedPlatforms = {
   x: true,
@@ -54,7 +61,7 @@ const failures = [];
 try {
   context = await launchExtensionContext(userDataDir);
   context.setDefaultTimeout(30_000);
-  await installMockXRoute(context);
+  await installMockRoutes(context);
 
   const extensionId = await detectExtensionId(context);
   console.log(`[mock-smoke] extension id=${extensionId}`);
@@ -64,6 +71,8 @@ try {
 
   await runRuntimePreviewSmoke(popupPage);
   await runPopupPreviewSmoke(context, extensionId);
+  await runMastodonSimplePreviewSmoke(context, popupPage);
+  await runInstagramWizardPreviewSmoke(context, popupPage);
 
   console.log('[mock-smoke] PASS');
 } catch (error) {
@@ -75,6 +84,10 @@ try {
   throw error;
 } finally {
   await context?.close().catch(() => {});
+  await rm(userDataDir, { recursive: true, force: true });
+  if (failures.length === 0) {
+    await rm(artifactDir, { recursive: true, force: true });
+  }
 }
 
 async function launchExtensionContext(profileDir) {
@@ -91,7 +104,7 @@ async function launchExtensionContext(profileDir) {
   });
 }
 
-async function installMockXRoute(ctx) {
+async function installMockRoutes(ctx) {
   await ctx.route('https://x.com/**', async (route) => {
     await route.fulfill({
       status: 200,
@@ -104,6 +117,27 @@ async function installMockXRoute(ctx) {
       status: 200,
       contentType: 'text/html',
       body: mockXComposeHtml(),
+    });
+  });
+  await ctx.route('https://mastodon.social/**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body: mockMastodonHtml,
+    });
+  });
+  await ctx.route('https://www.instagram.com/**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body: mockInstagramHtml,
+    });
+  });
+  await ctx.route('https://instagram.com/**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body: mockInstagramHtml,
     });
   });
 }
@@ -214,6 +248,148 @@ async function runPopupPreviewSmoke(ctx, extensionId) {
   assert(history.length === 1 && history[0]?.id === 'seed-history', `popup preview changed history: ${JSON.stringify(history)}`);
 }
 
+async function runMastodonSimplePreviewSmoke(ctx, extensionPage) {
+  console.log('[mock-smoke] Mastodon simple-flow preview smoke');
+  const text = `tutti mock mastodon simple ${Date.now()}`;
+  const page = await ensureMockMastodonComposePage(ctx, text);
+  const response = await withTimeout(
+    extensionPage.evaluate((text) => chrome.runtime.sendMessage({
+      type: 'POST_REQUEST',
+      requestId: crypto.randomUUID(),
+      intent: 'new',
+      text,
+      platforms: ['mastodon'],
+      autoPost: false,
+    }), text),
+    45_000,
+    'Mastodon simple-flow POST_REQUEST timed out',
+  );
+
+  const result = response?.results?.[0];
+  assertPreviewResult(result, 'mastodon');
+  assert(
+    result.flow?.lastCompletedStep === 'wait-submit',
+    `Mastodon simple flow did not reach submit control: ${JSON.stringify(result)}`,
+  );
+
+  const state = await page.evaluate(() => window.__tuttiMockMastodonState);
+  assert(state?.text === text, `Mastodon text was not injected: ${JSON.stringify(state)}`);
+  assert(state?.submitClicks === 0, `Mastodon preview clicked submit: ${JSON.stringify(state)}`);
+  await assertSeedHistoryUnchanged(extensionPage, 'Mastodon preview');
+}
+
+async function ensureMockMastodonComposePage(ctx, text) {
+  const url = `https://mastodon.social/share?text=${encodeURIComponent(text)}`;
+  const existing = ctx.pages().find((page) => page.url() === url);
+  const page = existing ?? await ctx.newPage();
+  if (!existing) {
+    await page.goto(url, { waitUntil: 'domcontentloaded' });
+  }
+  const title = await page.title().catch(() => '');
+  assert(
+    title === 'Mock Mastodon Compose',
+    `mock Mastodon route did not load, title="${title}", url=${page.url()}`,
+  );
+  await page.waitForSelector('textarea.autosuggest-textarea__textarea');
+  return page;
+}
+
+async function runInstagramWizardPreviewSmoke(ctx, extensionPage) {
+  console.log('[mock-smoke] Instagram wizard preview smoke');
+  const text = `tutti mock instagram wizard ${Date.now()}`;
+  const page = await ensureMockInstagramPage(ctx);
+  const response = await withTimeout(
+    extensionPage.evaluate(async ({ text, imageData }) => {
+      const tabs = await chrome.tabs.query({ url: ['https://www.instagram.com/*'] });
+      const tab = tabs.find((candidate) => candidate.title === 'Mock Instagram Wizard');
+      if (typeof tab?.id !== 'number') throw new Error('mock Instagram tab not found');
+      return await chrome.tabs.sendMessage(tab.id, {
+        type: 'POST_TO_PLATFORM',
+        platform: 'instagram',
+        text,
+        images: [{
+          name: 'test-image.png',
+          type: 'image/png',
+          data: imageData,
+        }],
+        dryRun: true,
+      });
+    }, { text, imageData: fixtureImageData }),
+    60_000,
+    'Instagram wizard POST_TO_PLATFORM timed out',
+  );
+
+  const result = response;
+  assertContentPreviewResult(result, 'instagram');
+  assert(
+    result.flow?.lastCompletedStep === 'wait-submit',
+    `Instagram wizard did not reach Share: ${JSON.stringify(result)}`,
+  );
+
+  const state = await page.evaluate(() => window.__tuttiMockInstagramState);
+  assert(state?.fileCount === 1, `Instagram image was not injected: ${JSON.stringify(state)}`);
+  assert(state?.caption === text, `Instagram caption was not injected: ${JSON.stringify(state)}`);
+  assert(
+    JSON.stringify(state?.transitions) === JSON.stringify([
+      'create',
+      'file-selected',
+      'crop-original-open',
+      'crop-original',
+      'crop-next',
+      'edit-next',
+      'caption-input',
+    ]),
+    `Instagram wizard transitions changed: ${JSON.stringify(state)}`,
+  );
+  assert(state?.shareClicks === 0, `Instagram preview clicked Share: ${JSON.stringify(state)}`);
+  const shareOutline = await page.locator('#share').evaluate((element) => element.style.outline);
+  assert(/dashed/.test(shareOutline), `Instagram Share was not highlighted: ${shareOutline}`);
+  await assertSeedHistoryUnchanged(extensionPage, 'Instagram preview');
+}
+
+async function ensureMockInstagramPage(ctx) {
+  const url = 'https://www.instagram.com/';
+  const existing = ctx.pages().find((page) => page.url() === url);
+  const page = existing ?? await ctx.newPage();
+  if (!existing) {
+    await page.goto(url, { waitUntil: 'domcontentloaded' });
+  }
+  const title = await page.title().catch(() => '');
+  assert(
+    title === 'Mock Instagram Wizard',
+    `mock Instagram route did not load, title="${title}", url=${page.url()}`,
+  );
+  await page.waitForSelector('#create');
+  return page;
+}
+
+function assertPreviewResult(result, platform) {
+  assert(result?.platform === platform, `${platform} result missing: ${JSON.stringify(result)}`);
+  assert(result.success === true, `${platform} preview did not succeed: ${JSON.stringify(result)}`);
+  assert(result.preview === true, `${platform} preview missing preview=true: ${JSON.stringify(result)}`);
+  assertPreviewFlow(result, platform);
+}
+
+function assertContentPreviewResult(result, platform) {
+  assert(result?.platform === platform, `${platform} result missing: ${JSON.stringify(result)}`);
+  assert(result.success === true, `${platform} preview did not succeed: ${JSON.stringify(result)}`);
+  assertPreviewFlow(result, platform);
+}
+
+function assertPreviewFlow(result, platform) {
+  assert(result.flow?.mode === 'preview', `${platform} preview flow mode missing: ${JSON.stringify(result)}`);
+  assert(result.flow?.submitReached === false, `${platform} preview reached submit: ${JSON.stringify(result)}`);
+  assert(!result.url, `${platform} preview carried a URL: ${JSON.stringify(result)}`);
+}
+
+async function assertSeedHistoryUnchanged(page, label) {
+  const history = await getPostHistory(page);
+  assert(
+    history.length === 1 && history[0]?.id === 'seed-history',
+    `${label} changed history: ${JSON.stringify(history)}`,
+  );
+}
+
 async function waitForSelectedPlatforms(page, expectedNames) {
   await page.waitForFunction((expected) => {
     const checkedNames = Array.from(document.querySelectorAll('label'))
@@ -272,9 +448,15 @@ async function getPostHistory(page) {
 async function dumpArtifacts(ctx, page, dir, errors) {
   await mkdir(dir, { recursive: true });
   const pages = ctx?.pages?.() ?? [];
+  const pageInfo = [];
   for (let i = 0; i < pages.length; i += 1) {
     const target = pages[i];
     if (target.isClosed()) continue;
+    pageInfo.push({
+      index: i,
+      url: target.url(),
+      title: await target.title().catch(() => ''),
+    });
     await target.screenshot({ path: join(dir, `page-${i}.png`), fullPage: true }).catch(() => {});
   }
   const state = page && !page.isClosed()
@@ -283,7 +465,7 @@ async function dumpArtifacts(ctx, page, dir, errors) {
         bgState: await getBackgroundState(page).catch((e) => ({ error: String(e) })),
       }
     : {};
-  await writeFile(join(dir, 'state.json'), JSON.stringify({ errors, state }, null, 2), 'utf8');
+  await writeFile(join(dir, 'state.json'), JSON.stringify({ errors, pages: pageInfo, state }, null, 2), 'utf8');
 }
 
 function seedHistoryEntry() {

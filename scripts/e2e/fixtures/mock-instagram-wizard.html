@@ -1,0 +1,96 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Mock Instagram Wizard</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 32px; }
+    [role="dialog"] { width: 640px; min-height: 180px; border: 1px solid #ddd; padding: 16px; border-radius: 8px; }
+    [contenteditable="true"] { min-height: 72px; border: 1px solid #aaa; padding: 8px; margin: 8px 0; white-space: pre-wrap; }
+    input[type="file"] { display: block; width: 320px; min-height: 32px; }
+    button, [role="button"] { min-width: 96px; min-height: 36px; margin-right: 8px; }
+  </style>
+</head>
+<body>
+  <a aria-label="Profile" href="/mockinstagram/">Profile</a>
+  <button id="create" aria-label="Create" type="button">
+    <svg aria-label="New post"></svg>
+    Create
+  </button>
+  <main id="wizard"></main>
+  <script>
+    window.__tuttiMockInstagramState = {
+      transitions: [],
+      fileCount: 0,
+      caption: '',
+      shareClicks: 0,
+    };
+    const state = window.__tuttiMockInstagramState;
+    const wizard = document.querySelector('#wizard');
+
+    document.querySelector('#create').addEventListener('click', () => {
+      state.transitions.push('create');
+      renderUpload();
+    });
+
+    function renderUpload() {
+      wizard.innerHTML = '<section role="dialog" aria-label="Create new post">' +
+        '<input id="media" type="file" accept="image/png,image/jpeg,video/mp4">' +
+        '</section>';
+      document.querySelector('#media').addEventListener('change', (event) => {
+        state.fileCount = event.currentTarget.files.length;
+        state.transitions.push('file-selected');
+        renderCrop();
+      });
+    }
+
+    function renderCrop() {
+      wizard.innerHTML = '<section role="dialog" aria-label="Crop">' +
+        '<div id="crop-options"></div>' +
+        '<button id="crop-selector" type="button">Select crop</button>' +
+        '<button id="crop-next" type="button">Next</button>' +
+        '</section>';
+      document.querySelector('#crop-selector').addEventListener('click', () => {
+        state.transitions.push('crop-original-open');
+        document.querySelector('#crop-options').innerHTML =
+          '<button id="crop-original" role="radio" type="button">Original</button>';
+        document.querySelector('#crop-original').addEventListener('click', () => {
+          state.transitions.push('crop-original');
+          document.querySelector('#crop-options').innerHTML = '';
+        });
+      });
+      document.querySelector('#crop-next').addEventListener('click', () => {
+        state.transitions.push('crop-next');
+        renderEdit();
+      });
+    }
+
+    function renderEdit() {
+      wizard.innerHTML = '<section role="dialog" aria-label="Edit">' +
+        '<button id="edit-next" type="button">Next</button>' +
+        '</section>';
+      document.querySelector('#edit-next').addEventListener('click', () => {
+        state.transitions.push('edit-next');
+        renderCaption();
+      });
+    }
+
+    function renderCaption() {
+      wizard.innerHTML = '<section role="dialog" aria-label="Create new post">' +
+        '<div id="caption" contenteditable="true" aria-label="Write a caption..."></div>' +
+        '<button id="share" type="button">Share</button>' +
+        '</section>';
+      const caption = document.querySelector('#caption');
+      caption.addEventListener('input', () => {
+        state.caption = caption.textContent || '';
+        if (state.transitions.at(-1) !== 'caption-input') {
+          state.transitions.push('caption-input');
+        }
+      });
+      document.querySelector('#share').addEventListener('click', () => {
+        state.shareClicks += 1;
+      });
+    }
+  </script>
+</body>
+</html>
