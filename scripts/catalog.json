@@ -573,11 +573,6 @@
       "entryCommand": "node scripts/e2e/probe-bsky-add.mjs"
     },
     {
-      "path": "scripts/e2e/probe-bsky-add2.mjs",
-      "class": "obsolete-candidate",
-      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
-    },
-    {
       "path": "scripts/e2e/probe-cdp-submit.mjs",
       "class": "probe",
       "usage": "Exploratory one-off probe retained for human review.",
@@ -747,61 +742,6 @@
       "class": "e2e",
       "usage": "Repeatable browser or end-to-end behavior check.",
       "entryCommand": "node scripts/e2e/verify-tags-all.mjs"
-    },
-    {
-      "path": "scripts/e2e/verify-v0492-dryrun.mjs",
-      "class": "obsolete-candidate",
-      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
-    },
-    {
-      "path": "scripts/e2e/verify-v0492-features.mjs",
-      "class": "obsolete-candidate",
-      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
-    },
-    {
-      "path": "scripts/e2e/verify-v0492.mjs",
-      "class": "obsolete-candidate",
-      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
-    },
-    {
-      "path": "scripts/e2e/verify-v0494-thread.mjs",
-      "class": "obsolete-candidate",
-      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
-    },
-    {
-      "path": "scripts/e2e/verify-v0495-bsky-resize.mjs",
-      "class": "obsolete-candidate",
-      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
-    },
-    {
-      "path": "scripts/e2e/verify-v0496-state-persist.mjs",
-      "class": "obsolete-candidate",
-      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
-    },
-    {
-      "path": "scripts/e2e/verify-v0497-progress-notif.mjs",
-      "class": "obsolete-candidate",
-      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
-    },
-    {
-      "path": "scripts/e2e/verify-v0497-x-image-thread.mjs",
-      "class": "obsolete-candidate",
-      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
-    },
-    {
-      "path": "scripts/e2e/verify-v0500-badge-stability.mjs",
-      "class": "obsolete-candidate",
-      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
-    },
-    {
-      "path": "scripts/e2e/verify-v0500-displaymode.mjs",
-      "class": "obsolete-candidate",
-      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
-    },
-    {
-      "path": "scripts/e2e/verify-v057.mjs",
-      "class": "obsolete-candidate",
-      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
     },
     {
       "path": "scripts/e2e/verify-x-thread-existing-home.mjs",
