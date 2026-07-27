@@ -1,13 +1,12 @@
 import type { PlatformId } from '../types/platform';
-import { waitForTabComplete } from './tab-management';
 import {
   captureRenderedProfilePostUrl,
   isRenderedProfileFallbackPlatform,
 } from './post-url-rendered-profile';
-import { retryTransientTabAction } from './tab-action-retry';
 import { captureStoredApiPostUrl } from './post-url-stored-api';
 import { captureMastodonPostViaPublicApi } from './post-url-mastodon-api';
 import { capturePostUrlInPage } from './post-url-in-page';
+import { captureYouTubeStudioPostUrlFromTab } from './post-url-youtube-studio';
 
 export interface CapturePostUrlOptions {
   platform: PlatformId;
@@ -86,46 +85,6 @@ export function buildPostUrlCaptureScriptArgs(
   ];
 }
 
-export async function captureYouTubeStudioPostUrlInPage(
-  targetText: string,
-  root: ParentNode = document,
-): Promise<{ url?: string; trace: string[] }> {
-  const trace: string[] = [];
-  if (!targetText) return { trace };
-
-  const normalize = (value: string | null | undefined): string => (
-    (value ?? '').replace(/\s+/g, ' ').trim()
-  );
-  const titleSelector = 'h1, h2, h3, [id*="title"], ytcp-thumbnail-with-title';
-
-  for (let attempt = 0; attempt < 120; attempt += 1) {
-    const titleNodes = Array.from(root.querySelectorAll<HTMLElement>(titleSelector))
-      .filter((element) => normalize(element.textContent).includes(targetText))
-      .sort((a, b) => normalize(a.textContent).length - normalize(b.textContent).length);
-
-    for (const titleNode of titleNodes) {
-      let scope: Element | null = titleNode;
-      for (let depth = 0; scope && depth < 8; depth += 1, scope = scope.parentElement) {
-        const links = Array.from(scope.querySelectorAll<HTMLAnchorElement>('a[href*="/video/"]'));
-        for (const link of links) {
-          const id = link.href.match(/\/video\/([\w-]+)(?:\/|$)/)?.[1];
-          if (id) {
-            trace.push(`matched target title in scoped video card (attempt=${attempt}, depth=${depth})`);
-            return { url: `https://www.youtube.com/watch?v=${id}`, trace };
-          }
-        }
-      }
-    }
-
-    if (attempt === 0) {
-      trace.push(`target title matches=${titleNodes.length}`);
-    }
-    await new Promise((resolve) => setTimeout(resolve, 500));
-  }
-
-  return { trace };
-}
-
 export async function capturePostUrlFromTabWithRetry(
   options: CapturePostUrlOptions,
 ): Promise<string | undefined> {
@@ -181,37 +140,9 @@ export async function capturePostUrlFromTab(options: CapturePostUrlOptions): Pro
     if (platform === 'tumblr') {
       await sleep(1000);
     }
-    if (platform === 'youtube') {
-      dbg('reload Studio dashboard before latest Short lookup');
-      await retryTransientTabAction('reload YouTube Studio before URL capture', () => (
-        browser.tabs.reload(tabId)
-      ));
-      await waitForTabComplete(tabId);
-      await sleep(1000);
-    }
-
     const target = text.replace(/\s+/g, ' ').trim().slice(0, 60);
     if (platform === 'youtube') {
-      const youtubeResults = await browser.scripting.executeScript({
-        target: { tabId },
-        func: captureYouTubeStudioPostUrlInPage,
-        args: [target],
-        world: 'MAIN',
-      });
-      dbg(`scripting result count=${youtubeResults?.length}`);
-      const youtubeResult = youtubeResults?.[0]?.result as {
-        url?: string;
-        trace?: string[];
-      } | null | undefined;
-      for (const line of youtubeResult?.trace?.slice(0, 30) ?? []) {
-        dbg(`  ${line}`);
-      }
-      if (typeof youtubeResult?.url === 'string') {
-        dbg(`URL captured: ${youtubeResult.url}`);
-        return youtubeResult.url;
-      }
-      dbg('URL not found');
-      return undefined;
+      return await captureYouTubeStudioPostUrlFromTab(tabId, target, dbg);
     }
 
     const scriptArgs = buildPostUrlCaptureScriptArgs(
