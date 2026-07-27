@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { formatSurfaceMatrixOutcome } from '../scripts/e2e/surface-posting-matrix-contract.mjs';
+import {
+  createTimedOutSurfaceSummary,
+  formatSurfaceMatrixOutcome,
+  validateSurfaceResultContract,
+} from '../scripts/e2e/surface-posting-matrix-contract.mjs';
 
 describe('Surface posting matrix CLI contract', () => {
   it('keeps the successful release-gate output and exit code stable', () => {
@@ -25,5 +29,97 @@ describe('Surface posting matrix CLI contract', () => {
         '  - text-image/threads: post URL missing',
       ],
     });
+  });
+});
+
+describe('Surface posting matrix result contract', () => {
+  it('preserves completed platform results and identifies only pending platforms', () => {
+    const result = {
+      platform: 'x',
+      success: true,
+      preview: true,
+    };
+    const backgroundState = {
+      posting: true,
+      postingState: {
+        platforms: ['x', 'youtube'],
+        pending: ['youtube'],
+        done: false,
+        results: [result],
+      },
+    };
+
+    expect(createTimedOutSurfaceSummary({
+      caseName: 'video-only',
+      iteration: 2,
+      platforms: ['x', 'youtube'],
+      error: 'timed out after 360000ms',
+      backgroundState,
+    })).toEqual({
+      caseName: 'video-only',
+      iteration: 2,
+      platforms: ['x', 'youtube'],
+      timedOut: true,
+      error: 'timed out after 360000ms',
+      results: [result],
+      completedPlatforms: ['x'],
+      pendingPlatforms: ['youtube'],
+      backgroundState,
+    });
+  });
+
+  it('accepts a safe completed preview result recovered after a timeout', () => {
+    expect(validateSurfaceResultContract({
+      mode: 'preview',
+      caseName: 'video-only',
+      platform: 'x',
+      result: {
+        success: true,
+        preview: true,
+        flow: {
+          submitReached: false,
+          lastCompletedStep: 'verify-login',
+        },
+      },
+    })).toEqual([]);
+  });
+
+  it('keeps unsafe recovered results visible', () => {
+    expect(validateSurfaceResultContract({
+      mode: 'preview',
+      caseName: 'video-only',
+      platform: 'x',
+      result: {
+        success: true,
+        preview: true,
+        url: 'https://x.com/example/status/1',
+        flow: {
+          submitReached: true,
+          lastCompletedStep: 'click-submit',
+        },
+      },
+    })).toEqual([
+      'video-only/x: preview returned URL https://x.com/example/status/1',
+      'video-only/x: preview reached submit action',
+    ]);
+  });
+
+  it('requires confirmation, URL, and submit evidence in post mode', () => {
+    expect(validateSurfaceResultContract({
+      mode: 'post',
+      caseName: 'text-only',
+      platform: 'x',
+      result: {
+        success: true,
+        flow: {
+          submitReached: false,
+          lastCompletedStep: 'wait-submit',
+        },
+      },
+    })).toEqual([
+      'text-only/x: post result was not confirmed',
+      'text-only/x: post URL was not captured',
+      'text-only/x: post result did not record submitReached=true',
+    ]);
   });
 });

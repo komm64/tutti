@@ -57,8 +57,11 @@ $env:E2E_EXTENSION_ID = '<loaded-extension-id>'
 node scripts/e2e/surface-posting-matrix.mjs --mode preview --repeat 2
 ```
 
-Use `--case-timeout-ms 180000` or lower when diagnosing failures so a hung SNS
-is recorded as a test failure instead of blocking the whole run.
+The default per-case budget is 360 seconds because grouped Surface video runs
+normally approach three minutes. Use `--case-timeout-ms 180000` or lower only
+when diagnosing failures. The JSON report is checkpointed after every completed
+or timed-out iteration and preserves any per-platform results recovered from
+background state.
 
 The matrix must cover, where supported by each SNS:
 
