@@ -361,3 +361,4 @@ console.log('[verify-x-thread] PASS');
 await popup.close().catch(() => {});
 if (!cdpEndpoint) await ctx.close();
 if (browser) await disconnectCdp(browser).catch(() => {});
+process.exit(0);
