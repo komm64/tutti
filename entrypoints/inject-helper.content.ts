@@ -820,6 +820,7 @@ export default defineContentScript({
       const el = found.el;
       const text = req.text ?? '';
       let frameworkTextVerified = false;
+      let requiresStableFrameworkText = false;
       console.log(`[Tutti inject-helper] text target matched "${found.matchedPart}" (${el.tagName})`);
 
       // v0.4.59: 空文字 inject は no-op で成功扱い (画像のみ投稿の正常 path)。
@@ -884,15 +885,17 @@ export default defineContentScript({
           //   editor.parseEditorState(json) + editor.setEditorState(state) で
           //   state を直接書き換えれば、 React の update listener が trustless
           //   chain なしに onChange を発火させる。
-          let editor: any = null; // eslint-disable-line @typescript-eslint/no-explicit-any
-          let cur: HTMLElement | null = el;
-          while (cur) {
-            if ((cur as any).__lexicalEditor) { // eslint-disable-line @typescript-eslint/no-explicit-any
-              editor = (cur as any).__lexicalEditor; // eslint-disable-line @typescript-eslint/no-explicit-any
-              break;
+          const findLexicalEditor = (target: HTMLElement | undefined): any => { // eslint-disable-line @typescript-eslint/no-explicit-any
+            let cur: HTMLElement | null = target ?? null;
+            while (cur) {
+              if ((cur as any).__lexicalEditor) { // eslint-disable-line @typescript-eslint/no-explicit-any
+                return (cur as any).__lexicalEditor; // eslint-disable-line @typescript-eslint/no-explicit-any
+              }
+              cur = cur.parentElement;
             }
-            cur = cur.parentElement;
-          }
+            return null;
+          };
+          let editor: any = findLexicalEditor(el); // eslint-disable-line @typescript-eslint/no-explicit-any
 
           // Threads の intent URL text prefill は非BMP文字を U+FFFD に壊す。
           // Lexical state を直接置換すれば emoji / ZWJ sequence を保持でき、
@@ -900,6 +903,7 @@ export default defineContentScript({
           const shouldUseDirectLexicalState =
             /instagram\.com/.test(location.host) ||
             /threads\.(?:com|net)$/.test(location.host);
+          requiresStableFrameworkText = /threads\.(?:com|net)$/.test(location.host);
           if (shouldUseDirectLexicalState && editor && typeof editor.parseEditorState === 'function' && typeof editor.setEditorState === 'function') {
             try {
               console.log('[Tutti inject-helper] Lexical: using editor.setEditorState path');
@@ -929,8 +933,21 @@ export default defineContentScript({
                   }],
                 },
               };
-              const newState = editor.parseEditorState(JSON.stringify(stateJson));
-              editor.setEditorState(newState);
+              const serializedState = JSON.stringify(stateJson);
+              const applyLexicalState = (
+                targetEditor: any, // eslint-disable-line @typescript-eslint/no-explicit-any
+                targetElement: HTMLElement,
+                dispatchInput = true,
+              ) => {
+                const nextState = targetEditor.parseEditorState(serializedState);
+                targetEditor.setEditorState(nextState);
+                if (dispatchInput) {
+                  targetElement.dispatchEvent(new InputEvent('input', {
+                    bubbles: true, data: text, inputType: 'insertText',
+                  }));
+                }
+              };
+              applyLexicalState(editor, el, false);
               console.log('[Tutti inject-helper] setEditorState completed; text =', text.slice(0, 50));
               // React の update tick を待つ
               await new Promise((r) => setTimeout(r, 500));
@@ -950,12 +967,76 @@ export default defineContentScript({
               } catch (e) {
                 console.log('[Tutti inject-helper] state read err:', e);
               }
-              // setEditorState が onChange を起こすが、 補助的に input event も
-              // dispatch して IG の controlled input listener にも届くようにする
+              // setEditorState が onChange を起こすが、補助的にinput eventも
+              // dispatchしてcontrolled input listenerへ届くようにする。
               el.dispatchEvent(new InputEvent('input', {
                 bubbles: true, data: text, inputType: 'insertText',
               }));
-              await new Promise((r) => setTimeout(r, 300));
+              await new Promise((r) => setTimeout(r, 100));
+              // Threadsのfresh pageでは、最初のsetEditorState直後は正しくても、
+              // controlled stateのhydrationが遅れて空stateを再適用することがある。
+              // full textが安定して残るまで監視し、消えた場合だけstateを再適用する。
+              if (requiresStableFrameworkText) {
+                try {
+                  const deadline = Date.now() + 5000;
+                  let stableSince: number | undefined;
+                  let reapplyCount = 0;
+                  let finalStateJson: unknown;
+                  let stableTarget: HTMLElement | undefined;
+                  frameworkTextVerified = false;
+                  while (Date.now() < deadline) {
+                    const currentTarget = findEl(req.selector)?.el;
+                    const currentEditor = findLexicalEditor(currentTarget);
+                    finalStateJson = currentEditor?.getEditorState?.().toJSON();
+                    const finalStateRoot = finalStateJson
+                      ? (finalStateJson as { root?: unknown }).root ?? finalStateJson
+                      : undefined;
+                    const exactTextPresent =
+                      currentTarget?.isConnected === true &&
+                      readLexicalStateText(finalStateRoot).includes(text);
+                    if (exactTextPresent) {
+                      if (stableTarget !== currentTarget) {
+                        stableTarget = currentTarget;
+                        stableSince = Date.now();
+                      }
+                      if (Date.now() - (stableSince ?? Date.now()) >= 1000) {
+                        frameworkTextVerified = true;
+                        break;
+                      }
+                    } else {
+                      stableTarget = undefined;
+                      stableSince = undefined;
+                      if (
+                        reapplyCount < 2 &&
+                        currentTarget &&
+                        currentEditor &&
+                        typeof currentEditor.parseEditorState === 'function' &&
+                        typeof currentEditor.setEditorState === 'function'
+                      ) {
+                        reapplyCount += 1;
+                        editor = currentEditor;
+                        applyLexicalState(currentEditor, currentTarget);
+                        console.warn(
+                          `[Tutti inject-helper] Threads Lexical editor reset during hydration; ` +
+                          `reapplied (${reapplyCount}/2)`,
+                        );
+                      }
+                    }
+                    await new Promise((r) => setTimeout(r, 100));
+                  }
+                  console.log(
+                    '[Tutti inject-helper] Threads stable Lexical state:',
+                    JSON.stringify(finalStateJson).slice(0, 200),
+                    'textVerified=',
+                    frameworkTextVerified,
+                    'reapplyCount=',
+                    reapplyCount,
+                  );
+                } catch (e) {
+                  frameworkTextVerified = false;
+                  console.warn('[Tutti inject-helper] final Threads Lexical state read failed:', e);
+                }
+              }
             } catch (e) {
               console.warn('[Tutti inject-helper] Lexical setEditorState failed, falling back to events:', e);
               editor = null; // event-based fallback に流す
@@ -1107,8 +1188,8 @@ export default defineContentScript({
         }
       }
 
-      // 検証(DOM ベース)。React state まで反映されたかは別途送信側 SNS の post button が
-      // enable になるかで判定するため、ここでは DOM レベルの確認のみ。
+      // 検証。Threadsのdirect Lexical pathはhydration後のframework stateに
+      // full textが残ることを必須にする。他frameworkはDOMベースで確認する。
       // input/textarea は value で厳密に判定。contenteditable は innerText が
       // 取れない / Lexical 等が DOM を再構成するので、内容が「空でないこと」だけ
       // 緩く判定する (paste / execCommand / textContent 代入のいずれかが効いたか)。
@@ -1119,10 +1200,12 @@ export default defineContentScript({
         // innerText を優先 (Lexical 等が span ネストする場合に textContent より確実)
         const visible = (el.innerText ?? el.textContent ?? '').trim();
         const expectedSnippet = text.slice(0, Math.min(20, text.length)).trim();
-        ok = frameworkTextVerified ||
-          expectedSnippet === '' ||
-          visible.includes(expectedSnippet) ||
-          visible.replace(/\s+/g, ' ').includes(expectedSnippet.replace(/\s+/g, ' '));
+        ok = requiresStableFrameworkText
+          ? frameworkTextVerified
+          : frameworkTextVerified ||
+            expectedSnippet === '' ||
+            visible.includes(expectedSnippet) ||
+            visible.replace(/\s+/g, ' ').includes(expectedSnippet.replace(/\s+/g, ' '));
       }
       return {
         source: RES_TAG,
