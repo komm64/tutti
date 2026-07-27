@@ -1,4 +1,8 @@
-import type { PostResultMessage } from '../messages';
+import type {
+  PlatformId,
+  PostFlowTrace,
+  PostResultMessage,
+} from '../messages';
 import { t } from '../utils/i18n';
 
 export function toPreviewResult(result: PostResultMessage): PostResultMessage {
@@ -60,6 +64,67 @@ export function downgradeHardVerifyFailures(result: PostResultMessage): PostResu
       failedStep: result.flow?.failedStep ?? hardIssue.kind,
     },
     error: hardIssue.message,
+  };
+}
+
+export function buildFinalChunkResult(
+  platform: PlatformId,
+  autoPost: boolean,
+  allConfirmed: boolean,
+  postUrl?: string,
+  flow?: PostResultMessage['flow'],
+): PostResultMessage {
+  const mode = autoPost ? 'post' : 'preview';
+  const lastCompletedStep = flow?.lastCompletedStep ??
+    (autoPost ? 'post-flow' : 'preview-flow');
+  return {
+    type: 'POST_RESULT',
+    platform,
+    success: true,
+    confirmed: allConfirmed,
+    url: postUrl,
+    flow: {
+      ...flow,
+      mode: flow?.mode ?? mode,
+      submitReached: flow?.submitReached ?? autoPost,
+      lastCompletedStep,
+    },
+  };
+}
+
+export function unconfirmedPostResult(
+  platform: PlatformId,
+  flow: Partial<PostFlowTrace> = {},
+): PostResultMessage {
+  return {
+    type: 'POST_RESULT',
+    platform,
+    success: false,
+    uncertain: true,
+    userAction: 'check-post-before-retry',
+    flow: {
+      submitReached: true,
+      ...flow,
+    },
+    error: t('runtimePostUncertain'),
+  };
+}
+
+export function withFlow(
+  result: PostResultMessage,
+  flow: Partial<PostFlowTrace>,
+): PostResultMessage {
+  return {
+    ...result,
+    flow: {
+      submitReached: result.flow?.submitReached ?? flow.submitReached ?? false,
+      ...flow,
+      ...result.flow,
+      urlCaptureTrace: result.flow?.urlCaptureTrace ?? flow.urlCaptureTrace,
+      submissionStartedAt: result.flow?.submissionStartedAt ?? flow.submissionStartedAt,
+      tabUrlBefore: result.flow?.tabUrlBefore ?? flow.tabUrlBefore,
+      tabUrlAfter: result.flow?.tabUrlAfter ?? flow.tabUrlAfter,
+    },
   };
 }
 

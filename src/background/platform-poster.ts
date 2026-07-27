@@ -38,7 +38,13 @@ import {
 import { resolveAdapter } from './adapter-resolver';
 import { prepareMediaForPlatform } from './platform-media';
 import { maybeResizeImagesForPlatform } from './media-preprocess';
-import { downgradeHardVerifyFailures, toPreviewResult } from './post-result-policy';
+import {
+  buildFinalChunkResult,
+  downgradeHardVerifyFailures,
+  toPreviewResult,
+  unconfirmedPostResult,
+  withFlow,
+} from './post-result-policy';
 import type { OpenedTabRegistry } from './opened-tab-registry';
 import { retryTransientTabAction } from './tab-action-retry';
 import type { VerifyExpectation } from '../utils/post-verify';
@@ -655,30 +661,6 @@ export function shouldReuseExistingTabForAttempt(
   return dryRun && adapter.requiresForegroundTab !== true && !forceForeground;
 }
 
-export function buildFinalChunkResult(
-  platform: PlatformId,
-  autoPost: boolean,
-  allConfirmed: boolean,
-  postUrl?: string,
-  flow?: PostResultMessage['flow'],
-): PostResultMessage {
-  const mode = autoPost ? 'post' : 'preview';
-  const lastCompletedStep = flow?.lastCompletedStep ?? (autoPost ? 'post-flow' : 'preview-flow');
-  return {
-    type: 'POST_RESULT',
-    platform,
-    success: true,
-    confirmed: allConfirmed,
-    url: postUrl,
-    flow: {
-      ...flow,
-      mode: flow?.mode ?? mode,
-      submitReached: flow?.submitReached ?? autoPost,
-      lastCompletedStep,
-    },
-  };
-}
-
 async function attachVerifyResult(
   result: PostResultMessage,
   platform: PlatformId,
@@ -748,36 +730,6 @@ async function maybeAutoOpenPostUrl(
   } catch (e) {
     log.warn(`auto-open failed: ${e instanceof Error ? e.message : String(e)}`);
   }
-}
-
-function unconfirmedPostResult(platform: PlatformId, flow: Partial<PostFlowTrace> = {}): PostResultMessage {
-  return {
-    type: 'POST_RESULT',
-    platform,
-    success: false,
-    uncertain: true,
-    userAction: 'check-post-before-retry',
-    flow: {
-      submitReached: true,
-      ...flow,
-    },
-    error: t('runtimePostUncertain'),
-  };
-}
-
-function withFlow(result: PostResultMessage, flow: Partial<PostFlowTrace>): PostResultMessage {
-  return {
-    ...result,
-    flow: {
-      submitReached: result.flow?.submitReached ?? flow.submitReached ?? false,
-      ...flow,
-      ...result.flow,
-      urlCaptureTrace: result.flow?.urlCaptureTrace ?? flow.urlCaptureTrace,
-      submissionStartedAt: result.flow?.submissionStartedAt ?? flow.submissionStartedAt,
-      tabUrlBefore: result.flow?.tabUrlBefore ?? flow.tabUrlBefore,
-      tabUrlAfter: result.flow?.tabUrlAfter ?? flow.tabUrlAfter,
-    },
-  };
 }
 
 function sleep(ms: number): Promise<void> {
