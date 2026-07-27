@@ -20,7 +20,14 @@
 import { chromium } from 'playwright';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import {
+  connectPlaywrightCdp,
+  disconnectCdp,
+  loadE2eFixture,
+  resolveCdpEndpoint,
+  resolveExtensionId,
+} from './cdp-harness.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '..', '..');
@@ -36,7 +43,7 @@ const keepPosts = args.includes('--keep-posts');
 const keepHistory = args.includes('--keep-history');
 const skipExtensionReload = args.includes('--skip-extension-reload');
 const textIdx = args.indexOf('--text');
-const cdpEndpoint = process.env.E2E_CDP;
+const cdpEndpoint = resolveCdpEndpoint({ fallback: '' });
 const userDataDir = process.env.E2E_USER_DATA_DIR;
 
 console.log(`[verify] platforms=${platforms.join(',')}`);
@@ -45,10 +52,15 @@ console.log(`[verify] mode=${cdpEndpoint ? `CDP (${cdpEndpoint})` : `launch (${u
 let browser;
 let ctx;
 if (cdpEndpoint) {
-  browser = await chromium.connectOverCDP(cdpEndpoint, { timeout: 30000 });
+  browser = await connectPlaywrightCdp({
+    chromium,
+    endpoint: cdpEndpoint,
+    timeoutMs: 30_000,
+  });
   ctx = browser.contexts()[0];
   if (!ctx) {
     console.error('[verify] no context found');
+    await disconnectCdp(browser);
     process.exit(3);
   }
 } else {
@@ -67,23 +79,7 @@ if (cdpEndpoint) {
   });
 }
 
-// Extension id を取得 (優先順: env > service worker URL)
-let extensionId = process.env.E2E_EXTENSION_ID ?? null;
-if (!extensionId) {
-  // launchPersistentContext モードでは service workers が見える
-  for (let i = 0; i < 50; i += 1) {
-    for (const s of ctx.serviceWorkers()) {
-      const m = s.url().match(/^chrome-extension:\/\/([a-z]+)\//);
-      if (m) { extensionId = m[1]; break; }
-    }
-    if (extensionId) break;
-    await new Promise((r) => setTimeout(r, 200));
-  }
-}
-if (!extensionId) {
-  console.error('[verify] extension id not detected');
-  process.exit(4);
-}
+const extensionId = await resolveExtensionId(ctx);
 console.log(`[verify] extension id=${extensionId}`);
 
 if (!skipExtensionReload) {
@@ -129,9 +125,9 @@ const tinyPng = {
   bytes: 70,
 };
 const image = fixtureVideo
-  ? (() => {
-      const path = resolve(repoRoot, 'scripts', 'e2e', 'fixtures', 'test-video.mp4');
-      const source = readFileSync(path);
+  ? await (async () => {
+      const fixture = await loadE2eFixture('test-video.mp4', 'video/mp4', { required: true });
+      const source = Buffer.from(fixture.data, 'base64');
       // TikTok rejects an immediate re-upload of an identical fixture. A trailing
       // MP4 free box keeps the video valid while making each E2E upload distinct.
       const marker = Buffer.from(String(Date.now()));
@@ -149,9 +145,9 @@ const image = fixtureVideo
       };
     })()
   : fixtureImage
-  ? (() => {
-      const path = resolve(repoRoot, 'scripts', 'e2e', 'fixtures', 'test-image.png');
-      const data = readFileSync(path);
+  ? await (async () => {
+      const fixture = await loadE2eFixture('test-image.png', 'image/png', { required: true });
+      const data = Buffer.from(fixture.data, 'base64');
       return {
         name: `tutti-test-${Date.now()}.png`,
         type: 'image/png',
@@ -198,6 +194,7 @@ while (Date.now() - waitStart < maxWait) {
 if (!entry) {
   console.error('[verify] history entry never appeared');
   if (!cdpEndpoint) await ctx.close();
+  else await disconnectCdp(browser);
   process.exit(5);
 }
 
@@ -285,7 +282,7 @@ await popup.evaluate(async () => {
 });
 
 if (!cdpEndpoint) await ctx.close();
-else await ctx.close();
+else await disconnectCdp(browser);
 
 console.log(`\n[verify] success rate: ${successCount}/${platforms.length}`);
 console.log(`[verify] postId capture rate: ${postIdCount}/${successCount}`);

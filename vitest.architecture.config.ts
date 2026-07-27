@@ -4,6 +4,7 @@ export default defineConfig({
   test: {
     include: [
       'tests/architecture-guard.test.ts',
+      'tests/cdp-harness-usage.test.ts',
       'tests/import-cycles.test.ts',
       'tests/selector-wire-contract.test.ts',
       'src/adapters/capabilities.test.ts',

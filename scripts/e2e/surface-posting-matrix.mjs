@@ -17,8 +17,17 @@
  */
 
 import { chromium } from 'playwright';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { basename, dirname, resolve } from 'node:path';
+import {
+  connectPlaywrightCdp,
+  disconnectCdp,
+  loadE2eFixture,
+  resolveCdpEndpoint,
+  resolveExtensionId,
+  withTimeout,
+} from './cdp-harness.mjs';
+import { formatSurfaceMatrixOutcome } from './surface-posting-matrix-contract.mjs';
 
 const ALL_PLATFORMS = [
   'x',
@@ -157,7 +166,7 @@ if (!Number.isInteger(caseTimeoutMs) || caseTimeoutMs < 10_000) {
 const skipExtensionReload = args.includes('--skip-extension-reload');
 const debugBgStateOnTimeout = args.includes('--debug-bg-state-on-timeout');
 
-const cdp = process.env.E2E_CDP ?? 'http://127.0.0.1:9223';
+const cdp = resolveCdpEndpoint({ fallback: 'http://127.0.0.1:9223' });
 const imagePath = resolve(process.env.IMAGE_PATH ?? 'scripts/e2e/fixtures/test-image.png');
 const videoPath = resolve(process.env.VIDEO_PATH ?? 'scripts/e2e/fixtures/test-video.mp4');
 const summaryPath = resolve(argValue('--summary-json') ?? '.tmp/surface-posting-matrix-last.json');
@@ -188,13 +197,13 @@ const [imageFixture, videoFixture] = await Promise.all([
   readVideoFixture(videoPath),
 ]);
 
-const browser = await chromium.connectOverCDP(cdp, { timeout: 120_000 });
+const browser = await connectPlaywrightCdp({ chromium, endpoint: cdp });
 const ctx = browser.contexts()[0];
 if (!ctx) throw new Error('no browser context');
 attachDialogHandlers(ctx);
 if (process.env.E2E_TRACE_CONSOLE === '1') attachConsoleHandlers(ctx);
 
-const extensionId = process.env.E2E_EXTENSION_ID ?? await detectExtensionId(ctx);
+const extensionId = await resolveExtensionId(ctx);
 if (!skipExtensionReload) {
   await reloadExtension(ctx, extensionId);
   console.log('[matrix] extension reloaded');
@@ -401,15 +410,12 @@ await writeSummary(summaryPath, {
 });
 
 await popup.close().catch(() => {});
-await browser.close();
+await disconnectCdp(browser);
 
-if (failures.length > 0) {
-  console.error('\n[matrix] FAIL');
-  for (const failure of failures) console.error(`  - ${failure}`);
-  process.exit(1);
-}
-
-console.log('\n[matrix] PASS');
+const outcome = formatSurfaceMatrixOutcome(failures);
+for (const line of outcome.stdout) console.log(line);
+for (const line of outcome.stderr) console.error(line);
+if (!outcome.passed) process.exit(outcome.exitCode);
 
 function argValue(name) {
   const idx = args.indexOf(name);
@@ -542,22 +548,23 @@ function attachConsoleHandlers(ctx) {
 }
 
 async function readImageFixture(path) {
-  const data = await readFile(path);
-  return {
-    name: basename(path),
-    type: path.toLowerCase().endsWith('.jpg') || path.toLowerCase().endsWith('.jpeg') ? 'image/jpeg' : 'image/png',
-    data: data.toString('base64'),
-    bytes: data.byteLength,
-  };
+  const type = path.toLowerCase().endsWith('.jpg') || path.toLowerCase().endsWith('.jpeg')
+    ? 'image/jpeg'
+    : 'image/png';
+  return await loadE2eFixture(basename(path), type, {
+    root: dirname(path),
+    required: true,
+  });
 }
 
 async function readVideoFixture(path) {
-  const data = await readFile(path);
+  const fixture = await loadE2eFixture(basename(path), 'video/mp4', {
+    root: dirname(path),
+    required: true,
+  });
   return {
-    name: basename(path),
-    type: 'video/mp4',
-    data,
-    bytes: data.byteLength,
+    ...fixture,
+    data: Buffer.from(fixture.data, 'base64'),
     durationS: 2,
   };
 }
@@ -601,26 +608,6 @@ function uniqueName(name, stamp) {
   const dot = name.lastIndexOf('.');
   if (dot <= 0) return `${name}-${stamp}`;
   return `${name.slice(0, dot)}-${stamp}${name.slice(dot)}`;
-}
-
-async function detectExtensionId(ctx) {
-  for (const sw of ctx.serviceWorkers()) {
-    const m = sw.url().match(/^chrome-extension:\/\/([a-z]+)\//);
-    if (m) return m[1];
-  }
-  const page = await ctx.newPage();
-  await page.goto('chrome://extensions/', { waitUntil: 'domcontentloaded' });
-  await page.waitForTimeout(1000);
-  const id = await page.evaluate(async () => {
-    const getInfo = () => new Promise((resolveInfo) => {
-      chrome.developerPrivate.getExtensionsInfo({ includeDisabled: true, includeTerminated: true }, resolveInfo);
-    });
-    const extensions = await getInfo();
-    return extensions.find((ext) => ext.name?.includes('Tutti'))?.id;
-  });
-  await page.close();
-  if (!id) throw new Error('Tutti extension id not found');
-  return id;
 }
 
 async function wakeServiceWorker(ctx, extensionId) {
@@ -698,22 +685,6 @@ async function sendPostRequest(popup, request) {
       });
     });
   }, request);
-}
-
-async function withTimeout(promise, timeoutMs, label) {
-  let timeout;
-  try {
-    return await Promise.race([
-      promise,
-      new Promise((_, reject) => {
-        timeout = setTimeout(() => {
-          reject(new Error(`timed out after ${timeoutMs}ms waiting for ${label}`));
-        }, timeoutMs);
-      }),
-    ]);
-  } finally {
-    clearTimeout(timeout);
-  }
 }
 
 async function readHistory(popup) {
