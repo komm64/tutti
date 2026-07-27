@@ -8,12 +8,8 @@
   import { decodeMessage } from '../../src/utils/message-decoder';
   import {
     clearDraft,
-    getDraft,
     getLastSeenUsers,
-    getSelectedPlatforms,
     getSettings,
-    saveDraft,
-    saveSelectedPlatforms,
     saveSettings,
     RESPONSIBLE_USE_ACK_VERSION,
     type HistoryEntry,
@@ -71,12 +67,8 @@
   import {
     filesFromClipboardItems,
     isFileDrag,
-    restoreImagePreviews,
-    restoreVideoPreview,
     revokeImagePreviews,
     revokeVideoPreview,
-    serializeImagesForDraft,
-    serializeVideoForDraft,
   } from '../../src/popup/media-preview';
   import {
     addFilesToMediaState,
@@ -89,6 +81,7 @@
     submitPopupErrorReport,
     type PopupReportContext,
   } from '../../src/popup/error-report-submit';
+  import { createComposerController } from '../../src/popup/composer-controller';
   import HeaderBar from './components/HeaderBar.svelte';
   import AutoPostControl from './components/AutoPostControl.svelte';
   import MediaComposer from './components/MediaComposer.svelte';
@@ -103,6 +96,7 @@
   import ResponsibleUseDialog from './components/ResponsibleUseDialog.svelte';
 
   const platforms: PlatformOption[] = POPUP_PLATFORMS;
+  const composerController = createComposerController();
 
   let text = $state('');
   // Pixiv / DeviantArt / Instagram は image-only、TikTok / YouTube は video-only で
@@ -268,14 +262,8 @@
   let selectedLoaded = $state(false);
   $effect(() => {
     if (selectedLoaded) return;
-    void getSelectedPlatforms().then((s) => {
-      if (s) {
-        for (const [k, v] of Object.entries(s)) {
-          if (typeof v === 'boolean' && k in selected) {
-            selected[k as PlatformId] = v;
-          }
-        }
-      }
+    void composerController.loadSelectedPlatforms(selected).then((next) => {
+      selected = next;
       selectedLoaded = true;
     });
   });
@@ -283,47 +271,39 @@
   // 下書き(text + media)を読み込む(マウント時に 1 回)
   $effect(() => {
     if (draftLoaded) return;
-    void getDraft().then((draft) => {
+    void composerController.loadDraft().then((draft) => {
       if (draft) {
         text = draft.text;
-        images = restoreImagePreviews(draft.images);
-        video = restoreVideoPreview(draft.video);
+        images = draft.images;
+        video = draft.video;
       }
       draftLoaded = true;
     });
   });
 
   // 下書き(text/メディア)の自動保存(300ms デバウンス)
-  let saveTimer: ReturnType<typeof setTimeout> | undefined;
   $effect(() => {
     text;
     images.length; video;
     if (!draftLoaded) return;
-    if (saveTimer) clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => {
-      void saveDraft({
-        text,
-        images: serializeImagesForDraft(images),
-        video: serializeVideoForDraft(video),
-      });
-    }, 300);
+    composerController.scheduleDraftSave({ text, images, video });
   });
 
   // SNS 選択の永続保存(変わったら即保存)
   // v0.4.100: 新 SNS (pixiv / deviantart / instagram / tiktok / youtube) が
   // $effect の dependency に入っておらず、 これらを toggle しても save が走らず
   // 「checkbox が毎回外れる」 bug の原因だった。 全 11 platform を tracker に追加。
-  let selectedSaveTimer: ReturnType<typeof setTimeout> | undefined;
   $effect(() => {
     selected.x; selected.bluesky; selected.threads;
     selected.mastodon; selected.misskey; selected.tumblr;
     selected.pixiv; selected.deviantart; selected.instagram;
     selected.tiktok; selected.youtube;
     if (!selectedLoaded) return;
-    if (selectedSaveTimer) clearTimeout(selectedSaveTimer);
-    selectedSaveTimer = setTimeout(() => {
-      void saveSelectedPlatforms({ ...selected });
-    }, 200);
+    composerController.scheduleSelectedPlatformsSave(selected);
+  });
+
+  $effect(() => {
+    return () => composerController.dispose();
   });
 
   // Diagnostics: SNS が動かない時の障害切り分け用 dump を生成
@@ -673,7 +653,7 @@
    */
   function applyPreset(preset: SnsPreset): void {
     selected = applyPresetSelection(selected, preset);
-    void saveSelectedPlatforms(selected);
+    void composerController.saveSelectedPlatforms(selected);
   }
 
   /**
