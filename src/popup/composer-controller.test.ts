@@ -198,4 +198,72 @@ describe('composer controller', () => {
     controller.dispose();
     expect(revokeHistoryUrls).toHaveBeenLastCalledWith(['blob:second']);
   });
+
+  it('restores and streams background posting state and update notifications', async () => {
+    let runtimeListener: ((message: unknown) => void) | undefined;
+    const unsubscribe = vi.fn();
+    const sendRuntimeMessage = vi.fn(async () => ({
+      posting: true,
+      postingState: {
+        pending: ['x'],
+        results: [],
+        done: false,
+      },
+    }));
+    let current = {
+      posting: false,
+      pendingPlatforms: [],
+      lastResults: null,
+      compressionProgress: null,
+      compressionStartedAt: null,
+      compressionEtaS: null,
+    };
+    const onPostingState = vi.fn((next) => {
+      current = next;
+    });
+    const onUpdateAvailable = vi.fn();
+    const controller = createComposerController({
+      sendRuntimeMessage,
+      subscribeRuntimeMessages: (listener) => {
+        runtimeListener = listener;
+        return unsubscribe;
+      },
+    });
+
+    const stop = controller.subscribeBackgroundSync({
+      getPostingState: () => current,
+      onPostingState,
+      onUpdateAvailable,
+    });
+    await vi.waitFor(() => expect(onPostingState).toHaveBeenCalledOnce());
+    expect(sendRuntimeMessage).toHaveBeenCalledWith({ type: 'GET_BG_STATE' });
+    expect(onPostingState).toHaveBeenLastCalledWith({
+      ...current,
+      posting: true,
+      pendingPlatforms: ['x'],
+    }, 'restore');
+
+    runtimeListener?.({
+      type: 'CONVERSION_PROGRESS',
+      stage: 'load',
+      progress: 0.25,
+    });
+    expect(onPostingState).toHaveBeenLastCalledWith({
+      ...current,
+      compressionProgress: { stage: 'load', progress: 0.25 },
+    }, 'progress');
+
+    runtimeListener?.({
+      type: 'EXTENSION_UPDATE_AVAILABLE',
+      state: { available: true, version: '0.6.0', applying: false },
+    });
+    expect(onUpdateAvailable).toHaveBeenCalledWith({
+      available: true,
+      version: '0.6.0',
+      applying: false,
+    });
+
+    stop();
+    expect(unsubscribe).toHaveBeenCalledOnce();
+  });
 });
