@@ -35,6 +35,13 @@ export interface ImageConstraints {
   maxImages: number;
 }
 
+export interface PreSubmitLoadPolicy {
+  /** 初回 timeout 後に行う追加 navigation / reload の回数 */
+  retryCount: number;
+  /** compose URL の query が遷移先で消費される場合の ready 判定 */
+  urlReady: 'exact-prefix' | 'same-origin-path';
+}
+
 export interface PlatformAdapter {
   id: PlatformId;
   name: string;
@@ -44,6 +51,14 @@ export interface PlatformAdapter {
   popupOrder: number;
   /** 初回起動時のpopup選択状態 */
   defaultSelected: boolean;
+  /**
+   * 通常は background preview lane。X / Tumblr のようにユーザー操作対象を
+   * foreground で見せる必要がある例外だけ指定する。
+   * requiresForegroundTab は別の強い要件として常に foreground を優先する。
+   */
+  previewLane?: 'foreground';
+  /** 投稿操作前の compose page load timeout に対する宣言policy */
+  preSubmitLoad?: PreSubmitLoadPolicy;
   /** 投稿ページとして扱う URL パターン(content script の matches と整合させる) */
   matchUrl: (url: string) => boolean;
   /** 投稿用に開くべき URL を返す。URL pre-fill する SNS では text を URL に乗せる */

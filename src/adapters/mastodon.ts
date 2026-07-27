@@ -13,6 +13,10 @@ export const mastodonAdapter: PlatformAdapter = {
   charLimit: 500,
   popupOrder: 5,
   defaultSelected: true,
+  preSubmitLoad: {
+    retryCount: 1,
+    urlReady: 'same-origin-path',
+  },
   matchUrl: (url) => url.startsWith(`${MASTODON_DEFAULT_INSTANCE}/`),
   // /share?text= で compose modal が開く(多くの Mastodon インスタンスで共通)
   getComposeUrl: (text) =>

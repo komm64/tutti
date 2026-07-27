@@ -6,8 +6,6 @@ export const PREVIEW_BACKGROUND_CONCURRENCY = 3;
 export const PREVIEW_VIDEO_BACKGROUND_CONCURRENCY = 1;
 export const PREVIEW_FOREGROUND_CONCURRENCY = 1;
 
-const INTERACTIVE_PREVIEW_PLATFORMS = new Set<PlatformId>(['x', 'tumblr']);
-
 export type PostExecutionLaneId = 'serial' | 'foreground' | 'background';
 
 export interface PostExecutionLane {
@@ -84,8 +82,9 @@ export function needsForegroundPreview(
   platform: PlatformId,
   options: PostExecutionPlanOptions = {},
 ): boolean {
-  return (!options.hasVideo && INTERACTIVE_PREVIEW_PLATFORMS.has(platform)) ||
-    getAdapter(platform)?.requiresForegroundTab === true;
+  const adapter = getAdapter(platform);
+  return (!options.hasVideo && adapter?.previewLane === 'foreground') ||
+    adapter?.requiresForegroundTab === true;
 }
 
 export function resolvePostConcurrency(
