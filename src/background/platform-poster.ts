@@ -18,12 +18,12 @@ import {
 } from './tab-management';
 import {
   buildReplyOverrideUrl,
+  capturePostUrlFromTabWithRetry,
   continuationNeedsReplyUrl,
   isVerifySupported,
   runVerify,
   tryApiPath,
 } from './platform-strategies';
-import { capturePostUrlFromTabWithRetry } from './post-url-capture';
 import {
   buildLoginRedirectErrorForUrl,
   buildMissingReceiverLoginError,

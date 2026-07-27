@@ -27,6 +27,14 @@ import {
   verifyYouTubePost,
   type VerificationStrategy,
 } from './verify-dispatcher';
+import {
+  capturePostUrlFromTabWithRetry as capturePostUrlWithGenericFlow,
+  type CapturePostUrlOptions,
+} from './post-url-capture';
+
+export type PostUrlCaptureStrategy = (
+  options: CapturePostUrlOptions,
+) => Promise<string | undefined>;
 
 export interface BackgroundPlatformStrategy {
   /** 投稿 URL から platform 固有の安定 post ID を抽出する。 */
@@ -37,6 +45,8 @@ export interface BackgroundPlatformStrategy {
   continuationUrl?: (previousPostUrl: string) => string | undefined;
   /** 投稿後 URL と期待値を照合する verification 手続き。 */
   verifyPost?: VerificationStrategy;
+  /** 投稿後に platform 固有の post URL を取得する手続き。 */
+  capturePostUrl?: PostUrlCaptureStrategy;
 }
 
 /**
@@ -51,16 +61,19 @@ export const backgroundPlatformStrategies: Record<PlatformId, BackgroundPlatform
       return statusId ? `https://x.com/intent/post?in_reply_to=${statusId}` : undefined;
     },
     verifyPost: verifyXPost,
+    capturePostUrl: capturePostUrlWithGenericFlow,
   },
   bluesky: {
     parsePostId: ({ pathname }) => pathname.match(/\/post\/([a-zA-Z0-9]+)/)?.[1] ?? null,
     apiPost: tryBlueskyApiPost,
     verifyPost: verifyBlueskyPost,
+    capturePostUrl: capturePostUrlWithGenericFlow,
   },
   threads: {
     parsePostId: ({ pathname }) => pathname.match(/\/post\/([A-Za-z0-9_-]+)/)?.[1] ?? null,
     continuationUrl: (previousPostUrl) => previousPostUrl,
     verifyPost: verifyThreadsPost,
+    capturePostUrl: capturePostUrlWithGenericFlow,
   },
   mastodon: {
     parsePostId: ({ pathname }) => (
@@ -71,11 +84,13 @@ export const backgroundPlatformStrategies: Record<PlatformId, BackgroundPlatform
     apiPost: tryMastodonApiPost,
     continuationUrl: (previousPostUrl) => previousPostUrl,
     verifyPost: verifyMastodonPost,
+    capturePostUrl: capturePostUrlWithGenericFlow,
   },
   misskey: {
     parsePostId: ({ pathname }) => pathname.match(/\/notes\/([a-zA-Z0-9]+)/)?.[1] ?? null,
     apiPost: tryMisskeyApiPost,
     verifyPost: verifyMisskeyPost,
+    capturePostUrl: capturePostUrlWithGenericFlow,
   },
   tumblr: {
     parsePostId: ({ pathname }) => (
@@ -84,10 +99,12 @@ export const backgroundPlatformStrategies: Record<PlatformId, BackgroundPlatform
       ?? null
     ),
     verifyPost: verifyTumblrPost,
+    capturePostUrl: capturePostUrlWithGenericFlow,
   },
   pixiv: {
     parsePostId: ({ pathname }) => pathname.match(/\/artworks\/(\d+)/)?.[1] ?? null,
     verifyPost: verifyPixivPost,
+    capturePostUrl: capturePostUrlWithGenericFlow,
   },
   deviantart: {
     parsePostId: ({ pathname }) => (
@@ -96,14 +113,17 @@ export const backgroundPlatformStrategies: Record<PlatformId, BackgroundPlatform
       ?? null
     ),
     verifyPost: verifyDeviantArtPost,
+    capturePostUrl: capturePostUrlWithGenericFlow,
   },
   instagram: {
     parsePostId: ({ pathname }) => pathname.match(/\/(?:p|reel)\/([\w-]+)/)?.[1] ?? null,
     verifyPost: verifyInstagramPost,
+    capturePostUrl: capturePostUrlWithGenericFlow,
   },
   tiktok: {
     parsePostId: ({ pathname }) => pathname.match(/\/video\/(\d+)/)?.[1] ?? null,
     verifyPost: verifyTikTokPost,
+    capturePostUrl: capturePostUrlWithGenericFlow,
   },
   youtube: {
     parsePostId: (url) => {
@@ -117,6 +137,7 @@ export const backgroundPlatformStrategies: Record<PlatformId, BackgroundPlatform
       return null;
     },
     verifyPost: verifyYouTubePost,
+    capturePostUrl: capturePostUrlWithGenericFlow,
   },
 };
 
@@ -175,4 +196,16 @@ export async function runVerify(
   const strategy = getBackgroundPlatformStrategy(platform).verifyPost;
   if (!strategy) return verifyError(`${platform}: verification strategy unavailable`);
   return await strategy(postUrl, expected);
+}
+
+export function isPostUrlCaptureSupported(platform: PlatformId): boolean {
+  return getBackgroundPlatformStrategy(platform).capturePostUrl !== undefined;
+}
+
+export async function capturePostUrlFromTabWithRetry(
+  options: CapturePostUrlOptions,
+): Promise<string | undefined> {
+  const strategy = getBackgroundPlatformStrategy(options.platform).capturePostUrl;
+  if (!strategy) return undefined;
+  return await strategy(options);
 }
