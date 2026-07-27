@@ -1,17 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { mastodonAdapter } from '../adapters/mastodon';
-import { threadsAdapter } from '../adapters/threads';
 import type { PlatformAdapter } from '../adapters/types';
 import {
   buildVerifyExpectationForChunk,
-  buildDomPostAttempts,
   getComposeUrlForMedia,
   isAmbiguousPostDispatchError,
-  resolvePreSubmitLoadOptions,
   resolveApiPostOutcome,
-  shouldRetryPostAttempt,
-  shouldOpenActive,
-  shouldReuseExistingTabForAttempt,
 } from './platform-poster';
 
 function adapter(overrides: Partial<PlatformAdapter> = {}): PlatformAdapter {
@@ -31,80 +24,6 @@ function adapter(overrides: Partial<PlatformAdapter> = {}): PlatformAdapter {
 }
 
 describe('platform poster helpers', () => {
-  it('derives pre-submit load behavior from adapter policy', () => {
-    expect(resolvePreSubmitLoadOptions(mastodonAdapter)).toEqual({
-      loadRetries: 1,
-      relaxedComposeUrlReady: true,
-    });
-    expect(resolvePreSubmitLoadOptions(threadsAdapter)).toBeUndefined();
-  });
-
-  it('builds safe pre-submit fallback attempts for normal SNS posting', () => {
-    expect(buildDomPostAttempts(adapter(), true)).toEqual([
-      { label: 'default' },
-      {
-        label: 'fresh foreground compose',
-        skipApi: true,
-        forceActive: true,
-        reuseExistingTab: false,
-        loadRetries: 1,
-        delayBeforeMs: 750,
-      },
-      {
-        label: 'fresh foreground compose with reload retry',
-        skipApi: true,
-        forceActive: true,
-        reuseExistingTab: false,
-        loadRetries: 2,
-        delayBeforeMs: 1000,
-      },
-    ]);
-  });
-
-  it('keeps foreground-only SNS retries shorter because the first attempt is already foreground', () => {
-    expect(buildDomPostAttempts(adapter({ requiresForegroundTab: true }), true)).toEqual([
-      { label: 'default' },
-      {
-        label: 'fresh foreground compose',
-        skipApi: true,
-        forceActive: true,
-        reuseExistingTab: false,
-        loadRetries: 1,
-        delayBeforeMs: 750,
-      },
-    ]);
-  });
-
-  it('uses a shorter retry pause for preview because no post can have been submitted', () => {
-    expect(buildDomPostAttempts(adapter(), false)[1]).toMatchObject({
-      label: 'fresh foreground compose',
-      delayBeforeMs: 250,
-    });
-  });
-
-  it('opens all real DOM posting attempts in the foreground', () => {
-    expect(shouldOpenActive(adapter(), false, undefined, true)).toBe(true);
-  });
-
-  it('keeps normal preview attempts in the background unless the platform needs foreground', () => {
-    expect(shouldOpenActive(adapter(), true, undefined, false)).toBe(false);
-    expect(shouldOpenActive(adapter({ requiresForegroundTab: true }), true, undefined, false)).toBe(true);
-    expect(shouldOpenActive(adapter(), true, undefined, false, true)).toBe(true);
-  });
-
-  it('does not reuse existing tabs for foreground-only preview flows', () => {
-    expect(shouldReuseExistingTabForAttempt(adapter(), false)).toBe(true);
-    expect(shouldReuseExistingTabForAttempt(adapter({ requiresForegroundTab: true }), false)).toBe(false);
-    expect(shouldReuseExistingTabForAttempt(adapter(), false, {}, true)).toBe(false);
-  });
-
-  it('can force the first preview attempt into a foreground tab', () => {
-    expect(buildDomPostAttempts(adapter(), false, true)[0]).toMatchObject({
-      label: 'default',
-      forceActive: true,
-    });
-  });
-
   it('uses Tumblr video compose when posting video media', () => {
     const tumblr = adapter({
       id: 'tumblr',
@@ -117,15 +36,6 @@ describe('platform poster helpers', () => {
       data: 'AA==',
     }])).toBe('https://www.tumblr.com/new/video');
     expect(getComposeUrlForMedia(tumblr, 'hello')).toBe('https://www.tumblr.com/new/text');
-  });
-
-  it('honors explicit retry tab reuse overrides', () => {
-    expect(shouldReuseExistingTabForAttempt(adapter({ requiresForegroundTab: true }), false, {
-      reuseExistingTab: true,
-    })).toBe(true);
-    expect(shouldReuseExistingTabForAttempt(adapter(), false, {
-      reuseExistingTab: false,
-    })).toBe(false);
   });
 
   it('expects media only on the first chunk of a split post', () => {
@@ -227,13 +137,6 @@ describe('posting transport safety policy', () => {
         lastCompletedStep: 'api-create-post',
       },
     });
-  });
-
-  it('stops real-post retries after submit but keeps preview and pre-submit retries', () => {
-    expect(shouldRetryPostAttempt(true, { submitReached: true })).toBe(false);
-    expect(shouldRetryPostAttempt(true, { submitReached: false })).toBe(true);
-    expect(shouldRetryPostAttempt(true)).toBe(true);
-    expect(shouldRetryPostAttempt(false, { submitReached: true })).toBe(true);
   });
 
   it('classifies channel-close and timeout failures as ambiguous after dispatch', () => {

@@ -87,6 +87,15 @@ describe('platform architecture guard', () => {
       /\bfunction (?:buildFinalChunkResult|unconfirmedPostResult|withFlow)\b/,
     );
   });
+
+  it('keeps DOM attempt policy out of the central poster', () => {
+    const poster = readFileSync('src/background/platform-poster.ts', 'utf8');
+
+    expect(poster).toContain("from './dom-attempt-policy'");
+    expect(poster).not.toMatch(
+      /\bfunction (?:buildDomPostAttempts|resolvePreSubmitLoadOptions|shouldOpenActive|shouldRetryPostAttempt|shouldReuseExistingTabForAttempt)\b/,
+    );
+  });
 });
 
 function productionTypeScriptFiles(root: string): string[] {
