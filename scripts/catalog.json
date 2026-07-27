@@ -276,6 +276,11 @@
       "entryCommand": "node scripts/e2e/cdp-attach-tiktok.mjs"
     },
     {
+      "path": "scripts/e2e/cdp-harness.mjs",
+      "class": "supported-cli",
+      "usage": "Shared CDP connection, extension discovery, timeout, fixture, and cleanup harness for maintained scripts."
+    },
+    {
       "path": "scripts/e2e/check-api-creds.mjs",
       "class": "diagnostic",
       "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
