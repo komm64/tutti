@@ -5,6 +5,7 @@ import {
   buildReplyOverrideUrl,
   continuationNeedsReplyUrl,
   extractPostId,
+  isPostUrlCaptureSupported,
   isVerifySupported,
 } from './platform-strategies';
 
@@ -43,6 +44,13 @@ describe('background platform strategy registry', () => {
     for (const [platform, strategy] of Object.entries(backgroundPlatformStrategies)) {
       expect(strategy.verifyPost).toBeTypeOf('function');
       expect(isVerifySupported(platform as keyof typeof backgroundPlatformStrategies)).toBe(true);
+    }
+  });
+
+  it('registers URL capture for every current platform', () => {
+    for (const [platform, strategy] of Object.entries(backgroundPlatformStrategies)) {
+      expect(strategy.capturePostUrl).toBeTypeOf('function');
+      expect(isPostUrlCaptureSupported(platform as keyof typeof backgroundPlatformStrategies)).toBe(true);
     }
   });
 });

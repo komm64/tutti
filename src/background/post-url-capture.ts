@@ -30,23 +30,7 @@ export type PostUrlCaptureScriptArgs = [
   minCapturedAt: number | null,
 ];
 
-const CAPTURE_SUPPORTED_PLATFORMS = new Set<PlatformId>([
-  'mastodon',
-  'misskey',
-  'bluesky',
-  'threads',
-  'tumblr',
-  'x',
-  'pixiv',
-  'deviantart',
-  'instagram',
-  'tiktok',
-  'youtube',
-]);
-
 export function buildPostUrlCaptureRetryPlan(platform: PlatformId): CapturePostUrlRetryStep[] {
-  if (!CAPTURE_SUPPORTED_PLATFORMS.has(platform)) return [];
-
   const steps: CapturePostUrlRetryStep[] = [{ label: 'immediate', delayMs: 0 }];
   if (platform === 'youtube') {
     return [
@@ -171,8 +155,6 @@ export async function capturePostUrlFromTab(options: CapturePostUrlOptions): Pro
     onDebug,
     frameRetry = 0,
   } = options;
-  if (!CAPTURE_SUPPORTED_PLATFORMS.has(platform)) return undefined;
-
   const dbg = (message: string): void => {
     onDebug?.(`[capturePostUrl ${platform}] ${message}`);
   };

@@ -45,6 +45,7 @@ vi.mock('./adapter-resolver', () => ({
 
 vi.mock('./platform-strategies', async (importOriginal) => ({
   ...await importOriginal<typeof import('./platform-strategies')>(),
+  capturePostUrlFromTabWithRetry: mocks.capturePostUrlFromTabWithRetry,
   runVerify: mocks.runVerify,
   tryApiPath: mocks.tryApiPath,
 }));
@@ -62,10 +63,6 @@ vi.mock('./media-preprocess', () => ({
 
 vi.mock('./platform-media', () => ({
   prepareMediaForPlatform: mocks.prepareMediaForPlatform,
-}));
-
-vi.mock('./post-url-capture', () => ({
-  capturePostUrlFromTabWithRetry: mocks.capturePostUrlFromTabWithRetry,
 }));
 
 vi.mock('./tab-action-retry', () => ({
