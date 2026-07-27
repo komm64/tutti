@@ -97,6 +97,15 @@ describe('platform architecture guard', () => {
       /\bfunction (?:captureMastodonPostViaPublicApi|fetchMastodonAccountId|inferMastodonInstance|resolveMastodonIdentity|stripHtml)\b/,
     );
   });
+
+  it('keeps serialized MAIN-world URL lookup in its strategy module', () => {
+    const capture = readFileSync('src/background/post-url-capture.ts', 'utf8');
+
+    expect(capture).toContain("from './post-url-in-page'");
+    expect(capture).toContain('func: capturePostUrlInPage');
+    expect(capture).not.toContain("platformName === 'x'");
+    expect(capture).not.toContain("localStorage.getItem('BSKY_STORAGE')");
+  });
 });
 
 function productionTypeScriptFiles(root: string): string[] {
