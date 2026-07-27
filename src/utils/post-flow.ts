@@ -1,40 +1,30 @@
 import type { ImageAttachment } from '../messages';
 import {
-  elementTextMatches,
-  findClickableByText,
   sleep,
   waitForCondition,
   waitForElement,
 } from './dom';
+import {
+  collectConfirmDialogs,
+  finalizeFlow,
+  findFlowButton,
+  highlightPreviewButton,
+  isFlowButtonDisabled,
+  waitForSubmitButton,
+} from './flow-finalization';
 import { dropImages, injectImages, injectTextIntoElement } from './image';
 import { t } from './i18n';
 import {
   markPostStepCompleted,
   markPostStepStarted,
-  markPostSubmissionStarted,
 } from './post-submission-state';
 
 const VIDEO_POST_BUTTON_TIMEOUT_MS = 120_000;
-const CONFIRM_DIALOG_SELECTORS = [
-  '[role="dialog"]',
-  '[role="alertdialog"]',
-  '.modal-root__container', // Mastodon
-  '.components-modal__frame', // Gutenberg / Tumblr
-  'ytcp-dialog', // YouTube Studio custom dialog (role="dialog" も付くが念のため)
-  'tp-yt-paper-dialog', // YouTube Studio polymer dialog
-];
 
-export interface ConfirmDialogOptions {
-  /**
-   * Compose 本体も role=dialog の SNS があるため、post click 前から存在していた
-   * dialog は確認 dialog として扱わない。
-   */
-  ignoredDialogs?: readonly HTMLElement[];
-  /** click した元の submit button を confirmation 候補から除外する。 */
-  excludedButtons?: readonly HTMLElement[];
-  /** Compose 本体 dialog を除外するための入力欄 selector。 */
-  composeInputSelector?: string;
-}
+export {
+  maybeConfirmDialog,
+  type ConfirmDialogOptions,
+} from './flow-finalization';
 
 export interface PostFlowOptions {
   /** URL pre-fill 方式なら true、DOM injection が必要なら false */
@@ -217,21 +207,13 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
     if (prefillsViaUrl && !sawComposeInput) {
       sawComposeInput = !!findComposeInput(textareaSelector);
     }
-    if (postButtonFinder) return postButtonFinder();
-    if (postButtonSelector) {
-      let firstSelectorMatch: HTMLElement | null = null;
-      for (const part of postButtonSelector.split(',').map((s) => s.trim()).filter(Boolean)) {
-        for (const el of document.querySelectorAll<HTMLElement>(part)) {
-          firstSelectorMatch ??= el;
-          if (!isDisabled(el)) return el;
-        }
-      }
-      if (firstSelectorMatch) return firstSelectorMatch;
-    }
-    if (postButtonTexts && postButtonTexts.length > 0) {
-      return findClickableByText(postButtonTexts);
-    }
-    return null;
+    return findFlowButton({
+      finder: postButtonFinder,
+      selector: postButtonSelector,
+      texts: postButtonTexts,
+    }, {
+      preferEnabledSelectorMatch: true,
+    });
   };
 
   // ボタンの「存在 + enabled」を **両方満たす** まで loop で待つ。
@@ -241,24 +223,16 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
   // 動画ありの場合は upload 完了に時間が掛かるので timeout を多めに延長
   // (caller が postButtonTimeoutMs に明示値を渡していなければ default 15s、
   //  動画 attachment があれば 120s に bump)。
-  const isDisabled = (b: HTMLElement) =>
-    b.getAttribute('aria-disabled') === 'true' || (b as HTMLButtonElement).disabled;
   const hasVideo = (images ?? []).some((m) => m.type.startsWith('video/'));
   const effectiveTimeoutMs = resolvePostButtonTimeoutMs(postButtonTimeoutMs, hasVideo);
   const acceptsDisabledPreviewButton = dryRun && allowDisabledPostButtonInPreview === true;
 
-  markPostStepStarted('wait-submit');
-  let lastFound: HTMLElement | null = null;
-  const button = await waitForCondition<HTMLElement>(() => {
-    const candidate = findButton();
-    if (candidate) {
-      lastFound = candidate;
-      if (!isDisabled(candidate) || acceptsDisabledPreviewButton) {
-        return candidate;
-      }
-    }
-    return null;
-  }, { timeoutMs: effectiveTimeoutMs, intervalMs: 300 });
+  const { button, lastFound } = await waitForSubmitButton({
+    finder: findButton,
+  }, effectiveTimeoutMs, {
+    allowDisabled: acceptsDisabledPreviewButton,
+    intervalMs: 300,
+  });
   if (!button) {
     if (!lastFound) {
       if (prefillsViaUrl && textareaSelector && !sawComposeInput) {
@@ -272,36 +246,31 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
       t('runtimePostButtonDisabled'),
     );
   }
-  markPostStepCompleted('wait-submit');
 
   if (dryRun) {
-    const disabledNote = isDisabled(button) ? ' (disabled accepted for preview)' : ' and enabled';
-    console.log(`[Tutti] dry-run: post button found${disabledNote}, skipping click`, button);
-    // 視覚的にハイライトして検証しやすく
-    const orig = button.style.outline;
-    button.style.outline = '3px dashed #f59e0b';
-    setTimeout(() => { button!.style.outline = orig; }, 5000);
+    const disabledNote = isFlowButtonDisabled(button)
+      ? ' (disabled accepted for preview)'
+      : ' and enabled';
+    highlightPreviewButton(
+      button,
+      `[Tutti] dry-run: post button found${disabledNote}, skipping click`,
+    );
     return;
   }
 
   const preClickDialogs = collectConfirmDialogs();
-  markPostSubmissionStarted();
-  if (clickPostButton) await clickPostButton();
-  else button.click();
-
-  if (confirmDialogButtonTexts && confirmDialogButtonTexts.length > 0) {
-    markPostStepStarted('complete-confirmation');
-    await maybeConfirmDialog(confirmDialogButtonTexts, confirmDialogGraceMs, {
+  await finalizeFlow({
+    button,
+    click: clickPostButton,
+    confirmDialogButtonTexts,
+    confirmDialogGraceMs,
+    confirmDialogOptions: {
       ignoredDialogs: preClickDialogs,
       excludedButtons: [button],
       composeInputSelector: textareaSelector,
-    });
-    markPostStepCompleted('complete-confirmation');
-  }
-
-  markPostStepStarted('post-processing');
-  await sleep(afterClickDelayMs);
-  markPostStepCompleted('post-processing');
+    },
+    afterClickDelayMs,
+  });
 }
 
 async function attachMedia(
@@ -364,67 +333,4 @@ export function resolvePostButtonTimeoutMs(postButtonTimeoutMs: number, hasVideo
 
 function findComposeInput(selector: string | undefined): HTMLElement | null {
   return selector ? document.querySelector<HTMLElement>(selector) : null;
-}
-
-/**
- * 投稿ボタン押下後に出る確認ダイアログのボタンを自動クリックする。
- * モーダル系の標準的なコンテナ内に限って探索する(本体の "Post" 等と被らないように)。
- * v0.5.11〜 deadline は 8s に延長 (YouTube の "still checking" dialog が出るまで
- *   server-side validation の round trip があり、 3s では取りこぼすケースを確認)。
- *
- * step-runner.ts の finalize からも再利用するため export してある。
- */
-export async function maybeConfirmDialog(
-  texts: string[],
-  graceMs = 800,
-  options: ConfirmDialogOptions = {},
-): Promise<boolean> {
-  const start = Date.now();
-  const ignoredDialogs = new Set(options.ignoredDialogs ?? []);
-  const excludedButtons = new Set(options.excludedButtons ?? []);
-  let lastSeenDialog: HTMLElement | null = null;
-  let lastSeenButtonTexts: string[] = [];
-  const confirmed = await waitForCondition<boolean>(() => {
-    for (const dialog of collectConfirmDialogs()) {
-      if (ignoredDialogs.has(dialog)) continue;
-      if (options.composeInputSelector && dialog.querySelector(options.composeInputSelector)) continue;
-      lastSeenDialog = dialog;
-      // ダイアログ内の button のうち、テキストが完全一致するもの(部分一致だと "Post anyway" が "Post" に弾かれる)
-      const buttons = (Array.from(
-        dialog.querySelectorAll<HTMLButtonElement>('button, ytcp-button[role="button"], [role="button"]'),
-      ) as HTMLElement[]).filter((button) => !excludedButtons.has(button));
-      lastSeenButtonTexts = buttons.map((b) => (b.textContent ?? '').trim()).filter((t) => t.length > 0);
-      for (const wanted of texts) {
-        const target = buttons.find((b) => elementTextMatches(b, [wanted]));
-        if (target && !(target as HTMLButtonElement).disabled) {
-          console.log(`[Tutti] confirm dialog: clicking "${wanted}"`);
-          target.click();
-          return true;
-        }
-      }
-    }
-    // 通常ケースでは確認 dialog は出ない。短い grace 後に先へ進み、
-    // dialog を一度でも見た場合だけ disabled → enabled の変化を最大 8s 待つ。
-    if (!lastSeenDialog && Date.now() - start >= graceMs) return true;
-    return null;
-  }, { timeoutMs: 8000, intervalMs: 150 });
-  // dialog が居て texts が全部空振りした場合: auto-triage の手掛かりとして
-  // 観測した button text を warn log に残す (CWS / users 側で再現したときに
-  // diagnostics で button text が分かるようになる)
-  if (lastSeenDialog && lastSeenButtonTexts.length > 0) {
-    console.warn(
-      `[Tutti] confirm dialog detected but no button matched. ` +
-      `Tried: [${texts.join(', ')}]. ` +
-      `Saw: [${lastSeenButtonTexts.join(', ')}]`,
-    );
-  }
-  return confirmed === true;
-}
-
-function collectConfirmDialogs(): HTMLElement[] {
-  const dialogs: HTMLElement[] = [];
-  for (const sel of CONFIRM_DIALOG_SELECTORS) {
-    dialogs.push(...Array.from(document.querySelectorAll<HTMLElement>(sel)));
-  }
-  return dialogs.filter((dialog, index, all) => all.indexOf(dialog) === index);
 }

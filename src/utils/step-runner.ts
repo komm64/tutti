@@ -28,14 +28,19 @@
  *   - selector / texts / finder の優先順序は executePostFlow と同じ (finder > selector > texts)。
  *   - 単体テストは「dry-run で全 step が走り finalize は click されない」を最低限カバー。
  */
-import { findClickableByText, sleep, waitForCondition, waitForElement } from './dom';
-import { maybeConfirmDialog } from './post-flow';
+import { sleep, waitForCondition, waitForElement } from './dom';
+import {
+  finalizeFlow,
+  findFlowButton,
+  highlightPreviewButton,
+  isFlowButtonDisabled,
+  waitForSubmitButton,
+} from './flow-finalization';
 import { t } from './i18n';
 import {
   markPostStepCompleted,
   markPostStepFailed,
   markPostStepStarted,
-  markPostSubmissionStarted,
 } from './post-submission-state';
 
 /**
@@ -172,41 +177,31 @@ export async function executeMultiStepFlow(options: MultiStepFlowOptions): Promi
     }
   }
 
-  markPostStepStarted('wait-submit');
-  let finalizeBtn = await waitForStepButton(finalize, finalize.timeoutMs ?? 8000);
-  if (!finalizeBtn && dryRun && finalize.allowDisabledInPreview === true) {
-    const candidate = findStepButton(finalize);
-    if (candidate) {
-      finalizeBtn = candidate;
-      console.log('[Tutti] dry-run: disabled finalize button found, skipping click', finalizeBtn);
-    }
-  }
+  const { button: finalizeBtn } = await waitForSubmitButton(
+    finalize,
+    finalize.timeoutMs ?? 8000,
+    {
+      allowDisabled: dryRun && finalize.allowDisabledInPreview === true,
+    },
+  );
   if (!finalizeBtn) {
-    markPostStepFailed('wait-submit');
     throw new Error(t('runtimeFinalPostButtonMissing'));
   }
-  markPostStepCompleted('wait-submit');
 
   if (dryRun) {
-    console.log('[Tutti] dry-run: finalize button found and enabled, skipping click', finalizeBtn);
-    const orig = finalizeBtn.style.outline;
-    finalizeBtn.style.outline = '3px dashed #f59e0b';
-    setTimeout(() => { finalizeBtn.style.outline = orig; }, 5000);
+    const message = isFlowButtonDisabled(finalizeBtn)
+      ? '[Tutti] dry-run: disabled finalize button found, skipping click'
+      : '[Tutti] dry-run: finalize button found and enabled, skipping click';
+    highlightPreviewButton(finalizeBtn, message);
     return;
   }
 
-  markPostSubmissionStarted();
-  finalizeBtn.click();
-
-  if (finalize.confirmDialogButtonTexts && finalize.confirmDialogButtonTexts.length > 0) {
-    markPostStepStarted('complete-confirmation');
-    await maybeConfirmDialog(finalize.confirmDialogButtonTexts, finalize.confirmDialogGraceMs);
-    markPostStepCompleted('complete-confirmation');
-  }
-
-  markPostStepStarted('post-processing');
-  await sleep(finalize.afterClickDelayMs ?? 250);
-  markPostStepCompleted('post-processing');
+  await finalizeFlow({
+    button: finalizeBtn,
+    confirmDialogButtonTexts: finalize.confirmDialogButtonTexts,
+    confirmDialogGraceMs: finalize.confirmDialogGraceMs,
+    afterClickDelayMs: finalize.afterClickDelayMs,
+  });
 }
 
 /**
@@ -233,17 +228,7 @@ function dumpVisibleDialogButtons(): string {
  * step 内 action から advance を手動でトリガーしたい場合にも使える。
  */
 export function findStepButton(opts: AdvanceSpec): HTMLElement | null {
-  if (opts.finder) return opts.finder();
-  if (opts.selector) {
-    for (const part of opts.selector.split(',').map((s) => s.trim()).filter(Boolean)) {
-      const el = document.querySelector<HTMLElement>(part);
-      if (el) return el;
-    }
-  }
-  if (opts.texts && opts.texts.length > 0) {
-    return findClickableByText(opts.texts);
-  }
-  return null;
+  return findFlowButton(opts);
 }
 
 /**
@@ -256,11 +241,7 @@ export async function waitForStepButton(
 ): Promise<HTMLElement | null> {
   return await waitForCondition<HTMLElement>(() => {
     const btn = findStepButton(opts);
-    if (
-      btn &&
-      btn.getAttribute('aria-disabled') !== 'true' &&
-      !(btn as HTMLButtonElement).disabled
-    ) {
+    if (btn && !isFlowButtonDisabled(btn)) {
       return btn;
     }
     return null;
