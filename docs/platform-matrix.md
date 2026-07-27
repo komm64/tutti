@@ -1,15 +1,17 @@
 # Platform support matrix
 
-The **single source of truth** for the 11 networks Tutti supports.
-Treat this as the authoritative current state so that README / CWS listing /
-adapter code stay consistent.
+This document is the **single source of truth for real-post verification
+state** across the 11 networks Tutti supports. Executable content-kind and
+media constraints use `src/adapters/<id>.ts` as their source of truth; tests
+keep the corresponding tables below aligned with those adapters.
 
-Look here (not at each `src/adapters/<id>.ts`) to know "what works, and
-what hasn't been verified with a real post yet".
+Look here to know what the adapters support and what has not yet been verified
+with a real post.
 
-> Update rule: when adding an adapter / changing a constraint / moving
-> verification state, **update this file first**. README / CWS listing
-> etc. reference this.
+> Update rule: change executable support or constraints in the adapter first
+> and update the reflected table in the same change. Update real-post
+> verification state in this document first. README / CWS listing etc.
+> reference this.
 
 ## Legend
 
@@ -27,7 +29,7 @@ what hasn't been verified with a real post yet".
 | network | text | image | shortVideo | longVideo | path | multi-step | fg tab | API |
 |---|:---:|:---:|:---:|:---:|---|:---:|:---:|:---:|
 | X | ✅ | ✅ | ✅ | ✅ | DOM | — | — | — |
-| Bluesky | ✅ | ✅ | ✅ | — | DOM + API | — | — | ✅ |
+| Bluesky | ✅ | ✅ | ✅ | ✅ | DOM + API | — | — | ✅ |
 | Threads | ✅ | ✅ | ✅ | ✅ | DOM | — | — | — |
 | Mastodon | ✅ | ✅ | ✅ | ✅ | DOM + API | — | — | ✅ |
 | Misskey | ✅ | ✅ | ✅ | ✅ | DOM + API | — | — | ✅ |
@@ -38,21 +40,21 @@ what hasn't been verified with a real post yet".
 | Instagram | — | ⚠️ | ⚠️ | — | DOM | ✅ | ✅ | — |
 | DeviantArt | — | ⚠️ | — | — | DOM | ✅ | ✅ | — |
 
-## Posting constraints (extracted from adapter code, as of 2026-05-13)
+## Posting constraints (extracted from adapter code, as of 2026-07-27)
 
 | network | charLimit | maxImages | maxBytesPerImage | maxBytes (video) | maxDurationS |
 |---|---:|---:|---:|---:|---:|
-| X | 280 | 4 | 5 MB | 512 MB | unlimited |
-| Bluesky | 300 | 4 | 1 MB | 80 MiB | 60 |
-| Threads | 500 | 10 | 8 MB | 1 GB | unlimited |
-| Mastodon (mastodon.social) | 500 | 4 | 8 MB | 40 MB | unlimited |
-| Misskey (misskey.io) | 3000 | 16 | 100 MB | 100 MB | unlimited |
-| Tumblr | 4096 | 10 | 10 MB | 100 MB | unlimited |
-| Pixiv | 1000 (caption) | 200 | 30 MB | — | — |
-| TikTok | 2200 (caption) | — | — | 287 MB | 180 |
-| YouTube (Shorts) | 5000 (description) | — | — | 2 GB | 60 |
-| Instagram | 2200 (caption) | 10 | 30 MB | 100 MB | 60 |
-| DeviantArt | 5000 | 1 | 30 MB | — | — |
+| X | 280 | 4 | 5 MiB | 512 MiB | 140 |
+| Bluesky | 300 | 4 | 2,000,000 bytes | 80 MiB | 180 |
+| Threads | 500 | 10 | 8 MiB | 1 GiB | 300 |
+| Mastodon (mastodon.social) | 500 | 4 | 8 MiB | 40 MiB | unlimited |
+| Misskey (misskey.io) | 3000 | 16 | 100 MiB | 100 MiB | unlimited |
+| Tumblr | 4096 | 10 | 10 MiB | 100 MiB | unlimited |
+| Pixiv | 1000 (caption) | 200 | 32 MiB | — | — |
+| TikTok | 2200 (caption) | — | — | 287 MiB | 180 |
+| YouTube (Shorts) | 5000 (description) | — | — | 2 GiB | 60 |
+| Instagram | 2200 (caption) | 10 | 30 MiB | 100 MiB | 60 |
+| DeviantArt | 5000 | 1 | 30 MiB | — | — |
 
 - "unlimited" means **the client does not check duration**. The SNS may
   still reject server-side (the SNS UI error is surfaced to the popup).
