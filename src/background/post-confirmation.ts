@@ -125,6 +125,8 @@ export function createPostConfirmation(options: PostConfirmationOptions = {}) {
   };
 }
 
+export type PostConfirmation = ReturnType<typeof createPostConfirmation>;
+
 export async function attachVerifyResult(
   result: PostResultMessage,
   platform: PlatformId,
