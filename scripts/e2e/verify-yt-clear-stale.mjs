@@ -4,8 +4,14 @@
  * REFRESH_USER 後に lastSeenUsers から youtube key が消えてること。
  */
 import puppeteer from 'puppeteer-core';
-const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222', defaultViewport: null, protocolTimeout: 60000 });
-const EXT_ID = 'dophemlpjldcejjdjefpjbgngodopkfe';
+import {
+  connectPuppeteerCdp,
+  disconnectCdp,
+  resolveExtensionId,
+} from './cdp-harness.mjs';
+
+const browser = await connectPuppeteerCdp({ puppeteer, timeoutMs: 60_000 });
+const EXT_ID = await resolveExtensionId(browser);
 
 let sw = browser.targets().find((t) => t.type() === 'service_worker' && t.url().includes(EXT_ID));
 if (!sw) {
@@ -51,4 +57,4 @@ console.log('\nyoutube key:', after?.youtube ?? '(cleared / absent)');
 await popupPage2.close().catch(() => {});
 
 await popupPage.close().catch(() => {});
-browser.disconnect();
+await disconnectCdp(browser);

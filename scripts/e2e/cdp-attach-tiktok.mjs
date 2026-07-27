@@ -21,26 +21,20 @@
  *
  * Playwright の `chromium.connectOverCDP` は拡張持ち Chromium に attach すると
  * 内部の target 列挙で hang する (Surface 実機 2026-05-13 で確認、Timeout 90s)。
- * puppeteer-core の `puppeteer.connect` は即座に attach 成功するので採用。
+ * puppeteer-core の CDP attach は即座に成功するため、共通 harness 経由で採用。
  */
 
 import puppeteer from 'puppeteer-core';
-import { resolve } from 'node:path';
-import { readFileSync } from 'node:fs';
+import {
+  connectPuppeteerCdp,
+  disconnectCdp,
+  loadE2eFixture,
+  resolveCdpEndpoint,
+} from './cdp-harness.mjs';
 
-// CDP endpoint の自動検出 (HTTP /json/version からWS URLを引く)
-async function discoverWsEndpoint() {
-  const res = await fetch('http://localhost:9222/json/version').catch(() => null);
-  if (!res || !res.ok) {
-    throw new Error('TikTok CDP smoke: localhost:9222 に Chromium が見つからない (Tutti-test-login.bat 起動済?)');
-  }
-  const data = await res.json();
-  return data.webSocketDebuggerUrl;
-}
-
-const ws = process.env.E2E_CDP_WS ?? await discoverWsEndpoint();
-console.log(`[tiktok-cdp] connecting to ${ws}`);
-const browser = await puppeteer.connect({ browserWSEndpoint: ws, defaultViewport: null });
+const cdpEndpoint = resolveCdpEndpoint();
+console.log(`[tiktok-cdp] connecting to ${cdpEndpoint}`);
+const browser = await connectPuppeteerCdp({ puppeteer, endpoint: cdpEndpoint });
 
 let pages = await browser.pages();
 let ttPage = pages.find((p) => /tiktok\.com\/tiktokstudio\/upload/.test(p.url()))
@@ -53,7 +47,7 @@ await new Promise((r) => setTimeout(r, 8000));
 const fi = await ttPage.evaluate(() => !!document.querySelector('input[type="file"][accept*="video"]'));
 if (!fi) {
   console.error('[tiktok-cdp] FAIL: TikTok Studio file input が見つからない (未ログイン / UI 変更?)');
-  browser.disconnect();
+  await disconnectCdp(browser);
   process.exit(2);
 }
 
@@ -62,13 +56,13 @@ const swTarget = browser.targets().find((t) =>
 );
 if (!swTarget) {
   console.error('[tiktok-cdp] FAIL: Tutti 拡張 SW が見つからない (拡張 load 済?)');
-  browser.disconnect();
+  await disconnectCdp(browser);
   process.exit(3);
 }
 const worker = await swTarget.worker();
 
-const videoPath = resolve(process.cwd(), 'scripts/e2e/fixtures/test-video.mp4');
-const videoB64 = readFileSync(videoPath).toString('base64');
+const videoFixture = await loadE2eFixture('test-video.mp4', 'video/mp4', { required: true });
+const videoB64 = videoFixture.data;
 const text = `tutti e2e tiktok cdp ${new Date().toISOString()}`;
 
 console.log(`[tiktok-cdp] sending POST_TO_PLATFORM (autoPost=false / preview)`);
@@ -87,5 +81,5 @@ const result = await worker.evaluate(async ({ text, videoB64 }) => {
 }, { text, videoB64 });
 
 console.log(`[tiktok-cdp] RESULT: ${JSON.stringify(result)}`);
-browser.disconnect();
+await disconnectCdp(browser);
 process.exit(result.ok ? 0 : 1);

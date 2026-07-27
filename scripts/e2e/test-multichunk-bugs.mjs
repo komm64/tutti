@@ -20,25 +20,20 @@
  */
 
 import puppeteer from 'puppeteer-core';
-import { resolve } from 'node:path';
-import { readFileSync } from 'node:fs';
+import {
+  connectPuppeteerCdp,
+  disconnectCdp,
+  loadE2eFixture,
+  resolveExtensionId,
+} from './cdp-harness.mjs';
 
 const AUTOPOST = process.env.AUTOPOST === '1';
 const PLATFORM_FILTER = process.env.PLATFORM ?? ''; // 'x', 'bluesky', 'instagram', or empty for all
 
-async function discoverWsEndpoint() {
-  const res = await fetch('http://localhost:9222/json/version').catch(() => null);
-  if (!res || !res.ok) throw new Error('CDP localhost:9222 に接続できない');
-  const data = await res.json();
-  return data.webSocketDebuggerUrl;
-}
-
-const ws = await discoverWsEndpoint();
 console.log(`[cdp] connecting`);
-const browser = await puppeteer.connect({ browserWSEndpoint: ws, defaultViewport: null });
+const browser = await connectPuppeteerCdp({ puppeteer });
 
-// 拡張 ID は Tutti が unpacked load される際に固定 (mv3 manifest key 由来)
-const extId = 'dophemlpjldcejjdjefpjbgngodopkfe';
+const extId = await resolveExtensionId(browser);
 
 async function findSw() {
   return browser.targets().find((t) =>
@@ -68,7 +63,7 @@ async function wakeSw() {
 const swTarget = await wakeSw();
 if (!swTarget) {
   console.error('[cdp] FAIL: Tutti SW を wake できなかった');
-  browser.disconnect();
+  await disconnectCdp(browser);
   process.exit(2);
 }
 const worker = await swTarget.worker();
@@ -87,8 +82,8 @@ await new Promise((r) => setTimeout(r, 1000));
 console.log(`[cdp] popup page opened: ${popupPage.url()}`);
 
 // fixture image (8KB JPEG)
-const imgPath = resolve(process.cwd(), 'scripts/e2e/fixtures/test-image.jpg');
-const imgB64 = readFileSync(imgPath).toString('base64');
+const imageFixture = await loadE2eFixture('test-image.jpg', 'image/jpeg', { required: true });
+const imgB64 = imageFixture.data;
 console.log(`[fixture] image: ${imgB64.length} chars b64 (~${Math.round(imgB64.length * 0.75)} bytes)`);
 
 const ts = new Date().toISOString().replace(/[:.]/g, '-');
@@ -201,5 +196,5 @@ for (const r of results) {
   if (url) console.log(`  url: ${url}`);
 }
 
-browser.disconnect();
+await disconnectCdp(browser);
 process.exit(0);

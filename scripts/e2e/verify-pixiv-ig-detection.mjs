@@ -1,7 +1,13 @@
 import puppeteer from 'puppeteer-core';
-const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222', defaultViewport: null, protocolTimeout: 60000 });
+import {
+  connectPuppeteerCdp,
+  disconnectCdp,
+  resolveExtensionId,
+} from './cdp-harness.mjs';
 
-const EXT_ID = 'dophemlpjldcejjdjefpjbgngodopkfe';
+const browser = await connectPuppeteerCdp({ puppeteer, timeoutMs: 60_000 });
+
+const EXT_ID = await resolveExtensionId(browser);
 let sw = browser.targets().find((t) => t.type() === 'service_worker' && t.url().includes(EXT_ID));
 if (!sw) {
   const p = await browser.newPage();
@@ -47,4 +53,4 @@ const lastSeen = await popupPage.evaluate(async () => {
 });
 console.log('lastSeenUsers:', JSON.stringify(lastSeen, null, 2));
 await popupPage.close().catch(() => {});
-browser.disconnect();
+await disconnectCdp(browser);

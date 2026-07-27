@@ -1,14 +1,13 @@
 import puppeteer from 'puppeteer-core';
+import {
+  connectPuppeteerCdp,
+  disconnectCdp,
+  resolveExtensionId,
+} from './cdp-harness.mjs';
 
-const browser = await puppeteer.connect({
-  browserURL: 'http://localhost:9222',
-  protocolTimeout: 60000,
-});
+const browser = await connectPuppeteerCdp({ puppeteer, timeoutMs: 60_000 });
 const pages = await browser.pages();
-const extensionId = process.env.E2E_EXTENSION_ID ?? pages
-  .map((page) => page.url().match(/^chrome-extension:\/\/([a-z]+)\//)?.[1])
-  .find(Boolean);
-if (!extensionId) throw new Error('Tutti extension id not found');
+const extensionId = await resolveExtensionId(browser);
 
 let page = pages.find((candidate) =>
   candidate.url() === `chrome-extension://${extensionId}/sidepanel.html`);
@@ -25,4 +24,4 @@ await page.evaluate(async () => {
 });
 await page.bringToFront();
 console.log(`[show] Tutti sidepanel page opened (${extensionId}), displayMode=auto`);
-browser.disconnect();
+await disconnectCdp(browser);

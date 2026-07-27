@@ -1,9 +1,7 @@
 import puppeteer from 'puppeteer-core';
-const browser = await puppeteer.connect({
-  browserURL: 'http://localhost:9222',
-  defaultViewport: null,
-  protocolTimeout: 60000,
-});
+import { connectPuppeteerCdp, disconnectCdp } from './cdp-harness.mjs';
+
+const browser = await connectPuppeteerCdp({ puppeteer, timeoutMs: 60_000 });
 const pages = await browser.pages();
 const bskyPage = pages.find((p) => /bsky\.app/.test(p.url())) || await browser.newPage();
 await bskyPage.bringToFront();
@@ -27,4 +25,4 @@ const detail = await bskyPage.evaluate(() => {
 console.log(JSON.stringify(detail, null, 2));
 
 await bskyPage.screenshot({ path: 'C:/Users/komm64/Projects/tutti/scripts/e2e/bsky-thread-shot.png', fullPage: true });
-browser.disconnect();
+await disconnectCdp(browser);
