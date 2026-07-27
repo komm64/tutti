@@ -31,6 +31,7 @@ import {
   capturePostUrlFromTabWithRetry as capturePostUrlWithGenericFlow,
   type CapturePostUrlOptions,
 } from './post-url-capture';
+import { extractHttpUrls } from '../utils/text-urls';
 
 export type PostUrlCaptureStrategy = (
   options: CapturePostUrlOptions,
@@ -41,8 +42,22 @@ export interface BackgroundPlatformStrategy {
   parsePostId: (url: URL) => string | null;
   /** credentials / borrowed session がある場合だけ使う API posting 手続き。 */
   apiPost?: ApiPostingStrategy;
+  /** API posting strategyがreply URLをthread continuationとして処理できる。 */
+  apiReplyContinuation?: true;
+  /** 複数chunkを1つのcompose surfaceへまとめるplatform固有policy。 */
+  inlineThread?: {
+    shouldUse: (autoPost: boolean) => boolean;
+    forceForegroundPreview?: true;
+  };
   /** 2 chunk 目以降を captured parent URL へ接続する compose URL 手続き。 */
   continuationUrl?: (previousPostUrl: string) => string | undefined;
+  /** media kindに応じてadapter既定値を置き換えるcompose URL手続き。 */
+  resolveComposeUrl?: (
+    defaultUrl: string,
+    attachments?: readonly ImageAttachment[],
+  ) => string;
+  /** verification時に本文から追加で期待するURLを構築する。 */
+  expectedUrls?: (text: string) => string[];
   /** 投稿後 URL と期待値を照合する verification 手続き。 */
   verifyPost?: VerificationStrategy;
   /** 投稿後に platform 固有の post URL を取得する手続き。 */
@@ -56,6 +71,10 @@ export interface BackgroundPlatformStrategy {
 export const backgroundPlatformStrategies: Record<PlatformId, BackgroundPlatformStrategy> = {
   x: {
     parsePostId: ({ pathname }) => pathname.match(/\/status(?:es)?\/(\d+)/)?.[1] ?? null,
+    inlineThread: {
+      shouldUse: (autoPost) => !autoPost,
+      forceForegroundPreview: true,
+    },
     continuationUrl: (previousPostUrl) => {
       const statusId = previousPostUrl.match(/\/status\/(\d+)/)?.[1];
       return statusId ? `https://x.com/intent/post?in_reply_to=${statusId}` : undefined;
@@ -66,6 +85,9 @@ export const backgroundPlatformStrategies: Record<PlatformId, BackgroundPlatform
   bluesky: {
     parsePostId: ({ pathname }) => pathname.match(/\/post\/([a-zA-Z0-9]+)/)?.[1] ?? null,
     apiPost: tryBlueskyApiPost,
+    inlineThread: {
+      shouldUse: () => true,
+    },
     verifyPost: verifyBlueskyPost,
     capturePostUrl: capturePostUrlWithGenericFlow,
   },
@@ -82,6 +104,7 @@ export const backgroundPlatformStrategies: Record<PlatformId, BackgroundPlatform
       ?? null
     ),
     apiPost: tryMastodonApiPost,
+    apiReplyContinuation: true,
     continuationUrl: (previousPostUrl) => previousPostUrl,
     verifyPost: verifyMastodonPost,
     capturePostUrl: capturePostUrlWithGenericFlow,
@@ -98,6 +121,12 @@ export const backgroundPlatformStrategies: Record<PlatformId, BackgroundPlatform
       ?? pathname.match(/^\/[^/]+\/(\d+)(?:\/|$)/)?.[1]
       ?? null
     ),
+    resolveComposeUrl: (defaultUrl, attachments) => (
+      attachments?.some((attachment) => attachment.type.startsWith('video/'))
+        ? 'https://www.tumblr.com/new/video'
+        : defaultUrl
+    ),
+    expectedUrls: extractHttpUrls,
     verifyPost: verifyTumblrPost,
     capturePostUrl: capturePostUrlWithGenericFlow,
   },
@@ -175,6 +204,17 @@ export function continuationNeedsReplyUrl(platform: PlatformId): boolean {
   return getBackgroundPlatformStrategy(platform).continuationUrl !== undefined;
 }
 
+export function shouldUseInlineThread(platform: PlatformId, autoPost: boolean): boolean {
+  return getBackgroundPlatformStrategy(platform).inlineThread?.shouldUse(autoPost) === true;
+}
+
+export function canUseApiWithReplyUrl(
+  platform: PlatformId,
+  replyToUrl: string | undefined,
+): boolean {
+  return !!replyToUrl && getBackgroundPlatformStrategy(platform).apiReplyContinuation === true;
+}
+
 export function buildReplyOverrideUrl(
   platform: PlatformId,
   chunkIndex: number,
@@ -182,6 +222,34 @@ export function buildReplyOverrideUrl(
 ): string | undefined {
   if (chunkIndex === 0 || !previousPostUrl) return undefined;
   return getBackgroundPlatformStrategy(platform).continuationUrl?.(previousPostUrl);
+}
+
+export function resolveComposeUrlForMedia(
+  platform: PlatformId,
+  defaultUrl: string,
+  attachments?: readonly ImageAttachment[],
+): string {
+  return getBackgroundPlatformStrategy(platform).resolveComposeUrl?.(defaultUrl, attachments)
+    ?? defaultUrl;
+}
+
+export function shouldForceInlineThreadPreviewForeground(
+  platform: PlatformId,
+  dryRun: boolean,
+  textChunks?: readonly string[],
+): boolean {
+  const inlineThread = getBackgroundPlatformStrategy(platform).inlineThread;
+  return dryRun
+    && inlineThread?.forceForegroundPreview === true
+    && !!textChunks
+    && textChunks.length > 1;
+}
+
+export function buildExpectedUrlsForVerification(
+  platform: PlatformId,
+  text: string,
+): string[] {
+  return getBackgroundPlatformStrategy(platform).expectedUrls?.(text) ?? [];
 }
 
 export function isVerifySupported(platform: PlatformId): boolean {

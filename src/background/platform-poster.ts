@@ -17,11 +17,16 @@ import {
   type OpenOrFocusTabOptions,
 } from './tab-management';
 import {
+  buildExpectedUrlsForVerification,
   buildReplyOverrideUrl,
+  canUseApiWithReplyUrl,
   capturePostUrlFromTabWithRetry,
   continuationNeedsReplyUrl,
   isVerifySupported,
+  resolveComposeUrlForMedia,
   runVerify,
+  shouldForceInlineThreadPreviewForeground,
+  shouldUseInlineThread,
   tryApiPath,
 } from './platform-strategies';
 import {
@@ -37,7 +42,6 @@ import { downgradeHardVerifyFailures, toPreviewResult } from './post-result-poli
 import type { OpenedTabRegistry } from './opened-tab-registry';
 import { retryTransientTabAction } from './tab-action-retry';
 import type { VerifyExpectation } from '../utils/post-verify';
-import { extractHttpUrls } from '../utils/text-urls';
 
 const CHUNK_INTERVAL_MS = 2000;
 
@@ -99,9 +103,7 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
 
     const chunks = splitTextForPlatform(adapter.id, text, adapter.charLimit);
 
-    // X autoPost needs URL-confirmed reply chaining; preview keeps inline compose.
-    const useInlineThread = adapter.id === 'bluesky' || (adapter.id === 'x' && !autoPost);
-    if (useInlineThread && chunks.length > 1) {
+    if (shouldUseInlineThread(adapter.id, autoPost) && chunks.length > 1) {
       return await postSingleChunkInlineThread(adapter, chunks, images, autoPost);
     }
 
@@ -277,8 +279,12 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
       lastCompletedStep: 'preflight',
     };
 
-    const canUseApiWithReplyUrl = adapter.id === 'mastodon' && !!replyToUrl;
-    if (autoPost && (!overrideUrl || canUseApiWithReplyUrl) && !textChunks && !attempt.skipApi) {
+    if (
+      autoPost
+      && (!overrideUrl || canUseApiWithReplyUrl(adapter.id, replyToUrl))
+      && !textChunks
+      && !attempt.skipApi
+    ) {
       const apiResult = await tryApiPath(adapter.id, text, images, cw, visibility, replyToUrl);
       const apiOutcome = resolveApiPostOutcome(adapter.id, apiResult, baseFlow);
       if (apiOutcome) {
@@ -578,9 +584,7 @@ export function getComposeUrlForMedia(
   text: string,
   images?: readonly ImageAttachment[],
 ): string {
-  const hasVideo = images?.some((image) => image.type.startsWith('video/')) === true;
-  if (adapter.id === 'tumblr' && hasVideo) return 'https://www.tumblr.com/new/video';
-  return adapter.getComposeUrl(text);
+  return resolveComposeUrlForMedia(adapter.id, adapter.getComposeUrl(text), images);
 }
 
 export function resolvePreSubmitLoadOptions(
@@ -603,9 +607,9 @@ export function shouldOpenActive(
 ): boolean {
   if (forceForeground) return true;
   if (autoPost) return true;
-  const forceForegroundForXThreadPreview =
-    adapter.id === 'x' && dryRun && !!textChunks && textChunks.length > 1;
-  return adapter.requiresForegroundTab === true || forceForegroundForXThreadPreview;
+  const forceForegroundForThreadPreview =
+    shouldForceInlineThreadPreviewForeground(adapter.id, dryRun, textChunks);
+  return adapter.requiresForegroundTab === true || forceForegroundForThreadPreview;
 }
 
 export function buildDomPostAttempts(
@@ -718,7 +722,7 @@ export function buildVerifyExpectationForChunk(
 ): VerifyExpectation {
   const chunkText = chunks.length > 1 ? chunks[chunkIndex] ?? chunks[chunks.length - 1] ?? text : text;
   const mediaBelongsToThisChunk = chunks.length <= 1 || chunkIndex === 0;
-  const expectedUrls = platform === 'tumblr' ? extractHttpUrls(chunkText) : [];
+  const expectedUrls = buildExpectedUrlsForVerification(platform, chunkText);
   return {
     text: chunkText,
     hasImages: mediaBelongsToThisChunk && !!images?.some((image) => image.type.startsWith('image/')),

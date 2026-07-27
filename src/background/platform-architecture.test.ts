@@ -28,40 +28,7 @@ const GUARDED_ORCHESTRATORS = [
 const PLATFORM_LITERAL_ALLOWLIST: Partial<Record<
   (typeof GUARDED_ORCHESTRATORS)[number],
   LiteralAllowance[]
->> = {
-  'src/background/platform-poster.ts': [
-    {
-      line: "const useInlineThread = adapter.id === 'bluesky' || (adapter.id === 'x' && !autoPost);",
-      reason: 'Inline multi-chunk compose is an existing background strategy procedure.',
-      owner: 'Issue #12 Phase 2 strategy migration',
-      removalPhase: 'Phase 2 before closure',
-    },
-    {
-      line: "const canUseApiWithReplyUrl = adapter.id === 'mastodon' && !!replyToUrl;",
-      reason: 'Mastodon API continuation capability still needs a strategy-owned predicate.',
-      owner: 'Issue #12 Phase 2 strategy migration',
-      removalPhase: 'Phase 2 before closure',
-    },
-    {
-      line: "if (adapter.id === 'tumblr' && hasVideo) return 'https://www.tumblr.com/new/video';",
-      reason: 'Tumblr media-specific compose URL still needs a strategy-owned resolver.',
-      owner: 'Issue #12 Phase 2 strategy migration',
-      removalPhase: 'Phase 2 before closure',
-    },
-    {
-      line: "adapter.id === 'x' && dryRun && !!textChunks && textChunks.length > 1;",
-      reason: 'X inline-thread preview focus still needs a strategy-owned predicate.',
-      owner: 'Issue #12 Phase 2 strategy migration',
-      removalPhase: 'Phase 2 before closure',
-    },
-    {
-      line: "const expectedUrls = platform === 'tumblr' ? extractHttpUrls(chunkText) : [];",
-      reason: 'Tumblr verification URL expectation still needs a strategy-owned builder.',
-      owner: 'Issue #12 Phase 2 strategy migration',
-      removalPhase: 'Phase 2 before closure',
-    },
-  ],
-};
+>> = {};
 
 const PLATFORM_COLLECTION_PATTERNS = [
   {
