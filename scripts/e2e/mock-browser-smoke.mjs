@@ -4,9 +4,10 @@
  * This launches a fresh Chromium profile with the built MV3 extension loaded,
  * serves mock compose pages via Playwright routing, then exercises:
  *   1. X popup/background/content preview via chrome.runtime.sendMessage
- *   2. X popup UI preview submission
- *   3. Mastodon executePostFlow preview
- *   4. Instagram executeMultiStepFlow wizard preview
+ *   2. Options API credential editor rendering
+ *   3. X popup UI preview submission
+ *   4. Mastodon executePostFlow preview
+ *   5. Instagram executeMultiStepFlow wizard preview
  *
  * It does not log in to or post to any real SNS. On failure, artifacts are
  * written under .tmp/e2e-smoke-*.
@@ -70,6 +71,7 @@ try {
   await ensureMockXComposePage(context);
 
   await runRuntimePreviewSmoke(popupPage);
+  await runOptionsCredentialEditorSmoke(context, extensionId);
   await runPopupPreviewSmoke(context, extensionId);
   await runMastodonSimplePreviewSmoke(context, popupPage);
   await runInstagramWizardPreviewSmoke(context, popupPage);
@@ -218,6 +220,29 @@ async function runRuntimePreviewSmoke(page) {
   assert(bgState.postingState.results[0]?.preview === true, `background retained non-preview result: ${JSON.stringify(bgState)}`);
 
   await page.evaluate(() => chrome.runtime.sendMessage({ type: 'CLEAR_POSTING_STATE' }));
+}
+
+async function runOptionsCredentialEditorSmoke(ctx, extensionId) {
+  console.log('[mock-smoke] Options API credential editor smoke');
+  const page = await openExtensionPage(ctx, extensionId, 'options.html');
+  const providerIds = ['bluesky', 'mastodon', 'misskey'];
+  for (const provider of providerIds) {
+    await page.locator(`#api-${provider}-primary`).waitFor();
+    await page.locator(`#api-${provider}-secret`).waitFor();
+  }
+  assert(
+    await page.locator('button', { hasText: 'Test & Save' }).count() === providerIds.length,
+    'Options did not render one shared credential editor per provider',
+  );
+  assert(
+    await page.locator('#api-mastodon-primary').inputValue() === 'https://mastodon.social',
+    'Options did not preserve the Mastodon default instance',
+  );
+  assert(
+    await page.locator('#api-misskey-primary').inputValue() === 'https://misskey.io',
+    'Options did not preserve the Misskey default instance',
+  );
+  await page.close();
 }
 
 async function runPopupPreviewSmoke(ctx, extensionId) {

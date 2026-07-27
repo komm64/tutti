@@ -12,16 +12,17 @@
     getOverrides,
   } from '../../src/utils/selector-overrides';
   import { fetchOverridesFrom } from '../../src/utils/selector-feed-runtime';
+  import { getApiCredentials } from '../../src/utils/api-credentials';
   import {
-    getApiCredentials,
-    setApiCredentials,
-    clearApiCredentials,
-  } from '../../src/utils/api-credentials';
-  import { testCredentials as testBluesky } from '../../src/api/bluesky';
-  import { testCredentials as testMastodon } from '../../src/api/mastodon';
-  import { testCredentials as testMisskey } from '../../src/api/misskey';
+    API_CREDENTIAL_PROVIDERS,
+    clearProviderApiCredential,
+    createApiCredentialEditorStates,
+    testAndSaveApiCredential,
+    type ApiCredentialProviderDescriptor,
+  } from '../../src/options/api-credential-providers';
   import { t, TUTTI_LOCALES } from '../../src/utils/i18n';
   import ResponsibleUseDialog from '../popup/components/ResponsibleUseDialog.svelte';
+  import ApiCredentialEditor from './components/ApiCredentialEditor.svelte';
 
   let mastodonInstance = $state('https://mastodon.social');
   let misskeyInstance = $state('https://misskey.io');
@@ -49,20 +50,7 @@
   let historyCleared = $state(false);
 
   // ── API 連携 (P15 Phase 1: Bluesky / Mastodon / Misskey) ────────
-  let bskyId = $state('');
-  let bskyPw = $state('');
-  let bskyStatus = $state<{ ok?: boolean; msg: string } | null>(null);
-  let bskyBusy = $state(false);
-
-  let mstdInstance = $state('https://mastodon.social');
-  let mstdToken = $state('');
-  let mstdStatus = $state<{ ok?: boolean; msg: string } | null>(null);
-  let mstdBusy = $state(false);
-
-  let mskyInstance = $state('https://misskey.io');
-  let mskyToken = $state('');
-  let mskyStatus = $state<{ ok?: boolean; msg: string } | null>(null);
-  let mskyBusy = $state(false);
+  let credentialEditors = $state(createApiCredentialEditorStates());
 
   const version = browser.runtime.getManifest().version;
   // v0.5.2: t() は src/utils/i18n から import 済。 Settings.uiLanguage で切替可能。
@@ -85,21 +73,7 @@
       responsibleUseAcceptedAt = s.responsibleUseAcceptedAt ?? null;
       overrideFetchedAt = at;
       overrideCount = Object.values(ov).reduce((sum, v) => sum + Object.keys(v ?? {}).length, 0);
-      // API credentials のロード (パスワード / トークンは UI に出すと見えるので
-      // 既存値が居れば「設定済」表示だけにし、再入力時のみ更新する設計でもいいが、
-      // 簡単のため bind で出す。option page は user 自身しか見ないので妥当)
-      if (creds.bluesky) {
-        bskyId = creds.bluesky.identifier;
-        bskyPw = creds.bluesky.appPassword;
-      }
-      if (creds.mastodon) {
-        mstdInstance = creds.mastodon.instance;
-        mstdToken = creds.mastodon.accessToken;
-      }
-      if (creds.misskey) {
-        mskyInstance = creds.misskey.instance;
-        mskyToken = creds.misskey.accessToken;
-      }
+      credentialEditors = createApiCredentialEditorStates(creds);
       loading = false;
     });
     // background から現在の log buffer サイズを取得
@@ -172,80 +146,46 @@
   // ── API 連携 handlers ──────────────────────────────────────────
   // 「テスト & 保存」ボタン: 認証確認 → 通れば保存。失敗時は保存しない (= 既存
   // creds は壊さない)。「解除」ボタンで個別 platform の credentials を削除。
-  async function handleBskySave() {
-    if (!bskyId.trim() || !bskyPw.trim()) {
-      bskyStatus = { ok: false, msg: t('apiBskyMissing') };
+  async function handleCredentialSave(
+    provider: ApiCredentialProviderDescriptor,
+  ): Promise<void> {
+    const editor = credentialEditors[provider.id];
+    if (!provider.prepare(editor)) {
+      editor.status = { ok: false, msg: t(provider.missingMessageKey) };
       return;
     }
-    bskyBusy = true;
-    bskyStatus = { msg: t('apiTesting') };
-    const result = await testBluesky({ identifier: bskyId.trim(), appPassword: bskyPw.trim() });
+    editor.busy = true;
+    editor.status = { msg: t('apiTesting') };
+    const result = await testAndSaveApiCredential(provider, editor);
     if (result.ok) {
-      await setApiCredentials({ bluesky: { identifier: bskyId.trim(), appPassword: bskyPw.trim() } });
-      bskyStatus = { ok: true, msg: `✓ ${t('apiConnected', result.identifier ?? '')}` };
+      editor.status = {
+        ok: true,
+        msg: `✓ ${t(
+          'apiConnected',
+          provider.formatIdentifier(result.identifier ?? ''),
+        )}`,
+      };
+    } else if (result.reason === 'permission-denied') {
+      editor.status = { ok: false, msg: `✗ ${t('apiHostPermissionDenied')}` };
+    } else if (result.reason === 'missing') {
+      editor.status = { ok: false, msg: t(provider.missingMessageKey) };
     } else {
-      bskyStatus = { ok: false, msg: `✗ ${result.error ?? t('apiConnectError')}` };
+      editor.status = {
+        ok: false,
+        msg: `✗ ${result.error ?? t('apiConnectError')}`,
+      };
     }
-    bskyBusy = false;
-  }
-  async function handleBskyClear() {
-    await clearApiCredentials('bluesky');
-    bskyId = ''; bskyPw = '';
-    bskyStatus = { ok: true, msg: `✓ ${t('apiCleared')}` };
+    editor.busy = false;
   }
 
-  async function handleMstdSave() {
-    const inst = normalizeUrl(mstdInstance);
-    if (!inst || !mstdToken.trim()) {
-      mstdStatus = { ok: false, msg: t('apiInstanceTokenMissing') };
-      return;
-    }
-    if (!(await ensurePermission(inst, 'https://mastodon.social'))) {
-      mstdStatus = { ok: false, msg: `✗ ${t('apiHostPermissionDenied')}` };
-      return;
-    }
-    mstdBusy = true;
-    mstdStatus = { msg: t('apiTesting') };
-    const result = await testMastodon({ instance: inst, accessToken: mstdToken.trim() });
-    if (result.ok) {
-      await setApiCredentials({ mastodon: { instance: inst, accessToken: mstdToken.trim() } });
-      mstdStatus = { ok: true, msg: `✓ ${t('apiConnected', '@' + (result.identifier ?? ''))}` };
-    } else {
-      mstdStatus = { ok: false, msg: `✗ ${result.error ?? t('apiConnectError')}` };
-    }
-    mstdBusy = false;
-  }
-  async function handleMstdClear() {
-    await clearApiCredentials('mastodon');
-    mstdToken = '';
-    mstdStatus = { ok: true, msg: `✓ ${t('apiCleared')}` };
-  }
-
-  async function handleMskySave() {
-    const inst = normalizeUrl(mskyInstance);
-    if (!inst || !mskyToken.trim()) {
-      mskyStatus = { ok: false, msg: t('apiInstanceTokenMissing') };
-      return;
-    }
-    if (!(await ensurePermission(inst, 'https://misskey.io'))) {
-      mskyStatus = { ok: false, msg: `✗ ${t('apiHostPermissionDenied')}` };
-      return;
-    }
-    mskyBusy = true;
-    mskyStatus = { msg: t('apiTesting') };
-    const result = await testMisskey({ instance: inst, accessToken: mskyToken.trim() });
-    if (result.ok) {
-      await setApiCredentials({ misskey: { instance: inst, accessToken: mskyToken.trim() } });
-      mskyStatus = { ok: true, msg: `✓ ${t('apiConnected', result.identifier ?? '')}` };
-    } else {
-      mskyStatus = { ok: false, msg: `✗ ${result.error ?? t('apiConnectError')}` };
-    }
-    mskyBusy = false;
-  }
-  async function handleMskyClear() {
-    await clearApiCredentials('misskey');
-    mskyToken = '';
-    mskyStatus = { ok: true, msg: `✓ ${t('apiCleared')}` };
+  async function handleCredentialClear(
+    provider: ApiCredentialProviderDescriptor,
+  ): Promise<void> {
+    await clearProviderApiCredential(provider);
+    const editor = credentialEditors[provider.id];
+    if (provider.clearPrimaryOnClear) editor.primary = '';
+    editor.secret = '';
+    editor.status = { ok: true, msg: `✓ ${t('apiCleared')}` };
   }
 
   async function handleClearHistory() {
@@ -385,71 +325,21 @@
       <h2 class="text-sm font-semibold text-gray-800 mb-1">{t('apiSectionTitle')} <span class="text-xs text-amber-700">{t('apiSectionAdvancedBadge')}</span></h2>
       <p class="text-xs text-gray-500 mb-4 leading-relaxed">{t('apiSectionHint')}</p>
 
-      <!-- Bluesky -->
-      <div class="space-y-2 mb-5 pb-4 border-b border-gray-200">
-        <div class="flex items-center justify-between">
-          <h3 class="text-sm font-medium">Bluesky</h3>
-          <a href="https://bsky.app/settings/app-passwords" target="_blank" rel="noopener"
-             class="text-xs text-blue-600 hover:underline">{t('apiBlueskyMakePassword')}</a>
-        </div>
-        <input type="text" bind:value={bskyId} placeholder="user.bsky.social"
-          class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-        <input type="password" bind:value={bskyPw} placeholder="xxxx-xxxx-xxxx-xxxx (App Password)"
-          class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-        <div class="flex items-center gap-2">
-          <button onclick={handleBskySave} disabled={bskyBusy}
-            class="px-3 py-1 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700 disabled:bg-gray-300">{t('apiTestSave')}</button>
-          <button onclick={handleBskyClear}
-            class="px-3 py-1 bg-white border border-gray-300 text-gray-700 rounded text-xs hover:bg-gray-50">{t('apiClear')}</button>
-          {#if bskyStatus}
-            <span class="text-xs" class:text-green-600={bskyStatus.ok === true} class:text-red-600={bskyStatus.ok === false}>{bskyStatus.msg}</span>
-          {/if}
-        </div>
-      </div>
-
-      <!-- Mastodon -->
-      <div class="space-y-2 mb-5 pb-4 border-b border-gray-200">
-        <div class="flex items-center justify-between">
-          <h3 class="text-sm font-medium">Mastodon</h3>
-          <a href="{mstdInstance}/settings/applications" target="_blank" rel="noopener"
-             class="text-xs text-blue-600 hover:underline">{t('apiMastodonMakeApp')}</a>
-        </div>
-        <input type="url" bind:value={mstdInstance} placeholder="https://mastodon.social"
-          class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-        <input type="password" bind:value={mstdToken} placeholder="access token (write:statuses + write:media)"
-          class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-        <div class="flex items-center gap-2">
-          <button onclick={handleMstdSave} disabled={mstdBusy}
-            class="px-3 py-1 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700 disabled:bg-gray-300">{t('apiTestSave')}</button>
-          <button onclick={handleMstdClear}
-            class="px-3 py-1 bg-white border border-gray-300 text-gray-700 rounded text-xs hover:bg-gray-50">{t('apiClear')}</button>
-          {#if mstdStatus}
-            <span class="text-xs" class:text-green-600={mstdStatus.ok === true} class:text-red-600={mstdStatus.ok === false}>{mstdStatus.msg}</span>
-          {/if}
-        </div>
-      </div>
-
-      <!-- Misskey -->
-      <div class="space-y-2">
-        <div class="flex items-center justify-between">
-          <h3 class="text-sm font-medium">Misskey</h3>
-          <a href="{mskyInstance}/settings/api" target="_blank" rel="noopener"
-             class="text-xs text-blue-600 hover:underline">{t('apiMisskeyMakeToken')}</a>
-        </div>
-        <input type="url" bind:value={mskyInstance} placeholder="https://misskey.io"
-          class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-        <input type="password" bind:value={mskyToken} placeholder="access token (write:notes + write:drive)"
-          class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-        <div class="flex items-center gap-2">
-          <button onclick={handleMskySave} disabled={mskyBusy}
-            class="px-3 py-1 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700 disabled:bg-gray-300">{t('apiTestSave')}</button>
-          <button onclick={handleMskyClear}
-            class="px-3 py-1 bg-white border border-gray-300 text-gray-700 rounded text-xs hover:bg-gray-50">{t('apiClear')}</button>
-          {#if mskyStatus}
-            <span class="text-xs" class:text-green-600={mskyStatus.ok === true} class:text-red-600={mskyStatus.ok === false}>{mskyStatus.msg}</span>
-          {/if}
-        </div>
-      </div>
+      {#each API_CREDENTIAL_PROVIDERS as provider, index (provider.id)}
+        {@const editor = credentialEditors[provider.id]}
+        <ApiCredentialEditor
+          {provider}
+          primary={editor.primary}
+          secret={editor.secret}
+          busy={editor.busy}
+          status={editor.status}
+          last={index === API_CREDENTIAL_PROVIDERS.length - 1}
+          onPrimaryChange={(value) => { editor.primary = value; }}
+          onSecretChange={(value) => { editor.secret = value; }}
+          onSave={() => { void handleCredentialSave(provider); }}
+          onClear={() => { void handleCredentialClear(provider); }}
+        />
+      {/each}
     </section>
 
     <section class="mb-6">
