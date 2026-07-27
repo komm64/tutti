@@ -2,11 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { adapters } from '../adapters/registry';
 import {
   backgroundPlatformStrategies,
+  buildExpectedUrlsForVerification,
   buildReplyOverrideUrl,
+  canUseApiWithReplyUrl,
   continuationNeedsReplyUrl,
   extractPostId,
   isPostUrlCaptureSupported,
   isVerifySupported,
+  resolveComposeUrlForMedia,
+  shouldForceInlineThreadPreviewForeground,
+  shouldUseInlineThread,
 } from './platform-strategies';
 
 describe('background platform strategy registry', () => {
@@ -38,6 +43,33 @@ describe('background platform strategy registry', () => {
     expect(buildReplyOverrideUrl('x', 0, 'https://x.com/alice/status/123456')).toBeUndefined();
     expect(buildReplyOverrideUrl('bluesky', 1, 'https://bsky.app/profile/alice/post/abc')).toBeUndefined();
     expect(buildReplyOverrideUrl('x', 1, 'https://x.com/home')).toBeUndefined();
+  });
+
+  it('derives inline thread and API reply continuation policy from strategies', () => {
+    expect(shouldUseInlineThread('bluesky', true)).toBe(true);
+    expect(shouldUseInlineThread('x', false)).toBe(true);
+    expect(shouldUseInlineThread('x', true)).toBe(false);
+    expect(shouldUseInlineThread('threads', false)).toBe(false);
+
+    expect(canUseApiWithReplyUrl('mastodon', 'https://mastodon.social/@alice/123')).toBe(true);
+    expect(canUseApiWithReplyUrl('mastodon', undefined)).toBe(false);
+    expect(canUseApiWithReplyUrl('bluesky', 'https://bsky.app/profile/alice/post/abc')).toBe(false);
+  });
+
+  it('derives compose, preview foreground, and verify expectation policy from strategies', () => {
+    const video = [{ name: 'clip.mp4', type: 'video/mp4', data: 'AA==' }];
+    expect(resolveComposeUrlForMedia('tumblr', 'https://www.tumblr.com/new/text', video))
+      .toBe('https://www.tumblr.com/new/video');
+    expect(resolveComposeUrlForMedia('x', 'https://x.com/compose/post', video))
+      .toBe('https://x.com/compose/post');
+
+    expect(shouldForceInlineThreadPreviewForeground('x', true, ['first', 'second'])).toBe(true);
+    expect(shouldForceInlineThreadPreviewForeground('x', false, ['first', 'second'])).toBe(false);
+    expect(shouldForceInlineThreadPreviewForeground('bluesky', true, ['first', 'second'])).toBe(false);
+
+    expect(buildExpectedUrlsForVerification('tumblr', 'Try https://tutti.komm64.com/'))
+      .toEqual(['https://tutti.komm64.com/']);
+    expect(buildExpectedUrlsForVerification('x', 'Try https://tutti.komm64.com/')).toEqual([]);
   });
 
   it('registers verification for every current platform', () => {
