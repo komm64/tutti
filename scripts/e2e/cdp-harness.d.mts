@@ -28,6 +28,59 @@ export function connectPuppeteerCdp(options?: {
   [option: string]: unknown;
 }): Promise<unknown>;
 
+export function resolveCdpHttpEndpoint(endpoint?: string): string;
+
+export function fetchCdpJson(
+  path: string,
+  options?: {
+    endpoint?: string;
+    timeoutMs?: number;
+    fetchImpl?: typeof fetch;
+  },
+): Promise<unknown>;
+
+export interface CdpTarget {
+  id?: string;
+  type?: string;
+  title?: string;
+  url?: string;
+  webSocketDebuggerUrl?: string;
+  [key: string]: unknown;
+}
+
+export function listCdpTargets(options?: {
+  endpoint?: string;
+  timeoutMs?: number;
+  fetchImpl?: typeof fetch;
+}): Promise<CdpTarget[]>;
+
+export function waitForCdpTarget(
+  predicate: (target: CdpTarget) => boolean,
+  options?: {
+    endpoint?: string;
+    timeoutMs?: number;
+    pollIntervalMs?: number;
+    fetchImpl?: typeof fetch;
+  },
+): Promise<CdpTarget>;
+
+export class RawCdpClient {
+  constructor(url: string, options?: {
+    name?: string;
+    timeoutMs?: number;
+    WebSocketImpl?: unknown;
+    logger?: (message: string) => void;
+  });
+  readonly url: string;
+  readonly name: string;
+  ws: unknown;
+  connect(): Promise<this>;
+  send(method: string, params?: Record<string, unknown>): Promise<Record<string, any>>;
+  evaluate(expression: string, awaitPromise?: boolean): Promise<any>;
+  navigate(url: string, options?: { settleMs?: number }): Promise<void>;
+  close(): void;
+}
+
 export function disconnectCdp(browser: unknown): Promise<void>;
 
 export function withCdpBrowser<T>(

@@ -4,8 +4,13 @@
 //
 // popup UI を介さず chrome.runtime.sendMessage で直接 background に POST_REQUEST。
 // autoPost state race 問題を完全回避。
-import { WebSocket } from 'ws';
 import { writeFileSync, appendFileSync, readFileSync } from 'fs';
+import {
+  listCdpTargets,
+  RawCdpClient,
+  resolveExtensionId,
+  waitForCdpTarget,
+} from './e2e/cdp-harness.mjs';
 
 const platform = process.argv[2];
 if (!platform) { console.error('usage: node scripts/real-post-direct.mjs <platform>'); process.exit(1); }
@@ -34,48 +39,16 @@ const PLATFORM_URL_RE = {
 const re = PLATFORM_URL_RE[platform];
 if (!re) { log(`unknown platform: ${platform}`); process.exit(1); }
 
-const r = await fetch('http://localhost:9222/json/list');
-const tabs = await r.json();
+const tabs = await listCdpTargets();
 
 const popupTab = tabs.find(t => t.type === 'page' && (/popup\.html/.test(t.url) || /chrome:\/\/extensions/.test(t.url) || t.url === 'about:blank'));
 if (!popupTab) { log('no popup-capable tab. open chrome://extensions/'); process.exit(1); }
 
-class Cdp {
-  constructor(url, name) { this.name = name; this.url = url; this.id = 0; this.pending = new Map(); }
-  async connect() {
-    return new Promise((resolve) => {
-      this.ws = new WebSocket(this.url, { perMessageDeflate: false });
-      this.ws.on('open', resolve);
-      this.ws.on('error', (e) => log(`${this.name} WS_ERR`, e.message));
-      this.ws.on('message', (raw) => {
-        const m = JSON.parse(raw.toString());
-        if (m.id != null && this.pending.has(m.id)) {
-          this.pending.get(m.id).resolve(m.result);
-          this.pending.delete(m.id);
-        }
-      });
-    });
-  }
-  send(method, params = {}) {
-    const i = ++this.id;
-    return new Promise((resolve) => {
-      this.pending.set(i, { resolve });
-      this.ws.send(JSON.stringify({ id: i, method, params }));
-    });
-  }
-  async evalJs(expr, awaitPromise = true) {
-    const r = await this.send('Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise });
-    if (r.exceptionDetails) throw new Error(r.exceptionDetails.text);
-    return r.result?.value;
-  }
-  close() { this.ws.close(); }
-}
-
-const popupCdp = new Cdp(popupTab.webSocketDebuggerUrl, 'popup');
+const popupCdp = new RawCdpClient(popupTab.webSocketDebuggerUrl, { name: 'popup', logger: log });
 await popupCdp.connect();
 log('popup connected');
 
-const EXT_ID = 'dophemlpjldcejjdjefpjbgngodopkfe';
+const EXT_ID = await resolveExtensionId({ targets: () => tabs }, { timeoutMs: 1 });
 await popupCdp.send('Page.enable');
 if (!popupTab.url.includes('popup.html')) {
   log('navigating popup tab to popup.html');
@@ -97,7 +70,7 @@ const ts = Date.now().toString().slice(-6);
 const testText = `Tutti realpost ${platform} ${ts}\n本文 line 2.`;
 
 log('dispatching POST_REQUEST to background');
-const dispatchResult = await popupCdp.evalJs(`(async () => {
+const dispatchResult = await popupCdp.evaluate(`(async () => {
   await new Promise(r => chrome.storage.sync.set({ settings: { autoPost: true, mastodonInstance: 'https://mastodon.social', misskeyInstance: 'https://misskey.io', selectorOverrideUrl: '', logLevel: 'INFO' } }, r));
   const s = await new Promise(r => chrome.storage.sync.get('settings', d => r(d.settings)));
   if (!s?.autoPost) return { err: 'autoPost still false' };
@@ -115,20 +88,15 @@ const dispatchResult = await popupCdp.evalJs(`(async () => {
 log('dispatch:', dispatchResult);
 
 // 当該 platform のタブを探して 90s 監視
-const start = Date.now();
 const MAX = 90000;
-let tab = null;
-while (Date.now() - start < MAX) {
-  await new Promise((r) => setTimeout(r, 2000));
-  const r = await fetch('http://localhost:9222/json/list');
-  const list = await r.json();
-  tab = list.find((t) => t.type === 'page' && re.test(t.url ?? ''));
-  if (tab) break;
-}
+const tab = await waitForCdpTarget(
+  (target) => target.type === 'page' && re.test(target.url ?? ''),
+  { timeoutMs: MAX, pollIntervalMs: 2_000 },
+).catch(() => null);
 if (!tab) { log(`no ${platform} tab opened in ${MAX}ms`); popupCdp.close(); process.exit(1); }
 
 log(`watching ${platform} tab: ${tab.url}`);
-const tabCdp = new Cdp(tab.webSocketDebuggerUrl, platform);
+const tabCdp = new RawCdpClient(tab.webSocketDebuggerUrl, { name: platform, logger: log });
 await tabCdp.connect();
 
 // 60s 監視 (URL 変化と発火)
@@ -138,7 +106,7 @@ let lastUrl = '';
 while (Date.now() - wstart < WMAX) {
   await new Promise((r) => setTimeout(r, 2000));
   let url;
-  try { url = await tabCdp.evalJs(`location.href`, false); } catch (e) { log(`eval err: ${e.message?.slice(0, 80)}`); continue; }
+  try { url = await tabCdp.evaluate(`location.href`, false); } catch (e) { log(`eval err: ${e.message?.slice(0, 80)}`); continue; }
   if (url !== lastUrl) { log(`t+${Math.round((Date.now() - wstart) / 1000)}s url=${url}`); lastUrl = url; }
 }
 log('done');

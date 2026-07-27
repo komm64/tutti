@@ -62,6 +62,158 @@ export async function connectPuppeteerCdp(options = {}) {
   });
 }
 
+export function resolveCdpHttpEndpoint(endpoint = resolveCdpEndpoint()) {
+  if (!endpoint) throw new Error('CDP endpoint is required');
+  const url = new URL(endpoint);
+  if (url.protocol === 'ws:') url.protocol = 'http:';
+  if (url.protocol === 'wss:') url.protocol = 'https:';
+  if (!['http:', 'https:'].includes(url.protocol)) {
+    throw new Error(`unsupported CDP endpoint protocol: ${url.protocol}`);
+  }
+  url.pathname = '';
+  url.search = '';
+  url.hash = '';
+  return url.toString().replace(/\/$/, '');
+}
+
+export async function fetchCdpJson(
+  path,
+  {
+    endpoint = resolveCdpEndpoint(),
+    timeoutMs = 10_000,
+    fetchImpl = globalThis.fetch,
+  } = {},
+) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const base = resolveCdpHttpEndpoint(endpoint);
+    const response = await fetchImpl(`${base}/${String(path).replace(/^\/+/, '')}`, {
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      throw new Error(`CDP HTTP ${response.status} for ${path}`);
+    }
+    return await response.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function listCdpTargets(options = {}) {
+  const targets = await fetchCdpJson('json/list', options);
+  if (!Array.isArray(targets)) throw new Error('CDP target list is not an array');
+  return targets;
+}
+
+export async function waitForCdpTarget(
+  predicate,
+  {
+    timeoutMs = 30_000,
+    pollIntervalMs = 500,
+    ...listOptions
+  } = {},
+) {
+  const deadline = Date.now() + timeoutMs;
+  do {
+    const target = (await listCdpTargets(listOptions)).find(predicate);
+    if (target) return target;
+    if (Date.now() >= deadline) break;
+    await sleep(Math.min(pollIntervalMs, Math.max(0, deadline - Date.now())));
+  } while (Date.now() <= deadline);
+  throw new Error(`CDP target not found within ${timeoutMs}ms`);
+}
+
+export class RawCdpClient {
+  constructor(
+    url,
+    {
+      name = 'cdp',
+      timeoutMs = 30_000,
+      WebSocketImpl,
+      logger = () => {},
+    } = {},
+  ) {
+    this.url = url;
+    this.name = name;
+    this.timeoutMs = timeoutMs;
+    this.WebSocketImpl = WebSocketImpl;
+    this.logger = logger;
+    this.id = 0;
+    this.pending = new Map();
+    this.ws = null;
+  }
+
+  async connect() {
+    const WebSocketApi = this.WebSocketImpl ?? (await import('ws')).WebSocket;
+    await withTimeout(new Promise((resolveConnect, rejectConnect) => {
+      this.ws = new WebSocketApi(this.url, { perMessageDeflate: false });
+      this.ws.once('open', resolveConnect);
+      this.ws.once('error', rejectConnect);
+      this.ws.on('message', (raw) => this.#handleMessage(raw));
+      this.ws.on('error', (error) => this.logger(`${this.name} WS error: ${error.message}`));
+      this.ws.on('close', () => this.#rejectPending(new Error(`${this.name} WS closed`)));
+    }), this.timeoutMs, `${this.name} CDP connection`);
+    return this;
+  }
+
+  async send(method, params = {}) {
+    if (!this.ws || this.ws.readyState !== 1) {
+      throw new Error(`${this.name} WS is not open`);
+    }
+    const id = ++this.id;
+    return await withTimeout(new Promise((resolveSend, rejectSend) => {
+      this.pending.set(id, { resolve: resolveSend, reject: rejectSend });
+      try {
+        this.ws.send(JSON.stringify({ id, method, params }));
+      } catch (error) {
+        this.pending.delete(id);
+        rejectSend(error);
+      }
+    }), this.timeoutMs, `${this.name} CDP ${method}`).finally(() => {
+      this.pending.delete(id);
+    });
+  }
+
+  async evaluate(expression, awaitPromise = true) {
+    const result = await this.send('Runtime.evaluate', {
+      expression,
+      returnByValue: true,
+      awaitPromise,
+    });
+    if (result.exceptionDetails) {
+      const detail = result.exceptionDetails;
+      throw new Error(`${detail.text ?? 'Runtime.evaluate failed'} ${detail.exception?.description ?? ''}`.trim());
+    }
+    return result.result?.value;
+  }
+
+  async navigate(url, { settleMs = 0 } = {}) {
+    await this.send('Page.enable');
+    await this.send('Page.navigate', { url });
+    if (settleMs > 0) await sleep(settleMs);
+  }
+
+  close() {
+    this.#rejectPending(new Error(`${this.name} CDP client closed`));
+    this.ws?.close();
+  }
+
+  #handleMessage(raw) {
+    const message = JSON.parse(raw.toString());
+    const pending = this.pending.get(message.id);
+    if (!pending) return;
+    this.pending.delete(message.id);
+    if (message.error) pending.reject(new Error(message.error.message));
+    else pending.resolve(message.result);
+  }
+
+  #rejectPending(error) {
+    for (const pending of this.pending.values()) pending.reject(error);
+    this.pending.clear();
+  }
+}
+
 export async function disconnectCdp(browser) {
   if (!browser) return;
   if (typeof browser.disconnect === 'function') {

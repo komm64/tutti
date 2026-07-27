@@ -7,7 +7,11 @@
 //
 // require: ws (puppeteer-core が dep に持ってるはず)
 import { writeFileSync, appendFileSync, readFileSync } from 'fs';
-import { WebSocket } from 'ws';
+import {
+  listCdpTargets,
+  RawCdpClient,
+  resolveExtensionId,
+} from './e2e/cdp-harness.mjs';
 
 const LOG = 'scripts/realpost-pixiv-cdp.log';
 writeFileSync(LOG, `=== ${new Date().toISOString()} ===\n`);
@@ -20,89 +24,11 @@ process.on('uncaughtException', (e) => { log('UNCAUGHT', e.message?.slice(0, 200
 process.on('unhandledRejection', (e) => { log('UNHANDLED_REJ', String(e)?.slice(0, 200)); });
 process.on('exit', (code) => { log(`process.exit(${code})`); });
 
-const EXT_ID = 'dophemlpjldcejjdjefpjbgngodopkfe';
-
-// CDP WebSocket client (1 target = 1 WS connection)
-class CdpClient {
-  constructor(url) {
-    this.url = url;
-    this.ws = null;
-    this.id = 0;
-    this.pending = new Map();
-  }
-  async connect() {
-    return new Promise((resolve, reject) => {
-      this.ws = new WebSocket(this.url, { perMessageDeflate: false });
-      this.ws.on('open', () => resolve());
-      this.ws.on('error', (e) => {
-        process.stdout.write(`WS_ERROR ${e.message?.slice(0, 100)}\n`);
-        if (this.pending.size === 0) reject(e);
-        else for (const { reject: rej } of this.pending.values()) rej(e);
-        this.pending.clear();
-      });
-      this.ws.on('close', (code, reason) => {
-        process.stdout.write(`WS_CLOSE code=${code} reason=${reason?.toString?.()?.slice?.(0, 60)}\n`);
-        for (const { reject: rej } of this.pending.values()) rej(new Error('WS closed'));
-        this.pending.clear();
-      });
-      this.ws.on('message', (raw) => {
-        const msg = JSON.parse(raw.toString());
-        if (msg.id != null && this.pending.has(msg.id)) {
-          const { resolve, reject } = this.pending.get(msg.id);
-          this.pending.delete(msg.id);
-          if (msg.error) reject(new Error(msg.error.message));
-          else resolve(msg.result);
-        }
-      });
-    });
-  }
-  send(method, params = {}) {
-    const id = ++this.id;
-    return new Promise((resolve, reject) => {
-      if (this.ws?.readyState !== WebSocket.OPEN) {
-        return reject(new Error(`WS not open (readyState=${this.ws?.readyState ?? 'null'})`));
-      }
-      this.pending.set(id, { resolve, reject });
-      try {
-        this.ws.send(JSON.stringify({ id, method, params }));
-      } catch (e) {
-        this.pending.delete(id);
-        reject(e);
-        return;
-      }
-      setTimeout(() => {
-        if (this.pending.has(id)) {
-          this.pending.delete(id);
-          reject(new Error(`CDP ${method} timeout`));
-        }
-      }, 30000);
-    });
-  }
-  async evaluate(expression, awaitPromise = false) {
-    const r = await this.send('Runtime.evaluate', {
-      expression,
-      returnByValue: true,
-      awaitPromise,
-    });
-    if (r.exceptionDetails) {
-      const exc = r.exceptionDetails;
-      throw new Error(`${exc.text} ${exc.exception?.description ?? ''}`.slice(0, 400));
-    }
-    return r.result?.value;
-  }
-  async navigate(url) {
-    await this.send('Page.enable');
-    await this.send('Page.navigate', { url });
-    await new Promise((r) => setTimeout(r, 2500)); // simple settle
-  }
-  close() { this.ws?.close(); }
-}
-
 // targets list
 log('fetching /json/list...');
-const r = await fetch('http://localhost:9222/json/list');
-const tabs = await r.json();
+const tabs = await listCdpTargets();
 log(`tabs: ${tabs.length}`);
+const EXT_ID = await resolveExtensionId({ targets: () => tabs }, { timeoutMs: 1 });
 
 // 任意の pixiv.net タブ。Tutti の openOrFocusTab が自動で /illustration/create に navigate
 const pixTab = tabs.find((t) => t.type === 'page' && /pixiv\.net\//.test(t.url));
@@ -116,8 +42,8 @@ if (!extTab) { log('no usable popup tab. open popup.html, chrome://extensions/, 
 log(`pixiv ws: ${pixTab.webSocketDebuggerUrl}`);
 log(`ext ws: ${extTab.webSocketDebuggerUrl}`);
 
-const pix = new CdpClient(pixTab.webSocketDebuggerUrl);
-const ext = new CdpClient(extTab.webSocketDebuggerUrl);
+const pix = new RawCdpClient(pixTab.webSocketDebuggerUrl, { name: 'pixiv', logger: log });
+const ext = new RawCdpClient(extTab.webSocketDebuggerUrl, { name: 'extension', logger: log });
 await pix.connect();
 log('pix connected');
 await ext.connect();

@@ -1,14 +1,10 @@
-import { WebSocket } from 'ws';
-const r = await fetch('http://localhost:9222/json/list');
-const tabs = await r.json();
+import { listCdpTargets, RawCdpClient } from './e2e/cdp-harness.mjs';
+
+const tabs = await listCdpTargets();
 const tt = tabs.find(t => t.type === 'page' && /tiktok\.com\/tiktokstudio/.test(t.url));
-const ws = new WebSocket(tt.webSocketDebuggerUrl);
-let id = 0;
-const pending = new Map();
-ws.on('message', raw => { const m = JSON.parse(raw.toString()); if (m.id != null && pending.has(m.id)) { pending.get(m.id).resolve(m.result); pending.delete(m.id); } });
-await new Promise(r => ws.on('open', r));
-const evalJs = (expr, awaitPromise = true) => new Promise(resolve => { const i = ++id; pending.set(i, { resolve }); ws.send(JSON.stringify({ id: i, method: 'Runtime.evaluate', params: { expression: expr, returnByValue: true, awaitPromise } })); }).then(r => r.result?.value);
-const result = await evalJs(`(async () => {
+if (!tt?.webSocketDebuggerUrl) throw new Error('TikTok Studio CDP target not found');
+const cdp = await new RawCdpClient(tt.webSocketDebuggerUrl, { name: 'tiktok' }).connect();
+const result = await cdp.evaluate(`(async () => {
   const ed = document.querySelector('.public-DraftEditor-content[contenteditable="true"]');
   if (!ed) return { err: 'no editor' };
   const before = (ed.textContent ?? '').slice(0, 50);
@@ -22,4 +18,4 @@ const result = await evalJs(`(async () => {
   return { before, after: (ed.textContent ?? '').slice(0, 100) };
 })()`);
 console.log(result);
-ws.close();
+cdp.close();
