@@ -63,11 +63,9 @@
     revokeVideoPreview,
   } from '../../src/popup/media-preview';
   import {
-    openPopupGitHubIssue,
-    submitPopupErrorReport,
-    type PopupReportContext,
-  } from '../../src/popup/error-report-submit';
-  import { createComposerController } from '../../src/popup/composer-controller';
+    createComposerController,
+    type ComposerReportContext,
+  } from '../../src/popup/composer-controller';
   import HeaderBar from './components/HeaderBar.svelte';
   import AutoPostControl from './components/AutoPostControl.svelte';
   import MediaComposer from './components/MediaComposer.svelte';
@@ -167,11 +165,7 @@
     }
   });
 
-  // CF Workers proxy が GitHub Issues に転送する。1-click で報告可能。
-  // proxy が落ちてた / network エラーの場合は GitHub URL fallback を提示。
-  const REPORT_ENDPOINT = 'https://tutti-report.komm64.workers.dev';
-
-  function buildReportContext(): PopupReportContext {
+  function buildReportContext(): ComposerReportContext {
     return {
       version,
       text,
@@ -194,12 +188,11 @@
     reportSubmitting = true;
     reportResult = null;
     try {
-      reportResult = await submitPopupErrorReport({
+      reportResult = await composerController.submitErrorReport(
         errorText,
-        context: buildReportContext(),
-        endpoint: REPORT_ENDPOINT,
-        dedupedMessage: (hours) => t('reportDeduped', String(hours)),
-      });
+        buildReportContext(),
+        (hours) => t('reportDeduped', String(hours)),
+      );
     } catch (e) {
       reportResult = { ok: false, error: e instanceof Error ? e.message : String(e) };
     } finally {
@@ -215,12 +208,12 @@
    * にも入れる、 GitHub new issue form の body field に user が paste する形。
    */
   async function openGitHubIssueDirect(errorText: string): Promise<void> {
-    await openPopupGitHubIssue({
+    await composerController.openGitHubIssue(
       errorText,
-      context: buildReportContext(),
-      note: t('reportEmailNote'),
-      overflowNote: t('reportClipboardOverflow'),
-    });
+      buildReportContext(),
+      t('reportEmailNote'),
+      t('reportClipboardOverflow'),
+    );
   }
   // 永続選択を読み込んだあとに autoPost トグルが変わったら保存
   $effect(() => {
@@ -298,25 +291,14 @@
   async function runDiagnostics() {
     diagnosticsRunning = true;
     diagnosticsText = null;
-    try {
-      const res = (await browser.runtime.sendMessage({ type: 'DIAGNOSE_REQUEST' })) as
-        | { report?: unknown; error?: string }
-        | undefined;
-      if (res?.error) diagnosticsText = `error: ${res.error}`;
-      else diagnosticsText = JSON.stringify(res?.report ?? null, null, 2);
-    } catch (e) {
-      diagnosticsText = `error: ${e instanceof Error ? e.message : String(e)}`;
-    } finally {
-      diagnosticsRunning = false;
-    }
+    diagnosticsText = await composerController.runDiagnostics();
+    diagnosticsRunning = false;
   }
   async function copyDiagnostics() {
     if (!diagnosticsText) return;
-    try {
-      await navigator.clipboard.writeText(diagnosticsText);
-      diagnosticsCopied = true;
-      setTimeout(() => { diagnosticsCopied = false; }, 1500);
-    } catch { /* ignore */ }
+    if (!await composerController.copyDiagnostics(diagnosticsText)) return;
+    diagnosticsCopied = true;
+    setTimeout(() => { diagnosticsCopied = false; }, 1500);
   }
 
   // v0.5.9: 履歴は常時表示なので popup mount 時に load + storage 変更で auto refresh
@@ -354,20 +336,10 @@
   }
 
   async function refreshExtensionUpdateState(): Promise<void> {
-    try {
-      const res = (await browser.runtime.sendMessage({ type: 'GET_EXTENSION_UPDATE_STATE' })) as
-        | { state?: { available?: boolean; version?: string; applying?: boolean }; error?: string }
-        | undefined;
-      if (res?.state?.available) {
-        updateAvailableVersion = res.state.version ?? '';
-        updateApplying = res.state.applying === true;
-      } else {
-        updateAvailableVersion = null;
-        updateApplying = false;
-      }
-    } catch {
-      // background が sleep 中なら次回 open / update event で拾えるので無視。
-    }
+    const state = await composerController.refreshExtensionUpdateState();
+    if (!state) return; // background sleep 中なら次回 open / update event で拾う
+    updateAvailableVersion = state.available ? state.version ?? '' : null;
+    updateApplying = state.available && state.applying === true;
   }
 
   function updateErrorMessage(error: string, detail?: string): string {
@@ -379,17 +351,13 @@
   async function applyExtensionUpdate(): Promise<void> {
     updateApplying = true;
     updateError = null;
-    try {
-      const res = (await browser.runtime.sendMessage({ type: 'APPLY_EXTENSION_UPDATE' })) as
-        | { ok?: boolean; error?: string; detail?: string }
-        | undefined;
-      if (!res?.ok) {
-        updateApplying = false;
-        updateError = updateErrorMessage(res?.error ?? 'reload_failed', res?.detail);
-      }
-    } catch (e) {
+    const result = await composerController.applyExtensionUpdate();
+    if (!result.ok) {
       updateApplying = false;
-      updateError = updateErrorMessage('reload_failed', e instanceof Error ? e.message : String(e));
+      updateError = updateErrorMessage(
+        result.error ?? 'reload_failed',
+        result.detail,
+      );
     }
   }
 

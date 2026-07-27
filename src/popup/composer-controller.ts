@@ -16,6 +16,11 @@ import {
   type PopupHistoryThumbs,
 } from './history-thumbs';
 import {
+  openPopupGitHubIssue,
+  submitPopupErrorReport,
+  type PopupReportContext,
+} from './error-report-submit';
+import {
   restoreImagePreviews,
   restoreVideoPreview,
   serializeImagesForDraft,
@@ -33,7 +38,13 @@ import {
   type BgStateResponse,
   type PostingViewState,
 } from './posting-progress';
-import type { ImagePreview, VideoPreview } from './types';
+import type {
+  ImagePreview,
+  ReportResult,
+  VideoPreview,
+} from './types';
+
+const DEFAULT_REPORT_ENDPOINT = 'https://tutti-report.komm64.workers.dev';
 
 export interface ComposerDraftState {
   text: string;
@@ -72,6 +83,14 @@ export interface ComposerBackgroundSyncCallbacks {
   onUpdateAvailable: (state: ExtensionUpdateState) => void;
 }
 
+export type ComposerReportContext = PopupReportContext;
+
+export interface ComposerUpdateApplyResult {
+  ok: boolean;
+  error?: string;
+  detail?: string;
+}
+
 export interface ComposerControllerOptions {
   getDraft?: () => Promise<Draft | null>;
   saveDraft?: (draft: Draft) => Promise<void>;
@@ -86,6 +105,10 @@ export interface ComposerControllerOptions {
   subscribeRuntimeMessages?: (
     listener: (message: unknown) => void,
   ) => () => void;
+  submitErrorReport?: typeof submitPopupErrorReport;
+  openGitHubIssue?: typeof openPopupGitHubIssue;
+  writeClipboard?: (text: string) => Promise<void>;
+  reportEndpoint?: string;
   draftDebounceMs?: number;
   selectionDebounceMs?: number;
 }
@@ -118,6 +141,11 @@ export function createComposerController(options: ComposerControllerOptions = {}
   const sendRuntimeMessage = options.sendRuntimeMessage ??
     ((message: unknown) => browser.runtime.sendMessage(message));
   const watchRuntime = options.subscribeRuntimeMessages ?? subscribeRuntimeMessages;
+  const submitReport = options.submitErrorReport ?? submitPopupErrorReport;
+  const openGitHubIssue = options.openGitHubIssue ?? openPopupGitHubIssue;
+  const writeClipboard = options.writeClipboard ??
+    ((text: string) => navigator.clipboard.writeText(text));
+  const reportEndpoint = options.reportEndpoint ?? DEFAULT_REPORT_ENDPOINT;
   const draftDebounceMs = options.draftDebounceMs ?? 300;
   const selectionDebounceMs = options.selectionDebounceMs ?? 200;
   let draftTimer: ReturnType<typeof setTimeout> | undefined;
@@ -288,6 +316,77 @@ export function createComposerController(options: ComposerControllerOptions = {}
         stopBackgroundSubscription?.();
         stopBackgroundSubscription = undefined;
       };
+    },
+
+    async runDiagnostics(): Promise<string> {
+      try {
+        const response = await sendRuntimeMessage({ type: 'DIAGNOSE_REQUEST' }) as
+          | { report?: unknown; error?: string }
+          | undefined;
+        return response?.error
+          ? `error: ${response.error}`
+          : JSON.stringify(response?.report ?? null, null, 2);
+      } catch (error) {
+        return `error: ${error instanceof Error ? error.message : String(error)}`;
+      }
+    },
+
+    async copyDiagnostics(text: string): Promise<boolean> {
+      if (!text) return false;
+      try {
+        await writeClipboard(text);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+
+    async refreshExtensionUpdateState(): Promise<ExtensionUpdateState | undefined> {
+      try {
+        const response = await sendRuntimeMessage({
+          type: 'GET_EXTENSION_UPDATE_STATE',
+        }) as { state?: ExtensionUpdateState } | undefined;
+        return response?.state ?? { available: false };
+      } catch {
+        return undefined;
+      }
+    },
+
+    async applyExtensionUpdate(): Promise<ComposerUpdateApplyResult> {
+      try {
+        const response = await sendRuntimeMessage({
+          type: 'APPLY_EXTENSION_UPDATE',
+        }) as ComposerUpdateApplyResult | undefined;
+        return response ?? { ok: false, error: 'reload_failed' };
+      } catch (error) {
+        return {
+          ok: false,
+          error: 'reload_failed',
+          detail: error instanceof Error ? error.message : String(error),
+        };
+      }
+    },
+
+    async submitErrorReport(
+      errorText: string,
+      context: ComposerReportContext,
+      dedupedMessage: (hours: number) => string,
+    ): Promise<ReportResult> {
+      return await submitReport({
+        errorText,
+        context,
+        endpoint: reportEndpoint,
+        dedupedMessage,
+      });
+    },
+
+    async openGitHubIssue(
+      errorText: string,
+      context: ComposerReportContext,
+      note: string,
+      overflowNote: string,
+    ): Promise<void> {
+      await openGitHubIssue({ errorText, context, note, overflowNote });
     },
 
     dispose(): void {

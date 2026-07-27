@@ -75,6 +75,16 @@ describe('entrypoint architecture guard', () => {
     expect(source).not.toContain('runtime.onMessage.addListener');
     expect(source).not.toContain('applyProgressMessage');
   });
+
+  it('keeps popup support workflows in the composer controller', () => {
+    const source = readFileSync('entrypoints/popup/App.svelte', 'utf8');
+    expect(source).toContain('composerController.runDiagnostics');
+    expect(source).toContain('composerController.submitErrorReport');
+    expect(source).toContain('composerController.applyExtensionUpdate');
+    expect(source).not.toContain('submitPopupErrorReport');
+    expect(source).not.toContain("type: 'DIAGNOSE_REQUEST'");
+    expect(source).not.toContain("type: 'APPLY_EXTENSION_UPDATE'");
+  });
 });
 
 function categorize(path: string): EntrypointCategory {
