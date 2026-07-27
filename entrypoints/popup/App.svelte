@@ -35,11 +35,10 @@
     VideoPreview,
     Visibility,
   } from '../../src/popup/types';
-  import { filterRecentPlatforms as filterRecentPostPlatforms } from '../../src/popup/retry-dedup';
   import {
-    buildRetryDedupSkippedResults,
     failedRetryPlatforms,
     mergePostResults,
+    normalizeRetryGuardResults,
     sendPostRequest,
     shouldClearDraftAfterSubmit,
     uncertainPlatforms,
@@ -561,12 +560,7 @@
       void browser.tabs.create({ url: cta.url, active: true });
     } else if (cta.kind === 'retry') {
       expandedFailure = null;
-      const safeIds = await filterAlreadyLandedPlatforms([p]);
-      if (safeIds.length > 0) {
-        await submitPostFor(safeIds, /* isRetry */ true);
-      } else {
-        errorMessage = t('retryDedupSkippedHint');
-      }
+      await submitPostFor([p], /* isRetry */ true);
     } else if (cta.kind === 'report') {
       const result = lastResults?.find((r) => r.platform === p);
       const errorText = result?.error ?? t('platformFailedShort', p);
@@ -757,13 +751,6 @@
       errorMessage = t('runtimePostUncertain');
       return;
     }
-    const safeIds = await filterRecentlyUncertainPlatforms(selectedIds);
-    if (safeIds.length !== selectedIds.length) {
-      // extension 再起動後も履歴に uncertain が残る。同一本文を通常投稿として
-      // 送り直す経路も止め、SNS 側で landing を確認してもらう。
-      errorMessage = t('runtimePostUncertain');
-      return;
-    }
     await submitPostFor(selectedIds, /* isRetry */ false);
   }
 
@@ -773,53 +760,18 @@
    * 場合は handlePost が clear しないので残る)。失敗した platform だけを対象に
    * もう一度 background へ送る。
    *
-   * v0.5.7: bodyHash で直近 10 分以内の同一 post に既に成功 entry が居る platform は
-   * 「retry してもどうせ重複投稿になる」 ので skip。 user 報告 (Threads が false-fail
-   * 後の retry で実重複投稿になる) の対処。
+   * 重複判定は全 caller 共通の background SubmissionGuard が行う。直近の成功が
+   * 見つかった platform は構造化 result で戻り、popup 側では従来どおり成功表示へ
+   * 正規化する。
    */
   async function handleRetryFailed() {
     if (!lastResults || posting) return;
     const failedIds = failedRetryPlatforms(lastResults);
     if (failedIds.length === 0) return;
 
-    // 同一 bodyHash で直近 10 分以内に成功してる platform を retry 対象から外す
-    const dedupedFailedIds = await filterAlreadyLandedPlatforms(failedIds);
-    if (dedupedFailedIds.length === 0) {
-      // 全部 「実は landed 済」 → retry を実行しない、 既存の失敗表示を成功扱いに置き換え
-      const alreadyLanded = buildRetryDedupSkippedResults(failedIds, t('retryDedupSkippedHint'));
-      lastResults = [
-        ...lastResults.filter((r) => r.success),
-        ...alreadyLanded,
-      ];
-      errorMessage = null;
-      return;
-    }
-
     // 既存の失敗 entry だけ消す。成功 entry は維持して result panel に表示し続ける
     lastResults = lastResults.filter((r) => r.success);
-    await submitPostFor(dedupedFailedIds, /* isRetry */ true);
-  }
-
-  /**
-   * 直近 10 分以内に同一 bodyHash + 同一 platform で成功している entry がある platform を
-   * 候補から除外。 戻り値: 真の retry が必要な platform 列。
-   */
-  async function filterAlreadyLandedPlatforms(candidates: PlatformId[]): Promise<PlatformId[]> {
-    return filterRecentPostPlatforms(candidates, {
-      text,
-      images,
-      video,
-      matches: (r) => r.success === true,
-    });
-  }
-
-  async function filterRecentlyUncertainPlatforms(candidates: PlatformId[]): Promise<PlatformId[]> {
-    return filterRecentPostPlatforms(candidates, {
-      text,
-      images,
-      video,
-      matches: (r) => r.uncertain === true,
-    });
+    await submitPostFor(failedIds, /* isRetry */ true);
   }
 
   async function submitPostFor(platforms: PlatformId[], isRetry: boolean) {
@@ -853,7 +805,10 @@
       } else if (response.results) {
         // retry の場合は既存の成功 entries を残してマージ。新規 (= 失敗だった
         // platform の新結果) を上書き、別の platform は既存 entry を維持。
-        lastResults = mergePostResults(lastResults, response.results, isRetry);
+        const normalizedResults = isRetry
+          ? normalizeRetryGuardResults(response.results)
+          : response.results;
+        lastResults = mergePostResults(lastResults, normalizedResults, isRetry);
         pendingPlatforms = []; // 進捗ストリームの取りこぼし保険
         // 全成功(retry 後を含む)で下書きをクリア。retry 後の lastResults に
         // failure が 1 件でも残ってたら text / media は維持する (= 再々送可能)

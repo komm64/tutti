@@ -67,6 +67,11 @@ describe('diagnostic redaction helpers', () => {
         x: {
           success: false,
           uncertain: true,
+          submissionGuard: {
+            decision: 'indeterminate',
+            reason: 'recent-uncertain',
+            requestId: 'request-1',
+          },
           userAction: 'check-post-before-retry',
           flow: {
             mode: 'post',
@@ -88,6 +93,11 @@ describe('diagnostic redaction helpers', () => {
         x: {
           success: false,
           uncertain: true,
+          submissionGuard: {
+            decision: 'indeterminate',
+            reason: 'recent-uncertain',
+            requestId: 'request-1',
+          },
           userAction: 'check-post-before-retry',
           flow: {
             mode: 'post',

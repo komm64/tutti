@@ -294,6 +294,8 @@
     "placeholders": { "N": { "content": "$1" } }
   },
   "retryDedupSkippedHint": { "message": "Likely already posted — skipped re-send (a successful entry for the same content was found in the last 10 minutes of history)." },
+  "runtimeSubmissionAlreadyInFlight": { "message": "An identical post to this network is already in progress. Wait for it to finish before trying again." },
+  "runtimeSubmissionGuardIndeterminate": { "message": "Tutti could not safely determine whether this retry would duplicate a post. Check History and the social network before trying again." },
   "reportDeduped": {
     "message": "Same error already reported $N$h ago (24h cooldown).",
     "placeholders": { "N": { "content": "$1" } }

@@ -38,6 +38,14 @@ const USER_ACTIONS = new Set([
 ]);
 const LOG_LEVELS = new Set(['OFF', 'ERROR', 'WARN', 'INFO', 'DEBUG']);
 const POST_REQUEST_INTENTS = new Set<PostRequestIntent>(['new', 'retry', 'history-repost']);
+const SUBMISSION_GUARD_DECISIONS = new Set(['allow', 'blocked', 'indeterminate']);
+const SUBMISSION_GUARD_REASONS = new Set([
+  'in-flight',
+  'recent-success',
+  'recent-uncertain',
+  'fingerprint-unavailable',
+  'history-unavailable',
+]);
 
 const MESSAGE_VALIDATORS = {
   POST_REQUEST: (value) =>
@@ -173,6 +181,7 @@ function isPostResult(value: unknown): value is PostResultMessage {
     optional(value, 'preview', isBoolean) &&
     optional(value, 'confirmed', isBoolean) &&
     optional(value, 'uncertain', isBoolean) &&
+    optional(value, 'submissionGuard', isSubmissionGuardTrace) &&
     optional(value, 'userAction', (item) => isString(item) && USER_ACTIONS.has(item)) &&
     optional(value, 'flow', isPostFlowTrace) &&
     optional(value, 'error', isString) &&
@@ -190,6 +199,20 @@ function isPostFlowTrace(value: unknown): boolean {
     optional(value, 'tabUrlBefore', isString) &&
     optional(value, 'tabUrlAfter', isString) &&
     optional(value, 'urlCaptureTrace', isStringArray);
+}
+
+function isSubmissionGuardTrace(value: unknown): boolean {
+  if (!isRecord(value) ||
+      !isString(value.decision) ||
+      !SUBMISSION_GUARD_DECISIONS.has(value.decision) ||
+      !isString(value.requestId)) {
+    return false;
+  }
+  return optional(
+    value,
+    'reason',
+    (item) => isString(item) && SUBMISSION_GUARD_REASONS.has(item),
+  );
 }
 
 function isPostVerifyResult(value: unknown): boolean {
