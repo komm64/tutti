@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { mastodonAdapter } from '../adapters/mastodon';
+import { threadsAdapter } from '../adapters/threads';
 import type { PlatformAdapter } from '../adapters/types';
 import {
   buildVerifyExpectationForChunk,
@@ -7,6 +9,7 @@ import {
   buildReplyOverrideUrl,
   getComposeUrlForMedia,
   isAmbiguousPostDispatchError,
+  resolvePreSubmitLoadOptions,
   resolveApiPostOutcome,
   shouldRetryPostAttempt,
   shouldOpenActive,
@@ -30,6 +33,14 @@ function adapter(overrides: Partial<PlatformAdapter> = {}): PlatformAdapter {
 }
 
 describe('platform poster helpers', () => {
+  it('derives pre-submit load behavior from adapter policy', () => {
+    expect(resolvePreSubmitLoadOptions(mastodonAdapter)).toEqual({
+      loadRetries: 1,
+      relaxedComposeUrlReady: true,
+    });
+    expect(resolvePreSubmitLoadOptions(threadsAdapter)).toBeUndefined();
+  });
+
   it('builds X reply intent URLs from previous post URLs', () => {
     expect(buildReplyOverrideUrl('x', 1, 'https://x.com/alice/status/123456')).toBe(
       'https://x.com/intent/post?in_reply_to=123456',

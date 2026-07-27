@@ -13,7 +13,11 @@ import { isVerifySupported } from '../utils/post-verify';
 import { log } from '../utils/logger';
 import { t } from '../utils/i18n';
 import { runVerify } from './verify-dispatcher';
-import { closeTabSafely, openOrFocusTab } from './tab-management';
+import {
+  closeTabSafely,
+  openOrFocusTab,
+  type OpenOrFocusTabOptions,
+} from './tab-management';
 import { tryApiPath } from './api-posting';
 import { capturePostUrlFromTabWithRetry } from './post-url-capture';
 import {
@@ -33,7 +37,6 @@ import type { VerifyExpectation } from '../utils/post-verify';
 import { extractHttpUrls } from '../utils/text-urls';
 
 const CHUNK_INTERVAL_MS = 2000;
-const PRE_SUBMIT_LOAD_RETRY_PLATFORMS = new Set<PlatformId>(['mastodon']);
 
 type Visibility = 'public' | 'unlisted' | 'private' | 'direct';
 
@@ -298,9 +301,7 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
     const active = forceForeground || attempt.forceActive === true ||
       shouldOpenActive(adapter, dryRun, textChunks, autoPost);
     const reuseExistingTab = shouldReuseExistingTabForAttempt(adapter, autoPost, attempt, forceForeground);
-    const openOptions = PRE_SUBMIT_LOAD_RETRY_PLATFORMS.has(adapter.id)
-      ? { loadRetries: 1, relaxedComposeUrlReady: true }
-      : undefined;
+    const openOptions = resolvePreSubmitLoadOptions(adapter);
     const { tab, wasCreated } = await openOrFocusTab(
       overrideUrl ?? getComposeUrlForMedia(adapter, text, images),
       adapter.matchUrl,
@@ -589,6 +590,17 @@ export function getComposeUrlForMedia(
   const hasVideo = images?.some((image) => image.type.startsWith('video/')) === true;
   if (adapter.id === 'tumblr' && hasVideo) return 'https://www.tumblr.com/new/video';
   return adapter.getComposeUrl(text);
+}
+
+export function resolvePreSubmitLoadOptions(
+  adapter: Pick<PlatformAdapter, 'preSubmitLoad'>,
+): OpenOrFocusTabOptions | undefined {
+  const policy = adapter.preSubmitLoad;
+  if (!policy) return undefined;
+  return {
+    loadRetries: policy.retryCount,
+    relaxedComposeUrlReady: policy.urlReady === 'same-origin-path',
+  };
 }
 
 export function shouldOpenActive(
