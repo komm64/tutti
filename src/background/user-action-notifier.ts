@@ -1,4 +1,4 @@
-import type { PlatformId } from '../messages';
+import type { PlatformId } from '../types/platform';
 import { log } from '../utils/logger';
 import { t } from '../utils/i18n';
 import { retryTransientTabAction } from './tab-action-retry';

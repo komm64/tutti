@@ -1,4 +1,4 @@
-import type { PlatformId } from '../messages';
+import type { PlatformId } from '../types/platform';
 import type { SnsPreset } from './types';
 
 export function selectedPlatformIds(selected: Record<PlatformId, boolean>): PlatformId[] {

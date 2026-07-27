@@ -1,4 +1,4 @@
-import type { PlatformId } from '../messages';
+import type { PlatformId } from '../types/platform';
 
 export function isKnownComposeUrl(platform: PlatformId, rawUrl: string): boolean {
   let url: URL;

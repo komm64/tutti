@@ -1,4 +1,4 @@
-import type { PlatformId } from '../messages';
+import type { PlatformId } from '../types/platform';
 import { getAdapter } from '../adapters/registry';
 
 export const REAL_POST_CONCURRENCY = 1;

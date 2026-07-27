@@ -10,7 +10,7 @@
  */
 
 import { getInteractionSnapshots, getPostHistory, pruneInteractionSnapshots, setInteractionSnapshots, type InteractionSnapshot } from '../storage';
-import type { PlatformId } from '../messages';
+import type { PlatformId } from '../types/platform';
 import { extractPollingTarget, isPollingSupported, pollBluesky, pollMastodon, pollMisskey, type InteractionCounts } from './interaction-poll';
 import { t } from './i18n';
 

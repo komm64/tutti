@@ -12,7 +12,7 @@
  *   extractPostId('x', 'https://x.com/user/status/1234567890')
  *   // → '1234567890'
  */
-import type { PlatformId } from '../messages';
+import type { PlatformId } from '../types/platform';
 
 export function extractPostId(platform: PlatformId, url: string | undefined): string | null {
   if (!url) return null;

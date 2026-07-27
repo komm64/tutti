@@ -1,4 +1,4 @@
-import type { PlatformId } from '../messages';
+import type { PlatformId } from '../types/platform';
 import { checkVideoConstraint, getAdapter } from '../adapters/registry';
 import { splitTextForPlatform } from '../utils/platform-text';
 import type { ImagePreview, PlatformOption, VideoPreview } from './types';

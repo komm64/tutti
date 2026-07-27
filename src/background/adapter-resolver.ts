@@ -1,4 +1,4 @@
-import type { PlatformId } from '../messages';
+import type { PlatformId } from '../types/platform';
 import { getAdapter } from '../adapters/registry';
 import type { PlatformAdapter } from '../adapters/types';
 import { getSettings } from '../storage';

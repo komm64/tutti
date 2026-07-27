@@ -10,7 +10,7 @@
  * { x?: { fileInput?: string, ... }, mastodon?: { ... }, ... }
  * ```
  */
-import type { PlatformId } from '../messages';
+import type { PlatformId } from '../types/platform';
 
 export type SelectorOverrides = Partial<Record<PlatformId, Record<string, string>>>;
 
