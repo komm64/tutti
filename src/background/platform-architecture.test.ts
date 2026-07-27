@@ -96,6 +96,15 @@ describe('platform architecture guard', () => {
       /\bfunction (?:buildDomPostAttempts|resolvePreSubmitLoadOptions|shouldOpenActive|shouldRetryPostAttempt|shouldReuseExistingTabForAttempt)\b/,
     );
   });
+
+  it('keeps URL capture and verification completion in PostConfirmation', () => {
+    const poster = readFileSync('src/background/platform-poster.ts', 'utf8');
+
+    expect(poster).toContain("from './post-confirmation'");
+    expect(poster).not.toMatch(
+      /\bfunction (?:attachVerifyResult|buildVerifyExpectationForChunk|captureUrl|ensurePostUrl|maybeAutoOpenPostUrl|recoverFromAmbiguousDispatchFailure)\b/,
+    );
+  });
 });
 
 function productionTypeScriptFiles(root: string): string[] {
