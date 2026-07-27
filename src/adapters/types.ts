@@ -59,6 +59,8 @@ export interface PlatformAdapter {
   previewLane?: 'foreground';
   /** 投稿操作前の compose page load timeout に対する宣言policy */
   preSubmitLoad?: PreSubmitLoadPolicy;
+  /** 動画投稿で優先する表示aspect。未指定なら原寸を維持する */
+  preferredVideoAspect?: '9:16';
   /** 投稿ページとして扱う URL パターン(content script の matches と整合させる) */
   matchUrl: (url: string) => boolean;
   /** 投稿用に開くべき URL を返す。URL pre-fill する SNS では text を URL に乗せる */

@@ -28,6 +28,7 @@ export const youtubeAdapter: PlatformAdapter = {
   charLimit: 5000,
   popupOrder: 11,
   defaultSelected: false,
+  preferredVideoAspect: '9:16',
   // studio.youtube.com / m.youtube.com / www.youtube.com
   matchUrl: (url) => /^https:\/\/((www|m|studio)\.)?youtube\.com\//.test(url),
   getComposeUrl: () => 'https://studio.youtube.com/',

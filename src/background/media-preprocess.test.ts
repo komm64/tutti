@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { adapters } from '../adapters/registry';
 import {
+  needsVerticalLetterboxForPlatforms,
   needsVideoCodecTranscodeForPlatforms,
   resolveSafeVideoTargetBytes,
   shouldNormalizeVideoForSafePosting,
@@ -32,6 +34,16 @@ describe('video preprocessing budget', () => {
   it('transcodes when trimming or vertical letterboxing is requested', () => {
     expect(shouldTranscodeVideoForBudget(1, Infinity, false, true)).toBe(true);
     expect(shouldTranscodeVideoForBudget(1, Infinity, true, false)).toBe(true);
+  });
+
+  it('derives vertical letterboxing from adapter aspect policy', () => {
+    expect(Object.entries(adapters)
+      .filter(([, adapter]) => adapter?.preferredVideoAspect === '9:16')
+      .map(([platform]) => platform)).toEqual(['instagram', 'tiktok', 'youtube']);
+    expect(needsVerticalLetterboxForPlatforms(['instagram'])).toBe(true);
+    expect(needsVerticalLetterboxForPlatforms(['tiktok'])).toBe(true);
+    expect(needsVerticalLetterboxForPlatforms(['youtube'])).toBe(true);
+    expect(needsVerticalLetterboxForPlatforms(['x', 'bluesky', 'tumblr'])).toBe(false);
   });
 
   it('transcodes HEVC videos for Bluesky even when size is within budget', () => {

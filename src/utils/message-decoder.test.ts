@@ -3,7 +3,24 @@ import postRequestFixture from '../fixtures/messages/post-request-additive.json'
 import postResultFixture from '../fixtures/messages/post-result-additive.json';
 import postToPlatformFixture from '../fixtures/messages/post-to-platform-additive.json';
 import type { Message, PostResultMessage } from '../messages';
+import { PLATFORM_IDS } from '../types/platform';
 import { decodeMessage, decodeMessageWithDiagnostics } from './message-decoder';
+
+it('keeps the canonical runtime platform ID vocabulary stable', () => {
+  expect(PLATFORM_IDS).toEqual([
+    'x',
+    'bluesky',
+    'threads',
+    'mastodon',
+    'misskey',
+    'tumblr',
+    'pixiv',
+    'deviantart',
+    'instagram',
+    'tiktok',
+    'youtube',
+  ]);
+});
 
 const postResult: PostResultMessage = {
   type: 'POST_RESULT',

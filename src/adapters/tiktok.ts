@@ -23,6 +23,7 @@ export const tiktokAdapter: PlatformAdapter = {
   charLimit: 2200,
   popupOrder: 10,
   defaultSelected: false,
+  preferredVideoAspect: '9:16',
   matchUrl: (url) => /^https:\/\/(www\.)?tiktok\.com\//.test(url),
   getComposeUrl: () => 'https://www.tiktok.com/tiktokstudio/upload',
   getLoginUrl: () => 'https://www.tiktok.com/',

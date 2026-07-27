@@ -45,6 +45,12 @@ export function shouldNormalizeVideoForSafePosting(video: ImageAttachment): bool
   return video.type.startsWith('video/');
 }
 
+export function needsVerticalLetterboxForPlatforms(
+  platforms: readonly PlatformId[],
+): boolean {
+  return platforms.some((platform) => getAdapter(platform)?.preferredVideoAspect === '9:16');
+}
+
 export function needsVideoCodecTranscodeForPlatforms(
   platforms: readonly PlatformId[],
   video: ImageAttachment,
@@ -117,9 +123,8 @@ export async function maybeCompressVideoForBudget(
   // (TikTok / YouTube Shorts / IG Reels) が含まれる場合は **size が範囲内でも
   // 9:16 letterbox のため再エンコードする**。
   const { autoLetterboxVerticalVideo } = await getSettings();
-  const verticalSns: PlatformId[] = ['tiktok', 'youtube', 'instagram'];
   const needsVerticalLetterbox =
-    autoLetterboxVerticalVideo && platforms.some((p) => verticalSns.includes(p));
+    autoLetterboxVerticalVideo && needsVerticalLetterboxForPlatforms(platforms);
 
   // v0.4.90: trim opt-in
   const needsTrim = !!(trimToSeconds && trimToSeconds > 0 && (video.durationS ?? 0) > trimToSeconds);
