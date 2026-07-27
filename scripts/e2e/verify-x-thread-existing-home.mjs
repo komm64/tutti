@@ -79,6 +79,32 @@ function attachDialogHandlers(context) {
   context.on('page', attach);
 }
 
+async function verifyPublishedInlineThread(context, postUrl) {
+  const page = await context.newPage();
+  try {
+    await page.goto(postUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.waitForFunction(() => {
+      const texts = [...document.querySelectorAll('article')]
+        .map((article) => article.textContent ?? '');
+      return texts.some((value) => value.includes('(1/2)') && value.includes('Tutti X existing-home')) &&
+        texts.some((value) => value.includes('(2/2)') && value.includes('bravo'));
+    }, undefined, { timeout: 30000 });
+    const articles = await page.evaluate(() => (
+      [...document.querySelectorAll('article')].slice(0, 6)
+        .map((article) => (article.textContent ?? '').replace(/\s+/g, ' ').slice(0, 400))
+    ));
+    return { ok: true, url: page.url(), articles };
+  } catch (error) {
+    return {
+      ok: false,
+      url: page.url() || postUrl,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  } finally {
+    await page.close().catch(() => {});
+  }
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -296,14 +322,17 @@ if (postMode) {
   if (xResult.confirmed !== true || !xResult.url || xResult.flow?.submitReached !== true) {
     await fail('real X inline thread was not confirmed with a captured URL', xResult);
   }
-  if (clickSummary.addPost < 1) {
-    await fail('X inline thread did not use the Add post action', clickSummary);
-  }
   if (clickSummary.postAll !== 1) {
     await fail('X inline thread must click Post all exactly once', clickSummary);
   }
   if (clickSummary.singlePost !== 0) {
     await fail('X inline thread used the obsolete per-post submit action', clickSummary);
+  }
+
+  const published = await verifyPublishedInlineThread(ctx, xResult.url);
+  console.log('[verify-x-thread] published thread:', JSON.stringify(published, null, 2));
+  if (!published.ok) {
+    await fail('published X URL does not contain both inline thread posts', published);
   }
 
   console.log(`[verify-x-thread] published URL: ${xResult.url}`);
