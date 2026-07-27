@@ -45,6 +45,7 @@ import {
   handleClickCommand,
   handleTagListCommand,
 } from '../src/page-world/element-commands';
+import { createMediaCommandHandlers } from '../src/page-world/media-commands';
 
 const REQ_TAG = 'tutti-inject-req-v1';
 const RES_TAG = 'tutti-inject-res-v1';
@@ -533,51 +534,6 @@ export default defineContentScript({
         dt.items.add(new File([blob], f.name, { type: f.type, lastModified: Date.now() }));
       }
       return { dt };
-    }
-
-    async function injectIntoInput(req: InjectRequest): Promise<InjectResponse> {
-      const found = findEl(req.selector, { preferVisible: true });
-      if (!found) {
-        return { source: RES_TAG, id: req.id, ok: false, error: 'file input not found' };
-      }
-      const input = found.el as HTMLInputElement;
-      const inDialog = !!input.closest('[role="dialog"]');
-      console.log(`[Tutti inject-helper] inject input matched "${found.matchedPart}" — inDialog=${inDialog}`);
-      const built = buildDataTransfer(req.files);
-      if ('error' in built) return { source: RES_TAG, id: req.id, ok: false, error: built.error };
-      const requireMediaAccepted =
-        req.requireMediaAccepted === true ||
-        (
-          req.requireVideoAccepted !== false &&
-          req.files.some((file) => file.type.startsWith('video/'))
-        );
-      const beforePreviewCount = countMediaPreviews(mediaPreviewScope(input));
-      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'files')?.set;
-      if (setter) setter.call(input, built.dt.files);
-      else input.files = built.dt.files;
-      input.dispatchEvent(new Event('change', { bubbles: true }));
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      const wait = await waitForUploadComplete(req.uploadTimeoutMs ?? 30000, {
-        requireMediaAccepted,
-        requirePreviewAccepted: req.requireMediaPreview === true,
-        isMediaPreviewVisible: requireMediaAccepted
-          ? mediaAcceptedPredicate(input, beforePreviewCount)
-          : undefined,
-        getMediaRejectionMessage: requireMediaAccepted
-          ? () => mediaRejectionMessage(input)
-          : undefined,
-      });
-      const ok = !wait.error && (!wait.timedOut || wait.acceptedByPreview);
-      return {
-        source: RES_TAG,
-        id: req.id,
-        ok,
-        error: ok ? undefined : (wait.error ?? 'Timed out while waiting for the media upload or preview'),
-        fileCount: input.files?.length ?? 0,
-        uploadCount: wait.uploadCount,
-        acceptedByPreview: wait.acceptedByPreview,
-        uploadTimedOut: wait.timedOut,
-      };
     }
 
     async function injectText(req: InjectRequest): Promise<InjectResponse> {
@@ -1120,60 +1076,6 @@ export default defineContentScript({
       };
     }
 
-    async function injectViaDrop(req: InjectRequest): Promise<InjectResponse> {
-      const found = findEl(req.selector);
-      if (!found) {
-        return { source: RES_TAG, id: req.id, ok: false, error: 'drop target not found' };
-      }
-      const target = found.el;
-      console.log(`[Tutti inject-helper] drop target matched "${found.matchedPart}"`);
-      const built = buildDataTransfer(req.files);
-      if ('error' in built) return { source: RES_TAG, id: req.id, ok: false, error: built.error };
-      const requireMediaAccepted =
-        req.requireMediaAccepted === true ||
-        (
-          req.requireVideoAccepted !== false &&
-          req.files.some((file) => file.type.startsWith('video/'))
-        );
-      const beforePreviewCount = countMediaPreviews(mediaPreviewScope(target));
-      const rect = target.getBoundingClientRect();
-      const x = rect.left + rect.width / 2;
-      const y = rect.top + rect.height / 2;
-      for (const type of ['dragenter', 'dragover', 'drop'] as const) {
-        const ev = new DragEvent(type, {
-          bubbles: true,
-          cancelable: true,
-          composed: true,
-          dataTransfer: built.dt,
-          clientX: x,
-          clientY: y,
-        });
-        target.dispatchEvent(ev);
-      }
-      const wait = await waitForUploadComplete(req.uploadTimeoutMs ?? 30000, {
-        requireMediaAccepted,
-        requirePreviewAccepted: req.requireMediaPreview === true,
-        isMediaPreviewVisible: requireMediaAccepted
-          ? mediaAcceptedPredicate(target, beforePreviewCount)
-          : undefined,
-        getMediaRejectionMessage: requireMediaAccepted
-          ? () => mediaRejectionMessage(target)
-          : undefined,
-      });
-      const ok = !wait.error && (!wait.timedOut || wait.acceptedByPreview);
-      return {
-        source: RES_TAG,
-        id: req.id,
-        ok,
-        error: ok ? undefined : (wait.error ?? 'Timed out while waiting for the media upload or preview'),
-        fileCount: built.dt.files.length,
-        droppedOn: target.tagName,
-        uploadCount: wait.uploadCount,
-        acceptedByPreview: wait.acceptedByPreview,
-        uploadTimedOut: wait.timedOut,
-      };
-    }
-
     async function readLatestXPostUrl(req: InjectRequest): Promise<InjectResponse> {
       let captured = window.__tuttiXLatestPostId;
       try {
@@ -1200,9 +1102,18 @@ export default defineContentScript({
       return false;
     }
 
+    const mediaCommandHandlers = createMediaCommandHandlers(RES_TAG, {
+      findElement: findEl,
+      buildDataTransfer,
+      mediaPreviewScope,
+      countMediaPreviews,
+      mediaAcceptedPredicate,
+      mediaRejectionMessage,
+      waitForUploadComplete,
+    });
     const requestHandlers: InjectRequestHandlerMap<InjectRequest, InjectResponse> = {
-      input: injectIntoInput,
-      drop: injectViaDrop,
+      input: mediaCommandHandlers.input,
+      drop: mediaCommandHandlers.drop,
       text: injectText,
       'tumblr-text': injectTumblrText,
       'tag-list': (request) => handleTagListCommand(request, RES_TAG),
