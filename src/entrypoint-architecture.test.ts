@@ -161,6 +161,15 @@ describe('entrypoint architecture guard', () => {
     expect(entrypoint).toContain('injectContentEditableText(');
     expect(entrypoint).not.toContain("Object.getOwnPropertyDescriptor(proto, 'value')");
   });
+
+  it('keeps Tumblr block-editor mechanics in its page-world driver', () => {
+    const entrypoint = readFileSync('entrypoints/inject-helper.content.ts', 'utf8');
+
+    expect(entrypoint).toContain('handleTumblrTextCommand(request, RES_TAG)');
+    expect(entrypoint).not.toMatch(
+      /\bfunction (?:injectTumblrText|insertTumblrPlainText|clearEditableBlock)\b/,
+    );
+  });
 });
 
 function categorize(path: string): EntrypointCategory {
