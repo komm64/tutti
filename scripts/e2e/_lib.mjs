@@ -5,12 +5,7 @@
  *   {ok: boolean, note?: string, error?: string} を返す。
  */
 
-import { readFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
-import { resolve, dirname, basename } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
+import { loadE2eFixture } from './cdp-harness.mjs';
 
 export function timestampedText(label) {
   return `tutti e2e ${label} ${new Date().toISOString()}`;
@@ -83,15 +78,5 @@ export async function sendPostMessage(ctx, { urlGlob, platform, text, images, au
  * 存在しない場合 null を返す → 各 module は skip 判断を自分でする。
  */
 export async function loadFixture(filename, mimeType, { durationS } = {}) {
-  const path = resolve(__dirname, 'fixtures', filename);
-  if (!existsSync(path)) return null;
-  const bytes = await readFile(path);
-  const data = bytes.toString('base64');
-  return {
-    name: basename(path),
-    type: mimeType,
-    data,
-    bytes: bytes.length,
-    ...(durationS !== undefined ? { durationS } : {}),
-  };
+  return await loadE2eFixture(filename, mimeType, { durationS });
 }
