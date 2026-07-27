@@ -1,4 +1,4 @@
-import type { ImageAttachment, PlatformId } from '../messages';
+import type { ImageAttachment } from '../messages';
 import type { BlueskySessionResult } from '../messages';
 import { postViaApi as postBlueskyApi, postViaSession as postBlueskySession } from '../api/bluesky';
 import type { Session as BlueskySession } from '../api/bluesky';
@@ -11,32 +11,44 @@ import { parseMastodonStatusIdFromUrl } from '../utils/reply-compose';
 
 export type ApiPostingVisibility = 'public' | 'unlisted' | 'private' | 'direct';
 
-/**
- * 設定された API credentials があれば API path で投稿。無ければ 'no-credentials'。
- * P15 で対応しているのは Bluesky / Mastodon / Misskey の 3 platforms。
- */
-export async function tryApiPath(
-  platform: PlatformId,
+export interface ApiPostingInput {
   text: string,
   images?: ImageAttachment[],
   cw?: string,
   visibility?: ApiPostingVisibility,
   replyToUrl?: string,
-): Promise<ApiPostResult | 'no-credentials'> {
+}
+
+export type ApiPostingStrategy = (
+  input: ApiPostingInput,
+) => Promise<ApiPostResult | 'no-credentials'>;
+
+export async function tryBlueskyApiPost({
+  text,
+  images,
+}: ApiPostingInput): Promise<ApiPostResult | 'no-credentials'> {
   const creds = await getApiCredentials();
-  if (platform === 'bluesky') {
-    if (creds.bluesky) {
-      return await postBlueskyApi(creds.bluesky, { text, images });
-    }
-    const session = await readBlueskySessionFromOpenTab();
-    if (session) {
-      const hasVideo = !!images?.some((image) => image.type.startsWith('video/'));
-      log.info(`bluesky via borrowed web session API start: media=${images?.length ?? 0} video=${hasVideo}`);
-      return await postBlueskySession(session, { text, images });
-    }
-    return 'no-credentials';
+  if (creds.bluesky) {
+    return await postBlueskyApi(creds.bluesky, { text, images });
   }
-  if (platform === 'mastodon' && creds.mastodon) {
+  const session = await readBlueskySessionFromOpenTab();
+  if (session) {
+    const hasVideo = !!images?.some((image) => image.type.startsWith('video/'));
+    log.info(`bluesky via borrowed web session API start: media=${images?.length ?? 0} video=${hasVideo}`);
+    return await postBlueskySession(session, { text, images });
+  }
+  return 'no-credentials';
+}
+
+export async function tryMastodonApiPost({
+  text,
+  images,
+  cw,
+  visibility,
+  replyToUrl,
+}: ApiPostingInput): Promise<ApiPostResult | 'no-credentials'> {
+  const creds = await getApiCredentials();
+  if (creds.mastodon) {
     return await postMastodonApi(creds.mastodon, {
       text,
       images,
@@ -45,7 +57,17 @@ export async function tryApiPath(
       replyToId: replyToUrl ? parseMastodonStatusIdFromUrl(replyToUrl) : undefined,
     });
   }
-  if (platform === 'misskey' && creds.misskey) {
+  return 'no-credentials';
+}
+
+export async function tryMisskeyApiPost({
+  text,
+  images,
+  cw,
+  visibility,
+}: ApiPostingInput): Promise<ApiPostResult | 'no-credentials'> {
+  const creds = await getApiCredentials();
+  if (creds.misskey) {
     return await postMisskeyApi(creds.misskey, { text, images, cw, visibility });
   }
   return 'no-credentials';

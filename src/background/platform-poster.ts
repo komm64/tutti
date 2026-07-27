@@ -18,7 +18,7 @@ import {
   openOrFocusTab,
   type OpenOrFocusTabOptions,
 } from './tab-management';
-import { tryApiPath } from './api-posting';
+import { tryApiPath } from './platform-strategies';
 import { capturePostUrlFromTabWithRetry } from './post-url-capture';
 import {
   buildLoginRedirectErrorForUrl,

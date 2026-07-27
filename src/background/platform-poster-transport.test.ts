@@ -43,7 +43,7 @@ vi.mock('./adapter-resolver', () => ({
   resolveAdapter: mocks.resolveAdapter,
 }));
 
-vi.mock('./api-posting', () => ({
+vi.mock('./platform-strategies', () => ({
   tryApiPath: mocks.tryApiPath,
 }));
 
