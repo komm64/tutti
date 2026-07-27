@@ -16,6 +16,7 @@ const ALLOWED_SRC_IMPORTS: Record<EntrypointCategory, readonly string[]> = {
   content: [
     'src/adapters/',
     'src/messages',
+    'src/page-world/',
     'src/storage',
     'src/types/',
     'src/utils/',
@@ -107,6 +108,22 @@ describe('entrypoint architecture guard', () => {
     expect(source).toContain('<ApiCredentialEditor');
     expect(source).not.toMatch(/handle(?:Bsky|Mstd|Msky)(?:Save|Clear)/);
     expect(source.match(/<ApiCredentialEditor/g)).toHaveLength(1);
+  });
+
+  it('keeps page-world post capture behind one tagged network observer', () => {
+    const entrypoint = readFileSync('entrypoints/inject-helper.content.ts', 'utf8');
+    const observer = readFileSync('src/page-world/network-observer.ts', 'utf8');
+
+    expect(entrypoint).toContain('installNetworkObserver(window');
+    expect(entrypoint).toContain('createPagePostCaptureRules');
+    expect(entrypoint).not.toMatch(
+      /__tutti(?:IgFetch|MastodonPostCapture|TumblrPostCapture|ThreadsPostCapture|XPostCapture)/,
+    );
+    expect(entrypoint).not.toMatch(/\bwindow\.fetch\s*=/);
+    expect(entrypoint).not.toMatch(/\bXMLHttpRequest\.prototype\.(?:open|send)\s*=/);
+    expect(observer.match(/\btarget\.fetch\s*=\s*async function observedFetch/g)).toHaveLength(1);
+    expect(observer.match(/\bxhrPrototype\.open\s*=\s*function observedOpen/g)).toHaveLength(1);
+    expect(observer.match(/\bxhrPrototype\.send\s*=\s*function observedSend/g)).toHaveLength(1);
   });
 });
 

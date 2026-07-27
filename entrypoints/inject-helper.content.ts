@@ -24,14 +24,16 @@ import {
   readTumblrBodyTextFromBlocks,
 } from '../src/utils/tumblr-editor';
 import {
-  extractInstagramPostRecord,
-  extractMastodonPostRecord,
-  extractThreadsPostRecord,
-  extractTumblrPostRecord,
-  extractXPostId,
-  isInstagramConfigureUrl,
-  prepareInstagramConfigureBody,
-} from '../src/utils/post-capture-record';
+  installNetworkObserver,
+  type NetworkObserverDiagnostic,
+  type NetworkObserverTag,
+} from '../src/page-world/network-observer';
+import {
+  createPagePostCaptureRules,
+  type PostCapturePendingState,
+  type PostCapturePlatform,
+  type PostCaptureResult,
+} from '../src/page-world/post-capture-rules';
 
 const REQ_TAG = 'tutti-inject-req-v1';
 const RES_TAG = 'tutti-inject-res-v1';
@@ -135,12 +137,12 @@ declare global {
      */
     __tuttiIgPendingCaption?: string;
     __tuttiIgLatestPost?: { url?: string; code?: string; capturedAt: number; textHash?: string };
-    __tuttiMastodonPostCaptureHook?: boolean;
     __tuttiMastodonLatestPost?: { url?: string; id?: string; capturedAt: number; textHash?: string };
     __tuttiThreadsLatestPost?: { url?: string; code?: string; username?: string; capturedAt: number; textHash?: string };
     __tuttiTumblrLatestPost?: { url?: string; id?: string; blogName?: string; capturedAt: number; textHash?: string };
-    __tuttiXPostCaptureInstalled?: boolean;
     __tuttiXLatestPostId?: { id: string; capturedAt: number };
+    __tuttiNetObserver?: NetworkObserverTag;
+    __tuttiNetObserverDiagnostics?: NetworkObserverDiagnostic[];
   }
 }
 
@@ -160,313 +162,121 @@ export default defineContentScript({
      *   - Tumblr: /api/v2/media/image
      * \b で囲まないのは Threads "rupload" のように単語境界を持たないパスを
      * 拾うため(false positive のリスクは小、悪化しても 4s で給付諦め)。
-     */
+    */
     const UPLOAD_URL_RE = /(upload|uploadBlob|drive\/files|api\/v\d+\/media)/i;
+    const NETWORK_OBSERVER_OWNER = 'tutti/inject-helper';
+    const NETWORK_OBSERVER_REVISION = 1;
 
-    function installIgCaptionFetchHook() {
-      if (!/instagram\.com/.test(location.host)) return;
-      // 多重 install 防止
-      if ((window as unknown as { __tuttiIgFetchHook?: boolean }).__tuttiIgFetchHook) return;
-      (window as unknown as { __tuttiIgFetchHook?: boolean }).__tuttiIgFetchHook = true;
+    function readPostCapturePending(
+      platform: PostCapturePlatform,
+    ): PostCapturePendingState {
+      try {
+        if (platform === 'instagram') {
+          return { caption: window.__tuttiIgPendingCaption };
+        }
+        if (platform === 'mastodon') {
+          return {
+            textHash: localStorage.getItem('tutti:mastodon-pending-text-hash') ?? undefined,
+          };
+        }
+        if (platform === 'tumblr') {
+          return {
+            textHash: localStorage.getItem('tutti:tumblr-pending-text-hash') ?? undefined,
+            blogName: localStorage.getItem('tutti:tumblr-pending-blog') ?? undefined,
+          };
+        }
+        if (platform === 'threads') {
+          return {
+            textHash: localStorage.getItem('tutti:threads-pending-text-hash') ?? undefined,
+            username: localStorage.getItem('tutti:threads-pending-user') ?? undefined,
+          };
+        }
+      } catch {
+        // Capture remains best-effort when page storage is unavailable.
+      }
+      return {};
+    }
 
-      const captureInstagramPost = (payload: unknown, textHash?: string): void => {
-        const record = extractInstagramPostRecord(payload, textHash);
-        if (!record?.url) return;
+    function persistPostCapture(result: PostCaptureResult): void {
+      const { platform, record } = result;
+      if (platform === 'instagram') {
         window.__tuttiIgLatestPost = record;
-        try {
-          localStorage.setItem('tutti:ig-latest-post', JSON.stringify(record));
-        } catch { /* in-memory capture remains available */ }
+        persistCaptureRecord('tutti:ig-latest-post', record);
         window.__tuttiIgPendingCaption = undefined;
-        console.log('[Tutti inject-helper] IG post URL captured: ' + record.url);
-      };
-
-      const prepareCaptionBody = (body: string): { body: string; textHash?: string } => {
-        const cap = window.__tuttiIgPendingCaption;
-        const prepared = prepareInstagramConfigureBody(body, cap);
-        if (prepared.changed) {
-          console.log('[Tutti inject-helper] IG configure: caption を inject (len=' + (cap?.length ?? 0) + ')');
-        }
-        return { body: prepared.body, textHash: prepared.textHash };
-      };
-
-      // fetch hook
-      const origFetch = window.fetch.bind(window);
-      window.fetch = async function(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-        let requestTextHash: string | undefined;
-        let nextInit = init;
-        try {
-          const url = typeof input === 'string' ? input : (input instanceof URL ? input.toString() : input.url);
-          if (url && isInstagramConfigureUrl(url) && typeof init?.body === 'string') {
-            const prepared = prepareCaptionBody(init.body);
-            requestTextHash = prepared.textHash;
-            if (prepared.body !== init.body) nextInit = { ...init, body: prepared.body };
-          }
-        } catch (e) {
-          console.warn('[Tutti inject-helper] IG fetch hook err:', e);
-        }
-        const response = await origFetch(input as RequestInfo, nextInit);
-        try {
-          const url = typeof input === 'string' ? input : (input instanceof URL ? input.toString() : input.url);
-          if (url && isInstagramConfigureUrl(url)) {
-            void response.clone().json().then((data) => captureInstagramPost(data, requestTextHash)).catch(() => {});
-          }
-        } catch { /* capture is best-effort */ }
-        return response;
-      };
-
-      // XHR hook (IG は configure/ を XHR 経由で呼んでる可能性、 fetch hook が
-      // intercept しない事故を防ぐ)
-      const OrigXHR = window.XMLHttpRequest;
-      const origOpen = OrigXHR.prototype.open;
-      const origSend = OrigXHR.prototype.send;
-      // url を per-instance に持たせるための WeakMap
-      const urls = new WeakMap<XMLHttpRequest, string>();
-      OrigXHR.prototype.open = function(this: XMLHttpRequest, method: string, url: string | URL, ...rest: unknown[]) {
-        const u = typeof url === 'string' ? url : url.toString();
-        urls.set(this, u);
-        // @ts-expect-error rest spread
-        return origOpen.call(this, method, u, ...rest);
-      };
-      OrigXHR.prototype.send = function(this: XMLHttpRequest, body?: Document | XMLHttpRequestBodyInit | null) {
-        let requestTextHash: string | undefined;
-        try {
-          const url = urls.get(this) ?? '';
-          if (isInstagramConfigureUrl(url) && typeof body === 'string') {
-            const prepared = prepareCaptionBody(body);
-            requestTextHash = prepared.textHash;
-            if (prepared.body !== body) body = prepared.body;
-            this.addEventListener('load', () => {
-              try { captureInstagramPost(JSON.parse(this.responseText), requestTextHash); } catch { /* best-effort */ }
-            }, { once: true });
-          }
-        } catch (e) {
-          console.warn('[Tutti inject-helper] IG XHR hook err:', e);
-        }
-        return origSend.call(this, body as Document | XMLHttpRequestBodyInit | null);
-      };
-      console.log('[Tutti inject-helper] IG fetch + XHR hooks installed');
-    }
-
-    function installMastodonPostCaptureHook() {
-      if (!/mastodon\.social$/.test(location.host)) return;
-      if (window.__tuttiMastodonPostCaptureHook) return;
-      window.__tuttiMastodonPostCaptureHook = true;
-
-      const isMastodonStatusCreateUrl = (url: string, method = 'GET'): boolean => {
-        if (method.toUpperCase() !== 'POST') return false;
-        try {
-          const parsed = new URL(url, location.origin);
-          return parsed.origin === location.origin && parsed.pathname === '/api/v1/statuses';
-        } catch {
-          return false;
-        }
-      };
-
-      const captureMastodonPost = (payload: unknown): void => {
-        let textHash: string | undefined;
-        try {
-          textHash = localStorage.getItem('tutti:mastodon-pending-text-hash') ?? undefined;
-        } catch { /* ignore storage failures */ }
-        const record = extractMastodonPostRecord(payload, textHash);
-        if (!record?.url) return;
+      } else if (platform === 'mastodon') {
         window.__tuttiMastodonLatestPost = record;
-        try {
-          localStorage.setItem('tutti:mastodon-latest-post', JSON.stringify(record));
-          localStorage.removeItem('tutti:mastodon-pending-text-hash');
-        } catch { /* in-memory capture remains available */ }
-        console.log('[Tutti inject-helper] Mastodon post URL captured: ' + record.url);
-      };
-
-      const origFetch = window.fetch.bind(window);
-      window.fetch = async function(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-        const url = typeof input === 'string' ? input : (input instanceof URL ? input.toString() : input.url);
-        const method = init?.method ?? (input instanceof Request ? input.method : 'GET');
-        const shouldCapture = isMastodonStatusCreateUrl(url, method);
-        const response = await origFetch(input as RequestInfo, init);
-        if (shouldCapture) {
-          void response.clone().json().then(captureMastodonPost).catch(() => {});
-        }
-        return response;
-      };
-
-      const OrigXHR = window.XMLHttpRequest;
-      const origOpen = OrigXHR.prototype.open;
-      const requests = new WeakMap<XMLHttpRequest, { method: string; url: string }>();
-      OrigXHR.prototype.open = function(this: XMLHttpRequest, method: string, url: string | URL, ...rest: unknown[]) {
-        const value = typeof url === 'string' ? url : url.toString();
-        requests.set(this, { method, url: value });
-        // @ts-expect-error rest spread
-        return origOpen.call(this, method, value, ...rest);
-      };
-      const origSend = OrigXHR.prototype.send;
-      OrigXHR.prototype.send = function(this: XMLHttpRequest, body?: Document | XMLHttpRequestBodyInit | null) {
-        const req = requests.get(this);
-        if (isMastodonStatusCreateUrl(req?.url ?? '', req?.method)) {
-          this.addEventListener('load', () => {
-            try { captureMastodonPost(JSON.parse(this.responseText)); } catch { /* best-effort */ }
-          }, { once: true });
-        }
-        return origSend.call(this, body as Document | XMLHttpRequestBodyInit | null);
-      };
-      console.log('[Tutti inject-helper] Mastodon fetch + XHR hooks installed');
-    }
-
-    function installTumblrPostCaptureHook() {
-      if (!/tumblr\.com/.test(location.host)) return;
-      if ((window as unknown as { __tuttiTumblrPostCaptureHook?: boolean }).__tuttiTumblrPostCaptureHook) return;
-      (window as unknown as { __tuttiTumblrPostCaptureHook?: boolean }).__tuttiTumblrPostCaptureHook = true;
-
-      const isTumblrPostCreateUrl = (url: string, method = 'GET'): boolean =>
-        method.toUpperCase() === 'POST' && (
-          /\/api\/v2\/blog\/[^/]+\/posts?(?:\?|$|\/)/.test(url) ||
-          /\/v2\/blog\/[^/]+\/posts?(?:\?|$|\/)/.test(url)
+        persistCaptureRecord(
+          'tutti:mastodon-latest-post',
+          record,
+          ['tutti:mastodon-pending-text-hash'],
         );
-
-      const blogNameFromUrl = (url: string): string | undefined => {
-        const m = url.match(/\/(?:api\/)?v2\/blog\/([^/]+)\/posts?/);
-        return m?.[1]?.replace(/\.tumblr\.com$/i, '');
-      };
-
-      const captureTumblrPost = (payload: unknown, blogName?: string): void => {
-        let textHash: string | undefined;
-        let pendingBlogName: string | undefined;
-        try {
-          textHash = localStorage.getItem('tutti:tumblr-pending-text-hash') ?? undefined;
-          pendingBlogName = localStorage.getItem('tutti:tumblr-pending-blog') ?? undefined;
-        } catch { /* ignore storage failures */ }
-        const record = extractTumblrPostRecord(payload, pendingBlogName ?? blogName, textHash);
-        if (!record?.url) return;
+      } else if (platform === 'tumblr') {
         window.__tuttiTumblrLatestPost = record;
-        try {
-          localStorage.setItem('tutti:tumblr-latest-post', JSON.stringify(record));
-          localStorage.removeItem('tutti:tumblr-pending-text-hash');
-          localStorage.removeItem('tutti:tumblr-pending-blog');
-        } catch { /* in-memory capture remains available */ }
-        console.log('[Tutti inject-helper] Tumblr post URL captured: ' + record.url);
-      };
-
-      const origFetch = window.fetch.bind(window);
-      window.fetch = async function(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-        const url = typeof input === 'string' ? input : (input instanceof URL ? input.toString() : input.url);
-        const method = init?.method ?? (input instanceof Request ? input.method : 'GET');
-        const shouldCapture = isTumblrPostCreateUrl(url, method);
-        const response = await origFetch(input as RequestInfo, init);
-        if (shouldCapture) {
-          void response.clone().json()
-            .then((data) => captureTumblrPost(data, blogNameFromUrl(url)))
-            .catch((e) => console.warn('[Tutti inject-helper] Tumblr post capture failed:', e));
-        }
-        return response;
-      };
-
-      const OrigXHR = window.XMLHttpRequest;
-      const origOpen = OrigXHR.prototype.open;
-      const requests = new WeakMap<XMLHttpRequest, { method: string; url: string }>();
-      OrigXHR.prototype.open = function(this: XMLHttpRequest, method: string, url: string | URL, ...rest: unknown[]) {
-        const value = typeof url === 'string' ? url : url.toString();
-        requests.set(this, { method, url: value });
-        // @ts-expect-error rest spread
-        return origOpen.call(this, method, value, ...rest);
-      };
-      const origSend = OrigXHR.prototype.send;
-      OrigXHR.prototype.send = function(this: XMLHttpRequest, body?: Document | XMLHttpRequestBodyInit | null) {
-        const req = requests.get(this);
-        const url = req?.url ?? '';
-        if (isTumblrPostCreateUrl(url, req?.method)) {
-          this.addEventListener('load', () => {
-            try {
-              captureTumblrPost(JSON.parse(this.responseText), blogNameFromUrl(url));
-            } catch (e) {
-              console.warn('[Tutti inject-helper] Tumblr XHR post capture failed:', e);
-            }
-          }, { once: true });
-        }
-        return origSend.call(this, body as Document | XMLHttpRequestBodyInit | null);
-      };
+        persistCaptureRecord(
+          'tutti:tumblr-latest-post',
+          record,
+          ['tutti:tumblr-pending-text-hash', 'tutti:tumblr-pending-blog'],
+        );
+      } else if (platform === 'threads') {
+        window.__tuttiThreadsLatestPost = record;
+        persistCaptureRecord(
+          'tutti:threads-latest-post',
+          record,
+          ['tutti:threads-pending-text-hash', 'tutti:threads-pending-user'],
+        );
+      } else {
+        const captured = { id: record.id!, capturedAt: record.capturedAt };
+        window.__tuttiXLatestPostId = captured;
+        persistCaptureRecord('tutti:x-latest-post', captured);
+      }
+      console.log(
+        `[Tutti inject-helper] ${platform} post captured: ${record.url ?? record.id ?? 'record'}`,
+      );
     }
 
-    function installThreadsPostCaptureHook() {
-      if (!/threads\.(?:com|net)$/.test(location.host)) return;
-      if ((window as unknown as { __tuttiThreadsPostCaptureHook?: boolean }).__tuttiThreadsPostCaptureHook) return;
-      (window as unknown as { __tuttiThreadsPostCaptureHook?: boolean }).__tuttiThreadsPostCaptureHook = true;
+    function persistCaptureRecord(
+      key: string,
+      record: unknown,
+      clearKeys: readonly string[] = [],
+    ): void {
+      try {
+        localStorage.setItem(key, JSON.stringify(record));
+        for (const clearKey of clearKeys) localStorage.removeItem(clearKey);
+      } catch {
+        // In-memory capture remains available.
+      }
+    }
 
-      const isThreadsPostMutationUrl = (url: string, method = 'GET', bodyText = ''): boolean => {
-        if (method.toUpperCase() !== 'POST') return false;
-        try {
-          const parsed = new URL(url, location.origin);
-          if (!/threads\.(?:com|net)$/.test(parsed.hostname)) return false;
-          if (!/\/(?:api\/graphql|graphql|ajax|api\/v\d+)/i.test(parsed.pathname)) return false;
-          if (!bodyText) return false;
-          if (!/(create|publish|composer|mutation|text_post|post_create|create_post)/i.test(bodyText)) return false;
-          if (/(feed|timeline|search|notification|inbox|viewer)/i.test(bodyText)) return false;
-          return true;
-        } catch {
-          return false;
-        }
+    function recordNetworkObserverDiagnostic(
+      diagnostic: NetworkObserverDiagnostic,
+    ): void {
+      const safeDiagnostic = {
+        ...diagnostic,
+        message: diagnostic.message
+          .replace(/https?:\/\/\S+/gi, '[url]')
+          .slice(0, 160),
       };
+      window.__tuttiNetObserverDiagnostics = [
+        ...(window.__tuttiNetObserverDiagnostics ?? []),
+        safeDiagnostic,
+      ].slice(-20);
+      console.warn('[Tutti inject-helper] network observer:', safeDiagnostic);
+    }
 
-      const requestBodyText = (body: unknown): string => {
-        if (typeof body === 'string') return body;
-        if (body instanceof URLSearchParams) return body.toString();
-        if (body instanceof FormData) {
-          return Array.from(body.entries())
-            .map(([key, value]) => `${key}=${typeof value === 'string' ? value : value.name}`)
-            .join('&');
-        }
-        return '';
-      };
-
-      const captureThreadsPost = (payload: unknown): void => {
-        let textHash: string | undefined;
-        let username: string | undefined;
-        try {
-          textHash = localStorage.getItem('tutti:threads-pending-text-hash') ?? undefined;
-          username = localStorage.getItem('tutti:threads-pending-user') ?? undefined;
-        } catch { /* ignore storage failures */ }
-        if (!textHash && !username) return;
-        const record = extractThreadsPostRecord(payload, username, textHash);
-        if (!record?.url) return;
-        window.__tuttiThreadsLatestPost = record;
-        try {
-          localStorage.setItem('tutti:threads-latest-post', JSON.stringify(record));
-          localStorage.removeItem('tutti:threads-pending-text-hash');
-          localStorage.removeItem('tutti:threads-pending-user');
-        } catch { /* in-memory capture remains available */ }
-        console.log('[Tutti inject-helper] Threads post URL captured: ' + record.url);
-      };
-
-      const origFetch = window.fetch.bind(window);
-      window.fetch = async function(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-        const url = typeof input === 'string' ? input : (input instanceof URL ? input.toString() : input.url);
-        const method = init?.method ?? (input instanceof Request ? input.method : 'GET');
-        const shouldCapture = isThreadsPostMutationUrl(url, method, requestBodyText(init?.body));
-        const response = await origFetch(input as RequestInfo, init);
-        if (shouldCapture) {
-          void response.clone().json().then(captureThreadsPost).catch(() => {});
-        }
-        return response;
-      };
-
-      const OrigXHR = window.XMLHttpRequest;
-      const origOpen = OrigXHR.prototype.open;
-      const requests = new WeakMap<XMLHttpRequest, { method: string; url: string }>();
-      OrigXHR.prototype.open = function(this: XMLHttpRequest, method: string, url: string | URL, ...rest: unknown[]) {
-        const value = typeof url === 'string' ? url : url.toString();
-        requests.set(this, { method, url: value });
-        // @ts-expect-error rest spread
-        return origOpen.call(this, method, value, ...rest);
-      };
-      const origSend = OrigXHR.prototype.send;
-      OrigXHR.prototype.send = function(this: XMLHttpRequest, body?: Document | XMLHttpRequestBodyInit | null) {
-        const req = requests.get(this);
-        if (isThreadsPostMutationUrl(req?.url ?? '', req?.method, requestBodyText(body))) {
-          this.addEventListener('load', () => {
-            try { captureThreadsPost(JSON.parse(this.responseText)); } catch { /* best-effort */ }
-          }, { once: true });
-        }
-        return origSend.call(this, body as Document | XMLHttpRequestBodyInit | null);
-      };
-      console.log('[Tutti inject-helper] Threads fetch + XHR hooks installed');
+    function installPostCaptureObserver(): void {
+      const rules = createPagePostCaptureRules({
+        host: location.host,
+        origin: location.origin,
+        readPending: readPostCapturePending,
+        onCaptured: persistPostCapture,
+      });
+      if (rules.length === 0) return;
+      installNetworkObserver(window, {
+        owner: NETWORK_OBSERVER_OWNER,
+        revision: NETWORK_OBSERVER_REVISION,
+        rules,
+        reportDiagnostic: recordNetworkObserverDiagnostic,
+      });
     }
 
     function installUploadHook() {
@@ -494,49 +304,6 @@ export default defineContentScript({
       } catch (e) {
         console.warn('[Tutti inject-helper] PerformanceObserver unavailable:', e);
       }
-    }
-
-    function installXPostCaptureHook() {
-      if (!/^(?:x|twitter)\.com$/.test(location.host) || window.__tuttiXPostCaptureInstalled) return;
-      window.__tuttiXPostCaptureInstalled = true;
-      const captureRestId = (body: unknown): void => {
-        const id = extractXPostId(body);
-        if (!id) return;
-        const captured = { id, capturedAt: Date.now() };
-        window.__tuttiXLatestPostId = captured;
-        try {
-          localStorage.setItem('tutti:x-latest-post', JSON.stringify(captured));
-        } catch { /* in-memory capture remains available */ }
-      };
-      const origFetch = window.fetch.bind(window);
-      window.fetch = async function(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-        const response = await origFetch(input as RequestInfo, init);
-        try {
-          const url = typeof input === 'string' ? input : (input instanceof URL ? input.toString() : input.url);
-          if (/\/CreateTweet\b/i.test(url)) {
-            void response.clone().json().then(captureRestId).catch(() => {});
-          }
-        } catch { /* capture is best-effort */ }
-        return response;
-      };
-      const OrigXHR = window.XMLHttpRequest;
-      const origOpen = OrigXHR.prototype.open;
-      const urls = new WeakMap<XMLHttpRequest, string>();
-      OrigXHR.prototype.open = function(this: XMLHttpRequest, method: string, url: string | URL, ...rest: unknown[]) {
-        const value = typeof url === 'string' ? url : url.toString();
-        urls.set(this, value);
-        // @ts-expect-error rest spread
-        return origOpen.call(this, method, value, ...rest);
-      };
-      const origSend = OrigXHR.prototype.send;
-      OrigXHR.prototype.send = function(this: XMLHttpRequest, body?: Document | XMLHttpRequestBodyInit | null) {
-        if (/\/CreateTweet\b/i.test(urls.get(this) ?? '')) {
-          this.addEventListener('load', () => {
-            try { captureRestId(JSON.parse(this.responseText)); } catch { /* best-effort */ }
-          }, { once: true });
-        }
-        return origSend.call(this, body as Document | XMLHttpRequestBodyInit | null);
-      };
     }
 
     function sleep(ms: number): Promise<void> {
@@ -1551,10 +1318,6 @@ export default defineContentScript({
     async function handle(req: InjectRequest): Promise<InjectResponse> {
       try {
         installUploadHook();
-        installMastodonPostCaptureHook();
-        installThreadsPostCaptureHook();
-        installTumblrPostCaptureHook();
-        installXPostCaptureHook();
         if (req.mode === 'text') return await injectText(req);
         if (req.mode === 'tumblr-text') return await injectTumblrText(req);
         if (req.mode === 'drop') return await injectViaDrop(req);
@@ -1574,11 +1337,7 @@ export default defineContentScript({
 
     // 起動直後に hook をインストール(早ければ早いほど取りこぼしが少ない)
     installUploadHook();
-    installIgCaptionFetchHook();
-    installMastodonPostCaptureHook();
-    installThreadsPostCaptureHook();
-    installTumblrPostCaptureHook();
-    installXPostCaptureHook();
+    installPostCaptureObserver();
 
     window.addEventListener('message', (ev) => {
       if (ev.source !== window) return;
