@@ -1,8 +1,4 @@
 import { log } from '../src/utils/logger';
-import type {
-  PostRequestMessage,
-  PostResultMessage,
-} from '../src/messages';
 import { getSettings, setLastSeenUser } from '../src/storage';
 import { sweepExpired } from '../src/utils/history-media';
 import {
@@ -14,11 +10,8 @@ import {
   runPollCycle as runInteractionPollCycle,
 } from '../src/utils/interaction-notify';
 import { fetchOverridesFrom } from '../src/utils/selector-feed-runtime';
-import { notifyResults, clearBadge, updateProgressBadge } from '../src/background/post-status-ui';
-import { runPostScheduler } from '../src/background/post-scheduler';
+import { clearBadge, updateProgressBadge } from '../src/background/post-status-ui';
 import { buildDiagnosticsReport } from '../src/background/diagnostics';
-import { recordHistoryEntry, releasePostAttachments } from '../src/background/history-recorder';
-import { normalizePostEvidence, shouldRunPostCompletionSideEffects } from '../src/background/post-result-policy';
 import { applyDisplayModeBehavior, installFloatingWindowCleanup, openFloatingTutti, resolveAutoDisplayMode } from '../src/background/display-mode';
 import { createPersistentLogBuffer } from '../src/background/log-buffer';
 import { createUserActionNotifier } from '../src/background/user-action-notifier';
@@ -27,11 +20,10 @@ import { handleBinaryChunkRequest } from '../src/background/binary-chunk-handler
 import { createOpenedTabRegistry } from '../src/background/opened-tab-registry';
 import { createPostingStateManager } from '../src/background/posting-state';
 import { createPlatformPoster } from '../src/background/platform-poster';
-import { maybeCompressVideoForBudget } from '../src/background/media-preprocess';
 import { createExtensionUpdateManager } from '../src/background/extension-update';
-import { createSubmissionGuard, type SubmissionGuardReservation } from '../src/background/submission-guard';
-import { executeGuardedSubmission } from '../src/background/submission-execution';
-import { decodeMessageWithDiagnostics } from '../src/utils/message-decoder';
+import { createSubmissionGuard } from '../src/background/submission-guard';
+import { createPostRequestHandler } from '../src/background/post-request-handler';
+import { createBackgroundMessageRouter } from '../src/background/message-router';
 
 const logBuffer = createPersistentLogBuffer();
 const userActionNotifier = createUserActionNotifier();
@@ -43,6 +35,14 @@ const platformPoster = createPlatformPoster({
   openedTabs: openedTabRegistry,
   appendBackgroundLog: (message) => logBuffer.appendBackground(message),
 });
+const handlePostRequest = createPostRequestHandler({
+  submissionGuard,
+  openedTabs: openedTabRegistry,
+  postingState,
+  platformPoster,
+  appendBackgroundLog: (message) => logBuffer.appendBackground(message),
+  sendRuntimeMessage: (message) => browser.runtime.sendMessage(message),
+});
 const extensionUpdateManager = createExtensionUpdateManager({
   runtime: browser.runtime,
   storage: browser.storage.local,
@@ -52,6 +52,18 @@ const extensionUpdateManager = createExtensionUpdateManager({
       .sendMessage({ type: 'EXTENSION_UPDATE_AVAILABLE', state })
       .catch(() => { /* popup が閉じていれば届かないので無視 */ });
   },
+});
+const handleRuntimeMessage = createBackgroundMessageRouter({
+  logBuffer,
+  userActionNotifier,
+  userRefreshBroadcaster,
+  postingState,
+  extensionUpdateManager,
+  setLastSeenUser: (message) => setLastSeenUser(message.platform, message.username),
+  clearBadge,
+  handleBinaryChunkRequest,
+  buildDiagnosticsReport: (platforms) => buildDiagnosticsReport({ platforms }),
+  handlePostRequest,
 });
 
 export default defineBackground(() => {
@@ -160,248 +172,5 @@ export default defineBackground(() => {
     }
   });
 
-  browser.runtime.onMessage.addListener((rawMsg, sender, sendResponse) => {
-    const decoded = decodeMessageWithDiagnostics(rawMsg);
-    if (!decoded) return;
-    const { message: msg, diagnostics } = decoded;
-    if (msg.type === 'POST_REQUEST' &&
-        (diagnostics.requestIdDefaulted || diagnostics.intentDefaulted)) {
-      const detail = [
-        diagnostics.requestIdDefaulted ? 'requestId' : '',
-        diagnostics.intentDefaulted
-          ? `intent${diagnostics.receivedIntent ? `(${diagnostics.receivedIntent})` : ''}`
-          : '',
-      ].filter(Boolean).join(',');
-      logBuffer.appendBackground(
-        `POST_REQUEST contract defaulted ${detail}; requestId=${msg.requestId} intent=${msg.intent}`,
-      );
-    }
-
-    if (msg.type === 'USER_ACTION_REQUIRED') {
-      const tabId = sender.tab?.id;
-      if (typeof tabId === 'number') {
-        void userActionNotifier.notify(msg.platform, msg.reason, tabId);
-      }
-      return;
-    }
-
-    if (msg.type === 'CURRENT_USER') {
-      void setLastSeenUser(msg.platform, msg.username);
-      return; // fire-and-forget
-    }
-
-    if (msg.type === 'BROADCAST_REFRESH_USERS') {
-      // v0.4.83: popup mount 時に全 SNS tab に REFRESH_USER を送って
-      // active user を再検出させる。 multi-account 切替後の stale を防ぐ。
-      // v0.4.85: 5 秒 throttle。 popup を高速で何度も開閉した場合に
-      // 無駄な detection 連発を防ぐ。 5s 以内なら lastSeenUsers の cache を
-      // そのまま使う方が安全 (account は数秒単位で変わらない)。
-      userRefreshBroadcaster.broadcast();
-      return; // fire-and-forget、 結果は CURRENT_USER 経由で storage に
-    }
-
-    // P19: 進捗 UI を popup 閉じ→再開でも復活させるため、background で進捗状態を覚える
-    if (msg.type === 'CONVERSION_PROGRESS') {
-      postingState.setCompression({ progress: msg.progress, stage: msg.stage ?? 'transcode' });
-      return; // popup 側でも listen してるので fire-and-forget
-    }
-    if (msg.type === 'CONVERSION_COMPLETE' || msg.type === 'CONVERSION_ERROR') {
-      postingState.setCompression(null);
-      return; // 同上
-    }
-    if (msg.type === 'CLEAR_POSTING_STATE') {
-      // popup から明示的に「結果を消す / 新規投稿に備える」 ためのクリア。
-      // v0.4.96: postingStateInMemory を完了後も保持するようにした (popup の
-      // 再 open で 「結果が消える」 事故防止) ことに対するペアの API。
-      postingState.clearPostingState();
-      clearBadge();
-      sendResponse({ ok: true });
-      return false;
-    }
-
-    if (msg.type === 'GET_BG_STATE') {
-      // v0.4.96: popup が開かれた = user が結果を見た → badge を clear する。
-      // postingState 自体は保持 (popup を閉じて再 open でも結果が見えるように)。
-      // v0.4.100: 投稿中 (postingInMemory=true) は clear しない (進捗が見えなくなる
-      // bug の原因)。 完了済 state を user が popup で確認したタイミング =
-      // postingInMemory=false かつ postingStateInMemory.done=true の場合のみ clear。
-      if (postingState.shouldClearBadgeOnRead()) {
-        clearBadge();
-      }
-      sendResponse(postingState.snapshot());
-      return true;
-    }
-
-    if (msg.type === 'GET_EXTENSION_UPDATE_STATE') {
-      void extensionUpdateManager.getState()
-        .then((state) => sendResponse({ state }))
-        .catch((err: unknown) => {
-          const message = err instanceof Error ? err.message : String(err);
-          sendResponse({ error: message });
-        });
-      return true;
-    }
-
-    if (msg.type === 'APPLY_EXTENSION_UPDATE') {
-      void extensionUpdateManager.applyUpdate()
-        .then((result) => sendResponse(result))
-        .catch((err: unknown) => {
-          const message = err instanceof Error ? err.message : String(err);
-          sendResponse({ ok: false, error: 'reload_failed', detail: message });
-        });
-      return true;
-    }
-
-    // P19: content script からの chunked binary 取得 (tabs.sendMessage 64MB cap 回避)
-    if (msg.type === 'GET_BINARY_CHUNK') {
-      void handleBinaryChunkRequest(msg, sendResponse);
-      return true;
-    }
-
-    if (msg.type === 'LOG_APPEND') {
-      logBuffer.append(msg.entry);
-      return; // fire-and-forget
-    }
-    if (msg.type === 'LOG_EXPORT_REQUEST') {
-      sendResponse({ entries: logBuffer.entries() });
-      return true;
-    }
-    if (msg.type === 'LOG_CLEAR') {
-      logBuffer.clear();
-      return; // fire-and-forget
-    }
-
-    if (msg.type === 'DIAGNOSE_REQUEST') {
-      void buildDiagnosticsReport({ platforms: msg.platforms })
-        .then((report) => sendResponse({ report }))
-        .catch((err: unknown) => {
-          const message = err instanceof Error ? err.message : String(err);
-          sendResponse({ error: message });
-        });
-      return true;
-    }
-
-    if (msg.type !== 'POST_REQUEST') return;
-
-    void handlePostRequest(msg)
-      .then((results) => sendResponse({ results }))
-      .catch((err: unknown) => {
-        const message = err instanceof Error ? err.message : String(err);
-        sendResponse({ error: message });
-      });
-
-    return true;
-  });
+  browser.runtime.onMessage.addListener(handleRuntimeMessage);
 });
-
-async function handlePostRequest(
-  request: PostRequestMessage,
-): Promise<PostResultMessage[]> {
-  let adjustedImages: PostRequestMessage['images'];
-  let postingStateStarted = false;
-  let autoPost = false;
-  return await executeGuardedSubmission<SubmissionGuardReservation, PostResultMessage[]>({
-    reserve: async () => {
-      const settings = await getSettings();
-      autoPost = request.autoPost ?? settings.autoPost;
-      return await submissionGuard.reserve({
-        requestId: request.requestId,
-        intent: request.intent,
-        text: request.text,
-        platforms: request.platforms,
-        images: request.images,
-        autoPost,
-      });
-    },
-    run: async (reservation) => {
-      const platforms = reservation.allowedPlatforms;
-      const requestedPlatforms = reservation.decisions.map(({ platform }) => platform);
-
-      // Guard reservation が確定するまで tab / posting side effect を開始しない。
-      // POST_REQUEST ごとに cleanup 所有権を切り、前回 state を完全上書きする。
-      openedTabRegistry.clear();
-      postingState.start(requestedPlatforms);
-      postingStateStarted = true;
-      for (const rejected of reservation.rejectedResults) {
-        const guard = rejected.submissionGuard;
-        logBuffer.appendBackground(
-          `SubmissionGuard decision=${guard?.decision ?? 'indeterminate'} ` +
-          `reason=${guard?.reason ?? 'unknown'} requestId=${request.requestId} ` +
-          `platform=${rejected.platform}`,
-        );
-        recordPlatformProgress(rejected);
-      }
-
-      if (platforms.length === 0) {
-        clearBadge();
-        openedTabRegistry.clear();
-        return reservation.rejectedResults;
-      }
-
-      // P16/P81: 投稿前に動画を安全な MP4/H.264/AAC へ正規化し、
-      // 必要に応じて size/trim/letterbox も同じ経路で処理する。
-      adjustedImages = await maybeCompressVideoForBudget(
-        platforms,
-        request.images,
-        request.trimVideoToSeconds,
-        {
-          onConversionFinished: () => {
-            postingState.setCompression(null);
-          },
-        },
-      );
-      const hasVideo = adjustedImages?.some((image) => image.type.startsWith('video/')) === true;
-      const executionResults = await runPostScheduler({
-        platforms,
-        autoPost,
-        planOptions: { hasVideo },
-        post: async (platform, execution) => normalizePostEvidence(
-          await platformPoster.postToPlatform(
-            platform,
-            request.text,
-            adjustedImages,
-            request.cw,
-            request.visibility,
-            autoPost,
-            { forceForeground: execution.forceForeground },
-          ),
-        ),
-        onResult: recordPlatformProgress,
-      });
-      const results = [...reservation.rejectedResults, ...executionResults];
-
-      if (shouldRunPostCompletionSideEffects(autoPost, executionResults)) {
-        notifyResults(results);
-        // v0.5.5: schema v1 用の metadata 計算 → addToPostHistory に渡す
-        await recordHistoryEntry(request.text, results, adjustedImages, {
-          bodyHash: reservation.fingerprint,
-        });
-        // v0.5.7: 成功 SNS の compose / share タブを cleanup (Tutti が新規 open したものに限る)
-        void openedTabRegistry.cleanup(results);
-      } else {
-        clearBadge();
-        openedTabRegistry.clear();
-      }
-      return results;
-    },
-    cleanup: async () => {
-      // IndexedDB binary-transfer の cleanup (元 dataRef + 圧縮結果 dataRef 両方)。
-      // guard block / compression failure でも必ず解放する。
-      await releasePostAttachments(request.images, adjustedImages);
-      // v0.4.96: postingStateInMemory は null 化せず、 done=true + finishedAt で
-      // 「完了済結果」 として保持。 popup 再 open 時に GET_BG_STATE で結果が
-      // 戻る。 次の POST_REQUEST 起動時に上書き、 もしくは popup から
-      // CLEAR_POSTING_STATE で明示クリア。
-      if (postingStateStarted) postingState.markDone();
-    },
-  });
-}
-
-function recordPlatformProgress(result: PostResultMessage): void {
-  // background 側の state を更新 (popup 再 open 時に GET_BG_STATE で復元される)
-  postingState.recordResult(result);
-  // popup へストリーム配信(popup が開いていれば届く、閉じてれば↑の state で復元)
-  void browser.runtime
-    .sendMessage({ type: 'PLATFORM_PROGRESS', result })
-    .catch(() => { /* popup 閉じてれば失敗、無視 */ });
-}
