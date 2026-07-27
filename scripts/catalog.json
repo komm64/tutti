@@ -648,6 +648,11 @@
       "entryCommand": "node scripts/e2e/submit-current-pixiv-form.mjs"
     },
     {
+      "path": "scripts/e2e/surface-posting-matrix-contract.mjs",
+      "class": "supported-cli",
+      "usage": "Pure CLI output and pass/fail contract used by the Surface posting release gate."
+    },
+    {
       "path": "scripts/e2e/surface-posting-matrix.mjs",
       "class": "release-gate",
       "usage": "Invoked by npm run e2e:surface-matrix.",

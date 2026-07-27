@@ -17,10 +17,16 @@
  */
 
 import { chromium } from 'playwright';
-import { readFile } from 'node:fs/promises';
-import { basename, resolve } from 'node:path';
+import { dirname, basename, resolve } from 'node:path';
+import {
+  connectPlaywrightCdp,
+  disconnectCdp,
+  loadE2eFixture,
+  resolveCdpEndpoint,
+  resolveExtensionId,
+} from './cdp-harness.mjs';
 
-const cdp = process.env.E2E_CDP ?? 'http://127.0.0.1:9223';
+const cdp = resolveCdpEndpoint({ fallback: 'http://127.0.0.1:9223' });
 const fixturePath = resolve(process.env.IMAGE_PATH ?? 'scripts/e2e/fixtures/test-image.png');
 const platforms = (process.env.PLATFORMS ?? 'threads,tumblr')
   .split(',')
@@ -29,29 +35,9 @@ const platforms = (process.env.PLATFORMS ?? 'threads,tumblr')
 const autoPost = process.env.AUTOPOST === 'false' ? false : true;
 const text = process.env.POST_TEXT ?? '';
 
-const browser = await chromium.connectOverCDP(cdp, { timeout: 120_000 });
+const browser = await connectPlaywrightCdp({ chromium, endpoint: cdp });
 const ctx = browser.contexts()[0];
 if (!ctx) throw new Error('no browser context');
-
-async function detectExtensionId() {
-  for (const sw of ctx.serviceWorkers()) {
-    const m = sw.url().match(/^chrome-extension:\/\/([a-z]+)\//);
-    if (m) return m[1];
-  }
-  const page = await ctx.newPage();
-  await page.goto('chrome://extensions/', { waitUntil: 'domcontentloaded' });
-  await page.waitForTimeout(1000);
-  const id = await page.evaluate(async () => {
-    const getInfo = () => new Promise((resolveInfo) => {
-      chrome.developerPrivate.getExtensionsInfo({ includeDisabled: true, includeTerminated: true }, resolveInfo);
-    });
-    const extensions = await getInfo();
-    return extensions.find((ext) => ext.name?.includes('Tutti'))?.id;
-  });
-  await page.close();
-  if (!id) throw new Error('Tutti extension id not found');
-  return id;
-}
 
 async function wakeServiceWorker(extensionId) {
   let sw = ctx.serviceWorkers().find((worker) => worker.url().includes(`chrome-extension://${extensionId}/`));
@@ -118,16 +104,13 @@ async function inspectPostUrl(url, platform) {
 
 await closeTargetTabs();
 
-const extensionId = await detectExtensionId();
+const extensionId = await resolveExtensionId(ctx);
 await wakeServiceWorker(extensionId);
 
-const imageBytes = await readFile(fixturePath);
-const image = {
-  name: basename(fixturePath),
-  type: 'image/png',
-  data: imageBytes.toString('base64'),
-  bytes: imageBytes.length,
-};
+const image = await loadE2eFixture(basename(fixturePath), 'image/png', {
+  root: dirname(fixturePath),
+  required: true,
+});
 
 const startedAt = new Date().toISOString();
 console.log(`[surface-urlcapture] extension=${extensionId} started=${startedAt}`);
@@ -188,9 +171,9 @@ for (const platform of platforms) {
 if (failures.length > 0) {
   console.error('[surface-urlcapture] FAIL');
   for (const failure of failures) console.error(`  - ${failure}`);
-  await browser.close();
+  await disconnectCdp(browser);
   process.exit(1);
 }
 
 console.log('[surface-urlcapture] PASS');
-await browser.close();
+await disconnectCdp(browser);
