@@ -153,6 +153,16 @@ describe('platform architecture guard', () => {
     expect(capture).not.toContain("platformName === 'x'");
     expect(capture).not.toContain("localStorage.getItem('BSKY_STORAGE')");
   });
+
+  it('keeps YouTube Studio completion in its strategy module', () => {
+    const capture = readFileSync('src/background/post-url-capture.ts', 'utf8');
+
+    expect(capture).toContain("from './post-url-youtube-studio'");
+    expect(capture).not.toMatch(
+      /\bfunction (?:captureYouTubeStudioPostUrlFromTab|captureYouTubeStudioPostUrlInPage)\b/,
+    );
+    expect(capture).not.toContain('reload YouTube Studio before URL capture');
+  });
 });
 
 function productionTypeScriptFiles(root: string): string[] {
