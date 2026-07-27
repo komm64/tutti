@@ -84,6 +84,8 @@ function adapter(id: PlatformAdapter['id'] = 'mastodon'): PlatformAdapter {
     id,
     name: id,
     charLimit: 500,
+    popupOrder: 1,
+    defaultSelected: true,
     matchUrl: (url) => url.startsWith('https://social.example/'),
     getComposeUrl: () => 'https://social.example/compose',
     prefillsViaUrl: false,

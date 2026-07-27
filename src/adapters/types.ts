@@ -40,6 +40,10 @@ export interface PlatformAdapter {
   name: string;
   /** 文字数上限(超過時は分割対象) */
   charLimit: number;
+  /** popup 上の表示順。値は一意で、registryから昇順に導出する */
+  popupOrder: number;
+  /** 初回起動時のpopup選択状態 */
+  defaultSelected: boolean;
   /** 投稿ページとして扱う URL パターン(content script の matches と整合させる) */
   matchUrl: (url: string) => boolean;
   /** 投稿用に開くべき URL を返す。URL pre-fill する SNS では text を URL に乗せる */

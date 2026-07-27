@@ -21,6 +21,8 @@ export const tiktokAdapter: PlatformAdapter = {
   name: 'TikTok',
   // caption 上限 2200 (2024 から 4000 に増えた説もあるが確証なし、安全側で 2200)
   charLimit: 2200,
+  popupOrder: 10,
+  defaultSelected: false,
   matchUrl: (url) => /^https:\/\/(www\.)?tiktok\.com\//.test(url),
   getComposeUrl: () => 'https://www.tiktok.com/tiktokstudio/upload',
   getLoginUrl: () => 'https://www.tiktok.com/',

@@ -4,6 +4,8 @@ export const xAdapter: PlatformAdapter = {
   id: 'x',
   name: 'X',
   charLimit: 280,
+  popupOrder: 1,
+  defaultSelected: true,
   matchUrl: (url) => /^https:\/\/(x|twitter)\.com\//.test(url),
   /**
    * X は `/compose/post` の modal compose を使う。ホームの inline compose は

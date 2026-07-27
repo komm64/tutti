@@ -26,6 +26,8 @@ export const youtubeAdapter: PlatformAdapter = {
   name: 'YouTube',
   // description 上限 5000
   charLimit: 5000,
+  popupOrder: 11,
+  defaultSelected: false,
   // studio.youtube.com / m.youtube.com / www.youtube.com
   matchUrl: (url) => /^https:\/\/((www|m|studio)\.)?youtube\.com\//.test(url),
   getComposeUrl: () => 'https://studio.youtube.com/',
