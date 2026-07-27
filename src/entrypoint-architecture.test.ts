@@ -60,6 +60,13 @@ describe('entrypoint architecture guard', () => {
     expect(source).not.toMatch(/\b(?:msg|message)\.type\s*(?:===|!==)/);
     expect(source).not.toMatch(/function\s+handlePostRequest\b/);
   });
+
+  it('keeps popup history lifecycle in the composer controller', () => {
+    const source = readFileSync('entrypoints/popup/App.svelte', 'utf8');
+    expect(source).toContain('composerController.subscribeHistory');
+    expect(source).not.toContain('loadPopupHistoryThumbs');
+    expect(source).not.toContain('storage.onChanged');
+  });
 });
 
 function categorize(path: string): EntrypointCategory {
