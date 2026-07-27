@@ -17,12 +17,6 @@
  *   4. 待機完了後 window.postMessage({ source: RES_TAG, id, ok, fileCount?, uploadCount? })
  */
 
-import { validateTumblrBodyText } from '../src/utils/tumblr-text';
-import { extractHttpUrls, mergeStandaloneUrlParagraphs } from '../src/utils/text-urls';
-import {
-  findTumblrBodyBlocks,
-  readTumblrBodyTextFromBlocks,
-} from '../src/utils/tumblr-editor';
 import {
   installNetworkObserver,
   type NetworkObserverDiagnostic,
@@ -51,6 +45,7 @@ import {
   injectNativeText,
   resolveTextEditorDriver,
 } from '../src/page-world/editor-drivers';
+import { handleTumblrTextCommand } from '../src/page-world/tumblr-editor-driver';
 
 const REQ_TAG = 'tutti-inject-req-v1';
 const RES_TAG = 'tutti-inject-res-v1';
@@ -904,133 +899,6 @@ export default defineContentScript({
       return `${ownText}${childText}`;
     }
 
-    async function clearEditableBlock(el: HTMLElement): Promise<void> {
-      el.focus();
-      const sel = window.getSelection();
-      if (sel) {
-        try {
-          sel.removeAllRanges();
-          const range = document.createRange();
-          range.selectNodeContents(el);
-          sel.addRange(range);
-        } catch { /* ignore */ }
-      }
-      try {
-        document.execCommand('delete', false);
-      } catch { /* fallback below */ }
-      if ((el.textContent ?? '').trim().length > 0) {
-        el.textContent = '';
-        el.dispatchEvent(new InputEvent('input', {
-          bubbles: true,
-          inputType: 'deleteContentBackward',
-        }));
-      }
-      await new Promise((r) => setTimeout(r, 50));
-    }
-
-    async function insertTumblrPlainText(selector: string, anchor: HTMLElement, text: string): Promise<void> {
-      const blocks = findTumblrBodyBlocks(selector, { anchor });
-      for (const block of blocks) {
-        await clearEditableBlock(block);
-      }
-      const target = blocks[0] ?? anchor;
-      target.focus();
-      const sel = window.getSelection();
-      if (sel) {
-        try {
-          sel.removeAllRanges();
-          const range = document.createRange();
-          range.selectNodeContents(target);
-          sel.addRange(range);
-        } catch { /* ignore */ }
-      }
-      target.dispatchEvent(new InputEvent('beforeinput', {
-        bubbles: true,
-        cancelable: true,
-        inputType: 'insertText',
-        data: text,
-      }));
-      let inserted = false;
-      try {
-        inserted = document.execCommand('insertText', false, text);
-      } catch { /* fallback below */ }
-      const expectedSnippet = text.slice(0, Math.min(20, text.length)).trim();
-      const visible = () => readTumblrBodyTextFromBlocks(findTumblrBodyBlocks(selector, { anchor: target }));
-      if (!inserted || (expectedSnippet && !visible().includes(expectedSnippet))) {
-        target.textContent = text;
-      }
-      target.dispatchEvent(new InputEvent('input', {
-        bubbles: true,
-        data: text,
-        inputType: 'insertText',
-      }));
-      target.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: text.slice(-1) || 'a' }));
-      await new Promise((r) => setTimeout(r, 250));
-    }
-
-    async function injectTumblrText(req: InjectRequest): Promise<InjectResponse> {
-      const found = findEl(req.selector);
-      if (!found) {
-        return { source: RES_TAG, id: req.id, ok: false, error: 'Tumblr text target not found' };
-      }
-      const originalText = req.text ?? '';
-      const text = mergeStandaloneUrlParagraphs(originalText);
-      const expectedUrls = extractHttpUrls(originalText);
-      const blocks = findTumblrBodyBlocks(req.selector, { anchor: found.el });
-      const target = blocks[0] ?? found.el;
-      console.log(`[Tutti inject-helper] Tumblr text target matched "${found.matchedPart}" (${blocks.length} body blocks)`);
-
-      for (const block of blocks) {
-        await clearEditableBlock(block);
-      }
-      target.focus();
-
-      if (text) {
-        const dt = new DataTransfer();
-        dt.setData('text/plain', text);
-        target.dispatchEvent(new ClipboardEvent('paste', {
-          bubbles: true,
-          cancelable: true,
-          clipboardData: dt,
-        }));
-        const expectedSnippet = text.slice(0, Math.min(20, text.length)).trim();
-        const pasted = await waitFor(
-          () => readTumblrBodyTextFromBlocks(findTumblrBodyBlocks(req.selector, { anchor: target })).includes(expectedSnippet),
-          700,
-        );
-        if (!pasted) {
-          target.textContent = text;
-          target.dispatchEvent(new InputEvent('input', {
-            bubbles: true,
-            data: text,
-            inputType: 'insertText',
-          }));
-          await new Promise((r) => setTimeout(r, 100));
-        }
-      }
-
-      let afterBlocks = findTumblrBodyBlocks(req.selector, { anchor: target });
-      let bodyText = readTumblrBodyTextFromBlocks(afterBlocks);
-      let validation = validateTumblrBodyText(bodyText, text, {
-        allowHashtagStripped: true,
-      });
-      if (!validation.ok && expectedUrls.length > 0) {
-        console.warn(`[Tutti inject-helper] Tumblr paste validation failed with URL text; retrying plain insert (${validation.error ?? 'unknown'})`);
-        await insertTumblrPlainText(req.selector, target, text);
-        afterBlocks = findTumblrBodyBlocks(req.selector, { anchor: target });
-        bodyText = readTumblrBodyTextFromBlocks(afterBlocks);
-        validation = validateTumblrBodyText(bodyText, text, {
-          allowHashtagStripped: true,
-        });
-      }
-      return {
-        source: RES_TAG,
-        id: req.id,
-        ok: validation.ok,
-        error: validation.error,
-      };
-    }
-
     async function readLatestXPostUrl(req: InjectRequest): Promise<InjectResponse> {
       let captured = window.__tuttiXLatestPostId;
       try {
@@ -1070,7 +938,7 @@ export default defineContentScript({
       input: mediaCommandHandlers.input,
       drop: mediaCommandHandlers.drop,
       text: injectText,
-      'tumblr-text': injectTumblrText,
+      'tumblr-text': (request) => handleTumblrTextCommand(request, RES_TAG),
       'tag-list': (request) => handleTagListCommand(request, RES_TAG),
       click: (request) => handleClickCommand(request, RES_TAG),
       'x-post-url': readLatestXPostUrl,
