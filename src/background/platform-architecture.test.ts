@@ -90,8 +90,9 @@ describe('platform architecture guard', () => {
 
   it('keeps DOM attempt policy out of the central poster', () => {
     const poster = readFileSync('src/background/platform-poster.ts', 'utf8');
+    const transport = readFileSync('src/background/posting-transport.ts', 'utf8');
 
-    expect(poster).toContain("from './dom-attempt-policy'");
+    expect(transport).toContain("from './dom-attempt-policy'");
     expect(poster).not.toMatch(
       /\bfunction (?:buildDomPostAttempts|resolvePreSubmitLoadOptions|shouldOpenActive|shouldRetryPostAttempt|shouldReuseExistingTabForAttempt)\b/,
     );
@@ -104,6 +105,17 @@ describe('platform architecture guard', () => {
     expect(poster).not.toMatch(
       /\bfunction (?:attachVerifyResult|buildVerifyExpectationForChunk|captureUrl|ensurePostUrl|maybeAutoOpenPostUrl|recoverFromAmbiguousDispatchFailure)\b/,
     );
+  });
+
+  it('keeps single-chunk API and DOM effects in PostingTransport', () => {
+    const poster = readFileSync('src/background/platform-poster.ts', 'utf8');
+
+    expect(poster).toContain("from './posting-transport'");
+    expect(poster).not.toMatch(
+      /\bfunction (?:closeOwnedAttemptTab|getComposeUrlForMedia|postSingleChunk|postSingleChunkWithRetry|resolveApiPostOutcome)\b/,
+    );
+    expect(poster).not.toContain('sendPostMessageWhenReady');
+    expect(poster).not.toContain('tryApiPath');
   });
 });
 

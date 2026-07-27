@@ -3,7 +3,7 @@ import type { PlatformAdapter } from '../adapters/types';
 import {
   getComposeUrlForMedia,
   resolveApiPostOutcome,
-} from './platform-poster';
+} from './posting-transport';
 
 function adapter(overrides: Partial<PlatformAdapter> = {}): PlatformAdapter {
   return {
