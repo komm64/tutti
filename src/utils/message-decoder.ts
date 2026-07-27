@@ -1,28 +1,16 @@
 import type {
   ImageAttachment,
   Message,
-  PlatformId,
   PostRequestIntent,
   PostResultMessage,
 } from '../messages';
+import { PLATFORM_IDS, type PlatformId } from '../types/platform';
 import { createPostRequestId } from './post-request-id';
 
 type UnknownRecord = Record<string, unknown>;
 type Validator = (value: UnknownRecord) => boolean;
 
-const PLATFORM_IDS = new Set<PlatformId>([
-  'x',
-  'bluesky',
-  'threads',
-  'mastodon',
-  'misskey',
-  'tumblr',
-  'pixiv',
-  'deviantart',
-  'instagram',
-  'tiktok',
-  'youtube',
-]);
+const PLATFORM_ID_SET = new Set<string>(PLATFORM_IDS);
 
 const VISIBILITIES = new Set(['public', 'unlisted', 'private', 'direct']);
 const USER_ACTIONS = new Set([
@@ -272,7 +260,7 @@ function isPostRequestIntent(value: unknown): value is PostRequestIntent {
 }
 
 function isPlatformId(value: unknown): value is PlatformId {
-  return isString(value) && PLATFORM_IDS.has(value as PlatformId);
+  return isString(value) && PLATFORM_ID_SET.has(value);
 }
 
 function isStringArray(value: unknown): value is string[] {

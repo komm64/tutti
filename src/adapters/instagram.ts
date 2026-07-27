@@ -26,6 +26,7 @@ export const instagramAdapter: PlatformAdapter = {
   charLimit: 2200,
   popupOrder: 9,
   defaultSelected: false,
+  preferredVideoAspect: '9:16',
   matchUrl: (url) => /^https:\/\/(www\.)?instagram\.com\//.test(url),
   // home から Create ボタンを click する flow なので、compose URL は home に
   getComposeUrl: () => 'https://www.instagram.com/',
