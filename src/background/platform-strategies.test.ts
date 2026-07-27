@@ -25,15 +25,13 @@ describe('background platform strategy registry', () => {
   it('derives continuation support and URLs from strategy membership', () => {
     expect(Object.entries(backgroundPlatformStrategies)
       .filter(([, strategy]) => strategy.continuationUrl)
-      .map(([platform]) => platform)).toEqual(['x', 'threads', 'mastodon']);
-    expect(continuationNeedsReplyUrl('x')).toBe(true);
+      .map(([platform]) => platform)).toEqual(['threads', 'mastodon']);
+    expect(continuationNeedsReplyUrl('x')).toBe(false);
     expect(continuationNeedsReplyUrl('mastodon')).toBe(true);
     expect(continuationNeedsReplyUrl('threads')).toBe(true);
     expect(continuationNeedsReplyUrl('bluesky')).toBe(false);
 
-    expect(buildReplyOverrideUrl('x', 1, 'https://x.com/alice/status/123456')).toBe(
-      'https://x.com/intent/post?in_reply_to=123456',
-    );
+    expect(buildReplyOverrideUrl('x', 1, 'https://x.com/alice/status/123456')).toBeUndefined();
     expect(buildReplyOverrideUrl('mastodon', 1, 'https://mastodon.social/@alice/123')).toBe(
       'https://mastodon.social/@alice/123',
     );
@@ -48,7 +46,7 @@ describe('background platform strategy registry', () => {
   it('derives inline thread and API reply continuation policy from strategies', () => {
     expect(shouldUseInlineThread('bluesky', true)).toBe(true);
     expect(shouldUseInlineThread('x', false)).toBe(true);
-    expect(shouldUseInlineThread('x', true)).toBe(false);
+    expect(shouldUseInlineThread('x', true)).toBe(true);
     expect(shouldUseInlineThread('threads', false)).toBe(false);
 
     expect(canUseApiWithReplyUrl('mastodon', 'https://mastodon.social/@alice/123')).toBe(true);

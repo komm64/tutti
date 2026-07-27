@@ -7,6 +7,7 @@
  *
  * Usage:
  *   node scripts/e2e/verify-x-thread-existing-home.mjs
+ *   node scripts/e2e/verify-x-thread-existing-home.mjs --post
  *   E2E_CDP=http://localhost:9222 E2E_EXTENSION_ID=<id> node scripts/e2e/verify-x-thread-existing-home.mjs --isolate-x-tabs
  */
 
@@ -30,6 +31,8 @@ const userDataDir = process.env.E2E_USER_DATA_DIR ?? resolve(repoRoot, '.tmp', '
 const isolateXTabs = process.argv.includes('--isolate-x-tabs');
 const skipExtensionReload = process.argv.includes('--skip-extension-reload');
 const includeImage = process.argv.includes('--image') || process.argv.includes('--with-image');
+const postMode = process.argv.includes('--post');
+const xClickEvents = [];
 
 let browser;
 let ctx;
@@ -42,6 +45,64 @@ async function fail(message, detail) {
   if (!cdpEndpoint && ctx) await ctx.close().catch(() => {});
   if (browser) await disconnectCdp(browser).catch(() => {});
   process.exit(1);
+}
+
+function installXClickProbe() {
+  if (globalThis.__tuttiE2EXClickProbeInstalled) return;
+  globalThis.__tuttiE2EXClickProbeInstalled = true;
+  document.addEventListener('click', (event) => {
+    const target = event.target instanceof Element
+      ? event.target.closest('[data-tutti-click-marker]')
+      : null;
+    const marker = target?.getAttribute('data-tutti-click-marker');
+    if (marker?.startsWith('tutti-x-')) {
+      void globalThis.__tuttiE2ERecordXClick?.(marker);
+    }
+  }, true);
+}
+
+function attachDialogHandlers(context) {
+  const attached = new WeakSet();
+  const attach = (page) => {
+    if (!page || attached.has(page)) return;
+    attached.add(page);
+    page.on('dialog', async (dialog) => {
+      try {
+        await dialog.dismiss();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(`[verify-x-thread] ignored dialog after page detach: ${message}`);
+      }
+    });
+  };
+  for (const page of context.pages()) attach(page);
+  context.on('page', attach);
+}
+
+async function verifyPublishedInlineThread(context, postUrl) {
+  const page = await context.newPage();
+  try {
+    await page.goto(postUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.waitForFunction(() => {
+      const texts = [...document.querySelectorAll('article')]
+        .map((article) => article.textContent ?? '');
+      return texts.some((value) => value.includes('(1/2)') && value.includes('Tutti X existing-home')) &&
+        texts.some((value) => value.includes('(2/2)') && value.includes('bravo'));
+    }, undefined, { timeout: 30000 });
+    const articles = await page.evaluate(() => (
+      [...document.querySelectorAll('article')].slice(0, 6)
+        .map((article) => (article.textContent ?? '').replace(/\s+/g, ' ').slice(0, 400))
+    ));
+    return { ok: true, url: page.url(), articles };
+  } catch (error) {
+    return {
+      ok: false,
+      url: page.url() || postUrl,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  } finally {
+    await page.close().catch(() => {});
+  }
 }
 
 function sleep(ms) {
@@ -112,7 +173,11 @@ async function openExtensionPage(path, attempts = 8) {
   await fail(`could not open extension page ${path}`, lastError?.message ?? String(lastError));
 }
 
-console.log(`[verify-x-thread] mode=${cdpEndpoint ? `CDP ${cdpEndpoint}` : `launch ${userDataDir}`} image=${includeImage ? 'yes' : 'no'}`);
+console.log(
+  `[verify-x-thread] mode=${postMode ? 'post' : 'preview'} ` +
+  `browser=${cdpEndpoint ? `CDP ${cdpEndpoint}` : `launch ${userDataDir}`} ` +
+  `image=${includeImage ? 'yes' : 'no'}`,
+);
 if (!cdpEndpoint && !existsSync(extensionDir)) {
   await fail(`extension build not found: ${extensionDir}`);
 }
@@ -136,6 +201,17 @@ if (cdpEndpoint) {
     ],
   });
 }
+
+attachDialogHandlers(ctx);
+await ctx.exposeBinding('__tuttiE2ERecordXClick', ({ page }, marker) => {
+  xClickEvents.push({
+    marker: String(marker),
+    url: page.url(),
+    capturedAt: new Date().toISOString(),
+  });
+});
+await ctx.addInitScript(installXClickProbe);
+await Promise.all(ctx.pages().map((page) => page.evaluate(installXClickProbe).catch(() => {})));
 
 const extensionId = await resolveExtensionId(ctx).catch(async () => {
   await fail('extension id not detected. Set E2E_EXTENSION_ID when attaching over CDP.');
@@ -169,11 +245,11 @@ await popup.waitForTimeout(1000);
 const version = await popup.evaluate(() => chrome.runtime.getManifest().version);
 console.log(`[verify-x-thread] version=${version}`);
 
-await popup.evaluate(async () => {
+await popup.evaluate(async (autoPost) => {
   const stored = (await chrome.storage.sync.get('settings')).settings ?? {};
-  await chrome.storage.sync.set({ settings: { ...stored, autoPost: false } });
-});
-console.log('[verify-x-thread] autoPost=false');
+  await chrome.storage.sync.set({ settings: { ...stored, autoPost } });
+}, postMode);
+console.log(`[verify-x-thread] autoPost=${postMode}`);
 
 let xHome = ctx.pages().find((page) => /^https:\/\/(x|twitter)\.com\//.test(page.url()));
 if (!xHome) xHome = await ctx.newPage();
@@ -188,8 +264,11 @@ const homeState = await xHome.evaluate(() => ({
   title: document.title,
 }));
 console.log('[verify-x-thread] home state:', JSON.stringify(homeState));
+if (homeState.hasLoginLink) {
+  await fail('The X verification profile is signed out.', homeState);
+}
 if (!homeState.hasTextarea) {
-  await fail('X home composer was not found. The verification profile is probably signed out.', homeState);
+  console.log('[verify-x-thread] home inline composer is absent; continuing with the production /compose/post route');
 }
 
 const text = [
@@ -227,6 +306,41 @@ console.log('[verify-x-thread] POST_REQUEST response:', JSON.stringify(postResp)
 const xResult = postResp?.results?.find?.((r) => r.platform === 'x');
 if (!xResult?.success) {
   await fail('POST_REQUEST did not report X success', postResp);
+}
+
+if (postMode) {
+  await popup.waitForTimeout(1500);
+  const markers = xClickEvents.map(({ marker }) => marker);
+  const clickSummary = {
+    addPost: markers.filter((marker) => marker.startsWith('tutti-x-add-post-')).length,
+    postAll: markers.filter((marker) => marker.startsWith('tutti-x-post-all-')).length,
+    singlePost: markers.filter((marker) => /^tutti-x-post-\d/.test(marker)).length,
+    events: xClickEvents,
+  };
+  console.log('[verify-x-thread] click summary:', JSON.stringify(clickSummary, null, 2));
+
+  if (xResult.confirmed !== true || !xResult.url || xResult.flow?.submitReached !== true) {
+    await fail('real X inline thread was not confirmed with a captured URL', xResult);
+  }
+  if (clickSummary.postAll !== 1) {
+    await fail('X inline thread must click Post all exactly once', clickSummary);
+  }
+  if (clickSummary.singlePost !== 0) {
+    await fail('X inline thread used the obsolete per-post submit action', clickSummary);
+  }
+
+  const published = await verifyPublishedInlineThread(ctx, xResult.url);
+  console.log('[verify-x-thread] published thread:', JSON.stringify(published, null, 2));
+  if (!published.ok) {
+    await fail('published X URL does not contain both inline thread posts', published);
+  }
+
+  console.log(`[verify-x-thread] published URL: ${xResult.url}`);
+  console.log('[verify-x-thread] PASS');
+  await popup.close().catch(() => {});
+  if (!cdpEndpoint) await ctx.close();
+  if (browser) await disconnectCdp(browser).catch(() => {});
+  process.exit(0);
 }
 
 await xHome.waitForTimeout(3000);
@@ -295,3 +409,4 @@ console.log('[verify-x-thread] PASS');
 await popup.close().catch(() => {});
 if (!cdpEndpoint) await ctx.close();
 if (browser) await disconnectCdp(browser).catch(() => {});
+process.exit(0);

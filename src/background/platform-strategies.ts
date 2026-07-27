@@ -72,12 +72,10 @@ export const backgroundPlatformStrategies: Record<PlatformId, BackgroundPlatform
   x: {
     parsePostId: ({ pathname }) => pathname.match(/\/status(?:es)?\/(\d+)/)?.[1] ?? null,
     inlineThread: {
-      shouldUse: (autoPost) => !autoPost,
+      // X の複数投稿は preview / 本投稿とも compose 上で全件を組み立て、
+      // 最後に "Post all" を 1 回だけ実行する。
+      shouldUse: () => true,
       forceForegroundPreview: true,
-    },
-    continuationUrl: (previousPostUrl) => {
-      const statusId = previousPostUrl.match(/\/status\/(\d+)/)?.[1];
-      return statusId ? `https://x.com/intent/post?in_reply_to=${statusId}` : undefined;
     },
     verifyPost: verifyXPost,
     capturePostUrl: capturePostUrlWithGenericFlow,
