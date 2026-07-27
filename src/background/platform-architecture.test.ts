@@ -1,4 +1,4 @@
-import { describe, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 import {
@@ -77,6 +77,15 @@ describe('platform architecture guard', () => {
       violations,
       allowances: PLATFORM_LITERAL_ALLOWANCES,
     });
+  });
+
+  it('keeps post result construction out of the central poster', () => {
+    const poster = readFileSync('src/background/platform-poster.ts', 'utf8');
+
+    expect(poster).toContain("from './post-result-policy'");
+    expect(poster).not.toMatch(
+      /\bfunction (?:buildFinalChunkResult|unconfirmedPostResult|withFlow)\b/,
+    );
   });
 });
 

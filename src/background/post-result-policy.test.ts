@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { PostResultMessage } from '../messages';
 import {
+  buildFinalChunkResult,
   downgradeHardVerifyFailures,
   hasDurablePostEvidence,
   normalizePostEvidence,
@@ -8,9 +9,80 @@ import {
   realPostResults,
   shouldRunPostCompletionSideEffects,
   toPreviewResult,
+  unconfirmedPostResult,
+  withFlow,
 } from './post-result-policy';
 
 describe('post result policy', () => {
+  it('preserves the final chunk flow trace on aggregated preview results', () => {
+    const result = buildFinalChunkResult('x', false, true, undefined, {
+      mode: 'preview',
+      attempt: 'default',
+      submitReached: false,
+      lastCompletedStep: 'wait-submit',
+    });
+
+    expect(result.flow).toMatchObject({
+      mode: 'preview',
+      attempt: 'default',
+      submitReached: false,
+      lastCompletedStep: 'wait-submit',
+    });
+  });
+
+  it('adds a fallback flow trace when a successful chunk omitted it', () => {
+    const result = buildFinalChunkResult('x', false, true);
+
+    expect(result.flow).toMatchObject({
+      mode: 'preview',
+      submitReached: false,
+      lastCompletedStep: 'preview-flow',
+    });
+  });
+
+  it('constructs uncertain results with the durable retry-safety contract', () => {
+    expect(unconfirmedPostResult('tumblr', {
+      mode: 'post',
+      failedStep: 'capture-url',
+    })).toMatchObject({
+      platform: 'tumblr',
+      success: false,
+      uncertain: true,
+      userAction: 'check-post-before-retry',
+      flow: {
+        mode: 'post',
+        submitReached: true,
+        failedStep: 'capture-url',
+      },
+    });
+  });
+
+  it('merges flow context without replacing response-owned evidence', () => {
+    expect(withFlow({
+      type: 'POST_RESULT',
+      platform: 'x',
+      success: true,
+      flow: {
+        submitReached: true,
+        submissionStartedAt: 20,
+        urlCaptureTrace: ['response'],
+      },
+    }, {
+      mode: 'post',
+      submitReached: false,
+      submissionStartedAt: 10,
+      urlCaptureTrace: ['base'],
+      tabUrlBefore: 'https://x.com/compose/post',
+    }).flow).toEqual({
+      mode: 'post',
+      submitReached: true,
+      submissionStartedAt: 20,
+      urlCaptureTrace: ['response'],
+      tabUrlBefore: 'https://x.com/compose/post',
+      tabUrlAfter: undefined,
+    });
+  });
+
   it('marks preview results and strips post evidence', () => {
     const result = toPreviewResult({
       type: 'POST_RESULT',
