@@ -1,5 +1,6 @@
 import puppeteer from 'puppeteer-core';
-const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222' });
+import { connectPuppeteerCdp, disconnectCdp } from './e2e/cdp-harness.mjs';
+const browser = await connectPuppeteerCdp({ puppeteer, browserURL: 'http://localhost:9222' });
 
 let pages = await browser.pages();
 let page = pages[0];
@@ -22,4 +23,4 @@ await new Promise(r => setTimeout(r, 12000));
 console.log('\n[Tutti] logs collected:');
 for (const log of tuttiLogs) console.log(' ', log.slice(0, 200));
 
-await browser.disconnect();
+await disconnectCdp(browser);

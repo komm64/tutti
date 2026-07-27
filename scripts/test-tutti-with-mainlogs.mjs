@@ -1,7 +1,8 @@
 // Like test-tutti-bigger but captures MAIN-world page console logs too.
 import puppeteer from 'puppeteer-core';
-const EXT_ID = 'dophemlpjldcejjdjefpjbgngodopkfe';
-const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222' });
+import { connectPuppeteerCdp, disconnectCdp, resolveExtensionId } from './e2e/cdp-harness.mjs';
+const browser = await connectPuppeteerCdp({ puppeteer, browserURL: 'http://localhost:9222' });
+const EXT_ID = await resolveExtensionId(browser);
 
 for (const p of await browser.pages()) {
   if (/mastodon\.social/.test(p.url())) await p.close();
@@ -68,4 +69,4 @@ if (mast) {
   await mast.screenshot({ path: 'scripts/mastodon-trace.png' });
 }
 
-await browser.disconnect();
+await disconnectCdp(browser);

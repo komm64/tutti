@@ -1,7 +1,8 @@
 // Try simulating clipboard paste of an image into Tumblr's editor.
 import puppeteer from 'puppeteer-core';
+import { connectPuppeteerCdp, disconnectCdp } from './e2e/cdp-harness.mjs';
 import { readFileSync } from 'fs';
-const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222' });
+const browser = await connectPuppeteerCdp({ puppeteer, browserURL: 'http://localhost:9222' });
 
 const png = readFileSync('C:\\Users\\komm64\\AppData\\Local\\Temp\\tutti-test-100x100.png');
 const b64 = png.toString('base64');
@@ -42,4 +43,4 @@ const after = await page.evaluate(() => ({
 console.log('after paste:', after);
 await page.screenshot({ path: 'scripts/tumblr-paste.png' });
 
-await browser.disconnect();
+await disconnectCdp(browser);

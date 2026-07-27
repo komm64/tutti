@@ -13,17 +13,18 @@
 //   LANG=ja node scripts/gen-store-screenshots.mjs
 //   LANG=en node scripts/gen-store-screenshots.mjs
 import puppeteer from 'puppeteer-core';
+import { connectPuppeteerCdp, disconnectCdp, resolveExtensionId } from './e2e/cdp-harness.mjs';
 import { mkdirSync, readFileSync } from 'node:fs';
 
 const LANG = process.env.LANG === 'en' ? 'en' : 'ja';
-const EXT_ID = 'dophemlpjldcejjdjefpjbgngodopkfe';
 mkdirSync('docs/screenshots', { recursive: true });
 
 // 該当 locale の messages.json を読み込んで popup の i18n を上書き
 const messagesPath = `locales/${LANG}/messages.json`;
 const messages = JSON.parse(readFileSync(messagesPath, 'utf8'));
 
-const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222', protocolTimeout: 60000 });
+const browser = await connectPuppeteerCdp({ puppeteer, browserURL: 'http://localhost:9222', protocolTimeout: 60000 });
+const EXT_ID = await resolveExtensionId(browser);
 
 // SNS のタブを全部閉じる(content script で lastSeenUsers が上書きされるため)
 const SNS_HOSTS = [
@@ -237,5 +238,5 @@ for (const scene of scenes) {
   await popup.close();
 }
 
-await browser.disconnect();
+await disconnectCdp(browser);
 console.log('\ndone. Run gen-store-composite.mjs (LANG=' + LANG + ') to make 1280x800 banners.');

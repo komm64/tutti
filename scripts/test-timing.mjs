@@ -2,7 +2,8 @@
 // Variant A: short wait (matching Tutti) from MAIN world → does it work?
 // Variant B: long wait (4s) from MAIN world → confirmed works
 import puppeteer from 'puppeteer-core';
-const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222' });
+import { connectPuppeteerCdp, disconnectCdp } from './e2e/cdp-harness.mjs';
+const browser = await connectPuppeteerCdp({ puppeteer, browserURL: 'http://localhost:9222' });
 
 async function test(label, waitMs) {
   console.log(`\n=== ${label} (wait ${waitMs}ms) ===`);
@@ -39,4 +40,4 @@ const r2 = await test('short', 800);
 console.log(`\nlong(4s): ${r1 ? 'OK' : 'FAIL'}`);
 console.log(`short(800ms): ${r2 ? 'OK' : 'FAIL'}`);
 
-await browser.disconnect();
+await disconnectCdp(browser);

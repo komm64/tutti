@@ -1,9 +1,10 @@
 // Run dry-run image attach test through Tutti for all 6 SNS, one at a time.
 // Each iteration: open popup → set settings → set image → check one platform → click POST → wait → snapshot SNS tab.
 import puppeteer from 'puppeteer-core';
+import { connectPuppeteerCdp, disconnectCdp, resolveExtensionId } from './e2e/cdp-harness.mjs';
 import { writeFileSync } from 'fs';
-const EXT_ID = 'dophemlpjldcejjdjefpjbgngodopkfe';
-const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222' });
+const browser = await connectPuppeteerCdp({ puppeteer, browserURL: 'http://localhost:9222' });
+const EXT_ID = await resolveExtensionId(browser);
 
 const tmpImg = 'C:\\Users\\komm64\\AppData\\Local\\Temp\\tutti-test-100x100.png';
 
@@ -105,4 +106,4 @@ for (const p of PLATFORMS) await testOne(p);
 
 console.log('\n=== relevant logs ===');
 for (const l of allLogs.slice(-50)) console.log(l);
-await browser.disconnect();
+await disconnectCdp(browser);

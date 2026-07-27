@@ -2,9 +2,10 @@
 // 各シーン: 左に大きい headline + subtitle + SNS chip 行、右に popup card。
 // puppeteer で HTML をレンダ → screenshot。
 import puppeteer from 'puppeteer-core';
+import { connectPuppeteerCdp, disconnectCdp } from './e2e/cdp-harness.mjs';
 import { readFileSync } from 'node:fs';
 
-const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222', protocolTimeout: 60000 });
+const browser = await connectPuppeteerCdp({ puppeteer, browserURL: 'http://localhost:9222', protocolTimeout: 60000 });
 
 /**
  * `LANG=en node scripts/gen-store-composite.mjs` で英語版を生成。
@@ -231,4 +232,4 @@ for (const scene of scenes) {
   console.log('wrote', out);
 }
 
-await browser.disconnect();
+await disconnectCdp(browser);

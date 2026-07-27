@@ -21,7 +21,11 @@ export function connectPuppeteerCdp(options?: {
   puppeteer?: { connect(options: Record<string, unknown>): Promise<unknown> };
   endpoint?: string;
   timeoutMs?: number;
+  browserURL?: string;
+  browserWSEndpoint?: string;
+  protocolTimeout?: number;
   defaultViewport?: null | { width: number; height: number };
+  [option: string]: unknown;
 }): Promise<unknown>;
 
 export function disconnectCdp(browser: unknown): Promise<void>;

@@ -63,6 +63,22 @@ describe('CDP harness', () => {
     });
   });
 
+  it('preserves legacy Puppeteer connect option aliases during migration', async () => {
+    const connect = vi.fn().mockResolvedValue({});
+    await connectPuppeteerCdp({
+      puppeteer: { connect },
+      browserURL: 'http://localhost:9222',
+      protocolTimeout: 91,
+      slowMo: 10,
+    });
+    expect(connect).toHaveBeenCalledWith({
+      browserURL: 'http://localhost:9222',
+      defaultViewport: null,
+      protocolTimeout: 91,
+      slowMo: 10,
+    });
+  });
+
   it('discovers extension IDs from configuration, workers, pages, targets, and injected runtime', async () => {
     await expect(resolveExtensionId({}, {
       env: { E2E_EXTENSION_ID: 'configuredid' },

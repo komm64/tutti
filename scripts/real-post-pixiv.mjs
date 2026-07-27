@@ -1,6 +1,7 @@
 // Real post (autoPost=true) verification for Pixiv.
 // 投稿が実際にサーバ送信されて公開されるかを確認する。test アカウント前提。
 import puppeteer from 'puppeteer-core';
+import { connectPuppeteerCdp, disconnectCdp, resolveExtensionId } from './e2e/cdp-harness.mjs';
 import { writeFileSync, appendFileSync, readFileSync } from 'fs';
 
 const LOG = 'scripts/realpost-pixiv.log';
@@ -12,9 +13,9 @@ const log = (...a) => {
 };
 process.on('uncaughtException', (e) => { log('UNCAUGHT', e.message); process.exit(1); });
 
-const EXT_ID = 'dophemlpjldcejjdjefpjbgngodopkfe';
 log('connecting to brave on 9222...');
-const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222', protocolTimeout: 240000 });
+const browser = await connectPuppeteerCdp({ puppeteer, browserURL: 'http://localhost:9222', protocolTimeout: 240000 });
+const EXT_ID = await resolveExtensionId(browser);
 log('connected');
 
 async function attachAll() {
@@ -135,4 +136,4 @@ log('popup state:', popupResult);
 
 if (pix) await pix.screenshot({ path: 'scripts/realpost-pixiv.png', fullPage: false });
 log('done');
-await browser.disconnect();
+await disconnectCdp(browser);

@@ -1,8 +1,9 @@
 // Verify: attach image in popup → close popup → reopen → image still there.
 import puppeteer from 'puppeteer-core';
+import { connectPuppeteerCdp, disconnectCdp, resolveExtensionId } from './e2e/cdp-harness.mjs';
 import { writeFileSync } from 'fs';
-const EXT_ID = 'dophemlpjldcejjdjefpjbgngodopkfe';
-const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222', protocolTimeout: 60000 });
+const browser = await connectPuppeteerCdp({ puppeteer, browserURL: 'http://localhost:9222', protocolTimeout: 60000 });
+const EXT_ID = await resolveExtensionId(browser);
 
 // Clean session storage so we start fresh
 const tmpPopup = await browser.newPage();
@@ -56,4 +57,4 @@ const restored = await popup2.evaluate(() => {
 console.log('restored UI:', restored);
 await popup2.screenshot({ path: 'scripts/popup-after-restore.png' });
 
-await browser.disconnect();
+await disconnectCdp(browser);

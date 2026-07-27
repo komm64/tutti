@@ -2,8 +2,9 @@
 // Run dry-run (so we don't actually post) but observe inject helper's response timing
 // vs upload network completion.
 import puppeteer from 'puppeteer-core';
+import { connectPuppeteerCdp, disconnectCdp } from './e2e/cdp-harness.mjs';
 import { readFileSync } from 'fs';
-const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222', protocolTimeout: 60000 });
+const browser = await connectPuppeteerCdp({ puppeteer, browserURL: 'http://localhost:9222', protocolTimeout: 60000 });
 
 const png = readFileSync('C:\\Users\\komm64\\AppData\\Local\\Temp\\tutti-test-100x100.png');
 
@@ -66,4 +67,4 @@ await probe('Misskey', 'https://misskey.io/share?text=upload-wait', 'drop', '[da
 await probe('Threads', 'https://www.threads.com/intent/post?text=upload-wait', 'input', 'input[type="file"][accept*="image"]');
 await probe('Tumblr', 'https://www.tumblr.com/new/text', 'drop', '[role="dialog"] .components-drop-zone, .components-drop-zone');
 
-await browser.disconnect();
+await disconnectCdp(browser);

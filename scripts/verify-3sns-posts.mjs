@@ -1,5 +1,6 @@
 import puppeteer from 'puppeteer-core';
-const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222', protocolTimeout: 90000 });
+import { connectPuppeteerCdp, disconnectCdp } from './e2e/cdp-harness.mjs';
+const browser = await connectPuppeteerCdp({ puppeteer, browserURL: 'http://localhost:9222', protocolTimeout: 90000 });
 
 async function check(label, url, needle) {
   console.log(`\n=== ${label} ===`);
@@ -28,4 +29,4 @@ await check('X', 'https://x.com/ren_fujimoto', 'Tutti自動投稿テスト');
 await check('Mastodon', 'https://mastodon.social/@ren_fujimoto', 'Tutti自動投稿テスト');
 await check('Tumblr', 'https://www.tumblr.com/blog/ren-fujimoto', 'Tutti自動投稿テスト');
 
-await browser.disconnect();
+await disconnectCdp(browser);

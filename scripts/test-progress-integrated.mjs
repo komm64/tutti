@@ -1,7 +1,8 @@
 // Verify v0.4.6: progress integrated into SNS rows, preview wording instead of "Posting..."
 import puppeteer from 'puppeteer-core';
-const EXT_ID = 'dophemlpjldcejjdjefpjbgngodopkfe';
-const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222', protocolTimeout: 60000 });
+import { connectPuppeteerCdp, disconnectCdp, resolveExtensionId } from './e2e/cdp-harness.mjs';
+const browser = await connectPuppeteerCdp({ puppeteer, browserURL: 'http://localhost:9222', protocolTimeout: 60000 });
+const EXT_ID = await resolveExtensionId(browser);
 
 for (const p of await browser.pages()) {
   if (p.url().includes('popup.html') || /x\.com|mastodon\.social/.test(p.url())) await p.close();
@@ -49,4 +50,4 @@ await popup.screenshot({ path: 'scripts/preview-mid.png' });
 await new Promise(r => setTimeout(r, 8000));
 await popup.screenshot({ path: 'scripts/preview-final.png' });
 
-await browser.disconnect();
+await disconnectCdp(browser);

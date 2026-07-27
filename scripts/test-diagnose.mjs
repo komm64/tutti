@@ -1,7 +1,8 @@
 // Trigger the Diagnose button and verify the report is well-formed.
 import puppeteer from 'puppeteer-core';
-const EXT_ID = 'dophemlpjldcejjdjefpjbgngodopkfe';
-const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222', protocolTimeout: 60000 });
+import { connectPuppeteerCdp, disconnectCdp, resolveExtensionId } from './e2e/cdp-harness.mjs';
+const browser = await connectPuppeteerCdp({ puppeteer, browserURL: 'http://localhost:9222', protocolTimeout: 60000 });
+const EXT_ID = await resolveExtensionId(browser);
 
 for (const p of await browser.pages()) {
   if (p.url().includes('popup.html')) await p.close();
@@ -28,4 +29,4 @@ console.log('=== diagnostics output ===');
 console.log(out);
 await popup.screenshot({ path: 'scripts/diagnostics-result.png' });
 
-await browser.disconnect();
+await disconnectCdp(browser);

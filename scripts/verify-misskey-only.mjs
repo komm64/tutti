@@ -1,5 +1,6 @@
 import puppeteer from 'puppeteer-core';
-const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222', protocolTimeout: 60000 });
+import { connectPuppeteerCdp, disconnectCdp } from './e2e/cdp-harness.mjs';
+const browser = await connectPuppeteerCdp({ puppeteer, browserURL: 'http://localhost:9222', protocolTimeout: 60000 });
 
 for (const p of await browser.pages()) {
   if (/misskey\.io/.test(p.url())) await p.close();
@@ -30,4 +31,4 @@ const hasMatch = text.includes('Tutti自動投稿');
 console.log('found Tutti post on Misskey:', hasMatch);
 console.log('snippet:', text.substr(text.indexOf('Tutti'), 200) || '(not in body)');
 
-await browser.disconnect();
+await disconnectCdp(browser);

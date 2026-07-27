@@ -1,7 +1,8 @@
 // Connect to test Chrome, find tumblr tab, listen to console for [Tutti] tumblr logs.
 import puppeteer from 'puppeteer-core';
+import { connectPuppeteerCdp, disconnectCdp } from './e2e/cdp-harness.mjs';
 
-const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222' });
+const browser = await connectPuppeteerCdp({ puppeteer, browserURL: 'http://localhost:9222' });
 
 let pages = await browser.pages();
 let page = pages.find((p) => /tumblr\.com/.test(p.url())) ?? pages[0];
@@ -33,4 +34,4 @@ if (success) {
   console.log('\n✗ no success line; check for failure dump above');
 }
 
-await browser.disconnect();
+await disconnectCdp(browser);

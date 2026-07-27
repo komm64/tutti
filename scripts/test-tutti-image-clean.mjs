@@ -1,7 +1,8 @@
 import puppeteer from 'puppeteer-core';
+import { connectPuppeteerCdp, disconnectCdp, resolveExtensionId } from './e2e/cdp-harness.mjs';
 import { writeFileSync } from 'fs';
-const EXT_ID = 'dophemlpjldcejjdjefpjbgngodopkfe';
-const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222' });
+const browser = await connectPuppeteerCdp({ puppeteer, browserURL: 'http://localhost:9222' });
+const EXT_ID = await resolveExtensionId(browser);
 
 // Close all mastodon tabs first
 for (const p of await browser.pages()) {
@@ -70,4 +71,4 @@ for (let i = 0; i < 25; i++) {
 }
 if (mast) await mast.screenshot({ path: 'scripts/mastodon-clean-test.png' });
 
-await browser.disconnect();
+await disconnectCdp(browser);

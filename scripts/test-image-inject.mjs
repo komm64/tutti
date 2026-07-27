@@ -1,8 +1,9 @@
 // Test which event dispatch pattern actually triggers Mastodon's upload reaction.
 import puppeteer from 'puppeteer-core';
+import { connectPuppeteerCdp, disconnectCdp } from './e2e/cdp-harness.mjs';
 import { readFileSync } from 'fs';
 
-const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222' });
+const browser = await connectPuppeteerCdp({ puppeteer, browserURL: 'http://localhost:9222' });
 const page = await browser.newPage();
 
 // Generate test PNG (small valid PNG)
@@ -92,4 +93,4 @@ const ui2 = await page.evaluate(() => ({
 console.log('after drop UI:', JSON.stringify(ui2, null, 2));
 await page.screenshot({ path: 'scripts/mastodon-drop-test.png' });
 
-await browser.disconnect();
+await disconnectCdp(browser);

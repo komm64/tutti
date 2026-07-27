@@ -4,10 +4,11 @@
 // 3. Clicks "報告する" → expects worker call → success state with issue link
 // 4. Closes the test issue at the end
 import puppeteer from 'puppeteer-core';
+import { connectPuppeteerCdp, disconnectCdp, resolveExtensionId } from './e2e/cdp-harness.mjs';
 import { execSync } from 'node:child_process';
 
-const EXT_ID = 'dophemlpjldcejjdjefpjbgngodopkfe';
-const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222', protocolTimeout: 60000 });
+const browser = await connectPuppeteerCdp({ puppeteer, browserURL: 'http://localhost:9222', protocolTimeout: 60000 });
+const EXT_ID = await resolveExtensionId(browser);
 
 for (const p of await browser.pages()) {
   if (p.url().includes('popup.html')) await p.close();
@@ -42,7 +43,7 @@ console.log('worker response from popup context:', JSON.stringify(result, null, 
 // Snap a screenshot of the popup as-is
 await popup.screenshot({ path: 'scripts/popup-v0411.png' });
 
-await browser.disconnect();
+await disconnectCdp(browser);
 
 // Close any test issue we created
 if (result.body?.issueNumber) {

@@ -1,5 +1,6 @@
 // Drive Tutti popup → Pixiv dry-run, verify title + caption + image got injected.
 import puppeteer from 'puppeteer-core';
+import { connectPuppeteerCdp, disconnectCdp, resolveExtensionId } from './e2e/cdp-harness.mjs';
 import { writeFileSync, appendFileSync } from 'fs';
 
 const LOG = 'scripts/pixiv-test.log';
@@ -11,8 +12,8 @@ const log = (...a) => {
 };
 process.on('uncaughtException', (e) => { log('UNCAUGHT', e.message); process.exit(1); });
 
-const EXT_ID = 'dophemlpjldcejjdjefpjbgngodopkfe';
-const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222', protocolTimeout: 240000 });
+const browser = await connectPuppeteerCdp({ puppeteer, browserURL: 'http://localhost:9222', protocolTimeout: 240000 });
+const EXT_ID = await resolveExtensionId(browser);
 
 // log everything from any page
 async function attachAll() {
@@ -130,4 +131,4 @@ for (let i = 0; i < 30; i++) {
 }
 if (pix) await pix.screenshot({ path: 'scripts/pixiv-test-result.png', fullPage: true });
 log('done');
-await browser.disconnect();
+await disconnectCdp(browser);

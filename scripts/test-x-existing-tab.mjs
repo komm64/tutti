@@ -2,8 +2,9 @@
 // background's openOrFocusTab updates URL to /intent/post in existing tab.
 // This may produce different DOM than fresh tab navigation.
 import puppeteer from 'puppeteer-core';
-const EXT_ID = 'dophemlpjldcejjdjefpjbgngodopkfe';
-const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222', protocolTimeout: 60000 });
+import { connectPuppeteerCdp, disconnectCdp, resolveExtensionId } from './e2e/cdp-harness.mjs';
+const browser = await connectPuppeteerCdp({ puppeteer, browserURL: 'http://localhost:9222', protocolTimeout: 60000 });
+const EXT_ID = await resolveExtensionId(browser);
 
 // Close existing first
 for (const p of await browser.pages()) {
@@ -72,4 +73,4 @@ for (let i = 0; i < 8; i++) {
   await xHome.screenshot({ path: `scripts/x-existing-${i}.png` });
 }
 
-await browser.disconnect();
+await disconnectCdp(browser);

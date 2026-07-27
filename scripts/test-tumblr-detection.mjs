@@ -1,7 +1,8 @@
 // Verify new detection strategy on live Tumblr.
 import puppeteer from 'puppeteer-core';
+import { connectPuppeteerCdp, disconnectCdp } from './e2e/cdp-harness.mjs';
 
-const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222' });
+const browser = await connectPuppeteerCdp({ puppeteer, browserURL: 'http://localhost:9222' });
 const pages = await browser.pages();
 const page = pages.find((p) => /tumblr\.com/.test(p.url())) ?? pages[0];
 
@@ -34,4 +35,4 @@ const result = await page.evaluate(() => {
 console.log('matches:');
 console.log(JSON.stringify(result, null, 2));
 
-await browser.disconnect();
+await disconnectCdp(browser);

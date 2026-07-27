@@ -1,5 +1,6 @@
 import puppeteer from 'puppeteer-core';
-const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222', protocolTimeout: 90000 });
+import { connectPuppeteerCdp, disconnectCdp } from './e2e/cdp-harness.mjs';
+const browser = await connectPuppeteerCdp({ puppeteer, browserURL: 'http://localhost:9222', protocolTimeout: 90000 });
 
 async function check(label, url, needle) {
   console.log(`\n=== ${label} ===`);
@@ -32,4 +33,4 @@ await check('Bluesky', 'https://bsky.app/profile/ren-fujimoto89.bsky.social', 'T
 await check('Threads', 'https://www.threads.com/@ren.fujimoto.89', 'Tutti自動投稿');
 await check('Misskey', 'https://misskey.io/@ren_fujimoto', 'Tutti自動投稿');
 
-await browser.disconnect();
+await disconnectCdp(browser);

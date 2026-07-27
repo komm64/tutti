@@ -1,7 +1,8 @@
 // Try drag & drop simulation for SNS without accessible file input.
 import puppeteer from 'puppeteer-core';
+import { connectPuppeteerCdp, disconnectCdp } from './e2e/cdp-harness.mjs';
 import { readFileSync } from 'fs';
-const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222' });
+const browser = await connectPuppeteerCdp({ puppeteer, browserURL: 'http://localhost:9222' });
 
 const png = readFileSync('C:\\Users\\komm64\\AppData\\Local\\Temp\\tutti-test-100x100.png');
 const b64 = png.toString('base64');
@@ -60,4 +61,4 @@ await tryDrop('Misskey', 'https://misskey.io/share?text=drop-test',
 await tryDrop('Tumblr', 'https://www.tumblr.com/new/text',
   ['[contenteditable="true"]', '.block-editor-rich-text__editable', 'main', 'div[role="dialog"]']);
 
-await browser.disconnect();
+await disconnectCdp(browser);

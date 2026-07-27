@@ -1,8 +1,9 @@
 // Verify autoPost ON: SNS tabs open as background (active: false), all 6 SNS posts succeed.
 // Also verify popup stays alive throughout (popup.evaluate keeps working).
 import puppeteer from 'puppeteer-core';
-const EXT_ID = 'dophemlpjldcejjdjefpjbgngodopkfe';
-const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222', protocolTimeout: 60000 });
+import { connectPuppeteerCdp, disconnectCdp, resolveExtensionId } from './e2e/cdp-harness.mjs';
+const browser = await connectPuppeteerCdp({ puppeteer, browserURL: 'http://localhost:9222', protocolTimeout: 60000 });
+const EXT_ID = await resolveExtensionId(browser);
 
 for (const p of await browser.pages()) {
   if (/x\.com|twitter\.com|popup\.html/.test(p.url())) await p.close();
@@ -68,4 +69,4 @@ for (const s of samples) {
 
 await popup.screenshot({ path: 'scripts/popup-progress.png' });
 
-await browser.disconnect();
+await disconnectCdp(browser);
