@@ -12,6 +12,7 @@ const GUARDED_ORCHESTRATORS = [
   'src/background/history-recorder.ts',
   'src/background/media-preprocess.ts',
   'src/background/platform-poster.ts',
+  'src/background/post-orchestrator.ts',
   'src/background/post-concurrency.ts',
   'src/background/post-scheduler.ts',
   'src/background/post-worker-pool.ts',
@@ -80,42 +81,49 @@ describe('platform architecture guard', () => {
   });
 
   it('keeps post result construction out of the central poster', () => {
-    const poster = readFileSync('src/background/platform-poster.ts', 'utf8');
+    const orchestrator = readFileSync('src/background/post-orchestrator.ts', 'utf8');
 
-    expect(poster).toContain("from './post-result-policy'");
-    expect(poster).not.toMatch(
+    expect(orchestrator).toContain("from './post-result-policy'");
+    expect(orchestrator).not.toMatch(
       /\bfunction (?:buildFinalChunkResult|unconfirmedPostResult|withFlow)\b/,
     );
   });
 
   it('keeps DOM attempt policy out of the central poster', () => {
-    const poster = readFileSync('src/background/platform-poster.ts', 'utf8');
+    const orchestrator = readFileSync('src/background/post-orchestrator.ts', 'utf8');
     const transport = readFileSync('src/background/posting-transport.ts', 'utf8');
 
     expect(transport).toContain("from './dom-attempt-policy'");
-    expect(poster).not.toMatch(
+    expect(orchestrator).not.toMatch(
       /\bfunction (?:buildDomPostAttempts|resolvePreSubmitLoadOptions|shouldOpenActive|shouldRetryPostAttempt|shouldReuseExistingTabForAttempt)\b/,
     );
   });
 
   it('keeps URL capture and verification completion in PostConfirmation', () => {
-    const poster = readFileSync('src/background/platform-poster.ts', 'utf8');
+    const orchestrator = readFileSync('src/background/post-orchestrator.ts', 'utf8');
 
-    expect(poster).toContain("from './post-confirmation'");
-    expect(poster).not.toMatch(
+    expect(orchestrator).toContain("from './post-confirmation'");
+    expect(orchestrator).not.toMatch(
       /\bfunction (?:attachVerifyResult|buildVerifyExpectationForChunk|captureUrl|ensurePostUrl|maybeAutoOpenPostUrl|recoverFromAmbiguousDispatchFailure)\b/,
     );
   });
 
   it('keeps single-chunk API and DOM effects in PostingTransport', () => {
-    const poster = readFileSync('src/background/platform-poster.ts', 'utf8');
+    const orchestrator = readFileSync('src/background/post-orchestrator.ts', 'utf8');
 
-    expect(poster).toContain("from './posting-transport'");
-    expect(poster).not.toMatch(
+    expect(orchestrator).toContain("from './posting-transport'");
+    expect(orchestrator).not.toMatch(
       /\bfunction (?:closeOwnedAttemptTab|getComposeUrlForMedia|postSingleChunk|postSingleChunkWithRetry|resolveApiPostOutcome)\b/,
     );
-    expect(poster).not.toContain('sendPostMessageWhenReady');
-    expect(poster).not.toContain('tryApiPath');
+    expect(orchestrator).not.toContain('sendPostMessageWhenReady');
+    expect(orchestrator).not.toContain('tryApiPath');
+  });
+
+  it('keeps platform-poster as a compatibility facade', () => {
+    const poster = readFileSync('src/background/platform-poster.ts', 'utf8');
+
+    expect(poster).toContain('createPostOrchestrator as createPlatformPoster');
+    expect(poster).not.toMatch(/\bfunction\b/);
   });
 });
 
