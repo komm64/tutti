@@ -10,10 +10,6 @@ import { clickElementInMainWorld } from './image';
 
 const REPLY_TEXTS = ['Reply', '返信', '返信する', 'Respond'];
 
-export function continuationNeedsReplyUrl(platform: PlatformId): boolean {
-  return platform === 'x' || platform === 'mastodon' || platform === 'threads';
-}
-
 export function isPlatformPostDetailUrl(platform: PlatformId, url: string): boolean {
   if (platform === 'mastodon') return parseMastodonStatusIdFromUrl(url) !== undefined;
   if (platform === 'threads') return /^https:\/\/(?:www\.)?threads\.(?:com|net)\/@[^/]+\/post\/[\w-]+(?:[/?#]|$)/.test(url);

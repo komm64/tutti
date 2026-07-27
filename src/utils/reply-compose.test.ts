@@ -2,7 +2,6 @@
 
 import { describe, expect, it } from 'vitest';
 import {
-  continuationNeedsReplyUrl,
   findReplyButton,
   isPlatformPostDetailUrl,
   parseMastodonStatusIdFromUrl,
@@ -16,13 +15,6 @@ function markVisible(el: HTMLElement): void {
 }
 
 describe('reply compose helpers', () => {
-  it('requires a captured parent URL for continuation platforms', () => {
-    expect(continuationNeedsReplyUrl('x')).toBe(true);
-    expect(continuationNeedsReplyUrl('mastodon')).toBe(true);
-    expect(continuationNeedsReplyUrl('threads')).toBe(true);
-    expect(continuationNeedsReplyUrl('bluesky')).toBe(false);
-  });
-
   it('detects Mastodon and Threads post detail URLs', () => {
     expect(isPlatformPostDetailUrl('mastodon', 'https://mastodon.social/@alice/1234567890')).toBe(true);
     expect(isPlatformPostDetailUrl('mastodon', 'https://mastodon.social/share?text=hello')).toBe(false);

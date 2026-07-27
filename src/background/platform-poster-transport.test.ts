@@ -43,7 +43,8 @@ vi.mock('./adapter-resolver', () => ({
   resolveAdapter: mocks.resolveAdapter,
 }));
 
-vi.mock('./platform-strategies', () => ({
+vi.mock('./platform-strategies', async (importOriginal) => ({
+  ...await importOriginal<typeof import('./platform-strategies')>(),
   tryApiPath: mocks.tryApiPath,
 }));
 

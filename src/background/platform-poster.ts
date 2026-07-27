@@ -18,7 +18,11 @@ import {
   openOrFocusTab,
   type OpenOrFocusTabOptions,
 } from './tab-management';
-import { tryApiPath } from './platform-strategies';
+import {
+  buildReplyOverrideUrl,
+  continuationNeedsReplyUrl,
+  tryApiPath,
+} from './platform-strategies';
 import { capturePostUrlFromTabWithRetry } from './post-url-capture';
 import {
   buildLoginRedirectErrorForUrl,
@@ -32,7 +36,6 @@ import { maybeResizeImagesForPlatform } from './media-preprocess';
 import { downgradeHardVerifyFailures, toPreviewResult } from './post-result-policy';
 import type { OpenedTabRegistry } from './opened-tab-registry';
 import { retryTransientTabAction } from './tab-action-retry';
-import { continuationNeedsReplyUrl } from '../utils/reply-compose';
 import type { VerifyExpectation } from '../utils/post-verify';
 import { extractHttpUrls } from '../utils/text-urls';
 
@@ -568,18 +571,6 @@ export function isAmbiguousPostDispatchError(err: unknown): boolean {
     message.includes('back/forward cache') ||
     message.includes('content script response timed out')
   );
-}
-
-export function buildReplyOverrideUrl(
-  platform: PlatformId,
-  chunkIndex: number,
-  prevPostUrl: string | undefined,
-): string | undefined {
-  if (chunkIndex === 0 || !prevPostUrl) return undefined;
-  if (platform === 'mastodon' || platform === 'threads') return prevPostUrl;
-  if (platform !== 'x') return undefined;
-  const match = prevPostUrl.match(/\/status\/(\d+)/);
-  return match?.[1] ? `https://x.com/intent/post?in_reply_to=${match[1]}` : undefined;
 }
 
 export function getComposeUrlForMedia(
