@@ -40,6 +40,8 @@ test-data/
 scripts/e2e/fixtures/*
 !scripts/e2e/fixtures/README.md
 !scripts/e2e/fixtures/tiny-vp8.webm.b64
+!scripts/e2e/fixtures/mock-mastodon-compose.html
+!scripts/e2e/fixtures/mock-instagram-wizard.html
 
 # Local scratch / brainstorm notes
 tmp/
