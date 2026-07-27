@@ -63,7 +63,7 @@ describe('CDP harness', () => {
     });
   });
 
-  it('discovers extension IDs from configuration, workers, pages, and targets', async () => {
+  it('discovers extension IDs from configuration, workers, pages, targets, and injected runtime', async () => {
     await expect(resolveExtensionId({}, {
       env: { E2E_EXTENSION_ID: 'configuredid' },
       timeoutMs: 1,
@@ -77,6 +77,12 @@ describe('CDP harness', () => {
     await expect(resolveExtensionId({
       targets: () => [{ url: () => 'chrome-extension://targetid/options.html' }],
     }, { env: {}, timeoutMs: 1 })).resolves.toBe('targetid');
+    await expect(resolveExtensionId({
+      pages: () => [{
+        url: () => 'https://x.com/home',
+        evaluate: vi.fn().mockResolvedValue('runtimeid'),
+      }],
+    }, { env: {}, timeoutMs: 1 })).resolves.toBe('runtimeid');
   });
 
   it('rejects extension discovery when no supported target appears', async () => {

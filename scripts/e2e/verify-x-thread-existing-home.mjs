@@ -15,11 +15,17 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { existsSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
+import {
+  connectPlaywrightCdp,
+  disconnectCdp,
+  resolveCdpEndpoint,
+  resolveExtensionId,
+} from './cdp-harness.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '..', '..');
 const extensionDir = process.env.E2E_EXT_DIR ?? resolve(repoRoot, '.output', 'chrome-mv3');
-const cdpEndpoint = process.env.E2E_CDP;
+const cdpEndpoint = resolveCdpEndpoint({ fallback: '' });
 const userDataDir = process.env.E2E_USER_DATA_DIR ?? resolve(repoRoot, '.tmp', 'verify-x-thread-profile');
 const isolateXTabs = process.argv.includes('--isolate-x-tabs');
 const skipExtensionReload = process.argv.includes('--skip-extension-reload');
@@ -34,21 +40,8 @@ async function fail(message, detail) {
     console.error(JSON.stringify(detail, null, 2));
   }
   if (!cdpEndpoint && ctx) await ctx.close().catch(() => {});
-  if (browser) await browser.close().catch(() => {});
+  if (browser) await disconnectCdp(browser).catch(() => {});
   process.exit(1);
-}
-
-async function detectExtensionId(ctx) {
-  const fromEnv = process.env.E2E_EXTENSION_ID;
-  if (fromEnv) return fromEnv;
-  for (let i = 0; i < 50; i += 1) {
-    for (const worker of ctx.serviceWorkers()) {
-      const m = worker.url().match(/^chrome-extension:\/\/([a-z]+)\//);
-      if (m?.[1]) return m[1];
-    }
-    await new Promise((resolve) => setTimeout(resolve, 200));
-  }
-  return null;
 }
 
 function sleep(ms) {
@@ -125,7 +118,11 @@ if (!cdpEndpoint && !existsSync(extensionDir)) {
 }
 
 if (cdpEndpoint) {
-  browser = await chromium.connectOverCDP(cdpEndpoint, { timeout: 30000 });
+  browser = await connectPlaywrightCdp({
+    chromium,
+    endpoint: cdpEndpoint,
+    timeoutMs: 30_000,
+  });
   ctx = browser.contexts()[0];
   if (!ctx) await fail('no browser context found');
 } else {
@@ -140,10 +137,9 @@ if (cdpEndpoint) {
   });
 }
 
-const extensionId = await detectExtensionId(ctx);
-if (!extensionId) {
+const extensionId = await resolveExtensionId(ctx).catch(async () => {
   await fail('extension id not detected. Set E2E_EXTENSION_ID when attaching over CDP.');
-}
+});
 console.log(`[verify-x-thread] extension id=${extensionId}`);
 
 if (!skipExtensionReload && cdpEndpoint) {
@@ -298,4 +294,4 @@ console.log('[verify-x-thread] PASS');
 
 await popup.close().catch(() => {});
 if (!cdpEndpoint) await ctx.close();
-if (browser) await browser.close().catch(() => {});
+if (browser) await disconnectCdp(browser).catch(() => {});
