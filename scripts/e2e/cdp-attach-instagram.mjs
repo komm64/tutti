@@ -12,21 +12,17 @@
  */
 
 import puppeteer from 'puppeteer-core';
-import { resolve } from 'node:path';
-import { readFileSync } from 'node:fs';
+import {
+  connectPuppeteerCdp,
+  disconnectCdp,
+  loadE2eFixture,
+  resolveCdpEndpoint,
+  resolveExtensionId,
+} from './cdp-harness.mjs';
 
-async function discoverWsEndpoint() {
-  const res = await fetch('http://localhost:9222/json/version').catch(() => null);
-  if (!res || !res.ok) {
-    throw new Error('IG CDP: localhost:9222 に Chromium が見つからない');
-  }
-  const data = await res.json();
-  return data.webSocketDebuggerUrl;
-}
-
-const ws = await discoverWsEndpoint();
-console.log(`[ig-cdp] connecting to ${ws}`);
-const browser = await puppeteer.connect({ browserWSEndpoint: ws, defaultViewport: null });
+const cdpEndpoint = resolveCdpEndpoint();
+console.log(`[ig-cdp] connecting to ${cdpEndpoint}`);
+const browser = await connectPuppeteerCdp({ puppeteer, endpoint: cdpEndpoint });
 
 let pages = await browser.pages();
 let igPages = pages.filter((p) => /instagram\.com/.test(p.url()));
@@ -73,7 +69,7 @@ await new Promise((r) => setTimeout(r, 500));
 // 拡張 ID を CDP の page list から拾う (extension SW がアイドルでも、page list の
 // faviconUrl 等から chrome-extension:// URL があれば取れる)。
 // Tutti は load 済前提。SW が sleep してたら popup を navigate して wake する。
-let extId = 'dophemlpjldcejjdjefpjbgngodopkfe';
+const extId = await resolveExtensionId(browser);
 async function findSw() {
   return browser.targets().find((t) =>
     t.type() === 'service_worker' && t.url().includes(`chrome-extension://${extId}/`),
@@ -103,14 +99,14 @@ if (!swTarget) {
 }
 if (!swTarget) {
   console.error('[ig-cdp] FAIL: Tutti 拡張 SW を wake できなかった (Tutti が load されてない可能性)');
-  browser.disconnect();
+  await disconnectCdp(browser);
   process.exit(2);
 }
 const worker = await swTarget.worker();
 console.log(`[ig-cdp] attached to SW: ${swTarget.url()}`);
 
-const imagePath = resolve(process.cwd(), 'scripts/e2e/fixtures/test-image.jpg');
-const imgB64 = readFileSync(imagePath).toString('base64');
+const imageFixture = await loadE2eFixture('test-image.jpg', 'image/jpeg', { required: true });
+const imgB64 = imageFixture.data;
 const text = `tutti ig diag ${new Date().toISOString()}`;
 const autoPost = process.env.IG_AUTOPOST === '1';
 
@@ -228,5 +224,5 @@ for (const s of snapshots) {
 console.log(`\n[ig-cdp] console log (last 30 of ${consoleLog.length}):`);
 for (const c of consoleLog.slice(-30)) console.log(`  ${c}`);
 
-browser.disconnect();
+await disconnectCdp(browser);
 process.exit(sendResult.ok ? 0 : 1);

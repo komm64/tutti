@@ -9,10 +9,9 @@
  * を試みる。失敗したら何 step まで進んだかを log して human-in-loop 対応。
  */
 import puppeteer from 'puppeteer-core';
+import { connectPuppeteerCdp, disconnectCdp } from './cdp-harness.mjs';
 
-const res = await fetch('http://localhost:9222/json/version');
-const ws = (await res.json()).webSocketDebuggerUrl;
-const browser = await puppeteer.connect({ browserWSEndpoint: ws, defaultViewport: null });
+const browser = await connectPuppeteerCdp({ puppeteer });
 
 const pages = await browser.pages();
 let ig = pages.find((p) => /instagram\.com/.test(p.url()));
@@ -115,4 +114,4 @@ for (const url of candidates) {
   }
 }
 
-browser.disconnect();
+await disconnectCdp(browser);

@@ -9,18 +9,18 @@
  * Usage: PLATFORM=tumblr|deviantart|youtube node scripts/e2e/verify-tags-all.mjs
  */
 import puppeteer from 'puppeteer-core';
-import { resolve } from 'node:path';
-import { readFileSync } from 'node:fs';
+import {
+  connectPuppeteerCdp,
+  disconnectCdp,
+  loadE2eFixture,
+  resolveExtensionId,
+} from './cdp-harness.mjs';
 
 const PLATFORM = (process.env.PLATFORM || 'tumblr').trim();
 const TEST_TEXT = 'Tutti verify #cats #photography #beautiful #goldenhour\n\nLook at this scene!';
 
-const browser = await puppeteer.connect({
-  browserURL: 'http://localhost:9222',
-  defaultViewport: null,
-  protocolTimeout: 180000,
-});
-const EXT_ID = 'dophemlpjldcejjdjefpjbgngodopkfe';
+const browser = await connectPuppeteerCdp({ puppeteer, timeoutMs: 180_000 });
+const EXT_ID = await resolveExtensionId(browser);
 
 let sw = browser.targets().find((t) => t.type() === 'service_worker' && t.url().includes(EXT_ID));
 if (!sw) {
@@ -69,7 +69,8 @@ page.on('console', (m) => {
   if (/Tutti|tutti/i.test(t)) logs.push(`[${m.type()}] ${t}`);
 });
 
-const imgB64 = readFileSync(resolve(process.cwd(), 'scripts/e2e/fixtures/test-image.jpg')).toString('base64');
+const imageFixture = await loadE2eFixture('test-image.jpg', 'image/jpeg', { required: true });
+const imgB64 = imageFixture.data;
 console.log(`[${PLATFORM}] sending dry-run with text=${TEST_TEXT.slice(0, 50)}...`);
 const result = await worker.evaluate(async ({ text, imgB64, platform }) => {
   const urls = {
@@ -128,4 +129,4 @@ console.log(JSON.stringify(tagState, null, 2));
 console.log(`\n=== ${logs.length} Tutti console logs ===`);
 for (const l of logs) console.log(l);
 
-browser.disconnect();
+await disconnectCdp(browser);

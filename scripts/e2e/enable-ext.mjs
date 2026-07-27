@@ -1,6 +1,7 @@
 import puppeteer from 'puppeteer-core';
-const ws = (await (await fetch('http://localhost:9222/json/version')).json()).webSocketDebuggerUrl;
-const browser = await puppeteer.connect({ browserWSEndpoint: ws, defaultViewport: null });
+import { connectPuppeteerCdp, disconnectCdp } from './cdp-harness.mjs';
+
+const browser = await connectPuppeteerCdp({ puppeteer });
 const p = await browser.newPage();
 await p.goto('chrome://extensions/', { timeout: 10000 });
 await new Promise((r) => setTimeout(r, 2000));
@@ -57,4 +58,4 @@ const final = await p.evaluate(() => {
 });
 console.log(`[enable-ext] final: ${JSON.stringify(final, null, 2)}`);
 await p.close().catch(() => {});
-browser.disconnect();
+await disconnectCdp(browser);
