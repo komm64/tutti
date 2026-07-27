@@ -5,7 +5,6 @@
   } from '../../src/messages';
   import { getAdapter } from '../../src/adapters/registry';
   import { initLogLevelFromSettings } from '../../src/utils/logger';
-  import { decodeMessage } from '../../src/utils/message-decoder';
   import {
     clearDraft,
     getLastSeenUsers,
@@ -46,9 +45,6 @@
     selectedPlatformIds,
   } from '../../src/popup/presets';
   import {
-    applyBackgroundState,
-    applyProgressMessage,
-    type BgStateResponse,
     type CompressionProgress,
     type PostingViewState,
   } from '../../src/popup/posting-progress';
@@ -411,22 +407,6 @@
     });
   }
 
-  // P19 / v0.4.63: popup 閉じ→再 open 時、background が保持してる進行状態を
-  // 復元する。pending / 完了済 results / 圧縮進捗 を全部復元することで、
-  // 「2/7 完了済み、5 投稿中」のような中間状態でも閉じ→開きで正しく表示される。
-  // 旧コードは posting boolean だけ復元していたので、再 open すると pending /
-  // results が空 → 全 SNS が isQueued (「Queue...」) と誤表示されていた。
-  $effect(() => {
-    void browser.runtime.sendMessage({ type: 'GET_BG_STATE' }).then((res: unknown) => {
-      const r = res as BgStateResponse | undefined;
-      const next = applyBackgroundState(r, currentPostingViewState());
-      applyPostingViewState(next);
-      if (!next.posting && next.lastResults?.length) {
-        lastResultDraftKey = currentDraftKey();
-      }
-    }).catch(() => { /* background sleep してたら null 戻り、無視 */ });
-  });
-
   $effect(() => {
     void refreshExtensionUpdateState();
   });
@@ -443,21 +423,22 @@
     lastResultDraftKey = null;
   });
 
-  // background からの進捗ストリームを受信
+  // popup 再表示時の状態復元と background からの進捗ストリームを購読
   $effect(() => {
-    const listener = (rawMsg: unknown) => {
-      const msg = decodeMessage(rawMsg);
-      if (!msg) return;
-      const next = applyProgressMessage(msg, currentPostingViewState());
-      if (next) applyPostingViewState(next);
-      if (msg.type === 'EXTENSION_UPDATE_AVAILABLE') {
-        updateAvailableVersion = msg.state.version ?? '';
-        updateApplying = msg.state.applying === true;
+    return composerController.subscribeBackgroundSync({
+      getPostingState: currentPostingViewState,
+      onPostingState: (next, source) => {
+        applyPostingViewState(next);
+        if (source === 'restore' && !next.posting && next.lastResults?.length) {
+          lastResultDraftKey = currentDraftKey();
+        }
+      },
+      onUpdateAvailable: (state) => {
+        updateAvailableVersion = state.version ?? '';
+        updateApplying = state.applying === true;
         updateError = null;
-      }
-    };
-    browser.runtime.onMessage.addListener(listener);
-    return () => browser.runtime.onMessage.removeListener(listener);
+      },
+    });
   });
 
   function handleKeydown(e: KeyboardEvent) {

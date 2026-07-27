@@ -1,4 +1,6 @@
+import type { ExtensionUpdateState } from '../messages';
 import type { PlatformId } from '../types/platform';
+import { decodeMessage } from '../utils/message-decoder';
 import {
   getDraft,
   getSelectedPlatforms,
@@ -25,6 +27,12 @@ import {
   removeImageAt,
   removeVideoFromState,
 } from './media-state';
+import {
+  applyBackgroundState,
+  applyProgressMessage,
+  type BgStateResponse,
+  type PostingViewState,
+} from './posting-progress';
 import type { ImagePreview, VideoPreview } from './types';
 
 export interface ComposerDraftState {
@@ -55,6 +63,15 @@ type HistoryStorageChangeListener = (
   area: string,
 ) => void;
 
+export interface ComposerBackgroundSyncCallbacks {
+  getPostingState: () => PostingViewState;
+  onPostingState: (
+    state: PostingViewState,
+    source: 'restore' | 'progress',
+  ) => void;
+  onUpdateAvailable: (state: ExtensionUpdateState) => void;
+}
+
 export interface ComposerControllerOptions {
   getDraft?: () => Promise<Draft | null>;
   saveDraft?: (draft: Draft) => Promise<void>;
@@ -64,6 +81,10 @@ export interface ComposerControllerOptions {
   revokeHistoryUrls?: (urls: readonly string[]) => void;
   subscribeStorageChanges?: (
     listener: HistoryStorageChangeListener,
+  ) => () => void;
+  sendRuntimeMessage?: (message: unknown) => Promise<unknown>;
+  subscribeRuntimeMessages?: (
+    listener: (message: unknown) => void,
   ) => () => void;
   draftDebounceMs?: number;
   selectionDebounceMs?: number;
@@ -79,6 +100,13 @@ function subscribeStorageChanges(
   return () => browser.storage.onChanged.removeListener(rawListener);
 }
 
+function subscribeRuntimeMessages(
+  listener: (message: unknown) => void,
+): () => void {
+  browser.runtime.onMessage.addListener(listener);
+  return () => browser.runtime.onMessage.removeListener(listener);
+}
+
 export function createComposerController(options: ComposerControllerOptions = {}) {
   const readDraft = options.getDraft ?? getDraft;
   const writeDraft = options.saveDraft ?? saveDraft;
@@ -87,6 +115,9 @@ export function createComposerController(options: ComposerControllerOptions = {}
   const readHistory = options.loadHistory ?? loadPopupHistoryThumbs;
   const revokeHistory = options.revokeHistoryUrls ?? revokeHistoryThumbUrls;
   const watchStorage = options.subscribeStorageChanges ?? subscribeStorageChanges;
+  const sendRuntimeMessage = options.sendRuntimeMessage ??
+    ((message: unknown) => browser.runtime.sendMessage(message));
+  const watchRuntime = options.subscribeRuntimeMessages ?? subscribeRuntimeMessages;
   const draftDebounceMs = options.draftDebounceMs ?? 300;
   const selectionDebounceMs = options.selectionDebounceMs ?? 200;
   let draftTimer: ReturnType<typeof setTimeout> | undefined;
@@ -94,6 +125,7 @@ export function createComposerController(options: ComposerControllerOptions = {}
   let historyObjectUrls: string[] = [];
   let historySubscriber: ((state: ComposerHistoryState) => void) | undefined;
   let stopHistorySubscription: (() => void) | undefined;
+  let stopBackgroundSubscription: (() => void) | undefined;
   let historyRequest = 0;
   let disposed = false;
 
@@ -221,6 +253,43 @@ export function createComposerController(options: ComposerControllerOptions = {}
       };
     },
 
+    subscribeBackgroundSync(
+      callbacks: ComposerBackgroundSyncCallbacks,
+    ): () => void {
+      stopBackgroundSubscription?.();
+      let active = true;
+      const listener = (rawMessage: unknown): void => {
+        if (!active || disposed) return;
+        const message = decodeMessage(rawMessage);
+        if (!message) return;
+        const next = applyProgressMessage(message, callbacks.getPostingState());
+        if (next) callbacks.onPostingState(next, 'progress');
+        if (message.type === 'EXTENSION_UPDATE_AVAILABLE') {
+          callbacks.onUpdateAvailable(message.state);
+        }
+      };
+      const stop = watchRuntime(listener);
+      stopBackgroundSubscription = () => {
+        active = false;
+        stop();
+      };
+      void sendRuntimeMessage({ type: 'GET_BG_STATE' })
+        .then((response) => {
+          if (!active || disposed) return;
+          const next = applyBackgroundState(
+            response as BgStateResponse | undefined,
+            callbacks.getPostingState(),
+          );
+          callbacks.onPostingState(next, 'restore');
+        })
+        .catch(() => {});
+      return () => {
+        if (!active) return;
+        stopBackgroundSubscription?.();
+        stopBackgroundSubscription = undefined;
+      };
+    },
+
     dispose(): void {
       disposed = true;
       if (draftTimer) clearTimeout(draftTimer);
@@ -230,6 +299,8 @@ export function createComposerController(options: ComposerControllerOptions = {}
       historyRequest++;
       stopHistorySubscription?.();
       stopHistorySubscription = undefined;
+      stopBackgroundSubscription?.();
+      stopBackgroundSubscription = undefined;
       historySubscriber = undefined;
       revokeHistory(historyObjectUrls);
       historyObjectUrls = [];
