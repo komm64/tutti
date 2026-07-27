@@ -51,7 +51,11 @@ const PLATFORM_KINDS = {
 const PREVIEW_DRAFT_READERS = {
   threads: {
     pageUrl: /^https:\/\/(?:www\.)?threads\.(?:com|net)\//,
-    selector: 'div[contenteditable="true"][role="textbox"], div[contenteditable="plaintext-only"]',
+    selector:
+      '[role="dialog"] div[contenteditable="true"][role="textbox"],' +
+      '[role="dialog"] div[contenteditable="plaintext-only"],' +
+      '[role="alertdialog"] div[contenteditable="true"][role="textbox"],' +
+      '[role="alertdialog"] div[contenteditable="plaintext-only"]',
   },
 };
 
@@ -308,7 +312,7 @@ for (const caseName of requestedCases) {
         if (result.url) failures.push(`${caseName}/${platform}: preview returned URL ${result.url}`);
         if (result.flow?.submitReached) failures.push(`${caseName}/${platform}: preview reached submit action`);
         if (caseDef.verifyPreviewDraftText && PREVIEW_DRAFT_READERS[platform]) {
-          const draft = await readPreviewDraftText(ctx, platform);
+          const draft = await waitForPreviewDraftText(ctx, platform, text);
           if (!draft.found) {
             failures.push(`${caseName}/${platform}: preview draft editor was not found`);
           } else if (draft.text !== text) {
@@ -437,12 +441,11 @@ function splitArg(name) {
 async function readPreviewDraftText(ctx, platform) {
   const reader = PREVIEW_DRAFT_READERS[platform];
   if (!reader) return { found: false };
+  const candidates = [];
   for (const page of ctx.pages()) {
     if (!reader.pageUrl.test(page.url())) continue;
     const drafts = page.locator(reader.selector);
     const count = await drafts.count();
-    if (count === 0) continue;
-    const candidates = [];
     for (let i = 0; i < count; i += 1) {
       const draft = drafts.nth(i);
       const domText = await draft.innerText();
@@ -473,17 +476,29 @@ async function readPreviewDraftText(ctx, platform) {
         domText,
         lexicalText,
         visible: await draft.isVisible(),
+        pageUrl: page.url(),
       });
     }
-    candidates.sort((a, b) => Number(b.visible) - Number(a.visible) || b.text.length - a.text.length);
-    return {
-      found: true,
-      text: candidates[0]?.text ?? '',
-      url: page.url(),
-      candidates,
-    };
   }
-  return { found: false };
+  if (candidates.length === 0) return { found: false };
+  candidates.sort((a, b) => Number(b.visible) - Number(a.visible) || b.text.length - a.text.length);
+  return {
+    found: true,
+    text: candidates[0]?.text ?? '',
+    url: candidates[0]?.pageUrl,
+    candidates,
+  };
+}
+
+async function waitForPreviewDraftText(ctx, platform, expectedText, timeoutMs = 5000) {
+  const deadline = Date.now() + timeoutMs;
+  let last = { found: false };
+  do {
+    last = await readPreviewDraftText(ctx, platform);
+    if (last.found && last.text === expectedText) return last;
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 200));
+  } while (Date.now() < deadline);
+  return last;
 }
 
 function supportsCase(platform, caseDef) {
