@@ -2,7 +2,7 @@ import type { ImageAttachment, PlatformId, PostResultMessage } from '../messages
 import { addToPostHistory } from '../storage';
 import { releaseAttachmentTransfers, resolveAttachmentToBytes } from '../utils/attachment';
 import { compressImageForHistory, putMedia } from '../utils/history-media';
-import { extractPostId } from '../utils/post-id';
+import { extractPostId } from './platform-strategies';
 import { computePostFingerprint } from './post-fingerprint';
 import { postedResults, realPostResults } from './post-result-policy';
 
