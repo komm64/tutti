@@ -9,10 +9,8 @@ import type { PlatformAdapter } from '../adapters/types';
 import type { ApiPostResult } from '../api/types';
 import { getLastSeenUsers, getSettings } from '../storage';
 import { splitTextForPlatform } from '../utils/platform-text';
-import { isVerifySupported } from '../utils/post-verify';
 import { log } from '../utils/logger';
 import { t } from '../utils/i18n';
-import { runVerify } from './verify-dispatcher';
 import {
   closeTabSafely,
   openOrFocusTab,
@@ -21,6 +19,8 @@ import {
 import {
   buildReplyOverrideUrl,
   continuationNeedsReplyUrl,
+  isVerifySupported,
+  runVerify,
   tryApiPath,
 } from './platform-strategies';
 import { capturePostUrlFromTabWithRetry } from './post-url-capture';

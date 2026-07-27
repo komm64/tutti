@@ -5,6 +5,7 @@ import {
   buildReplyOverrideUrl,
   continuationNeedsReplyUrl,
   extractPostId,
+  isVerifySupported,
 } from './platform-strategies';
 
 describe('background platform strategy registry', () => {
@@ -36,6 +37,13 @@ describe('background platform strategy registry', () => {
     expect(buildReplyOverrideUrl('x', 0, 'https://x.com/alice/status/123456')).toBeUndefined();
     expect(buildReplyOverrideUrl('bluesky', 1, 'https://bsky.app/profile/alice/post/abc')).toBeUndefined();
     expect(buildReplyOverrideUrl('x', 1, 'https://x.com/home')).toBeUndefined();
+  });
+
+  it('registers verification for every current platform', () => {
+    for (const [platform, strategy] of Object.entries(backgroundPlatformStrategies)) {
+      expect(strategy.verifyPost).toBeTypeOf('function');
+      expect(isVerifySupported(platform as keyof typeof backgroundPlatformStrategies)).toBe(true);
+    }
   });
 });
 

@@ -12,9 +12,9 @@
  */
 
 import type { PlatformId, VerifyPostDomResult } from '../messages';
-import { verifyBlueskyPost } from '../api/bluesky-verify';
-import { verifyMastodonPost } from '../api/mastodon-verify';
-import { verifyMisskeyPost } from '../api/misskey-verify';
+import { verifyBlueskyPost as verifyBlueskyViaApi } from '../api/bluesky-verify';
+import { verifyMastodonPost as verifyMastodonViaApi } from '../api/mastodon-verify';
+import { verifyMisskeyPost as verifyMisskeyViaApi } from '../api/misskey-verify';
 import {
   verifyViaOg,
   cleanInstagramDescription,
@@ -30,39 +30,116 @@ import { extractHttpUrls } from '../utils/text-urls';
 import { log } from '../utils/logger';
 import { retryTransientTabAction } from './tab-action-retry';
 
-export async function runVerify(
+export type VerificationStrategy = (
+  postUrl: string,
+  expected: VerifyExpectation,
+) => Promise<VerifyResult>;
+
+interface OgVerificationPolicy {
+  cleanDescription: (description: string) => string;
+  judgeImage?: (ogImage: string) => boolean;
+  forceDomFallback?: (initial: VerifyResult, expected: VerifyExpectation) => boolean;
+  resolveDomHasImages?: (
+    response: VerifyPostDomResult,
+    expected: VerifyExpectation,
+    ogImage: string,
+  ) => boolean;
+  acceptDomResult?: (result: VerifyResult) => boolean;
+}
+
+export const verifyBlueskyPost: VerificationStrategy = verifyBlueskyViaApi;
+export const verifyMastodonPost: VerificationStrategy = verifyMastodonViaApi;
+export const verifyMisskeyPost: VerificationStrategy = verifyMisskeyViaApi;
+
+export const verifyXPost: VerificationStrategy = (postUrl, expected) => verifyOgPost(
+  'x',
+  postUrl,
+  expected,
+  {
+    cleanDescription: cleanXDescription,
+    judgeImage: judgeXImage,
+    forceDomFallback: (initial) => initial.issues.length > 0,
+    acceptDomResult: (result) => result.issues.length === 0,
+  },
+);
+
+export const verifyInstagramPost: VerificationStrategy = (postUrl, expected) => verifyOgPost(
+  'instagram',
+  postUrl,
+  expected,
+  {
+    cleanDescription: cleanInstagramDescription,
+    judgeImage: judgeInstagramImage,
+  },
+);
+
+export const verifyThreadsPost: VerificationStrategy = (postUrl, expected) => verifyOgPost(
+  'threads',
+  postUrl,
+  expected,
+  {
+    cleanDescription: cleanThreadsDescription,
+    forceDomFallback: (_initial, expectation) => expectation.hasImages,
+    resolveDomHasImages: (response, expectation, ogImage) => (
+      expectation.hasImages && typeof response.hasImage === 'boolean'
+        ? response.hasImage
+        : !!ogImage
+    ),
+  },
+);
+
+export const verifyTumblrPost: VerificationStrategy = createGenericOgStrategy('tumblr');
+export const verifyPixivPost: VerificationStrategy = createGenericOgStrategy('pixiv');
+export const verifyDeviantArtPost: VerificationStrategy = createGenericOgStrategy('deviantart');
+
+export const verifyTikTokPost: VerificationStrategy = (postUrl, expected) => verifyOgPost(
+  'tiktok',
+  postUrl,
+  expected,
+  {
+    cleanDescription: cleanGenericDescription,
+    forceDomFallback: (initial) => initial.issues.length > 0,
+  },
+);
+
+export const verifyYouTubePost: VerificationStrategy = (postUrl, expected) => verifyOgPost(
+  'youtube',
+  postUrl,
+  expected,
+  { cleanDescription: cleanYouTubeDescription },
+);
+
+function createGenericOgStrategy(platform: PlatformId): VerificationStrategy {
+  return (postUrl, expected) => verifyOgPost(
+    platform,
+    postUrl,
+    expected,
+    { cleanDescription: cleanGenericDescription },
+  );
+}
+
+async function verifyOgPost(
   platform: PlatformId,
   postUrl: string,
   expected: VerifyExpectation,
+  policy: OgVerificationPolicy,
 ): Promise<VerifyResult> {
-  if (platform === 'bluesky') return verifyBlueskyPost(postUrl, expected);
-  if (platform === 'mastodon') return verifyMastodonPost(postUrl, expected);
-  if (platform === 'misskey') return verifyMisskeyPost(postUrl, expected);
-
   // og:meta tag verify (8 SNS 共通) — まず server-side fetch で試す
-  const cleaner =
-    platform === 'instagram' ? cleanInstagramDescription :
-    platform === 'threads' ? cleanThreadsDescription :
-    platform === 'x' ? cleanXDescription :
-    platform === 'youtube' ? cleanYouTubeDescription :
-    cleanGenericDescription;
-  const judgeImg =
-    platform === 'instagram' ? judgeInstagramImage :
-    platform === 'x' ? judgeXImage :
-    undefined;
-  const r1 = await verifyViaOg(postUrl, expected, { cleanDescription: cleaner, judgeImage: judgeImg });
+  const r1 = await verifyViaOg(postUrl, expected, {
+    cleanDescription: policy.cleanDescription,
+    judgeImage: policy.judgeImage,
+  });
   const needsDomFallback =
     !r1.verified ||
     r1.issues.some((issue) => issue.severity === 'error') ||
-    ((platform === 'x' || platform === 'tiktok') && r1.issues.length > 0) ||
-    (platform === 'threads' && expected.hasImages);
+    policy.forceDomFallback?.(r1, expected) === true;
   if (!needsDomFallback) return r1;
 
   // server-side fetch が失敗、 または public HTML が本文を省略した場合は DOM fallback。
   // X は未ログイン HTML を HTTP 200 で返すため、 verified=true でも caption-missing
   // になることがある。
   log.info(`${platform}: og fetch 不十分、 DOM verify に fallback`);
-  return await verifyViaDomTab(platform, postUrl, expected, cleaner, judgeImg);
+  return await verifyViaDomTab(platform, postUrl, expected, policy);
 }
 
 /**
@@ -73,8 +150,7 @@ async function verifyViaDomTab(
   platform: PlatformId,
   postUrl: string,
   expected: VerifyExpectation,
-  cleaner: (s: string) => string,
-  judgeImg: ((og: string) => boolean) | undefined,
+  policy: OgVerificationPolicy,
 ): Promise<VerifyResult> {
   let verifyTab: Browser.tabs.Tab | undefined;
   try {
@@ -98,10 +174,10 @@ async function verifyViaDomTab(
         const img = resp.ogImage ?? '';
         // public OG が一部だけ残る SNS がある。DOM fallback では body も結合し、
         // hydration 後の実本文を比較対象に含める。
-        const text = [cleaner(desc), resp.bodyExcerpt ?? ''].filter(Boolean).join('\n');
-        const hasImages = platform === 'threads' && expected.hasImages && typeof resp.hasImage === 'boolean'
-          ? resp.hasImage
-          : judgeImg ? judgeImg(img) : !!img;
+        const text = [policy.cleanDescription(desc), resp.bodyExcerpt ?? ''].filter(Boolean).join('\n');
+        const hasImages = policy.resolveDomHasImages
+          ? policy.resolveDomHasImages(resp, expected, img)
+          : policy.judgeImage ? policy.judgeImage(img) : !!img;
         const hasVideo = expected.hasVideo ? resp.hasVideo === true : undefined;
         latestResult = buildVerifyResult(expected, {
           text,
@@ -110,7 +186,7 @@ async function verifyViaDomTab(
           links: expected.expectedUrls?.length ? extractHttpUrls(text) : undefined,
         });
         const hasHardIssue = latestResult.issues.some((issue) => issue.severity === 'error');
-        if (!hasHardIssue && (platform !== 'x' || latestResult.issues.length === 0)) {
+        if (!hasHardIssue && (policy.acceptDomResult?.(latestResult) ?? true)) {
           return latestResult;
         }
       } catch { /* content script not ready yet */ }

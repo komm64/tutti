@@ -45,6 +45,7 @@ vi.mock('./adapter-resolver', () => ({
 
 vi.mock('./platform-strategies', async (importOriginal) => ({
   ...await importOriginal<typeof import('./platform-strategies')>(),
+  runVerify: mocks.runVerify,
   tryApiPath: mocks.tryApiPath,
 }));
 
@@ -74,10 +75,6 @@ vi.mock('./tab-action-retry', () => ({
 vi.mock('./tab-management', () => ({
   closeTabSafely: mocks.closeTabSafely,
   openOrFocusTab: mocks.openOrFocusTab,
-}));
-
-vi.mock('./verify-dispatcher', () => ({
-  runVerify: mocks.runVerify,
 }));
 
 function adapter(id: PlatformAdapter['id'] = 'mastodon'): PlatformAdapter {
