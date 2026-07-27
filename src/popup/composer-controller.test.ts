@@ -266,4 +266,61 @@ describe('composer controller', () => {
     stop();
     expect(unsubscribe).toHaveBeenCalledOnce();
   });
+
+  it('owns diagnostics, reporting, clipboard, and update workflows', async () => {
+    const sendRuntimeMessage = vi.fn(async (message: unknown) => {
+      const type = (message as { type?: string }).type;
+      if (type === 'DIAGNOSE_REQUEST') return { report: { status: 'ok' } };
+      if (type === 'GET_EXTENSION_UPDATE_STATE') {
+        return { state: { available: true, version: '0.6.0' } };
+      }
+      if (type === 'APPLY_EXTENSION_UPDATE') return { ok: false, error: 'posting_in_progress' };
+      return undefined;
+    });
+    const writeClipboard = vi.fn(async () => {});
+    const submitErrorReport = vi.fn(async () => ({ ok: true, issueUrl: 'https://example.test/1' }));
+    const openGitHubIssue = vi.fn(async () => {});
+    const controller = createComposerController({
+      sendRuntimeMessage,
+      writeClipboard,
+      submitErrorReport,
+      openGitHubIssue,
+      reportEndpoint: 'https://report.example.test',
+    });
+    const context = { version: '0.5.49' } as never;
+
+    await expect(controller.runDiagnostics()).resolves.toBe(
+      JSON.stringify({ status: 'ok' }, null, 2),
+    );
+    await expect(controller.copyDiagnostics('diagnostics')).resolves.toBe(true);
+    expect(writeClipboard).toHaveBeenCalledWith('diagnostics');
+    await expect(controller.refreshExtensionUpdateState()).resolves.toEqual({
+      available: true,
+      version: '0.6.0',
+    });
+    await expect(controller.applyExtensionUpdate()).resolves.toEqual({
+      ok: false,
+      error: 'posting_in_progress',
+    });
+
+    await expect(controller.submitErrorReport(
+      'failed',
+      context,
+      (hours) => `deduped ${hours}`,
+    )).resolves.toEqual({ ok: true, issueUrl: 'https://example.test/1' });
+    expect(submitErrorReport).toHaveBeenCalledWith({
+      errorText: 'failed',
+      context,
+      endpoint: 'https://report.example.test',
+      dedupedMessage: expect.any(Function),
+    });
+
+    await controller.openGitHubIssue('failed', context, 'note', 'overflow');
+    expect(openGitHubIssue).toHaveBeenCalledWith({
+      errorText: 'failed',
+      context,
+      note: 'note',
+      overflowNote: 'overflow',
+    });
+  });
 });
