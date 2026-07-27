@@ -14,6 +14,8 @@ export interface BackgroundPlatformStrategy {
   parsePostId: (url: URL) => string | null;
   /** credentials / borrowed session がある場合だけ使う API posting 手続き。 */
   apiPost?: ApiPostingStrategy;
+  /** 2 chunk 目以降を captured parent URL へ接続する compose URL 手続き。 */
+  continuationUrl?: (previousPostUrl: string) => string | undefined;
 }
 
 /**
@@ -23,6 +25,10 @@ export interface BackgroundPlatformStrategy {
 export const backgroundPlatformStrategies: Record<PlatformId, BackgroundPlatformStrategy> = {
   x: {
     parsePostId: ({ pathname }) => pathname.match(/\/status(?:es)?\/(\d+)/)?.[1] ?? null,
+    continuationUrl: (previousPostUrl) => {
+      const statusId = previousPostUrl.match(/\/status\/(\d+)/)?.[1];
+      return statusId ? `https://x.com/intent/post?in_reply_to=${statusId}` : undefined;
+    },
   },
   bluesky: {
     parsePostId: ({ pathname }) => pathname.match(/\/post\/([a-zA-Z0-9]+)/)?.[1] ?? null,
@@ -30,6 +36,7 @@ export const backgroundPlatformStrategies: Record<PlatformId, BackgroundPlatform
   },
   threads: {
     parsePostId: ({ pathname }) => pathname.match(/\/post\/([A-Za-z0-9_-]+)/)?.[1] ?? null,
+    continuationUrl: (previousPostUrl) => previousPostUrl,
   },
   mastodon: {
     parsePostId: ({ pathname }) => (
@@ -38,6 +45,7 @@ export const backgroundPlatformStrategies: Record<PlatformId, BackgroundPlatform
       ?? null
     ),
     apiPost: tryMastodonApiPost,
+    continuationUrl: (previousPostUrl) => previousPostUrl,
   },
   misskey: {
     parsePostId: ({ pathname }) => pathname.match(/\/notes\/([a-zA-Z0-9]+)/)?.[1] ?? null,
@@ -108,4 +116,17 @@ export async function tryApiPath(
   const strategy = getBackgroundPlatformStrategy(platform).apiPost;
   if (!strategy) return 'no-credentials';
   return await strategy({ text, images, cw, visibility, replyToUrl });
+}
+
+export function continuationNeedsReplyUrl(platform: PlatformId): boolean {
+  return getBackgroundPlatformStrategy(platform).continuationUrl !== undefined;
+}
+
+export function buildReplyOverrideUrl(
+  platform: PlatformId,
+  chunkIndex: number,
+  previousPostUrl: string | undefined,
+): string | undefined {
+  if (chunkIndex === 0 || !previousPostUrl) return undefined;
+  return getBackgroundPlatformStrategy(platform).continuationUrl?.(previousPostUrl);
 }

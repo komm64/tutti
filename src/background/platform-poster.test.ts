@@ -6,7 +6,6 @@ import {
   buildVerifyExpectationForChunk,
   buildFinalChunkResult,
   buildDomPostAttempts,
-  buildReplyOverrideUrl,
   getComposeUrlForMedia,
   isAmbiguousPostDispatchError,
   resolvePreSubmitLoadOptions,
@@ -39,27 +38,6 @@ describe('platform poster helpers', () => {
       relaxedComposeUrlReady: true,
     });
     expect(resolvePreSubmitLoadOptions(threadsAdapter)).toBeUndefined();
-  });
-
-  it('builds X reply intent URLs from previous post URLs', () => {
-    expect(buildReplyOverrideUrl('x', 1, 'https://x.com/alice/status/123456')).toBe(
-      'https://x.com/intent/post?in_reply_to=123456',
-    );
-  });
-
-  it('does not build reply URLs without a continuation target or for unsupported platforms', () => {
-    expect(buildReplyOverrideUrl('x', 0, 'https://x.com/alice/status/123456')).toBeUndefined();
-    expect(buildReplyOverrideUrl('bluesky', 1, 'https://bsky.app/profile/alice/post/abc')).toBeUndefined();
-    expect(buildReplyOverrideUrl('x', 1, 'https://x.com/home')).toBeUndefined();
-  });
-
-  it('opens Mastodon and Threads continuation chunks from the previous post URL', () => {
-    expect(buildReplyOverrideUrl('mastodon', 1, 'https://mastodon.social/@alice/1234567890')).toBe(
-      'https://mastodon.social/@alice/1234567890',
-    );
-    expect(buildReplyOverrideUrl('threads', 1, 'https://www.threads.com/@alice/post/ABC123')).toBe(
-      'https://www.threads.com/@alice/post/ABC123',
-    );
   });
 
   it('builds safe pre-submit fallback attempts for normal SNS posting', () => {

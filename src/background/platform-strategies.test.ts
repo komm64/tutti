@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { adapters } from '../adapters/registry';
 import {
   backgroundPlatformStrategies,
+  buildReplyOverrideUrl,
+  continuationNeedsReplyUrl,
   extractPostId,
 } from './platform-strategies';
 
@@ -11,6 +13,29 @@ describe('background platform strategy registry', () => {
     for (const strategy of Object.values(backgroundPlatformStrategies)) {
       expect(strategy.parsePostId).toBeTypeOf('function');
     }
+  });
+
+  it('derives continuation support and URLs from strategy membership', () => {
+    expect(Object.entries(backgroundPlatformStrategies)
+      .filter(([, strategy]) => strategy.continuationUrl)
+      .map(([platform]) => platform)).toEqual(['x', 'threads', 'mastodon']);
+    expect(continuationNeedsReplyUrl('x')).toBe(true);
+    expect(continuationNeedsReplyUrl('mastodon')).toBe(true);
+    expect(continuationNeedsReplyUrl('threads')).toBe(true);
+    expect(continuationNeedsReplyUrl('bluesky')).toBe(false);
+
+    expect(buildReplyOverrideUrl('x', 1, 'https://x.com/alice/status/123456')).toBe(
+      'https://x.com/intent/post?in_reply_to=123456',
+    );
+    expect(buildReplyOverrideUrl('mastodon', 1, 'https://mastodon.social/@alice/123')).toBe(
+      'https://mastodon.social/@alice/123',
+    );
+    expect(buildReplyOverrideUrl('threads', 1, 'https://www.threads.com/@alice/post/ABC')).toBe(
+      'https://www.threads.com/@alice/post/ABC',
+    );
+    expect(buildReplyOverrideUrl('x', 0, 'https://x.com/alice/status/123456')).toBeUndefined();
+    expect(buildReplyOverrideUrl('bluesky', 1, 'https://bsky.app/profile/alice/post/abc')).toBeUndefined();
+    expect(buildReplyOverrideUrl('x', 1, 'https://x.com/home')).toBeUndefined();
   });
 });
 
