@@ -1,4 +1,4 @@
-import { describe, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 import {
@@ -77,6 +77,16 @@ describe('platform architecture guard', () => {
       violations,
       allowances: PLATFORM_LITERAL_ALLOWANCES,
     });
+  });
+
+  it('keeps stored page-world API URL capture in its strategy module', () => {
+    const capture = readFileSync('src/background/post-url-capture.ts', 'utf8');
+
+    expect(capture).toContain("from './post-url-stored-api'");
+    expect(capture).not.toContain("'tutti:ig-latest-post'");
+    expect(capture).not.toContain("'tutti:mastodon-latest-post'");
+    expect(capture).not.toContain("'tutti:threads-latest-post'");
+    expect(capture).not.toContain("'tutti:tumblr-latest-post'");
   });
 });
 

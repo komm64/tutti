@@ -5,8 +5,9 @@ import {
   isRenderedProfileFallbackPlatform,
 } from './post-url-rendered-profile';
 import { getSettings } from '../storage';
-import { normalizeCaptureText, readFreshCapturedPost } from '../utils/post-capture-record';
+import { normalizeCaptureText } from '../utils/post-capture-record';
 import { retryTransientTabAction } from './tab-action-retry';
+import { captureStoredApiPostUrl } from './post-url-stored-api';
 
 export interface CapturePostUrlOptions {
   platform: PlatformId;
@@ -429,59 +430,6 @@ async function resolveExpectedUserForCapture(
   } catch (e) {
     dbg(`expected user storage lookup failed: ${e instanceof Error ? e.message : String(e)}`);
   }
-  return undefined;
-}
-
-async function captureStoredApiPostUrl(
-  platform: PlatformId,
-  tabId: number,
-  text: string,
-  dbg: (message: string) => void,
-  minCapturedAt?: number,
-): Promise<string | undefined> {
-  const key = platform === 'instagram'
-    ? 'tutti:ig-latest-post'
-    : platform === 'mastodon'
-      ? 'tutti:mastodon-latest-post'
-    : platform === 'threads'
-      ? 'tutti:threads-latest-post'
-    : platform === 'tumblr'
-      ? 'tutti:tumblr-latest-post'
-      : undefined;
-  if (!key) return undefined;
-
-  for (let i = 0; i < 30; i += 1) {
-    try {
-      const results = await browser.scripting.executeScript({
-        target: { tabId },
-        func: (storageKey: string) => {
-          try {
-            return localStorage.getItem(storageKey);
-          } catch {
-            return null;
-          }
-        },
-        args: [key],
-        world: 'MAIN',
-      });
-      const raw = results?.[0]?.result;
-      const record = readFreshCapturedPost(typeof raw === 'string' ? raw : null, text, 120_000);
-      if (record && minCapturedAt && record.capturedAt < minCapturedAt) {
-        dbg(`stored API response is stale (capturedAt=${record.capturedAt}, min=${minCapturedAt})`);
-        await sleep(500);
-        continue;
-      }
-      if (record?.url) {
-        dbg(`URL captured via stored API response: ${record.url}`);
-        return record.url;
-      }
-    } catch (e) {
-      dbg(`stored API response read failed: ${e instanceof Error ? e.message : String(e)}`);
-      return undefined;
-    }
-    await sleep(500);
-  }
-  dbg('stored API response URL not found');
   return undefined;
 }
 
