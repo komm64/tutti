@@ -1,7 +1,8 @@
-import type { ExtensionUpdateState } from '../messages';
+import type { ExtensionUpdateState, PostResultMessage } from '../messages';
 import type { PlatformId } from '../types/platform';
 import { decodeMessage } from '../utils/message-decoder';
 import {
+  clearDraft,
   getDraft,
   getSelectedPlatforms,
   saveDraft,
@@ -23,6 +24,8 @@ import {
 import {
   restoreImagePreviews,
   restoreVideoPreview,
+  revokeImagePreviews,
+  revokeVideoPreview,
   serializeImagesForDraft,
   serializeVideoForDraft,
 } from './media-preview';
@@ -38,6 +41,15 @@ import {
   type BgStateResponse,
   type PostingViewState,
 } from './posting-progress';
+import {
+  failedRetryPlatforms,
+  mergePostResults,
+  normalizeRetryGuardResults,
+  sendPostRequest,
+  shouldClearDraftAfterSubmit,
+  type PostSubmissionResponse,
+} from './post-submit';
+import { buildDraftKey, type DraftKeyInput } from './draft-key';
 import type {
   ImagePreview,
   ReportResult,
@@ -91,6 +103,28 @@ export interface ComposerUpdateApplyResult {
   detail?: string;
 }
 
+export interface ComposerSubmissionInput extends DraftKeyInput {
+  backgroundNoResponseMessage: string;
+}
+
+export interface ComposerSubmissionPatch {
+  posting?: boolean;
+  pendingPlatforms?: PlatformId[];
+  lastResults?: PostResultMessage[] | null;
+  errorMessage?: string | null;
+  draft?: {
+    text: string;
+    images: ImagePreview[];
+    video: VideoPreview | null;
+  };
+  lastResultDraftKey?: string;
+}
+
+export interface ComposerSubmissionCallbacks {
+  getLastResults: () => PostResultMessage[] | null;
+  applyPatch: (patch: ComposerSubmissionPatch) => void;
+}
+
 export interface ComposerControllerOptions {
   getDraft?: () => Promise<Draft | null>;
   saveDraft?: (draft: Draft) => Promise<void>;
@@ -109,6 +143,12 @@ export interface ComposerControllerOptions {
   openGitHubIssue?: typeof openPopupGitHubIssue;
   writeClipboard?: (text: string) => Promise<void>;
   reportEndpoint?: string;
+  sendPostRequest?: (
+    input: Parameters<typeof sendPostRequest>[0],
+  ) => Promise<PostSubmissionResponse | undefined>;
+  clearDraft?: () => Promise<void>;
+  revokeImagePreviews?: (images: readonly ImagePreview[]) => void;
+  revokeVideoPreview?: (video: VideoPreview | null | undefined) => void;
   draftDebounceMs?: number;
   selectionDebounceMs?: number;
 }
@@ -146,6 +186,10 @@ export function createComposerController(options: ComposerControllerOptions = {}
   const writeClipboard = options.writeClipboard ??
     ((text: string) => navigator.clipboard.writeText(text));
   const reportEndpoint = options.reportEndpoint ?? DEFAULT_REPORT_ENDPOINT;
+  const postRequest = options.sendPostRequest ?? sendPostRequest;
+  const clearStoredDraft = options.clearDraft ?? clearDraft;
+  const revokeImages = options.revokeImagePreviews ?? revokeImagePreviews;
+  const revokeVideo = options.revokeVideoPreview ?? revokeVideoPreview;
   const draftDebounceMs = options.draftDebounceMs ?? 300;
   const selectionDebounceMs = options.selectionDebounceMs ?? 200;
   let draftTimer: ReturnType<typeof setTimeout> | undefined;
@@ -167,6 +211,79 @@ export function createComposerController(options: ComposerControllerOptions = {}
     revokeHistory(historyObjectUrls);
     historyObjectUrls = objectUrls;
     historySubscriber?.({ entries, thumbs });
+  };
+
+  const submitPlatforms = async (
+    input: ComposerSubmissionInput,
+    platforms: readonly PlatformId[],
+    isRetry: boolean,
+    callbacks: ComposerSubmissionCallbacks,
+  ): Promise<void> => {
+    if (platforms.length === 0) return;
+    const submissionDraftKey = buildDraftKey(input);
+    callbacks.applyPatch({
+      posting: true,
+      ...(isRetry ? {} : { lastResults: [] }),
+      pendingPlatforms: [...platforms],
+      errorMessage: null,
+    });
+
+    try {
+      const response = await postRequest({
+        text: input.text,
+        platforms: [...platforms],
+        images: input.images,
+        video: input.video,
+        imageAlts: input.imageAlts,
+        autoPost: input.autoPost,
+        cw: input.cw,
+        visibility: input.visibility,
+        trimToS: input.trimToS,
+        intent: isRetry ? 'retry' : 'new',
+      });
+      if (!response) {
+        callbacks.applyPatch({ errorMessage: input.backgroundNoResponseMessage });
+      } else if (response.error) {
+        callbacks.applyPatch({ errorMessage: response.error });
+      } else if (response.results) {
+        const normalizedResults = isRetry
+          ? normalizeRetryGuardResults(response.results)
+          : response.results;
+        const lastResults = mergePostResults(
+          callbacks.getLastResults(),
+          normalizedResults,
+          isRetry,
+        );
+        if (shouldClearDraftAfterSubmit(input.autoPost, lastResults)) {
+          revokeImages(input.images);
+          revokeVideo(input.video);
+          void clearStoredDraft().catch(() => {});
+          const clearedDraft = { text: '', images: [], video: null };
+          callbacks.applyPatch({
+            lastResults,
+            pendingPlatforms: [],
+            draft: clearedDraft,
+            lastResultDraftKey: buildDraftKey({
+              ...input,
+              ...clearedDraft,
+            }),
+          });
+        } else {
+          callbacks.applyPatch({
+            lastResults,
+            pendingPlatforms: [],
+            lastResultDraftKey: submissionDraftKey,
+          });
+        }
+      }
+    } catch (error) {
+      callbacks.applyPatch({
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      callbacks.applyPatch({ posting: false, pendingPlatforms: [] });
+      void refreshHistory().catch(() => {});
+    }
   };
 
   return {
@@ -387,6 +504,23 @@ export function createComposerController(options: ComposerControllerOptions = {}
       overflowNote: string,
     ): Promise<void> {
       await openGitHubIssue({ errorText, context, note, overflowNote });
+    },
+
+    submitPlatforms,
+
+    async retryFailed(
+      input: ComposerSubmissionInput,
+      posting: boolean,
+      callbacks: ComposerSubmissionCallbacks,
+    ): Promise<void> {
+      const current = callbacks.getLastResults();
+      if (!current || posting) return;
+      const failed = failedRetryPlatforms(current);
+      if (failed.length === 0) return;
+      callbacks.applyPatch({
+        lastResults: current.filter((result) => result.success),
+      });
+      await submitPlatforms(input, failed, true, callbacks);
     },
 
     dispose(): void {

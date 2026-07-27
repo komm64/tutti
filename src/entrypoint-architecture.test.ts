@@ -85,6 +85,16 @@ describe('entrypoint architecture guard', () => {
     expect(source).not.toContain("type: 'DIAGNOSE_REQUEST'");
     expect(source).not.toContain("type: 'APPLY_EXTENSION_UPDATE'");
   });
+
+  it('keeps popup submission orchestration in the composer controller', () => {
+    const source = readFileSync('entrypoints/popup/App.svelte', 'utf8');
+    expect(source).toContain('composerController.submitPlatforms');
+    expect(source).toContain('composerController.retryFailed');
+    expect(source).not.toContain('sendPostRequest');
+    expect(source).not.toContain('mergePostResults');
+    expect(source).not.toContain('shouldClearDraftAfterSubmit');
+    expect(source).not.toContain('failedRetryPlatforms');
+  });
 });
 
 function categorize(path: string): EntrypointCategory {

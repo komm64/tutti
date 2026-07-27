@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { PostResultMessage } from '../messages';
 import { DEFAULT_SELECTED_PLATFORMS } from './platforms';
 import {
   createComposerController,
@@ -322,5 +323,136 @@ describe('composer controller', () => {
       note: 'note',
       overflowNote: 'overflow',
     });
+  });
+
+  it('owns successful submission transitions and durable draft cleanup', async () => {
+    const clearDraft = vi.fn(async () => {});
+    const revokeImagePreviews = vi.fn();
+    const revokeVideoPreview = vi.fn();
+    const sendPostRequest = vi.fn(async () => ({
+      results: [{
+        type: 'POST_RESULT' as const,
+        platform: 'x' as const,
+        success: true,
+        url: 'https://x.com/alice/status/123',
+      }],
+    }));
+    const controller = createComposerController({
+      sendPostRequest,
+      clearDraft,
+      revokeImagePreviews,
+      revokeVideoPreview,
+      loadHistory: vi.fn(async () => ({
+        entries: [],
+        thumbs: {},
+        objectUrls: [],
+      })),
+    });
+    const image = {
+      name: 'image.png',
+      type: 'image/png',
+      data: 'AA==',
+      previewUrl: 'blob:image',
+    };
+    let results: PostResultMessage[] | null = null;
+    const patches: unknown[] = [];
+    const input = {
+      text: 'hello',
+      selectedIds: ['x' as const],
+      images: [image],
+      video: null,
+      imageAlts: ['alt'],
+      cw: '',
+      visibility: 'public' as const,
+      trimToS: null,
+      autoPost: true,
+      backgroundNoResponseMessage: 'no response',
+    };
+
+    await controller.submitPlatforms(input, ['x'], false, {
+      getLastResults: () => results,
+      applyPatch: (patch) => {
+        patches.push(patch);
+        if ('lastResults' in patch) results = patch.lastResults as never;
+      },
+    });
+
+    expect(sendPostRequest).toHaveBeenCalledWith(expect.objectContaining({
+      text: 'hello',
+      platforms: ['x'],
+      autoPost: true,
+      intent: 'new',
+    }));
+    expect(patches[0]).toEqual({
+      posting: true,
+      lastResults: [],
+      pendingPlatforms: ['x'],
+      errorMessage: null,
+    });
+    expect(patches).toContainEqual(expect.objectContaining({
+      pendingPlatforms: [],
+      draft: { text: '', images: [], video: null },
+      lastResultDraftKey: expect.any(String),
+    }));
+    expect(patches.at(-1)).toEqual({ posting: false, pendingPlatforms: [] });
+    expect(revokeImagePreviews).toHaveBeenCalledWith([image]);
+    expect(revokeVideoPreview).toHaveBeenCalledWith(null);
+    expect(clearDraft).toHaveBeenCalledOnce();
+  });
+
+  it('retries only failed platforms and preserves successful results', async () => {
+    const sendPostRequest = vi.fn(async () => ({
+      results: [{
+        type: 'POST_RESULT' as const,
+        platform: 'threads' as const,
+        success: true,
+        preview: true,
+      }],
+    }));
+    const controller = createComposerController({
+      sendPostRequest,
+      loadHistory: vi.fn(async () => ({
+        entries: [],
+        thumbs: {},
+        objectUrls: [],
+      })),
+    });
+    let results: PostResultMessage[] = [
+      { type: 'POST_RESULT' as const, platform: 'x' as const, success: true },
+      { type: 'POST_RESULT' as const, platform: 'threads' as const, success: false },
+    ];
+    const input = {
+      text: 'retry',
+      selectedIds: ['x' as const, 'threads' as const],
+      images: [],
+      video: null,
+      imageAlts: [],
+      cw: '',
+      visibility: 'public' as const,
+      trimToS: null,
+      autoPost: false,
+      backgroundNoResponseMessage: 'no response',
+    };
+
+    await controller.retryFailed(input, false, {
+      getLastResults: () => results,
+      applyPatch: (patch) => {
+        if ('lastResults' in patch && patch.lastResults) results = patch.lastResults;
+      },
+    });
+
+    expect(sendPostRequest).toHaveBeenCalledWith(expect.objectContaining({
+      platforms: ['threads'],
+      intent: 'retry',
+    }));
+    expect(results).toEqual([
+      { type: 'POST_RESULT', platform: 'x', success: true },
+      {
+        type: 'POST_RESULT',
+        platform: 'threads',
+        success: true,
+        preview: true,
+      },
+    ]);
   });
 });
