@@ -18,6 +18,12 @@ import { chromium } from 'playwright';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { existsSync } from 'node:fs';
+import {
+  connectPlaywrightCdp,
+  disconnectCdp,
+  resolveCdpEndpoint,
+  resolveExtensionId,
+} from './cdp-harness.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '..', '..');
@@ -34,7 +40,7 @@ const userDataDir = process.env.E2E_USER_DATA_DIR
 // CDP attach mode: 起動中の Chromium に接続する (TikTok 等 session 継続性を見る
 // anti-bot 対策)。事前に Tutti-test-login.bat を `--remote-debugging-port=9222`
 // 付きで起動しておく必要がある。E2E_CDP=http://localhost:9222 で有効化
-const cdpEndpoint = process.env.E2E_CDP;
+const cdpEndpoint = resolveCdpEndpoint({ fallback: '' });
 
 if (!existsSync(extensionDir)) {
   console.error(`[e2e] extension dir not found: ${extensionDir}`);
@@ -56,11 +62,18 @@ async function openCtx(platform) {
   if (cdpEndpoint) {
     // 拡張ありの Chromium に attach する場合、Playwright の target 列挙が
     // 遅いことがあるので timeout を長めに
-    const browser = await chromium.connectOverCDP(cdpEndpoint, { timeout: 90_000 });
+    const browser = await connectPlaywrightCdp({
+      chromium,
+      endpoint: cdpEndpoint,
+      timeoutMs: 90_000,
+    });
     const ctxs = browser.contexts();
     const ctx = ctxs[0];
-    if (!ctx) throw new Error('[e2e] CDP: 既存 context が無い');
-    return { ctx, close: async () => { /* keep browser alive on CDP mode */ } };
+    if (!ctx) {
+      await disconnectCdp(browser);
+      throw new Error('[e2e] CDP: 既存 context が無い');
+    }
+    return { ctx, close: async () => { await disconnectCdp(browser); } };
   }
   const ctx = await chromium.launchPersistentContext(userDataDir, {
     headless: false,
@@ -85,11 +98,10 @@ for (const platform of platforms) {
   }
   console.log(`[e2e] launching Chrome for ${platform}...`);
   const { ctx, close } = await openCtx(platform);
-  const extensionId = process.env.E2E_EXTENSION_ID ?? await detectExtensionId(ctx);
-  console.log(`[e2e] extension id=${extensionId}`);
-
   let result;
   try {
+    const extensionId = await resolveExtensionId(ctx);
+    console.log(`[e2e] extension id=${extensionId}`);
     const mod = await import(`./platforms/${platform}.mjs`);
     result = await mod.run({ ctx, extensionId, debug });
     console.log(`[e2e] ${platform}: ${result.ok ? 'PASS' : 'FAIL'} ${result.note ?? ''}`);
@@ -109,19 +121,3 @@ for (const r of results) {
   if (!r.ok) allOk = false;
 }
 process.exit(allOk ? 0 : 1);
-
-async function detectExtensionId(ctx) {
-  // chrome://extensions/ の DOM から id を取る (Manifest V3)
-  // service worker URL が `chrome-extension://<id>/...` 形式なので、ctx の
-  // serviceWorkers() から id 抽出する方が速くて壊れにくい
-  for (let i = 0; i < 30; i++) {
-    const sws = ctx.serviceWorkers();
-    for (const sw of sws) {
-      const url = sw.url();
-      const m = url.match(/^chrome-extension:\/\/([a-z]+)\//);
-      if (m) return m[1];
-    }
-    await new Promise((r) => setTimeout(r, 200));
-  }
-  throw new Error('failed to detect extension id (service worker not found)');
-}

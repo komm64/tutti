@@ -189,6 +189,12 @@ async function detectExtensionIdOnce(subject) {
     const rawUrl = typeof candidate.url === 'function' ? candidate.url() : candidate.url;
     const extensionId = extensionIdFromUrl(rawUrl);
     if (extensionId) return extensionId;
+    if (/^https?:/.test(String(rawUrl)) && typeof candidate.evaluate === 'function') {
+      const runtimeId = await candidate.evaluate(
+        () => globalThis.chrome?.runtime?.id ?? null,
+      ).catch(() => null);
+      if (runtimeId) return runtimeId;
+    }
   }
   return null;
 }

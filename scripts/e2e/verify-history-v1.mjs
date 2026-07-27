@@ -16,6 +16,12 @@ import { chromium } from 'playwright';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { existsSync } from 'node:fs';
+import {
+  connectPlaywrightCdp,
+  disconnectCdp,
+  resolveCdpEndpoint,
+  resolveExtensionId,
+} from './cdp-harness.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '..', '..');
@@ -24,7 +30,7 @@ const userDataDir = process.env.E2E_USER_DATA_DIR
   ?? resolve(process.env.USERPROFILE ?? process.env.HOME ?? '/tmp', '.tutti-e2e-chrome');
 
 const keepMedia = process.argv.includes('--keep-media');
-const cdpEndpoint = process.env.E2E_CDP;
+const cdpEndpoint = resolveCdpEndpoint({ fallback: '' });
 
 if (!cdpEndpoint && !existsSync(extensionDir)) {
   console.error(`[verify] extension not built: ${extensionDir}`);
@@ -41,7 +47,11 @@ let browser;
 if (cdpEndpoint) {
   // 既に Brave / Chromium が起動済 (--remote-debugging-port=9222) で
   // 拡張が load 済の前提。 ctx を 1 つ取って sw を見つける
-  browser = await chromium.connectOverCDP(cdpEndpoint, { timeout: 30000 });
+  browser = await connectPlaywrightCdp({
+    chromium,
+    endpoint: cdpEndpoint,
+    timeoutMs: 30_000,
+  });
   const ctxs = browser.contexts();
   ctx = ctxs[0];
   if (!ctx) {
@@ -68,37 +78,14 @@ if (cdpEndpoint) {
  * chrome.* API を叩く方が確実。
  */
 async function openExtensionContext() {
-  // 1. 既存の web page から extension id を取る (content script があれば chrome.runtime.id 取得可)
-  let extensionId = null;
-  for (const p of ctx.pages()) {
-    if (!/^https?:/.test(p.url())) continue;
-    try {
-      extensionId = await p.evaluate(() => {
-        // eslint-disable-next-line no-undef
-        return typeof chrome !== 'undefined' && chrome.runtime?.id ? chrome.runtime.id : null;
-      });
-      if (extensionId) break;
-    } catch { /* ignore */ }
-  }
-  // 2. ctx.serviceWorkers() からも試す
-  if (!extensionId) {
-    for (const s of ctx.serviceWorkers()) {
-      const m = s.url().match(/^chrome-extension:\/\/([a-z]+)\//);
-      if (m) { extensionId = m[1]; break; }
-    }
-  }
+  let extensionId = await resolveExtensionId(ctx, { timeoutMs: 1 }).catch(() => null);
   // 3. 最終手段: bsky.app を新規 tab で開いて content script を発火させる
   if (!extensionId) {
     console.log('[verify] opening bsky.app to trigger content script injection...');
     const bootPage = await ctx.newPage();
     await bootPage.goto('https://bsky.app/', { waitUntil: 'domcontentloaded', timeout: 30000 });
     await bootPage.waitForTimeout(2000);
-    try {
-      extensionId = await bootPage.evaluate(() => {
-        // eslint-disable-next-line no-undef
-        return typeof chrome !== 'undefined' && chrome.runtime?.id ? chrome.runtime.id : null;
-      });
-    } catch { /* ignore */ }
+    extensionId = await resolveExtensionId(ctx, { timeoutMs: 10_000 }).catch(() => null);
   }
   if (!extensionId) throw new Error('extension id not detected (no content-script tab found)');
   console.log(`[verify] extension id=${extensionId}`);
@@ -264,7 +251,7 @@ if (!audit.ok) {
 if (!cdpEndpoint) {
   await ctx.close();
 } else if (browser) {
-  await browser.close();
+  await disconnectCdp(browser);
 }
 
 if (failures.length) {
