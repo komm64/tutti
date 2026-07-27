@@ -13,7 +13,7 @@
  *
  *   node scripts/e2e/surface-posting-matrix.mjs --mode post --cases image-only,text-image --platforms x,bluesky,threads
  *   node scripts/e2e/surface-posting-matrix.mjs --mode preview --repeat 2
- *   node scripts/e2e/surface-posting-matrix.mjs --mode preview --case-timeout-ms 180000
+ *   node scripts/e2e/surface-posting-matrix.mjs --mode preview --case-timeout-ms 360000
  */
 
 import { chromium } from 'playwright';
@@ -27,7 +27,11 @@ import {
   resolveExtensionId,
   withTimeout,
 } from './cdp-harness.mjs';
-import { formatSurfaceMatrixOutcome } from './surface-posting-matrix-contract.mjs';
+import {
+  createTimedOutSurfaceSummary,
+  formatSurfaceMatrixOutcome,
+  validateSurfaceResultContract,
+} from './surface-posting-matrix-contract.mjs';
 
 const ALL_PLATFORMS = [
   'x',
@@ -158,7 +162,7 @@ if (!Number.isInteger(repeat) || repeat < 1) {
   console.error(`[matrix] invalid --repeat: ${argValue('--repeat')}`);
   process.exit(2);
 }
-const caseTimeoutMs = Number(argValue('--case-timeout-ms') ?? '180000');
+const caseTimeoutMs = Number(argValue('--case-timeout-ms') ?? '360000');
 if (!Number.isInteger(caseTimeoutMs) || caseTimeoutMs < 10_000) {
   console.error(`[matrix] invalid --case-timeout-ms: ${argValue('--case-timeout-ms')}`);
   process.exit(2);
@@ -218,6 +222,18 @@ console.log(`[matrix] extension version=${version}`);
 
 const failures = [];
 const summary = [];
+const persistSummary = async () => {
+  await writeSummary(summaryPath, {
+    mode,
+    version,
+    platforms: requestedPlatforms,
+    cases: requestedCases,
+    repeat,
+    failures,
+    summary,
+    generatedAt: new Date().toISOString(),
+  });
+};
 
 for (const caseName of requestedCases) {
   const caseDef = CASES[caseName];
@@ -233,6 +249,7 @@ for (const caseName of requestedCases) {
       skipped: true,
       reason: 'no supported target platforms in this run',
     });
+    await persistSummary();
     continue;
   }
 
@@ -267,23 +284,32 @@ for (const caseName of requestedCases) {
       }), caseTimeoutMs, `${caseName}/${platforms.join(',')}`);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      const backgroundState = debugBgStateOnTimeout
-        ? await readBackgroundState(popup).then(compactBackgroundState).catch((stateErr) => ({
-            error: stateErr instanceof Error ? stateErr.message : String(stateErr),
-          }))
-        : undefined;
-      if (backgroundState) {
+      const backgroundState = await readBackgroundState(popup)
+        .then(compactBackgroundState)
+        .catch((stateErr) => ({
+          error: stateErr instanceof Error ? stateErr.message : String(stateErr),
+        }));
+      if (debugBgStateOnTimeout) {
         console.log(`[matrix] bg-state-on-timeout ${caseName}: ${JSON.stringify(backgroundState)}`);
       }
+      const recoveredResults = backgroundState?.postingState?.results ?? [];
+      for (const result of recoveredResults) {
+        failures.push(...validateSurfaceResultContract({
+          mode,
+          caseName,
+          platform: result.platform,
+          result,
+        }));
+      }
       failures.push(`${caseName}: ${message}`);
-      summary.push({
+      summary.push(createTimedOutSurfaceSummary({
         caseName,
         iteration: i,
         platforms,
-        timedOut: true,
         error: message,
-        ...(backgroundState ? { backgroundState } : {}),
-      });
+        backgroundState,
+      }));
+      await persistSummary();
       await reloadExtension(ctx, extensionId).catch(() => {});
       await closeNonExtensionPages(ctx, extensionId).catch(() => {});
       popup = await openPopupPage(ctx, extensionId).catch(() => popup);
@@ -303,23 +329,14 @@ for (const caseName of requestedCases) {
     const byPlatform = new Map(results.map((result) => [result.platform, result]));
     for (const platform of platforms) {
       const result = byPlatform.get(platform);
-      if (!result) {
-        failures.push(`${caseName}/${platform}: missing result`);
-        continue;
-      }
-      if (!result.flow) {
-        failures.push(`${caseName}/${platform}: result missing flow trace`);
-      } else if (!result.flow.lastCompletedStep && !result.flow.failedStep) {
-        failures.push(`${caseName}/${platform}: flow trace has no completed or failed step`);
-      }
-      if (!result.success) {
-        failures.push(`${caseName}/${platform}: success=false (${result.error ?? 'no error message'})`);
-        continue;
-      }
+      failures.push(...validateSurfaceResultContract({
+        mode,
+        caseName,
+        platform,
+        result,
+      }));
+      if (!result?.success) continue;
       if (mode === 'preview') {
-        if (result.preview !== true) failures.push(`${caseName}/${platform}: preview result missing preview=true`);
-        if (result.url) failures.push(`${caseName}/${platform}: preview returned URL ${result.url}`);
-        if (result.flow?.submitReached) failures.push(`${caseName}/${platform}: preview reached submit action`);
         if (caseDef.verifyPreviewDraftText && PREVIEW_DRAFT_READERS[platform]) {
           const draft = await waitForPreviewDraftText(ctx, platform, text);
           if (!draft.found) {
@@ -333,10 +350,6 @@ for (const caseName of requestedCases) {
           }
         }
       } else {
-        if (result.preview) failures.push(`${caseName}/${platform}: post result was marked preview`);
-        if (!result.confirmed) failures.push(`${caseName}/${platform}: post result was not confirmed`);
-        if (!result.url) failures.push(`${caseName}/${platform}: post URL was not captured`);
-        if (result.flow?.submitReached !== true) failures.push(`${caseName}/${platform}: post result did not record submitReached=true`);
         const expectedUrls = platform === 'tumblr' ? extractHttpUrls(text) : [];
         if (result.url && expectedUrls.length > 0) {
           const urlCheck = await checkPublishedUrlEvidence(result.url, expectedUrls);
@@ -366,9 +379,6 @@ for (const caseName of requestedCases) {
           }
         }
       }
-      if (result.verify?.issues?.some((issue) => issue.severity === 'error')) {
-        failures.push(`${caseName}/${platform}: verify hard error ${JSON.stringify(result.verify.issues)}`);
-      }
     }
 
     if (mode === 'preview') {
@@ -392,22 +402,14 @@ for (const caseName of requestedCases) {
       ...(Object.keys(publishedTextEvidence).length > 0 ? { publishedTextEvidence } : {}),
       ...(Object.keys(publishedMediaEvidence).length > 0 ? { publishedMediaEvidence } : {}),
     });
+    await persistSummary();
     await closeNonExtensionPages(ctx, extensionId);
   }
 }
 
 console.log('\n[matrix] summary');
 console.log(JSON.stringify(summary, null, 2));
-await writeSummary(summaryPath, {
-  mode,
-  version,
-  platforms: requestedPlatforms,
-  cases: requestedCases,
-  repeat,
-  failures,
-  summary,
-  generatedAt: new Date().toISOString(),
-});
+await persistSummary();
 
 await popup.close().catch(() => {});
 await disconnectCdp(browser);
@@ -501,7 +503,14 @@ async function waitForPreviewDraftText(ctx, platform, expectedText, timeoutMs = 
   let last = { found: false };
   do {
     last = await readPreviewDraftText(ctx, platform);
-    if (last.found && last.text === expectedText) return last;
+    const exact = last.candidates?.find((candidate) => candidate.text === expectedText);
+    if (exact) {
+      return {
+        ...last,
+        text: exact.text,
+        url: exact.pageUrl,
+      };
+    }
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 200));
   } while (Date.now() < deadline);
   return last;

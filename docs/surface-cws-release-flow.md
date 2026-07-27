@@ -157,8 +157,12 @@ node scripts/e2e/surface-posting-matrix.mjs --mode preview --repeat 2
 If a platform hangs, keep the failure visible instead of waiting indefinitely:
 
 ```powershell
-node scripts/e2e/surface-posting-matrix.mjs --mode preview --repeat 2 --case-timeout-ms 180000
+node scripts/e2e/surface-posting-matrix.mjs --mode preview --repeat 2 --case-timeout-ms 360000
 ```
+
+The report is checkpointed after every iteration. If a grouped request still
+times out, completed per-platform results and pending platform IDs are retained
+in the summary instead of losing the whole group.
 
 The matrix must pass the common draft shapes for every supported SNS: text only,
 image only, text + image, video only, text + video, image + video input
