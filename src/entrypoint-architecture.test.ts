@@ -152,6 +152,15 @@ describe('entrypoint architecture guard', () => {
     expect(entrypoint).toContain('drop: mediaCommandHandlers.drop');
     expect(entrypoint).not.toMatch(/\bfunction (?:injectIntoInput|injectViaDrop)\b/);
   });
+
+  it('keeps native and generic contenteditable mechanics in editor drivers', () => {
+    const entrypoint = readFileSync('entrypoints/inject-helper.content.ts', 'utf8');
+
+    expect(entrypoint).toContain('const editorDriver = resolveTextEditorDriver(el)');
+    expect(entrypoint).toContain('injectNativeText(');
+    expect(entrypoint).toContain('injectContentEditableText(');
+    expect(entrypoint).not.toContain("Object.getOwnPropertyDescriptor(proto, 'value')");
+  });
 });
 
 function categorize(path: string): EntrypointCategory {

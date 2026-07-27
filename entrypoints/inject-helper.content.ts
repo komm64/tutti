@@ -46,6 +46,11 @@ import {
   handleTagListCommand,
 } from '../src/page-world/element-commands';
 import { createMediaCommandHandlers } from '../src/page-world/media-commands';
+import {
+  injectContentEditableText,
+  injectNativeText,
+  resolveTextEditorDriver,
+} from '../src/page-world/editor-drivers';
 
 const REQ_TAG = 'tutti-inject-req-v1';
 const RES_TAG = 'tutti-inject-res-v1';
@@ -545,6 +550,7 @@ export default defineContentScript({
       const text = req.text ?? '';
       let frameworkTextVerified = false;
       let requiresStableFrameworkText = false;
+      const editorDriver = resolveTextEditorDriver(el);
       console.log(`[Tutti inject-helper] text target matched "${found.matchedPart}" (${el.tagName})`);
 
       // v0.4.59: 空文字 inject は no-op で成功扱い (画像のみ投稿の正常 path)。
@@ -557,14 +563,8 @@ export default defineContentScript({
 
       el.focus();
 
-      if (el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement) {
-        // textarea / input: native value setter + input event
-        const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
-        const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
-        if (setter) setter.call(el, text);
-        else (el as HTMLTextAreaElement).value = text;
-        el.dispatchEvent(new Event('input', { bubbles: true }));
-        el.dispatchEvent(new Event('change', { bubbles: true }));
+      if (editorDriver === 'native') {
+        injectNativeText(el as HTMLInputElement | HTMLTextAreaElement, text);
       } else {
         // contenteditable (Draft.js / Lexical / TipTap / ProseMirror):
         // 経路 (v0.4.66〜):
@@ -581,11 +581,7 @@ export default defineContentScript({
           window.__tuttiIgPendingCaption = text;
           console.log('[Tutti inject-helper] IG pending caption set (len=' + text.length + ')');
         }
-        const isLexical =
-          !!el.closest('[data-lexical-editor]') ||
-          el.matches('[data-lexical-editor]');
-
-        if (isLexical) {
+        if (editorDriver === 'lexical') {
           // IG 特有の workaround: Share click 時の `/api/v1/media/configure/`
           // への fetch で body の `caption=` が空のまま送られる問題 (Lexical state
           // を更新しても IG の submit state には伝わらない silent failure)。
@@ -797,10 +793,7 @@ export default defineContentScript({
             }
             await new Promise((r) => setTimeout(r, 800));
           }
-        } else if (
-          el.matches('.public-DraftEditor-content') ||
-          !!el.closest('.DraftEditor-root')
-        ) {
+        } else if (editorDriver === 'draft') {
           // Draft.js (TikTok Studio): upload 後に filename 由来の初期 caption
           // が入る variant がある。DOM だけ消して paste すると controlled
           // state 側の旧値へ追記されるため、editor selection を全置換する。
@@ -870,45 +863,7 @@ export default defineContentScript({
           el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: text.slice(-1) || 'a' }));
           await new Promise((r) => setTimeout(r, 800));
         } else {
-          // 非 Lexical (TipTap / ProseMirror 等): paste event 経由
-          const existing = (el.textContent ?? '').trim();
-          if (existing.length > 0) {
-            const sel = window.getSelection();
-            if (sel) {
-              sel.selectAllChildren(el);
-              sel.deleteFromDocument();
-            }
-            if ((el.textContent ?? '').trim().length > 0) {
-              try {
-                document.execCommand('selectAll', false);
-                document.execCommand('delete', false);
-              } catch { /* ignore */ }
-            }
-          }
-          const dt = new DataTransfer();
-          dt.setData('text/plain', text);
-          const pasteEv = new ClipboardEvent('paste', {
-            bubbles: true,
-            cancelable: true,
-            clipboardData: dt,
-          });
-          el.dispatchEvent(pasteEv);
-
-          const matchSnippet = text.slice(0, Math.min(16, text.length));
-          const visibleNow = (): string =>
-            (el as HTMLElement).innerText ?? el.textContent ?? '';
-          const pasted = await waitFor(
-            () => matchSnippet === '' || visibleNow().includes(matchSnippet),
-            600,
-          );
-
-          if (!pasted) {
-            el.textContent = text;
-            el.dispatchEvent(new InputEvent('input', {
-              bubbles: true, data: text, inputType: 'insertText',
-            }));
-            await new Promise((r) => setTimeout(r, 80));
-          }
+          await injectContentEditableText(el, text, { waitFor });
         }
       }
 
