@@ -115,4 +115,38 @@ describe('composer persistence controller', () => {
     expect(saveDraft).not.toHaveBeenCalled();
     expect(saveSelectedPlatforms).not.toHaveBeenCalled();
   });
+
+  it('coordinates media order, removal, and alt state transitions', () => {
+    const controller = createComposerController();
+    const state = {
+      images: [
+        {
+          name: 'a.png',
+          type: 'image/png',
+          data: 'AA==',
+          previewUrl: 'blob:a',
+        },
+        {
+          name: 'b.png',
+          type: 'image/png',
+          data: 'AA==',
+          previewUrl: 'blob:b',
+        },
+      ],
+      video: null,
+      imageAlts: ['alt a', 'alt b'],
+    };
+
+    const moved = controller.moveImage(state, 1, -1);
+    expect(moved.images.map((image) => image.name)).toEqual(['b.png', 'a.png']);
+    expect(moved.imageAlts).toEqual(['alt b', 'alt a']);
+
+    const withAlt = controller.setImageAlt(moved, 0, 'updated');
+    expect(withAlt.imageAlts).toEqual(['updated', 'alt a']);
+    expect(moved.imageAlts).toEqual(['alt b', 'alt a']);
+
+    const removed = controller.removeImage(withAlt, 1);
+    expect(removed.images.map((image) => image.name)).toEqual(['b.png']);
+    expect(removed.imageAlts).toEqual(['updated']);
+  });
 });

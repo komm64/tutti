@@ -13,6 +13,12 @@ import {
   serializeImagesForDraft,
   serializeVideoForDraft,
 } from './media-preview';
+import {
+  addFilesToMediaState,
+  moveImageAt,
+  removeImageAt,
+  removeVideoFromState,
+} from './media-state';
 import type { ImagePreview, VideoPreview } from './types';
 
 export interface ComposerDraftState {
@@ -25,6 +31,12 @@ export interface ComposerDraftSnapshot {
   text: string;
   images: readonly ImagePreview[];
   video: VideoPreview | null;
+}
+
+export interface ComposerMediaState {
+  images: ImagePreview[];
+  video: VideoPreview | null;
+  imageAlts: string[];
 }
 
 export interface ComposerControllerOptions {
@@ -102,6 +114,39 @@ export function createComposerController(options: ComposerControllerOptions = {}
         selectionTimer = undefined;
       }
       await writeSelected({ ...selected });
+    },
+
+    async addFiles(
+      state: ComposerMediaState,
+      files: readonly File[],
+    ): Promise<ComposerMediaState> {
+      return await addFilesToMediaState(state, files);
+    },
+
+    removeImage(state: ComposerMediaState, index: number): ComposerMediaState {
+      return removeImageAt(state, index);
+    },
+
+    moveImage(
+      state: ComposerMediaState,
+      index: number,
+      delta: -1 | 1,
+    ): ComposerMediaState {
+      return moveImageAt(state, index, delta);
+    },
+
+    removeVideo(state: ComposerMediaState): ComposerMediaState {
+      return removeVideoFromState(state);
+    },
+
+    setImageAlt(
+      state: ComposerMediaState,
+      index: number,
+      value: string,
+    ): ComposerMediaState {
+      const imageAlts = state.imageAlts.slice();
+      imageAlts[index] = value;
+      return { ...state, imageAlts };
     },
 
     dispose(): void {
