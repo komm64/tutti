@@ -7,7 +7,7 @@ import type {
 } from '../messages';
 import type { PlatformAdapter } from '../adapters/types';
 import type { ApiPostResult } from '../api/types';
-import { getLastSeenUsers, getSettings } from '../storage';
+import { getLastSeenUsers } from '../storage';
 import { splitTextForPlatform } from '../utils/platform-text';
 import { log } from '../utils/logger';
 import { t } from '../utils/i18n';
@@ -16,14 +16,11 @@ import {
   openOrFocusTab,
 } from './tab-management';
 import {
-  buildExpectedUrlsForVerification,
   buildReplyOverrideUrl,
   canUseApiWithReplyUrl,
-  capturePostUrlFromTabWithRetry,
   continuationNeedsReplyUrl,
   isVerifySupported,
   resolveComposeUrlForMedia,
-  runVerify,
   shouldUseInlineThread,
   tryApiPath,
 } from './platform-strategies';
@@ -44,8 +41,6 @@ import {
   withFlow,
 } from './post-result-policy';
 import type { OpenedTabRegistry } from './opened-tab-registry';
-import { retryTransientTabAction } from './tab-action-retry';
-import type { VerifyExpectation } from '../utils/post-verify';
 import {
   buildDomPostAttempts,
   type DomPostAttempt,
@@ -54,6 +49,11 @@ import {
   shouldRetryPostAttempt,
   shouldReuseExistingTabForAttempt,
 } from './dom-attempt-policy';
+import {
+  attachVerifyResult,
+  createPostConfirmation,
+  maybeAutoOpenPostUrl,
+} from './post-confirmation';
 
 const CHUNK_INTERVAL_MS = 2000;
 
@@ -76,6 +76,10 @@ class PostFlowError extends Error {
 }
 
 export function createPlatformPoster(options: PlatformPosterOptions) {
+  const confirmation = createPostConfirmation({
+    appendBackgroundLog: options.appendBackgroundLog,
+  });
+
   async function postToPlatform(
     platform: PlatformId,
     text: string,
@@ -390,7 +394,7 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
             };
           }
         }
-        const recovered = await recoverFromAmbiguousDispatchFailure(
+        const recovered = await confirmation.recoverFromAmbiguousDispatchFailure(
           err,
           adapter.id,
           tab.id,
@@ -413,7 +417,13 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
       }
       if (dryRun) return toPreviewResult(response);
 
-      const withUrl = await ensurePostUrl(response, adapter.id, tab.id, text, expectedUser);
+      const withUrl = await confirmation.ensurePostUrl(
+        response,
+        adapter.id,
+        tab.id,
+        text,
+        expectedUser,
+      );
       if (withUrl.url) return { ...withUrl, confirmed: true };
       return unconfirmedPostResult(adapter.id, {
         ...withUrl.flow,
@@ -437,85 +447,6 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
     log.info(`${platform}: closing failed pre-submit attempt tab (${attemptLabel}, tabId=${tabId}) before retry`);
     options.openedTabs.forget(platform, tabId);
     await closeTabSafely(tabId);
-  }
-
-  async function recoverFromAmbiguousDispatchFailure(
-    err: unknown,
-    platform: PlatformId,
-    tabId: number,
-    text: string,
-    expectedUser: string | undefined,
-    dryRun: boolean,
-    minCapturedAt?: number,
-  ): Promise<PostResultMessage | null> {
-    if (dryRun || !isAmbiguousPostDispatchError(err)) return null;
-
-    const msg = err instanceof Error ? err.message : String(err);
-    log.warn(`${platform}: post dispatch result is ambiguous - ${msg.slice(0, 80)}`);
-    const captured = await captureUrl(platform, tabId, text, expectedUser, minCapturedAt);
-    return captured.url
-      ? withFlow({ type: 'POST_RESULT', platform, success: true, confirmed: true, url: captured.url }, {
-          mode: dryRun ? 'preview' : 'post',
-          submitReached: true,
-          lastCompletedStep: 'capture-url',
-          urlCaptureTrace: captured.trace,
-        })
-      : unconfirmedPostResult(platform, {
-          mode: dryRun ? 'preview' : 'post',
-          submitReached: true,
-          failedStep: 'capture-url',
-          urlCaptureTrace: captured.trace,
-        });
-  }
-
-  async function ensurePostUrl(
-    response: PostResultMessage,
-    platform: PlatformId,
-    tabId: number,
-    text: string,
-    expectedUser: string | undefined,
-  ): Promise<PostResultMessage> {
-    if (response.url) return response;
-    const captured = await captureUrl(platform, tabId, text, expectedUser, response.flow?.submissionStartedAt);
-    const tabUrlAfter = await browser.tabs.get(tabId)
-      .then((tab) => tab.url ?? tab.pendingUrl)
-      .catch(() => undefined);
-    return captured.url
-      ? withFlow({ ...response, url: captured.url }, {
-          lastCompletedStep: 'capture-url',
-          tabUrlAfter,
-          urlCaptureTrace: captured.trace,
-        })
-      : withFlow(response, {
-          failedStep: response.flow?.failedStep ?? 'capture-url',
-          tabUrlAfter,
-          urlCaptureTrace: captured.trace,
-        });
-  }
-
-  async function captureUrl(
-    platform: PlatformId,
-    tabId: number,
-    text: string,
-    expectedUser: string | undefined,
-    minCapturedAt?: number,
-  ): Promise<{ url?: string; trace: string[] }> {
-    const trace: string[] = [];
-    const url = await capturePostUrlFromTabWithRetry({
-      platform,
-      tabId,
-      text,
-      expectedUser,
-      minCapturedAt,
-      onDebug: (message) => {
-        trace.push(message);
-        options.appendBackgroundLog?.(message);
-      },
-    }).catch((e) => {
-      log.warn(`${platform}: post URL capture failed: ${e instanceof Error ? e.message : String(e)}`);
-      return undefined;
-    });
-    return { url, trace };
   }
 
   return { postToPlatform };
@@ -564,94 +495,12 @@ export function resolveApiPostOutcome(
   });
 }
 
-export function isAmbiguousPostDispatchError(err: unknown): boolean {
-  const message = err instanceof Error ? err.message : String(err);
-  return (
-    message.includes('asynchronous response') ||
-    message.includes('message channel closed') ||
-    message.includes('message port closed') ||
-    message.includes('back/forward cache') ||
-    message.includes('content script response timed out')
-  );
-}
-
 export function getComposeUrlForMedia(
   adapter: PlatformAdapter,
   text: string,
   images?: readonly ImageAttachment[],
 ): string {
   return resolveComposeUrlForMedia(adapter.id, adapter.getComposeUrl(text), images);
-}
-
-async function attachVerifyResult(
-  result: PostResultMessage,
-  platform: PlatformId,
-  postUrl: string,
-  chunks: readonly string[],
-  text: string,
-  images?: ImageAttachment[],
-): Promise<void> {
-  const expectation = buildVerifyExpectationForChunk(platform, chunks, text, images, chunks.length - 1);
-  try {
-    result.flow = {
-      ...result.flow,
-      submitReached: result.flow?.submitReached ?? true,
-      lastCompletedStep: 'verify-post',
-    };
-    const verify = await runVerify(platform, postUrl, expectation);
-    result.verify = {
-      verified: verify.verified,
-      issues: verify.issues,
-    };
-    const hardErrors = verify.issues.filter((issue) => issue.severity === 'error');
-    if (hardErrors.length > 0) {
-      log.warn(`${platform} verify: ${hardErrors.length} error - ${hardErrors[0]!.message}`);
-    }
-  } catch (e) {
-    result.flow = {
-      ...result.flow,
-      submitReached: result.flow?.submitReached ?? true,
-      failedStep: 'verify-post',
-    };
-    log.warn(`${platform} verify failed (post 自体は成功): ${e instanceof Error ? e.message : String(e)}`);
-  }
-}
-
-export function buildVerifyExpectationForChunk(
-  platform: PlatformId,
-  chunks: readonly string[],
-  text: string,
-  images: ImageAttachment[] | undefined,
-  chunkIndex: number,
-): VerifyExpectation {
-  const chunkText = chunks.length > 1 ? chunks[chunkIndex] ?? chunks[chunks.length - 1] ?? text : text;
-  const mediaBelongsToThisChunk = chunks.length <= 1 || chunkIndex === 0;
-  const expectedUrls = buildExpectedUrlsForVerification(platform, chunkText);
-  return {
-    text: chunkText,
-    hasImages: mediaBelongsToThisChunk && !!images?.some((image) => image.type.startsWith('image/')),
-    hasVideo: mediaBelongsToThisChunk && !!images?.some((image) => image.type.startsWith('video/')),
-    ...(expectedUrls.length > 0 ? { expectedUrls } : {}),
-  };
-}
-
-async function maybeAutoOpenPostUrl(
-  url: string,
-  verify: PostResultMessage['verify'],
-): Promise<void> {
-  try {
-    const { autoOpenPostUrl } = await getSettings();
-    if (autoOpenPostUrl === 'never') return;
-    const hasError =
-      verify && verify.issues.some((issue) => issue.severity === 'error' || issue.kind === 'verify-error');
-    if (autoOpenPostUrl === 'on-issue' && !hasError) return;
-    await retryTransientTabAction('auto-open post URL tab', () => (
-      browser.tabs.create({ url, active: false })
-    ));
-    log.info(`auto-open post URL: ${url} (autoOpenPostUrl=${autoOpenPostUrl}, hasError=${!!hasError})`);
-  } catch (e) {
-    log.warn(`auto-open failed: ${e instanceof Error ? e.message : String(e)}`);
-  }
 }
 
 function sleep(ms: number): Promise<void> {
