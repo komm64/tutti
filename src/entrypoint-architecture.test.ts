@@ -28,6 +28,7 @@ const ALLOWED_SRC_IMPORTS: Record<EntrypointCategory, readonly string[]> = {
     'src/adapters/',
     'src/api/',
     'src/messages',
+    'src/options/',
     'src/popup/',
     'src/storage',
     'src/types/',
@@ -94,6 +95,14 @@ describe('entrypoint architecture guard', () => {
     expect(source).not.toContain('mergePostResults');
     expect(source).not.toContain('shouldClearDraftAfterSubmit');
     expect(source).not.toContain('failedRetryPlatforms');
+  });
+
+  it('keeps Options API credentials behind the provider editor boundary', () => {
+    const source = readFileSync('entrypoints/options/Options.svelte', 'utf8');
+    expect(source).toContain('API_CREDENTIAL_PROVIDERS');
+    expect(source).toContain('<ApiCredentialEditor');
+    expect(source).not.toMatch(/handle(?:Bsky|Mstd|Msky)(?:Save|Clear)/);
+    expect(source.match(/<ApiCredentialEditor/g)).toHaveLength(1);
   });
 });
 
