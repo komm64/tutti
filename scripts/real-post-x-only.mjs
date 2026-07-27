@@ -1,7 +1,8 @@
 // Real auto-post to X only. Verify text body appears in the actual posted tweet.
 import puppeteer from 'puppeteer-core';
-const EXT_ID = 'dophemlpjldcejjdjefpjbgngodopkfe';
-const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222', protocolTimeout: 60000 });
+import { connectPuppeteerCdp, disconnectCdp, resolveExtensionId } from './e2e/cdp-harness.mjs';
+const browser = await connectPuppeteerCdp({ puppeteer, browserURL: 'http://localhost:9222', protocolTimeout: 60000 });
+const EXT_ID = await resolveExtensionId(browser);
 
 for (const p of await browser.pages()) {
   if (/x\.com|twitter\.com|popup\.html/.test(p.url())) await p.close();
@@ -85,4 +86,4 @@ if (xTab) {
   console.log(JSON.stringify(posts, null, 2));
   await xTab.screenshot({ path: 'scripts/x-post-with-text.png' });
 }
-await browser.disconnect();
+await disconnectCdp(browser);

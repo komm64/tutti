@@ -1,5 +1,6 @@
 // Drive Tutti popup → Instagram dry-run, verify wizard 完走 (image + caption + Share highlight).
 import puppeteer from 'puppeteer-core';
+import { connectPuppeteerCdp, disconnectCdp, resolveExtensionId } from './e2e/cdp-harness.mjs';
 import { writeFileSync, appendFileSync, readFileSync } from 'fs';
 
 const LOG = 'scripts/ig-test.log';
@@ -11,8 +12,8 @@ const log = (...a) => {
 };
 process.on('uncaughtException', (e) => { log('UNCAUGHT', e.message); process.exit(1); });
 
-const EXT_ID = 'dophemlpjldcejjdjefpjbgngodopkfe';
-const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222', protocolTimeout: 240000 });
+const browser = await connectPuppeteerCdp({ puppeteer, browserURL: 'http://localhost:9222', protocolTimeout: 240000 });
+const EXT_ID = await resolveExtensionId(browser);
 
 async function attachAll() {
   for (const p of await browser.pages()) {
@@ -125,4 +126,4 @@ for (let i = 0; i < 80; i++) {
 }
 if (ig) await ig.screenshot({ path: 'scripts/ig-test-result.png', fullPage: false });
 log('done');
-await browser.disconnect();
+await disconnectCdp(browser);

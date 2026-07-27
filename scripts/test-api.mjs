@@ -1,5 +1,6 @@
 import puppeteer from 'puppeteer-core';
-const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222' });
+import { connectPuppeteerCdp, disconnectCdp } from './e2e/cdp-harness.mjs';
+const browser = await connectPuppeteerCdp({ puppeteer, browserURL: 'http://localhost:9222' });
 const pages = await browser.pages();
 const page = pages.find((p) => /tumblr\.com/.test(p.url())) ?? pages[0];
 
@@ -28,4 +29,4 @@ const result2 = await page.evaluate(async () => {
 console.log('\n/svc/account/get_user_data:');
 console.log(JSON.stringify(result2, null, 2));
 
-await browser.disconnect();
+await disconnectCdp(browser);

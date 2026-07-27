@@ -1,5 +1,6 @@
 // Drive Tutti popup → DeviantArt dry-run, verify image + title + description filled.
 import puppeteer from 'puppeteer-core';
+import { connectPuppeteerCdp, disconnectCdp, resolveExtensionId } from './e2e/cdp-harness.mjs';
 import { writeFileSync, appendFileSync } from 'fs';
 
 const LOG = 'scripts/da-test.log';
@@ -11,8 +12,8 @@ const log = (...a) => {
 };
 process.on('uncaughtException', (e) => { log('UNCAUGHT', e.message); process.exit(1); });
 
-const EXT_ID = 'dophemlpjldcejjdjefpjbgngodopkfe';
-const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222', protocolTimeout: 240000 });
+const browser = await connectPuppeteerCdp({ puppeteer, browserURL: 'http://localhost:9222', protocolTimeout: 240000 });
+const EXT_ID = await resolveExtensionId(browser);
 
 async function attachAll() {
   for (const p of await browser.pages()) {
@@ -149,4 +150,4 @@ for (let i = 0; i < 60; i++) {
 }
 if (da) await da.screenshot({ path: 'scripts/da-test-result.png', fullPage: true });
 log('done');
-await browser.disconnect();
+await disconnectCdp(browser);

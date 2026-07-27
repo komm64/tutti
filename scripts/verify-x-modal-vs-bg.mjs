@@ -1,7 +1,8 @@
 // Open X with intent URL, check both modal compose AND inline (home) compose
 // for text + image state. Verify only modal has the image.
 import puppeteer from 'puppeteer-core';
-const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222', protocolTimeout: 60000 });
+import { connectPuppeteerCdp, disconnectCdp } from './e2e/cdp-harness.mjs';
+const browser = await connectPuppeteerCdp({ puppeteer, browserURL: 'http://localhost:9222', protocolTimeout: 60000 });
 
 for (const p of await browser.pages()) {
   if (/x\.com|twitter\.com/.test(p.url())) await p.close();
@@ -43,4 +44,4 @@ const state = await page.evaluate(() => {
 console.log(JSON.stringify(state, null, 2));
 await page.screenshot({ path: 'scripts/x-bg-check.png', fullPage: true });
 
-await browser.disconnect();
+await disconnectCdp(browser);

@@ -1,7 +1,8 @@
 // Real auto-post test for Bluesky / Misskey / Threads with image.
 import puppeteer from 'puppeteer-core';
-const EXT_ID = 'dophemlpjldcejjdjefpjbgngodopkfe';
-const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222', protocolTimeout: 60000 });
+import { connectPuppeteerCdp, disconnectCdp, resolveExtensionId } from './e2e/cdp-harness.mjs';
+const browser = await connectPuppeteerCdp({ puppeteer, browserURL: 'http://localhost:9222', protocolTimeout: 60000 });
+const EXT_ID = await resolveExtensionId(browser);
 
 const tmpImg = 'C:\\Users\\komm64\\AppData\\Local\\Temp\\tutti-test-100x100.png';
 
@@ -83,4 +84,4 @@ await postOne('Bluesky', 1, /bsky\.app/);
 await postOne('Threads', 2, /threads\.(com|net)/);
 await postOne('Misskey', 4, /misskey\.io/);
 
-await browser.disconnect();
+await disconnectCdp(browser);

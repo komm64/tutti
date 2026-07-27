@@ -1,8 +1,9 @@
 // Real auto-post test to X / Mastodon / Tumblr with image, one at a time.
 // Captures: per-SNS console errors + network failures + final timeline state.
 import puppeteer from 'puppeteer-core';
-const EXT_ID = 'dophemlpjldcejjdjefpjbgngodopkfe';
-const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222', protocolTimeout: 60000 });
+import { connectPuppeteerCdp, disconnectCdp, resolveExtensionId } from './e2e/cdp-harness.mjs';
+const browser = await connectPuppeteerCdp({ puppeteer, browserURL: 'http://localhost:9222', protocolTimeout: 60000 });
+const EXT_ID = await resolveExtensionId(browser);
 
 const tmpImg = 'C:\\Users\\komm64\\AppData\\Local\\Temp\\tutti-test-100x100.png';
 
@@ -106,4 +107,4 @@ await postToOne('X', 0, /x\.com|twitter\.com/);
 await postToOne('Mastodon', 3, /mastodon\.social/);
 await postToOne('Tumblr', 5, /tumblr\.com/);
 
-await browser.disconnect();
+await disconnectCdp(browser);

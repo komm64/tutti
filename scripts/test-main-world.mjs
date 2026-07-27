@@ -1,6 +1,7 @@
 // Pure MAIN-world inject test (via puppeteer page.evaluate, no content script).
 import puppeteer from 'puppeteer-core';
-const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222' });
+import { connectPuppeteerCdp, disconnectCdp } from './e2e/cdp-harness.mjs';
+const browser = await connectPuppeteerCdp({ puppeteer, browserURL: 'http://localhost:9222' });
 
 for (const p of await browser.pages()) {
   if (/mastodon\.social/.test(p.url())) await p.close();
@@ -35,4 +36,4 @@ const ui = await page.evaluate(() => ({
 console.log('UI 5s after inject:', JSON.stringify(ui, null, 2));
 await page.screenshot({ path: 'scripts/main-world-test.png' });
 
-await browser.disconnect();
+await disconnectCdp(browser);

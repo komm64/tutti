@@ -1,8 +1,9 @@
 // REAL post to X. Disables dryRun, posts a clearly-marked test message + image.
 // Tracks: (a) modal closes after click? (b) post appears in user timeline?
 import puppeteer from 'puppeteer-core';
-const EXT_ID = 'dophemlpjldcejjdjefpjbgngodopkfe';
-const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222', protocolTimeout: 60000 });
+import { connectPuppeteerCdp, disconnectCdp, resolveExtensionId } from './e2e/cdp-harness.mjs';
+const browser = await connectPuppeteerCdp({ puppeteer, browserURL: 'http://localhost:9222', protocolTimeout: 60000 });
+const EXT_ID = await resolveExtensionId(browser);
 
 const TEST_TEXT = `[Tutti テスト投稿] クロスポスト機能の動作確認 ${new Date().toISOString()}`;
 console.log('TEST TEXT:', TEST_TEXT);
@@ -103,4 +104,4 @@ if (xTab) {
   await xTab.screenshot({ path: 'scripts/x-real-timeline.png' });
 }
 
-await browser.disconnect();
+await disconnectCdp(browser);

@@ -1,9 +1,10 @@
 // Drive Tutti via popup, then watch Mastodon compose for image preview to appear (or not).
 import puppeteer from 'puppeteer-core';
+import { connectPuppeteerCdp, disconnectCdp, resolveExtensionId } from './e2e/cdp-harness.mjs';
 import { writeFileSync } from 'fs';
 
-const EXT_ID = 'dophemlpjldcejjdjefpjbgngodopkfe';
-const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222' });
+const browser = await connectPuppeteerCdp({ puppeteer, browserURL: 'http://localhost:9222' });
+const EXT_ID = await resolveExtensionId(browser);
 
 // log everything from any page
 async function attachAll() {
@@ -90,4 +91,4 @@ for (let i = 0; i < 25; i++) {
 }
 if (mast) await mast.screenshot({ path: 'scripts/mastodon-tutti-img.png' });
 
-await browser.disconnect();
+await disconnectCdp(browser);

@@ -33,18 +33,29 @@ export async function connectPlaywrightCdp({
   return await driver.connectOverCDP(endpoint, { timeout: timeoutMs });
 }
 
-export async function connectPuppeteerCdp({
-  puppeteer: puppeteerApi,
-  endpoint = resolveCdpEndpoint(),
-  timeoutMs = DEFAULT_CDP_TIMEOUT_MS,
-  defaultViewport = null,
-} = {}) {
+export async function connectPuppeteerCdp(options = {}) {
+  const {
+    puppeteer: puppeteerApi,
+    endpoint: configuredEndpoint,
+    browserURL,
+    browserWSEndpoint,
+    timeoutMs: configuredTimeoutMs,
+    protocolTimeout,
+    defaultViewport = null,
+    ...connectOptions
+  } = options;
+  const endpoint = configuredEndpoint
+    ?? browserWSEndpoint
+    ?? browserURL
+    ?? resolveCdpEndpoint();
+  const timeoutMs = configuredTimeoutMs ?? protocolTimeout ?? DEFAULT_CDP_TIMEOUT_MS;
   if (!endpoint) throw new Error('CDP endpoint is required');
   const driver = puppeteerApi ?? (await import('puppeteer-core')).default;
   const endpointOption = endpoint.startsWith('ws:')
     ? { browserWSEndpoint: endpoint }
     : { browserURL: endpoint };
   return await driver.connect({
+    ...connectOptions,
     ...endpointOption,
     defaultViewport,
     protocolTimeout: timeoutMs,

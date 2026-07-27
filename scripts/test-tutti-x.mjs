@@ -1,7 +1,8 @@
 // Verify X via full Tutti dry-run.
 import puppeteer from 'puppeteer-core';
-const EXT_ID = 'dophemlpjldcejjdjefpjbgngodopkfe';
-const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222', protocolTimeout: 60000 });
+import { connectPuppeteerCdp, disconnectCdp, resolveExtensionId } from './e2e/cdp-harness.mjs';
+const browser = await connectPuppeteerCdp({ puppeteer, browserURL: 'http://localhost:9222', protocolTimeout: 60000 });
+const EXT_ID = await resolveExtensionId(browser);
 
 for (const p of await browser.pages()) {
   if (/x\.com|twitter\.com/.test(p.url())) await p.close();
@@ -75,4 +76,4 @@ for (let i = 0; i < 18; i++) {
 }
 if (tab) await tab.screenshot({ path: 'scripts/x-tutti-flow.png' });
 
-await browser.disconnect();
+await disconnectCdp(browser);

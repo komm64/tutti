@@ -2,8 +2,9 @@
 // Tutti's autoPost ON already opens tabs as background, but this test forces an
 // additional tab activation right after to verify the background tab keeps posting.
 import puppeteer from 'puppeteer-core';
-const EXT_ID = 'dophemlpjldcejjdjefpjbgngodopkfe';
-const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222', protocolTimeout: 60000 });
+import { connectPuppeteerCdp, disconnectCdp, resolveExtensionId } from './e2e/cdp-harness.mjs';
+const browser = await connectPuppeteerCdp({ puppeteer, browserURL: 'http://localhost:9222', protocolTimeout: 60000 });
+const EXT_ID = await resolveExtensionId(browser);
 
 for (const p of await browser.pages()) {
   if (/x\.com|twitter\.com|popup\.html|mastodon|tumblr|misskey|threads|bsky/.test(p.url())) await p.close();
@@ -63,4 +64,4 @@ for (let i = 0; i < 50; i++) {
 }
 console.log(`\nelapsed: ${(Date.now() - startedAt) / 1000}s`);
 await popup.screenshot({ path: 'scripts/popup-3sns-final.png' });
-await browser.disconnect();
+await disconnectCdp(browser);

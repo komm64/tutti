@@ -1,7 +1,8 @@
 import puppeteer from 'puppeteer-core';
+import { connectPuppeteerCdp, disconnectCdp, resolveExtensionId } from './e2e/cdp-harness.mjs';
 import { readFileSync } from 'fs';
-const EXT_ID = 'dophemlpjldcejjdjefpjbgngodopkfe';
-const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222' });
+const browser = await connectPuppeteerCdp({ puppeteer, browserURL: 'http://localhost:9222' });
+const EXT_ID = await resolveExtensionId(browser);
 
 for (const p of await browser.pages()) {
   if (/mastodon\.social/.test(p.url())) await p.close();
@@ -59,4 +60,4 @@ for (let i = 0; i < 25; i++) {
 }
 if (mast) await mast.screenshot({ path: 'scripts/mastodon-bigger.png' });
 
-await browser.disconnect();
+await disconnectCdp(browser);

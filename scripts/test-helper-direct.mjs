@@ -1,8 +1,9 @@
 // Send postMessage directly to MAIN-world helper (no popup, no content script).
 // Verifies whether the helper itself can inject + trigger Mastodon's reaction.
 import puppeteer from 'puppeteer-core';
+import { connectPuppeteerCdp, disconnectCdp } from './e2e/cdp-harness.mjs';
 
-const browser = await puppeteer.connect({ browserURL: 'http://localhost:9222' });
+const browser = await connectPuppeteerCdp({ puppeteer, browserURL: 'http://localhost:9222' });
 
 for (const p of await browser.pages()) {
   if (/mastodon\.social/.test(p.url())) await p.close();
@@ -60,4 +61,4 @@ const ui = await page.evaluate(() => ({
 console.log('UI 5s after inject:', JSON.stringify(ui, null, 2));
 
 await page.screenshot({ path: 'scripts/helper-direct-test.png' });
-await browser.disconnect();
+await disconnectCdp(browser);
