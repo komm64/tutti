@@ -3,6 +3,7 @@ import { dirname, extname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
+import { assertArchitectureGuard } from './architecture-guard';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const sourceRoots = ['src', 'entrypoints'].map((directory) => resolve(repoRoot, directory));
@@ -29,12 +30,10 @@ describe('production import graph', () => {
       .toBeGreaterThan(50);
     expect(edgeCount, 'production import discovery unexpectedly returned too few edges')
       .toBeGreaterThan(50);
-    expect(
-      cycles,
-      cycles.length
-        ? `Production import cycles detected:\n${cycles.map((cycle) => `- ${cycle}`).join('\n')}`
-        : undefined,
-    ).toEqual([]);
+    assertArchitectureGuard({
+      guard: 'production-import-cycles',
+      violations: cycles,
+    });
   });
 });
 

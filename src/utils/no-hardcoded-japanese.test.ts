@@ -13,9 +13,10 @@
 //
 // To allow a rare exception (non-user-facing literal), put `// allow-jp` at
 // the end of the line.
-import { describe, expect, it } from 'vitest';
+import { describe, it } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { assertArchitectureGuard } from '../../tests/architecture-guard';
 
 const UI_DIRS = [
   'entrypoints/popup',
@@ -105,16 +106,10 @@ describe('UI svelte files: no hardcoded Japanese text', () => {
           if (!JP_REGEX.test(codeOnly)) continue;
           offenders.push({ line: i + 1, text: line.trim().slice(0, 120) });
         }
-        if (offenders.length > 0) {
-          const msg = offenders
-            .map((o) => `  ${file}:${o.line}: ${o.text}`)
-            .join('\n');
-          throw new Error(
-            `Hardcoded Japanese in UI svelte file. Move the text into ` +
-            `locales/{en,ja}/messages.json and use t('key'):\n${msg}`,
-          );
-        }
-        expect(offenders).toEqual([]);
+        assertArchitectureGuard({
+          guard: 'ui-hardcoded-japanese',
+          violations: offenders.map(({ line, text }) => `${file}:${line}: ${text}`),
+        });
       });
     }
   }
@@ -134,13 +129,10 @@ describe('UI utility TS files: no hardcoded Japanese text', () => {
         if (!JP_REGEX.test(codeOnly)) continue;
         offenders.push({ line: i + 1, text: line.trim().slice(0, 120) });
       }
-      if (offenders.length > 0) {
-        const msg = offenders.map((o) => `  ${file}:${o.line}: ${o.text}`).join('\n');
-        throw new Error(
-          `Hardcoded Japanese in UI utility TS file. Use Intl API or t('key'):\n${msg}`,
-        );
-      }
-      expect(offenders).toEqual([]);
+      assertArchitectureGuard({
+        guard: 'ui-utility-hardcoded-japanese',
+        violations: offenders.map(({ line, text }) => `${file}:${line}: ${text}`),
+      });
     });
   }
 });
@@ -154,15 +146,13 @@ describe('messages.json invariants', () => {
     const jaKeys = new Set(Object.keys(ja));
     const enOnly = [...enKeys].filter((k) => !jaKeys.has(k));
     const jaOnly = [...jaKeys].filter((k) => !enKeys.has(k));
-    if (enOnly.length > 0 || jaOnly.length > 0) {
-      throw new Error(
-        `en / ja mismatch:\n` +
-        `  en only: ${enOnly.join(', ') || '(none)'}\n` +
-        `  ja only: ${jaOnly.join(', ') || '(none)'}`,
-      );
-    }
-    expect(enOnly).toEqual([]);
-    expect(jaOnly).toEqual([]);
+    assertArchitectureGuard({
+      guard: 'en-ja-locale-keys',
+      violations: [
+        ...enOnly.map((key) => `missing from ja: ${key}`),
+        ...jaOnly.map((key) => `missing from en: ${key}`),
+      ],
+    });
   });
 
   // 31 言語対応 (v0.5.2〜): 他 locale は partial 翻訳 OK (en に fallback)。
@@ -182,8 +172,10 @@ describe('messages.json invariants', () => {
         errors.push(`  ${loc}: failed to parse: ${e instanceof Error ? e.message : String(e)}`);
       }
     }
-    if (errors.length > 0) throw new Error(`locale orphan keys:\n${errors.join('\n')}`);
-    expect(errors).toEqual([]);
+    assertArchitectureGuard({
+      guard: 'locale-orphan-keys',
+      violations: errors,
+    });
   });
 
   it('every locale translates user-action messages used outside the Tutti UI pages', () => {
@@ -202,8 +194,10 @@ describe('messages.json invariants', () => {
       const missing = required.filter((key) => !data[key]);
       if (missing.length > 0) errors.push(`  ${loc}: missing ${missing.join(', ')}`);
     }
-    if (errors.length > 0) throw new Error(`locale required keys:\n${errors.join('\n')}`);
-    expect(errors).toEqual([]);
+    assertArchitectureGuard({
+      guard: 'required-external-locale-keys',
+      violations: errors,
+    });
   });
 });
 
@@ -218,6 +212,9 @@ describe('runtime errors: no hardcoded Japanese text', () => {
         if (runtimeLiteral.test(lines[i]!)) offenders.push(`${file}:${i + 1}: ${lines[i]!.trim()}`);
       }
     }
-    expect(offenders).toEqual([]);
+    assertArchitectureGuard({
+      guard: 'runtime-hardcoded-japanese',
+      violations: offenders,
+    });
   });
 });

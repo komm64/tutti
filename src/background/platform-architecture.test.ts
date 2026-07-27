@@ -1,14 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, it } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
+import {
+  assertArchitectureGuard,
+  type TemporaryArchitectureAllowance,
+} from '../../tests/architecture-guard';
 import { PLATFORM_IDS } from '../types/platform';
-
-interface LiteralAllowance {
-  line: string;
-  reason: string;
-  owner: string;
-  removalPhase: string;
-}
 
 const GUARDED_ORCHESTRATORS = [
   'src/background/diagnostics.ts',
@@ -25,10 +22,7 @@ const GUARDED_ORCHESTRATORS = [
   'src/popup/post-submit.ts',
 ] as const;
 
-const PLATFORM_LITERAL_ALLOWLIST: Partial<Record<
-  (typeof GUARDED_ORCHESTRATORS)[number],
-  LiteralAllowance[]
->> = {};
+const PLATFORM_LITERAL_ALLOWANCES: readonly TemporaryArchitectureAllowance[] = [];
 
 const PLATFORM_COLLECTION_PATTERNS = [
   {
@@ -54,7 +48,10 @@ describe('platform architecture guard', () => {
         }
       }
     }
-    expect(violations).toEqual([]);
+    assertArchitectureGuard({
+      guard: 'platform-keyed-collections',
+      violations,
+    });
   });
 
   it('rejects new direct platform comparisons in central orchestrators', () => {
@@ -66,27 +63,20 @@ describe('platform architecture guard', () => {
       `['"](?:${platformAlternation})['"]\\s*(?:===|!==)\\s*(?:platform|adapter\\.id|id)\\b`,
     );
 
+    const violations: string[] = [];
     for (const path of GUARDED_ORCHESTRATORS) {
       const actual = readFileSync(path, 'utf8')
         .split(/\r?\n/)
         .map((line) => line.trim())
         .filter((line) => directComparison.test(line) || reverseComparison.test(line))
         .sort();
-      const allowed = (PLATFORM_LITERAL_ALLOWLIST[path] ?? [])
-        .map(({ line }) => line)
-        .sort();
-      expect(actual, path).toEqual(allowed);
+      violations.push(...actual.map((line) => `${path}: ${line}`));
     }
-  });
-
-  it('requires actionable metadata for every temporary literal allowance', () => {
-    for (const allowances of Object.values(PLATFORM_LITERAL_ALLOWLIST)) {
-      for (const allowance of allowances ?? []) {
-        expect(allowance.reason.length).toBeGreaterThan(20);
-        expect(allowance.owner).toMatch(/^Issue #\d+/);
-        expect(allowance.removalPhase).toBe('Phase 2 before closure');
-      }
-    }
+    assertArchitectureGuard({
+      guard: 'central-platform-literals',
+      violations,
+      allowances: PLATFORM_LITERAL_ALLOWANCES,
+    });
   });
 });
 

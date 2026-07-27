@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { assertArchitectureGuard } from '../../tests/architecture-guard';
 
 const STORAGE_MODULES = [
   'draft',
@@ -66,7 +67,19 @@ describe('storage architecture', () => {
     const duplicates = [...owners.entries()]
       .filter(([, modules]) => modules.length !== 1)
       .map(([name, modules]) => `${name}: ${modules.join(',')}`);
-    expect(duplicates).toEqual([]);
-    expect([...owners.keys()].sort()).toEqual([...EXPECTED_EXPORTS].sort());
+    const actualExports = new Set(owners.keys());
+    const expectedExports = new Set<string>(EXPECTED_EXPORTS);
+    assertArchitectureGuard({
+      guard: 'storage-export-ownership',
+      violations: [
+        ...duplicates,
+        ...[...expectedExports]
+          .filter((name) => !actualExports.has(name))
+          .map((name) => `missing compatibility export: ${name}`),
+        ...[...actualExports]
+          .filter((name) => !expectedExports.has(name))
+          .map((name) => `unexpected compatibility export: ${name}`),
+      ],
+    });
   });
 });
