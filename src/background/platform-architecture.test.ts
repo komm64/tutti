@@ -125,6 +125,16 @@ describe('platform architecture guard', () => {
     expect(poster).toContain('createPostOrchestrator as createPlatformPoster');
     expect(poster).not.toMatch(/\bfunction\b/);
   });
+
+  it('keeps stored page-world API URL capture in its strategy module', () => {
+    const capture = readFileSync('src/background/post-url-capture.ts', 'utf8');
+
+    expect(capture).toContain("from './post-url-stored-api'");
+    expect(capture).not.toContain("'tutti:ig-latest-post'");
+    expect(capture).not.toContain("'tutti:mastodon-latest-post'");
+    expect(capture).not.toContain("'tutti:threads-latest-post'");
+    expect(capture).not.toContain("'tutti:tumblr-latest-post'");
+  });
 });
 
 function productionTypeScriptFiles(root: string): string[] {
