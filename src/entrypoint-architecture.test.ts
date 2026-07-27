@@ -143,6 +143,15 @@ describe('entrypoint architecture guard', () => {
     expect(entrypoint).toContain('handleClickCommand(request, RES_TAG)');
     expect(entrypoint).not.toMatch(/\bfunction (?:injectTagList|clickElement|clickTextMatches)\b/);
   });
+
+  it('keeps page-world input and drop commands behind one media runtime', () => {
+    const entrypoint = readFileSync('entrypoints/inject-helper.content.ts', 'utf8');
+
+    expect(entrypoint).toContain('const mediaCommandHandlers = createMediaCommandHandlers');
+    expect(entrypoint).toContain('input: mediaCommandHandlers.input');
+    expect(entrypoint).toContain('drop: mediaCommandHandlers.drop');
+    expect(entrypoint).not.toMatch(/\bfunction (?:injectIntoInput|injectViaDrop)\b/);
+  });
 });
 
 function categorize(path: string): EntrypointCategory {
