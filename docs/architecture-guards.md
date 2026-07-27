@@ -10,6 +10,7 @@ This command checks the scripts catalog, then runs the structural Vitest suite
 for import cycles, selector contracts, adapter/strategy completeness, docs
 alignment, platform literal policy, entrypoint import boundaries, background
 message routing, message/storage facades, and UI localization.
+It also rejects expired production compatibility switches.
 
 `npm test` remains the authoritative full test suite. The focused command is a
 fast local checkpoint and a named CI step; architecture tests must remain part

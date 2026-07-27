@@ -12,6 +12,7 @@ export default defineConfig({
       'src/background/message-router.test.ts',
       'src/background/platform-architecture.test.ts',
       'src/background/platform-strategies.test.ts',
+      'src/compatibility/production-switches.test.ts',
       'src/entrypoint-architecture.test.ts',
       'src/messages/messages-architecture.test.ts',
       'src/storage/storage-architecture.test.ts',
