@@ -9,7 +9,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe('composer persistence controller', () => {
+describe('composer controller', () => {
   it('loads draft and merges only known persisted platform keys', async () => {
     const controller = createComposerController({
       getDraft: vi.fn(async () => ({ text: 'saved draft' })),
@@ -148,5 +148,54 @@ describe('composer persistence controller', () => {
     const removed = controller.removeImage(withAlt, 1);
     expect(removed.images.map((image) => image.name)).toEqual(['b.png']);
     expect(removed.imageAlts).toEqual(['updated']);
+  });
+
+  it('owns history refresh, storage subscription, and object URL cleanup', async () => {
+    let storageListener:
+      | ((changes: Record<string, unknown>, area: string) => void)
+      | undefined;
+    const unsubscribe = vi.fn();
+    const revokeHistoryUrls = vi.fn();
+    const loadHistory = vi
+      .fn()
+      .mockResolvedValueOnce({
+        entries: [{ id: 'first' }],
+        thumbs: { first: ['blob:first'] },
+        objectUrls: ['blob:first'],
+      })
+      .mockResolvedValueOnce({
+        entries: [{ id: 'second' }],
+        thumbs: { second: ['blob:second'] },
+        objectUrls: ['blob:second'],
+      });
+    const subscriber = vi.fn();
+    const controller = createComposerController({
+      loadHistory,
+      revokeHistoryUrls,
+      subscribeStorageChanges: (listener) => {
+        storageListener = listener;
+        return unsubscribe;
+      },
+    });
+
+    const stop = controller.subscribeHistory(subscriber);
+    await vi.waitFor(() => expect(subscriber).toHaveBeenCalledOnce());
+    expect(subscriber).toHaveBeenLastCalledWith({
+      entries: [{ id: 'first' }],
+      thumbs: { first: ['blob:first'] },
+    });
+
+    storageListener?.({ unrelated: {} }, 'local');
+    storageListener?.({ postHistory: {} }, 'sync');
+    expect(loadHistory).toHaveBeenCalledOnce();
+
+    storageListener?.({ postHistory: {} }, 'local');
+    await vi.waitFor(() => expect(subscriber).toHaveBeenCalledTimes(2));
+    expect(revokeHistoryUrls).toHaveBeenCalledWith(['blob:first']);
+
+    stop();
+    expect(unsubscribe).toHaveBeenCalledOnce();
+    controller.dispose();
+    expect(revokeHistoryUrls).toHaveBeenLastCalledWith(['blob:second']);
   });
 });

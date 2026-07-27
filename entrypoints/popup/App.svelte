@@ -40,10 +40,6 @@
     uncertainPlatforms,
   } from '../../src/popup/post-submit';
   import {
-    loadPopupHistoryThumbs,
-    revokeHistoryThumbUrls,
-  } from '../../src/popup/history-thumbs';
-  import {
     applyPresetSelection,
     createPresetFromSelection,
     removePresetById,
@@ -109,7 +105,6 @@
   // v0.5.9〜 履歴は popup 下部に常時表示 (compact strip)。 詳細・検索・編集は History tab 側で。
   let history = $state<HistoryEntry[]>([]);
   let historyThumbs = $state<Record<string, string[]>>({});
-  let historyThumbUrls: string[] = [];
   let draftLoaded = $state(false);
   let lastSeenUsers = $state<LastSeenUsers>({});
   /** v0.4.86: 失敗 hint card を expand してる platform (null = 全て collapse) */
@@ -328,22 +323,12 @@
     } catch { /* ignore */ }
   }
 
-  async function loadHistory() {
-    revokeHistoryThumbUrls(historyThumbUrls);
-    const { entries, thumbs, objectUrls } = await loadPopupHistoryThumbs();
-    history = entries;
-    historyThumbs = thumbs;
-    historyThumbUrls = objectUrls;
-  }
-
   // v0.5.9: 履歴は常時表示なので popup mount 時に load + storage 変更で auto refresh
   $effect(() => {
-    void loadHistory();
-    const listener = (changes: Record<string, unknown>, area: string): void => {
-      if (area === 'local' && 'postHistory' in changes) void loadHistory();
-    };
-    chrome.storage.onChanged.addListener(listener as Parameters<typeof chrome.storage.onChanged.addListener>[0]);
-    return () => chrome.storage.onChanged.removeListener(listener as Parameters<typeof chrome.storage.onChanged.removeListener>[0]);
+    return composerController.subscribeHistory((next) => {
+      history = next.entries;
+      historyThumbs = next.thumbs;
+    });
   });
 
   // P16: 動画圧縮の進捗 (offscreen から broadcast)
@@ -803,7 +788,7 @@
     } finally {
       posting = false;
       pendingPlatforms = [];
-      void loadHistory(); // v0.5.9〜 常時表示なので必ず refresh
+      void composerController.refreshHistory(); // v0.5.9〜 常時表示なので必ず refresh
     }
   }
 </script>
