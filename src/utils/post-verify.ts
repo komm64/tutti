@@ -9,7 +9,6 @@
  * 自動検知して popup に warning として通知する。
  */
 
-import type { PlatformId } from '../types/platform';
 import { t } from './i18n';
 import { hasUrlEvidence } from './text-urls';
 
@@ -157,12 +156,4 @@ export function verifyError(reason: string): VerifyResult {
     verified: false,
     issues: [{ kind: 'verify-error', message: reason, severity: 'warn' }],
   };
-}
-
-/** verify 実装 registry を判定 (v0.4.76 で 11 SNS 全対応) */
-export function isVerifySupported(platform: PlatformId): boolean {
-  return [
-    'bluesky', 'mastodon', 'misskey',  // public API
-    'x', 'instagram', 'threads', 'tumblr', 'pixiv', 'deviantart', 'tiktok', 'youtube',  // og:meta
-  ].includes(platform);
 }
