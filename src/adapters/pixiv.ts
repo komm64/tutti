@@ -26,6 +26,8 @@ export const pixivAdapter: PlatformAdapter = {
   name: 'Pixiv',
   // caption 実用上限。Pixiv 側は無制限だが、超過警告を出すボーダーとして
   charLimit: 1000,
+  popupOrder: 7,
+  defaultSelected: false,
   matchUrl: (url) => /^https:\/\/(www\.)?pixiv\.net\//.test(url),
   getComposeUrl: () => 'https://www.pixiv.net/illustration/create',
   getLoginUrl: () => 'https://www.pixiv.net/',

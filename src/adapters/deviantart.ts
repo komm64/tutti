@@ -19,6 +19,8 @@ export const deviantartAdapter: PlatformAdapter = {
   name: 'DeviantArt',
   // DA description は generous (5000 程度の感覚)。実用上限としてセット
   charLimit: 5000,
+  popupOrder: 8,
+  defaultSelected: false,
   matchUrl: (url) => /^https:\/\/(www\.)?deviantart\.com\//.test(url),
   getComposeUrl: () => 'https://www.deviantart.com/studio?new=1',
   getLoginUrl: () => 'https://www.deviantart.com/',

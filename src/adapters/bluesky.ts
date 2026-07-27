@@ -4,6 +4,8 @@ export const blueskyAdapter: PlatformAdapter = {
   id: 'bluesky',
   name: 'Bluesky',
   charLimit: 300,
+  popupOrder: 2,
+  defaultSelected: true,
   matchUrl: (url) => /^https:\/\/bsky\.app\//.test(url),
   // /intent/compose?text= で compose dialog が開いて text が入る
   getComposeUrl: (text) =>

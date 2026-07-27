@@ -9,6 +9,8 @@ export const tumblrAdapter: PlatformAdapter = {
   id: 'tumblr',
   name: 'Tumblr',
   charLimit: 4096,
+  popupOrder: 4,
+  defaultSelected: true,
   matchUrl: (url) => /^https:\/\/(www\.)?tumblr\.com\//.test(url),
   // /new/text で compose を開く。本文は DOM injection で入れる
   getComposeUrl: () => 'https://www.tumblr.com/new/text',

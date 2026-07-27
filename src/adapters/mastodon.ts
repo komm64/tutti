@@ -11,6 +11,8 @@ export const mastodonAdapter: PlatformAdapter = {
   id: 'mastodon',
   name: 'Mastodon',
   charLimit: 500,
+  popupOrder: 5,
+  defaultSelected: true,
   matchUrl: (url) => url.startsWith(`${MASTODON_DEFAULT_INSTANCE}/`),
   // /share?text= で compose modal が開く(多くの Mastodon インスタンスで共通)
   getComposeUrl: (text) =>

@@ -24,6 +24,8 @@ export const instagramAdapter: PlatformAdapter = {
   name: 'Instagram',
   // caption 上限 2200 (probe で "0/2,200" と表示されてた)
   charLimit: 2200,
+  popupOrder: 9,
+  defaultSelected: false,
   matchUrl: (url) => /^https:\/\/(www\.)?instagram\.com\//.test(url),
   // home から Create ボタンを click する flow なので、compose URL は home に
   getComposeUrl: () => 'https://www.instagram.com/',

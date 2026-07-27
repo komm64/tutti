@@ -18,6 +18,8 @@ function adapter(overrides: Partial<PlatformAdapter> = {}): PlatformAdapter {
     id: 'threads',
     name: 'Threads',
     charLimit: 500,
+    popupOrder: 1,
+    defaultSelected: true,
     matchUrl: (url) => url.startsWith('https://www.threads.com/'),
     getComposeUrl: (text) => `https://www.threads.com/intent/post?text=${encodeURIComponent(text)}`,
     prefillsViaUrl: true,

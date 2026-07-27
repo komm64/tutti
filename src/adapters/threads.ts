@@ -9,6 +9,8 @@ export const threadsAdapter: PlatformAdapter = {
   id: 'threads',
   name: 'Threads',
   charLimit: 500,
+  popupOrder: 3,
+  defaultSelected: true,
   // 2025 以降 threads.com に段階移行中。両ドメインを許容
   matchUrl: (url) => /^https:\/\/www\.threads\.(?:net|com)\//.test(url),
   // 新ドメイン threads.com の空 composer を使う(threads.net は redirect 想定)。
