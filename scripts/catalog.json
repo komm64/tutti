@@ -115,11 +115,6 @@
       "entryCommand": "node scripts/click-bottom-post.mjs"
     },
     {
-      "path": "scripts/click-google-account-v2.mjs",
-      "class": "obsolete-candidate",
-      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
-    },
-    {
       "path": "scripts/click-google-account.mjs",
       "class": "probe",
       "usage": "Exploratory one-off probe retained for human review.",
@@ -198,11 +193,6 @@
       "entryCommand": "node scripts/dev-private-load.mjs"
     },
     {
-      "path": "scripts/dev-private-load2.mjs",
-      "class": "obsolete-candidate",
-      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
-    },
-    {
       "path": "scripts/diagnose-load.mjs",
       "class": "diagnostic",
       "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
@@ -225,16 +215,6 @@
       "class": "probe",
       "usage": "Exploratory one-off probe retained for human review.",
       "entryCommand": "node scripts/drive-mastodon.mjs"
-    },
-    {
-      "path": "scripts/drive-post-v2.mjs",
-      "class": "obsolete-candidate",
-      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
-    },
-    {
-      "path": "scripts/drive-post-v3.mjs",
-      "class": "obsolete-candidate",
-      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
     },
     {
       "path": "scripts/drive-post.mjs",
@@ -870,11 +850,6 @@
       "entryCommand": "node scripts/inspect-tumblr-drop.mjs"
     },
     {
-      "path": "scripts/inspect-tumblr-drop2.mjs",
-      "class": "obsolete-candidate",
-      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
-    },
-    {
       "path": "scripts/inspect-tumblr-editor.mjs",
       "class": "diagnostic",
       "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",
@@ -932,16 +907,6 @@
       "class": "probe",
       "usage": "Exploratory one-off probe retained for human review.",
       "entryCommand": "node scripts/open-cws-dashboard.mjs"
-    },
-    {
-      "path": "scripts/p2.mjs",
-      "class": "obsolete-candidate",
-      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
-    },
-    {
-      "path": "scripts/p3.mjs",
-      "class": "obsolete-candidate",
-      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
     },
     {
       "path": "scripts/patch-ffmpeg-package.mjs",
@@ -1164,16 +1129,6 @@
       "class": "e2e",
       "usage": "Repeatable browser or end-to-end behavior check.",
       "entryCommand": "node scripts/real-post-pixiv-direct.mjs"
-    },
-    {
-      "path": "scripts/real-post-pixiv-v2.mjs",
-      "class": "obsolete-candidate",
-      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
-    },
-    {
-      "path": "scripts/real-post-pixiv-v3.mjs",
-      "class": "obsolete-candidate",
-      "usage": "Manual Phase 9 review candidate; reachability alone does not permit deletion."
     },
     {
       "path": "scripts/real-post-pixiv.mjs",
