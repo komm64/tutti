@@ -135,6 +135,14 @@ describe('entrypoint architecture guard', () => {
     expect(entrypoint).not.toMatch(/\b(?:req|data)\.mode\s*===/);
     expect(dispatch).toContain('[Mode in InjectRequestMode]');
   });
+
+  it('keeps page-world tag and click commands out of the entrypoint', () => {
+    const entrypoint = readFileSync('entrypoints/inject-helper.content.ts', 'utf8');
+
+    expect(entrypoint).toContain('handleTagListCommand(request, RES_TAG)');
+    expect(entrypoint).toContain('handleClickCommand(request, RES_TAG)');
+    expect(entrypoint).not.toMatch(/\bfunction (?:injectTagList|clickElement|clickTextMatches)\b/);
+  });
 });
 
 function categorize(path: string): EntrypointCategory {
