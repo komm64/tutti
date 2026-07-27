@@ -135,6 +135,15 @@ describe('platform architecture guard', () => {
     expect(capture).not.toContain("'tutti:threads-latest-post'");
     expect(capture).not.toContain("'tutti:tumblr-latest-post'");
   });
+
+  it('keeps Mastodon public API URL capture in its strategy module', () => {
+    const capture = readFileSync('src/background/post-url-capture.ts', 'utf8');
+
+    expect(capture).toContain("from './post-url-mastodon-api'");
+    expect(capture).not.toMatch(
+      /\bfunction (?:captureMastodonPostViaPublicApi|fetchMastodonAccountId|inferMastodonInstance|resolveMastodonIdentity|stripHtml)\b/,
+    );
+  });
 });
 
 function productionTypeScriptFiles(root: string): string[] {
