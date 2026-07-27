@@ -219,8 +219,11 @@ const homeState = await xHome.evaluate(() => ({
   title: document.title,
 }));
 console.log('[verify-x-thread] home state:', JSON.stringify(homeState));
+if (homeState.hasLoginLink) {
+  await fail('The X verification profile is signed out.', homeState);
+}
 if (!homeState.hasTextarea) {
-  await fail('X home composer was not found. The verification profile is probably signed out.', homeState);
+  console.log('[verify-x-thread] home inline composer is absent; continuing with the production /compose/post route');
 }
 
 const text = [
