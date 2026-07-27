@@ -1,4 +1,4 @@
-import type { PlatformId } from '../messages';
+import type { PlatformId } from '../types/platform';
 import type { PlatformAdapter } from './types';
 import { blueskyAdapter } from './bluesky';
 import { deviantartAdapter } from './deviantart';

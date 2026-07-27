@@ -1,4 +1,4 @@
-import type { PlatformId } from '../messages';
+import type { PlatformId } from '../types/platform';
 import { splitText } from './split';
 
 const X_URL_RE = /https?:\/\/[^\s]+/giu;

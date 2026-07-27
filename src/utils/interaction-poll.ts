@@ -14,7 +14,7 @@
  * 足すだけで bg は変更不要 (registry pattern)。
  */
 
-import type { PlatformId } from '../messages';
+import type { PlatformId } from '../types/platform';
 
 export interface InteractionCounts {
   likes: number;

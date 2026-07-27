@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { PlatformId } from '../messages';
+import type { PlatformId } from '../types/platform';
 import type { ContentKind } from './types';
 import { adapters, checkVideoConstraint } from './registry';
 

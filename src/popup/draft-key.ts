@@ -1,4 +1,4 @@
-import type { PlatformId } from '../messages';
+import type { PlatformId } from '../types/platform';
 import type { ImagePreview, VideoPreview, Visibility } from './types';
 
 export interface DraftKeyInput {

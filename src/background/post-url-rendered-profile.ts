@@ -1,4 +1,4 @@
-import type { PlatformId } from '../messages';
+import type { PlatformId } from '../types/platform';
 import { closeTabSafely, waitForTabComplete } from './tab-management';
 import { retryTransientTabAction } from './tab-action-retry';
 

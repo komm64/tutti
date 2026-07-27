@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { adapters } from '../adapters/registry';
-import type { PlatformId } from '../messages';
+import type { PlatformId } from '../types/platform';
 import {
   buildPopupPlatformConfig,
   DEFAULT_SELECTED_PLATFORMS,

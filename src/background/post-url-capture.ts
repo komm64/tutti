@@ -1,4 +1,4 @@
-import type { PlatformId } from '../messages';
+import type { PlatformId } from '../types/platform';
 import { waitForTabComplete } from './tab-management';
 import {
   captureRenderedProfilePostUrl,

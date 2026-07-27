@@ -9,7 +9,7 @@
  * 自動検知して popup に warning として通知する。
  */
 
-import type { PlatformId } from '../messages';
+import type { PlatformId } from '../types/platform';
 import { t } from './i18n';
 import { hasUrlEvidence } from './text-urls';
 

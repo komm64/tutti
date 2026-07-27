@@ -3,7 +3,9 @@
  * すべてのメッセージはこの判別共用体のいずれかに該当する。
  */
 
-export type PlatformId = 'x' | 'bluesky' | 'threads' | 'mastodon' | 'misskey' | 'tumblr' | 'pixiv' | 'deviantart' | 'instagram' | 'tiktok' | 'youtube';
+import type { PlatformId } from './types/platform';
+
+export type { PlatformId } from './types/platform';
 
 export type UserActionCategory =
   | 'sign-in'

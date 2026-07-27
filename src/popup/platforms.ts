@@ -1,6 +1,6 @@
 import { adapters } from '../adapters/registry';
 import type { PlatformAdapter } from '../adapters/types';
-import type { PlatformId } from '../messages';
+import type { PlatformId } from '../types/platform';
 import type { PlatformOption } from './types';
 
 export const MAX_IMAGES = 4;

@@ -10,7 +10,7 @@
  * (= post latency を増やさない、次回反映)。
  */
 
-import type { PlatformId } from '../messages';
+import type { PlatformId } from '../types/platform';
 import type { VideoConstraints } from '../adapters/types';
 import { getApiCredentials } from './api-credentials';
 import { getSettings } from '../storage';
