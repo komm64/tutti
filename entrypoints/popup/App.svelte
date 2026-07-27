@@ -71,12 +71,6 @@
     revokeVideoPreview,
   } from '../../src/popup/media-preview';
   import {
-    addFilesToMediaState,
-    moveImageAt,
-    removeImageAt,
-    removeVideoFromState,
-  } from '../../src/popup/media-state';
-  import {
     openPopupGitHubIssue,
     submitPopupErrorReport,
     type PopupReportContext,
@@ -583,7 +577,7 @@
   );
 
   async function processFiles(files: File[]) {
-    const next = await addFilesToMediaState({ images, video, imageAlts }, files);
+    const next = await composerController.addFiles({ images, video, imageAlts }, files);
     images = next.images;
     video = next.video;
     imageAlts = next.imageAlts;
@@ -638,7 +632,7 @@
   }
 
   function removeImage(i: number) {
-    const next = removeImageAt({ images, video, imageAlts }, i);
+    const next = composerController.removeImage({ images, video, imageAlts }, i);
     images = next.images;
     imageAlts = next.imageAlts;
   }
@@ -676,13 +670,13 @@
   }
 
   function moveImage(i: number, delta: -1 | 1): void {
-    const next = moveImageAt({ images, video, imageAlts }, i, delta);
+    const next = composerController.moveImage({ images, video, imageAlts }, i, delta);
     images = next.images;
     imageAlts = next.imageAlts;
   }
 
   function removeVideo() {
-    const next = removeVideoFromState({ images, video, imageAlts });
+    const next = composerController.removeVideo({ images, video, imageAlts });
     video = next.video;
   }
 
@@ -691,9 +685,8 @@
   }
 
   function setImageAlt(index: number, value: string): void {
-    const next = imageAlts.slice();
-    next[index] = value;
-    imageAlts = next;
+    const next = composerController.setImageAlt({ images, video, imageAlts }, index, value);
+    imageAlts = next.imageAlts;
   }
 
   function openFailureReportDialog(text: string): void {
