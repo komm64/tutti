@@ -61,6 +61,24 @@ function installXClickProbe() {
   }, true);
 }
 
+function attachDialogHandlers(context) {
+  const attached = new WeakSet();
+  const attach = (page) => {
+    if (!page || attached.has(page)) return;
+    attached.add(page);
+    page.on('dialog', async (dialog) => {
+      try {
+        await dialog.dismiss();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(`[verify-x-thread] ignored dialog after page detach: ${message}`);
+      }
+    });
+  };
+  for (const page of context.pages()) attach(page);
+  context.on('page', attach);
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -158,6 +176,7 @@ if (cdpEndpoint) {
   });
 }
 
+attachDialogHandlers(ctx);
 await ctx.exposeBinding('__tuttiE2ERecordXClick', ({ page }, marker) => {
   xClickEvents.push({
     marker: String(marker),
