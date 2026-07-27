@@ -1,7 +1,11 @@
 // popup UI を経由せず、background に直接 POST_REQUEST メッセージを送る driver。
 // popup の autoPost state race 問題を完全回避。
-import { WebSocket } from 'ws';
 import { writeFileSync, appendFileSync, readFileSync } from 'fs';
+import {
+  listCdpTargets,
+  RawCdpClient,
+  resolveExtensionId,
+} from './e2e/cdp-harness.mjs';
 
 const LOG = 'scripts/realpost-pixiv-direct.log';
 writeFileSync(LOG, `=== ${new Date().toISOString()} ===\n`);
@@ -11,52 +15,20 @@ const log = (...a) => {
   process.stdout.write(line + '\n');
 };
 
-const r = await fetch('http://localhost:9222/json/list');
-const tabs = await r.json();
+const tabs = await listCdpTargets();
 const pix = tabs.find(t => t.type === 'page' && /pixiv\.net/.test(t.url));
 const popupTab = tabs.find(t => t.type === 'page' && (/popup\.html|chrome:\/\/extensions/.test(t.url) || t.url === 'about:blank'));
 if (!pix || !popupTab) { log('missing tab', { pix: !!pix, popup: !!popupTab }); process.exit(1); }
 
-class Cdp {
-  constructor(url, name) { this.name = name; this.url = url; this.id = 0; this.pending = new Map(); }
-  async connect() {
-    return new Promise((resolve, reject) => {
-      this.ws = new WebSocket(this.url, { perMessageDeflate: false });
-      this.ws.on('open', resolve);
-      this.ws.on('error', (e) => log(`${this.name} WS_ERR`, e.message));
-      this.ws.on('message', (raw) => {
-        const m = JSON.parse(raw.toString());
-        if (m.id != null && this.pending.has(m.id)) {
-          this.pending.get(m.id).resolve(m.result);
-          this.pending.delete(m.id);
-        }
-      });
-    });
-  }
-  send(method, params = {}) {
-    const i = ++this.id;
-    return new Promise((resolve) => {
-      this.pending.set(i, { resolve });
-      this.ws.send(JSON.stringify({ id: i, method, params }));
-    });
-  }
-  async evalJs(expr, awaitPromise = true) {
-    const r = await this.send('Runtime.evaluate', { expression: expr, returnByValue: true, awaitPromise });
-    if (r.exceptionDetails) throw new Error(r.exceptionDetails.text);
-    return r.result?.value;
-  }
-  close() { this.ws.close(); }
-}
-
-const pixCdp = new Cdp(pix.webSocketDebuggerUrl, 'pix');
-const popupCdp = new Cdp(popupTab.webSocketDebuggerUrl, 'popup');
+const pixCdp = new RawCdpClient(pix.webSocketDebuggerUrl, { name: 'pixiv', logger: log });
+const popupCdp = new RawCdpClient(popupTab.webSocketDebuggerUrl, { name: 'popup', logger: log });
 await pixCdp.connect();
 await popupCdp.connect();
 log('both connected');
 
 // popup タブを popup.html に navigate (chrome.runtime API を使うため)
 await popupCdp.send('Page.enable');
-const EXT_ID = 'dophemlpjldcejjdjefpjbgngodopkfe';
+const EXT_ID = await resolveExtensionId({ targets: () => tabs }, { timeoutMs: 1 });
 if (!popupTab.url.includes('popup.html')) {
   log('navigating popup tab to popup.html');
   await popupCdp.send('Page.navigate', { url: `chrome-extension://${EXT_ID}/popup.html` });
@@ -78,7 +50,7 @@ const ts = Date.now().toString().slice(-6);
 const testText = `Tutti realpost ${ts}\n本文 line 2.`;
 
 log('dispatching POST_REQUEST to background (bypasses popup UI)');
-const dispatchResult = await popupCdp.evalJs(`(async () => {
+const dispatchResult = await popupCdp.evaluate(`(async () => {
   const bin = atob(${JSON.stringify(b64)});
   const arr = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
@@ -112,7 +84,7 @@ while (Date.now() - start < MAX) {
   await new Promise((r) => setTimeout(r, 2000));
   let snap;
   try {
-    snap = await pixCdp.evalJs(`({
+    snap = await pixCdp.evaluate(`({
       url: location.href,
       title: document.querySelector('input[name="title"]')?.value ?? null,
       capLen: (document.querySelector('textarea[name="comment"]')?.value ?? '').length,

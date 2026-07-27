@@ -6,13 +6,18 @@ import {
   connectPuppeteerCdp,
   disconnectCdp,
   extensionIdFromUrl,
+  fetchCdpJson,
+  listCdpTargets,
   loadE2eFixture,
+  RawCdpClient,
   resolveCdpEndpoint,
+  resolveCdpHttpEndpoint,
   resolveExtensionId,
   resolveFixturePath,
   withCdpBrowser,
   withTemporaryDirectory,
   withTimeout,
+  waitForCdpTarget,
 } from '../scripts/e2e/cdp-harness.mjs';
 
 describe('CDP harness', () => {
@@ -77,6 +82,85 @@ describe('CDP harness', () => {
       protocolTimeout: 91,
       slowMo: 10,
     });
+  });
+
+  it('normalizes HTTP endpoints and lists CDP targets', async () => {
+    expect(resolveCdpHttpEndpoint('ws://surface:9223/devtools/browser/abc'))
+      .toBe('http://surface:9223');
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [{ type: 'page', url: 'https://x.com/home' }],
+    });
+    await expect(listCdpTargets({
+      endpoint: 'http://surface:9223',
+      fetchImpl,
+    })).resolves.toEqual([{ type: 'page', url: 'https://x.com/home' }]);
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'http://surface:9223/json/list',
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+  });
+
+  it('rejects failed and malformed CDP target responses', async () => {
+    await expect(fetchCdpJson('json/list', {
+      endpoint: 'http://surface:9223',
+      fetchImpl: vi.fn().mockResolvedValue({ ok: false, status: 503 }),
+    })).rejects.toThrow('CDP HTTP 503');
+    await expect(listCdpTargets({
+      endpoint: 'http://surface:9223',
+      fetchImpl: vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) }),
+    })).rejects.toThrow('not an array');
+  });
+
+  it('polls CDP targets with a bounded timeout', async () => {
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => [] })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => [{ type: 'page', url: 'https://x.com/home' }],
+      });
+    await expect(waitForCdpTarget(
+      (target) => target.url?.includes('x.com') === true,
+      {
+        endpoint: 'http://surface:9223',
+        fetchImpl,
+        timeoutMs: 100,
+        pollIntervalMs: 1,
+      },
+    )).resolves.toEqual({ type: 'page', url: 'https://x.com/home' });
+  });
+
+  it('bounds raw CDP requests and resolves protocol results', async () => {
+    class FakeWebSocket {
+      static OPEN = 1;
+      readyState = 1;
+      listeners = new Map<string, Array<(...args: any[]) => void>>();
+      once(event: string, listener: (...args: any[]) => void) {
+        this.on(event, listener);
+        if (event === 'open') queueMicrotask(listener);
+      }
+      on(event: string, listener: (...args: any[]) => void) {
+        this.listeners.set(event, [...(this.listeners.get(event) ?? []), listener]);
+      }
+      send(payload: string) {
+        const request = JSON.parse(payload);
+        queueMicrotask(() => {
+          for (const listener of this.listeners.get('message') ?? []) {
+            listener(Buffer.from(JSON.stringify({
+              id: request.id,
+              result: { result: { value: 'ok' } },
+            })));
+          }
+        });
+      }
+      close() {}
+    }
+    const client = await new RawCdpClient('ws://surface/devtools/page/1', {
+      WebSocketImpl: FakeWebSocket,
+      timeoutMs: 50,
+    }).connect();
+    await expect(client.evaluate('location.href')).resolves.toBe('ok');
+    client.close();
   });
 
   it('discovers extension IDs from configuration, workers, pages, targets, and injected runtime', async () => {
