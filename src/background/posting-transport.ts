@@ -8,7 +8,6 @@ import type {
   PostToPlatformMessage,
 } from '../messages';
 import { getLastSeenUsers } from '../storage';
-import type { PostingAlgorithm } from '../types/posting';
 import { t } from '../utils/i18n';
 import { log } from '../utils/logger';
 import {
@@ -39,13 +38,13 @@ import {
   withFlow,
 } from './post-result-policy';
 import { closeTabSafely, openOrFocusTab } from './tab-management';
+import type {
+  PostExecutionOptions,
+  PostingVisibility,
+} from './posting-orchestrator-contract';
 
-export type Visibility = 'public' | 'unlisted' | 'private' | 'direct';
-
-export interface PostToPlatformOptions {
-  forceForeground?: boolean;
-  postingAlgorithm?: PostingAlgorithm;
-}
+export type Visibility = PostingVisibility;
+export type PostToPlatformOptions = PostExecutionOptions;
 
 export interface PostingTransportOptions {
   openedTabs: Pick<OpenedTabRegistry, 'record' | 'forget'>;

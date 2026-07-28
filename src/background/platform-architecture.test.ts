@@ -24,6 +24,7 @@ const GUARDED_ORCHESTRATORS = [
 ] as const;
 
 const PLATFORM_LITERAL_ALLOWANCES: readonly TemporaryArchitectureAllowance[] = [];
+const FROZEN_LEGACY_POSTER = 'src/background/legacy-post-orchestrator.ts';
 
 const PLATFORM_COLLECTION_PATTERNS = [
   {
@@ -40,6 +41,9 @@ describe('platform architecture guard', () => {
   it('rejects non-empty platform-keyed Set and array literals in production TypeScript', () => {
     const violations: string[] = [];
     for (const path of productionTypeScriptFiles('src')) {
+      if (relative('.', path).replaceAll('\\', '/') === FROZEN_LEGACY_POSTER) {
+        continue;
+      }
       const source = readFileSync(path, 'utf8');
       for (const { label, pattern } of PLATFORM_COLLECTION_PATTERNS) {
         const matches = source.matchAll(new RegExp(pattern.source, pattern.flags));
@@ -123,16 +127,42 @@ describe('platform architecture guard', () => {
     const poster = readFileSync('src/background/platform-poster.ts', 'utf8');
     const orchestrator = readFileSync('src/background/post-orchestrator.ts', 'utf8');
     const transport = readFileSync('src/background/posting-transport.ts', 'utf8');
+    const contract = readFileSync(
+      'src/background/posting-orchestrator-contract.ts',
+      'utf8',
+    );
 
     expect(poster).toContain('Record<PostingAlgorithm, PostingAlgorithmOrchestrator>');
-    expect(poster).toContain("next: createPostOrchestrator(options, 'next')");
-    expect(poster).toContain("legacy: createPostOrchestrator(options, 'legacy')");
-    expect(poster).toContain("postOptions.postingAlgorithm ?? 'next'");
+    expect(poster).toContain('next: createNextPostOrchestrator(options)');
+    expect(poster).toContain('legacy: createLegacyPostOrchestrator(options)');
+    expect(poster).toContain("postingAlgorithm = 'next'");
+    expect(poster).toContain('...executionOptions');
     expect(readFileSync('src/background/post-request-handler.ts', 'utf8'))
       .toContain('platformPoster.forAlgorithm(postingAlgorithm)');
-    expect(orchestrator).toContain('postingAlgorithm: PostingAlgorithm');
+    expect(orchestrator).toContain('createNextPostOrchestrator');
     expect(orchestrator).not.toContain('postOptions.postingAlgorithm');
     expect(transport).not.toContain('postOptions.postingAlgorithm');
+    expect(contract).toContain('interface PostingAlgorithmOrchestrator');
+    expect(contract).toContain('interface PostExecutionOptions');
+  });
+
+  it('keeps the registered legacy path as a complete frozen controller', () => {
+    const legacy = readFileSync(FROZEN_LEGACY_POSTER, 'utf8');
+
+    expect(legacy).toContain(
+      'Frozen v0.5.49 posting controller (baseline commit 3d9eda8)',
+    );
+    expect(legacy).toContain('createLegacyPostOrchestrator');
+    expect(legacy).toContain('async function postSingleChunkWithRetry');
+    expect(legacy).toContain('async function postSingleChunk');
+    expect(legacy).toContain('async function ensurePostUrl');
+    expect(legacy).toContain('async function attachVerifyResult');
+    expect(legacy).toContain(
+      "adapter.id === 'bluesky' || (adapter.id === 'x' && !autoPost)",
+    );
+    expect(legacy).not.toContain("from './posting-transport'");
+    expect(legacy).not.toContain("from './post-confirmation'");
+    expect(legacy).not.toContain("from './dom-attempt-policy'");
   });
 
   it('keeps stored page-world API URL capture in its strategy module', () => {

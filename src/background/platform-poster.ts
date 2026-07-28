@@ -5,27 +5,17 @@ import type {
 } from '../messages';
 import type { PostingAlgorithm } from '../types/posting';
 import {
-  createPostOrchestrator,
+  createNextPostOrchestrator,
   type PostOrchestratorOptions,
 } from './post-orchestrator';
+import { createLegacyPostOrchestrator } from './legacy-post-orchestrator';
 import type {
-  PostToPlatformOptions,
-  Visibility,
-} from './posting-transport';
+  PostAlgorithmSelectionOptions,
+  PostingAlgorithmOrchestrator,
+  PostingVisibility,
+} from './posting-orchestrator-contract';
 
 export type PlatformPosterOptions = PostOrchestratorOptions;
-
-export interface PostingAlgorithmOrchestrator {
-  postToPlatform(
-    platform: PlatformId,
-    text: string,
-    images?: ImageAttachment[],
-    cw?: string,
-    visibility?: Visibility,
-    autoPost?: boolean,
-    postOptions?: PostToPlatformOptions,
-  ): Promise<PostResultMessage>;
-}
 
 /**
  * Root posting-algorithm boundary.
@@ -36,8 +26,8 @@ export interface PostingAlgorithmOrchestrator {
  */
 export function createPlatformPoster(options: PlatformPosterOptions) {
   const orchestrators: Record<PostingAlgorithm, PostingAlgorithmOrchestrator> = {
-    next: createPostOrchestrator(options, 'next'),
-    legacy: createPostOrchestrator(options, 'legacy'),
+    next: createNextPostOrchestrator(options),
+    legacy: createLegacyPostOrchestrator(options),
   };
 
   function forAlgorithm(
@@ -51,11 +41,14 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
     text: string,
     images?: ImageAttachment[],
     cw?: string,
-    visibility?: Visibility,
+    visibility?: PostingVisibility,
     autoPost = true,
-    postOptions: PostToPlatformOptions = {},
+    postOptions: PostAlgorithmSelectionOptions = {},
   ): Promise<PostResultMessage> {
-    const postingAlgorithm = postOptions.postingAlgorithm ?? 'next';
+    const {
+      postingAlgorithm = 'next',
+      ...executionOptions
+    } = postOptions;
     return await orchestrators[postingAlgorithm].postToPlatform(
       platform,
       text,
@@ -63,12 +56,12 @@ export function createPlatformPoster(options: PlatformPosterOptions) {
       cw,
       visibility,
       autoPost,
-      postOptions,
+      executionOptions,
     );
   }
 
   return { forAlgorithm, postToPlatform };
 }
 
-export { createPostOrchestrator };
+export { createNextPostOrchestrator, createLegacyPostOrchestrator };
 export type { PostOrchestratorOptions };

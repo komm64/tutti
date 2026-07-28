@@ -377,7 +377,7 @@
   "postingAlgorithmLabel": { "message": "投稿アルゴリズム" },
   "postingAlgorithmNext": { "message": "新方式 (推奨)" },
   "postingAlgorithmLegacy": { "message": "旧方式" },
-  "postingAlgorithmHint": { "message": "投稿処理全体を新方式または旧方式へ固定します。新方式では X の長文スレッドも一連の投稿として組み立て、「Post all」で一括送信します。設定は次の新しい投稿から反映され、処理中は切り替わりません。" },
+  "postingAlgorithmHint": { "message": "投稿処理全体を新方式または0.5.49互換の旧方式へ固定します。新方式では X の長文スレッドも一連の投稿として組み立て、「Post all」で一括送信します。設定は次の新しい投稿から反映され、処理中は切り替わりません。" },
 
   "errorReportButton": { "message": "この問題を報告" },
   "errorReportHint": { "message": "GitHub Issues に最近のログを添えて報告ページを開きます。" },

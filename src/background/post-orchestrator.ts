@@ -4,12 +4,10 @@ import type {
   PlatformId,
   PostResultMessage,
 } from '../messages';
-import type { PostingAlgorithm } from '../types/posting';
 import { t } from '../utils/i18n';
 import { log } from '../utils/logger';
 import { splitTextForPlatform } from '../utils/platform-text';
 import { resolveAdapter } from './adapter-resolver';
-import type { OpenedTabRegistry } from './opened-tab-registry';
 import {
   attachVerifyResult,
   createPostConfirmation,
@@ -31,28 +29,19 @@ import {
 import {
   createPostingTransport,
   PostFlowError,
-  type PostToPlatformOptions,
-  type Visibility,
 } from './posting-transport';
+import type {
+  PostExecutionOptions,
+  PostingOrchestratorDependencies,
+  PostingVisibility,
+} from './posting-orchestrator-contract';
 
 const CHUNK_INTERVAL_MS = 2000;
 
-export interface PostOrchestratorOptions {
-  openedTabs: Pick<OpenedTabRegistry, 'record' | 'forget'>;
-  appendBackgroundLog?: (message: string) => void;
-}
+export type PostOrchestratorOptions = PostingOrchestratorDependencies;
 
-/**
- * One orchestrator instance owns one immutable posting algorithm.
- *
- * The platform-poster boundary selects the instance before platform work
- * starts. Keeping the choice in this closure prevents an X-only setting or a
- * mid-request algorithm change from leaking into lower-level transport code.
- */
-export function createPostOrchestrator(
-  options: PostOrchestratorOptions,
-  postingAlgorithm: PostingAlgorithm,
-) {
+/** Decomposed v0.5.50 posting controller. */
+export function createNextPostOrchestrator(options: PostOrchestratorOptions) {
   const confirmation = createPostConfirmation({
     appendBackgroundLog: options.appendBackgroundLog,
   });
@@ -66,9 +55,9 @@ export function createPostOrchestrator(
     text: string,
     images?: ImageAttachment[],
     cw?: string,
-    visibility?: Visibility,
+    visibility?: PostingVisibility,
     autoPost = true,
-    postOptions: PostToPlatformOptions = {},
+    postOptions: PostExecutionOptions = {},
   ): Promise<PostResultMessage> {
     const adapter = await resolveAdapter(platform);
     if (!adapter) {
@@ -99,7 +88,7 @@ export function createPostOrchestrator(
       shouldUseInlineThread(
         adapter.id,
         autoPost,
-        postingAlgorithm,
+        'next',
       )
       && chunks.length > 1
     ) {

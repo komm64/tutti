@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PlatformId, PostResultMessage } from '../messages';
-import type { PostingAlgorithm } from '../types/posting';
 
 const mocks = vi.hoisted(() => {
   const calls = {
@@ -9,17 +8,21 @@ const mocks = vi.hoisted(() => {
   };
   return {
     calls,
-    createPostOrchestrator: vi.fn((
-      _options: unknown,
-      algorithm: PostingAlgorithm,
-    ) => ({
-      postToPlatform: calls[algorithm],
+    createNextPostOrchestrator: vi.fn(() => ({
+      postToPlatform: calls.next,
+    })),
+    createLegacyPostOrchestrator: vi.fn(() => ({
+      postToPlatform: calls.legacy,
     })),
   };
 });
 
 vi.mock('./post-orchestrator', () => ({
-  createPostOrchestrator: mocks.createPostOrchestrator,
+  createNextPostOrchestrator: mocks.createNextPostOrchestrator,
+}));
+
+vi.mock('./legacy-post-orchestrator', () => ({
+  createLegacyPostOrchestrator: mocks.createLegacyPostOrchestrator,
 }));
 
 import { createPlatformPoster } from './platform-poster';
@@ -42,16 +45,13 @@ describe('root posting algorithm boundary', () => {
   it('creates immutable next and legacy orchestrator profiles', () => {
     createPoster();
 
-    expect(mocks.createPostOrchestrator).toHaveBeenCalledTimes(2);
-    expect(mocks.createPostOrchestrator).toHaveBeenNthCalledWith(
-      1,
+    expect(mocks.createNextPostOrchestrator).toHaveBeenCalledOnce();
+    expect(mocks.createNextPostOrchestrator).toHaveBeenCalledWith(
       expect.any(Object),
-      'next',
     );
-    expect(mocks.createPostOrchestrator).toHaveBeenNthCalledWith(
-      2,
+    expect(mocks.createLegacyPostOrchestrator).toHaveBeenCalledOnce();
+    expect(mocks.createLegacyPostOrchestrator).toHaveBeenCalledWith(
       expect.any(Object),
-      'legacy',
     );
   });
 
