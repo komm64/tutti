@@ -17,6 +17,7 @@ export default defineConfig({
       'src/entrypoint-architecture.test.ts',
       'src/messages/messages-architecture.test.ts',
       'src/storage/storage-architecture.test.ts',
+      'src/utils/flow-architecture.test.ts',
       'src/utils/no-hardcoded-japanese.test.ts',
       'src/utils/selector-feed.test.ts',
     ],

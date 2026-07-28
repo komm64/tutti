@@ -17,12 +17,6 @@
  *   4. 待機完了後 window.postMessage({ source: RES_TAG, id, ok, fileCount?, uploadCount? })
  */
 
-import { validateTumblrBodyText } from '../src/utils/tumblr-text';
-import { extractHttpUrls, mergeStandaloneUrlParagraphs } from '../src/utils/text-urls';
-import {
-  findTumblrBodyBlocks,
-  readTumblrBodyTextFromBlocks,
-} from '../src/utils/tumblr-editor';
 import {
   installNetworkObserver,
   type NetworkObserverDiagnostic,
@@ -34,6 +28,24 @@ import {
   type PostCapturePlatform,
   type PostCaptureResult,
 } from '../src/page-world/post-capture-rules';
+import {
+  decodeInjectRequestMode,
+  dispatchInjectRequest,
+  type InjectRequestHandlerMap,
+  type InjectRequestMode,
+} from '../src/page-world/request-mode-dispatch';
+import {
+  findElementBySelectorList,
+  handleClickCommand,
+  handleTagListCommand,
+} from '../src/page-world/element-commands';
+import { createMediaCommandHandlers } from '../src/page-world/media-commands';
+import {
+  injectContentEditableText,
+  injectNativeText,
+  resolveTextEditorDriver,
+} from '../src/page-world/editor-drivers';
+import { handleTumblrTextCommand } from '../src/page-world/tumblr-editor-driver';
 
 const REQ_TAG = 'tutti-inject-req-v1';
 const RES_TAG = 'tutti-inject-res-v1';
@@ -81,7 +93,7 @@ interface InjectRequest {
    * 'tag-list' = Pixiv の tag input のような「value 入力 → Enter で確定 →
    *           input がクリア → 次の値」を繰り返す UI。tags[] を順次入れる
    */
-  mode: 'input' | 'drop' | 'text' | 'tumblr-text' | 'tag-list' | 'click' | 'x-post-url';
+  mode: InjectRequestMode;
   selector: string;
   files: InjectFileSpec[];
   /** mode === 'text' 専用: 挿入するテキスト */
@@ -496,23 +508,13 @@ export default defineContentScript({
       return (clone.innerText ?? clone.textContent ?? '').replace(/\s+/g, ' ').trim();
     }
 
-    function findEl(
+    const findEl = (
       selector: string,
       options: { preferVisible?: boolean } = {},
-    ): { el: HTMLElement; matchedPart: string } | null {
-      let fallback: { el: HTMLElement; matchedPart: string } | null = null;
-      for (const part of selector.split(',').map((s) => s.trim()).filter(Boolean)) {
-        const elements = Array.from(document.querySelectorAll<HTMLElement>(part));
-        if (!fallback && elements[0]) fallback = { el: elements[0], matchedPart: part };
-        if (options.preferVisible) {
-          const visible = elements.find(isVisibleMediaElement);
-          if (visible) return { el: visible, matchedPart: part };
-        } else if (elements[0]) {
-          return { el: elements[0], matchedPart: part };
-        }
-      }
-      return fallback;
-    }
+    ): { el: HTMLElement; matchedPart: string } | null => findElementBySelectorList(selector, {
+      ...options,
+      isVisible: isVisibleMediaElement,
+    });
 
     function base64ToUint8Array(b64: string): Uint8Array {
       const binary = atob(b64);
@@ -534,51 +536,6 @@ export default defineContentScript({
       return { dt };
     }
 
-    async function injectIntoInput(req: InjectRequest): Promise<InjectResponse> {
-      const found = findEl(req.selector, { preferVisible: true });
-      if (!found) {
-        return { source: RES_TAG, id: req.id, ok: false, error: 'file input not found' };
-      }
-      const input = found.el as HTMLInputElement;
-      const inDialog = !!input.closest('[role="dialog"]');
-      console.log(`[Tutti inject-helper] inject input matched "${found.matchedPart}" — inDialog=${inDialog}`);
-      const built = buildDataTransfer(req.files);
-      if ('error' in built) return { source: RES_TAG, id: req.id, ok: false, error: built.error };
-      const requireMediaAccepted =
-        req.requireMediaAccepted === true ||
-        (
-          req.requireVideoAccepted !== false &&
-          req.files.some((file) => file.type.startsWith('video/'))
-        );
-      const beforePreviewCount = countMediaPreviews(mediaPreviewScope(input));
-      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'files')?.set;
-      if (setter) setter.call(input, built.dt.files);
-      else input.files = built.dt.files;
-      input.dispatchEvent(new Event('change', { bubbles: true }));
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-      const wait = await waitForUploadComplete(req.uploadTimeoutMs ?? 30000, {
-        requireMediaAccepted,
-        requirePreviewAccepted: req.requireMediaPreview === true,
-        isMediaPreviewVisible: requireMediaAccepted
-          ? mediaAcceptedPredicate(input, beforePreviewCount)
-          : undefined,
-        getMediaRejectionMessage: requireMediaAccepted
-          ? () => mediaRejectionMessage(input)
-          : undefined,
-      });
-      const ok = !wait.error && (!wait.timedOut || wait.acceptedByPreview);
-      return {
-        source: RES_TAG,
-        id: req.id,
-        ok,
-        error: ok ? undefined : (wait.error ?? 'Timed out while waiting for the media upload or preview'),
-        fileCount: input.files?.length ?? 0,
-        uploadCount: wait.uploadCount,
-        acceptedByPreview: wait.acceptedByPreview,
-        uploadTimedOut: wait.timedOut,
-      };
-    }
-
     async function injectText(req: InjectRequest): Promise<InjectResponse> {
       const found = findEl(req.selector);
       if (!found) {
@@ -588,6 +545,7 @@ export default defineContentScript({
       const text = req.text ?? '';
       let frameworkTextVerified = false;
       let requiresStableFrameworkText = false;
+      const editorDriver = resolveTextEditorDriver(el);
       console.log(`[Tutti inject-helper] text target matched "${found.matchedPart}" (${el.tagName})`);
 
       // v0.4.59: 空文字 inject は no-op で成功扱い (画像のみ投稿の正常 path)。
@@ -600,14 +558,8 @@ export default defineContentScript({
 
       el.focus();
 
-      if (el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement) {
-        // textarea / input: native value setter + input event
-        const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
-        const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
-        if (setter) setter.call(el, text);
-        else (el as HTMLTextAreaElement).value = text;
-        el.dispatchEvent(new Event('input', { bubbles: true }));
-        el.dispatchEvent(new Event('change', { bubbles: true }));
+      if (editorDriver === 'native') {
+        injectNativeText(el as HTMLInputElement | HTMLTextAreaElement, text);
       } else {
         // contenteditable (Draft.js / Lexical / TipTap / ProseMirror):
         // 経路 (v0.4.66〜):
@@ -624,11 +576,7 @@ export default defineContentScript({
           window.__tuttiIgPendingCaption = text;
           console.log('[Tutti inject-helper] IG pending caption set (len=' + text.length + ')');
         }
-        const isLexical =
-          !!el.closest('[data-lexical-editor]') ||
-          el.matches('[data-lexical-editor]');
-
-        if (isLexical) {
+        if (editorDriver === 'lexical') {
           // IG 特有の workaround: Share click 時の `/api/v1/media/configure/`
           // への fetch で body の `caption=` が空のまま送られる問題 (Lexical state
           // を更新しても IG の submit state には伝わらない silent failure)。
@@ -840,10 +788,7 @@ export default defineContentScript({
             }
             await new Promise((r) => setTimeout(r, 800));
           }
-        } else if (
-          el.matches('.public-DraftEditor-content') ||
-          !!el.closest('.DraftEditor-root')
-        ) {
+        } else if (editorDriver === 'draft') {
           // Draft.js (TikTok Studio): upload 後に filename 由来の初期 caption
           // が入る variant がある。DOM だけ消して paste すると controlled
           // state 側の旧値へ追記されるため、editor selection を全置換する。
@@ -913,45 +858,7 @@ export default defineContentScript({
           el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: text.slice(-1) || 'a' }));
           await new Promise((r) => setTimeout(r, 800));
         } else {
-          // 非 Lexical (TipTap / ProseMirror 等): paste event 経由
-          const existing = (el.textContent ?? '').trim();
-          if (existing.length > 0) {
-            const sel = window.getSelection();
-            if (sel) {
-              sel.selectAllChildren(el);
-              sel.deleteFromDocument();
-            }
-            if ((el.textContent ?? '').trim().length > 0) {
-              try {
-                document.execCommand('selectAll', false);
-                document.execCommand('delete', false);
-              } catch { /* ignore */ }
-            }
-          }
-          const dt = new DataTransfer();
-          dt.setData('text/plain', text);
-          const pasteEv = new ClipboardEvent('paste', {
-            bubbles: true,
-            cancelable: true,
-            clipboardData: dt,
-          });
-          el.dispatchEvent(pasteEv);
-
-          const matchSnippet = text.slice(0, Math.min(16, text.length));
-          const visibleNow = (): string =>
-            (el as HTMLElement).innerText ?? el.textContent ?? '';
-          const pasted = await waitFor(
-            () => matchSnippet === '' || visibleNow().includes(matchSnippet),
-            600,
-          );
-
-          if (!pasted) {
-            el.textContent = text;
-            el.dispatchEvent(new InputEvent('input', {
-              bubbles: true, data: text, inputType: 'insertText',
-            }));
-            await new Promise((r) => setTimeout(r, 80));
-          }
+          await injectContentEditableText(el, text, { waitFor });
         }
       }
 
@@ -992,303 +899,6 @@ export default defineContentScript({
       return `${ownText}${childText}`;
     }
 
-    async function clearEditableBlock(el: HTMLElement): Promise<void> {
-      el.focus();
-      const sel = window.getSelection();
-      if (sel) {
-        try {
-          sel.removeAllRanges();
-          const range = document.createRange();
-          range.selectNodeContents(el);
-          sel.addRange(range);
-        } catch { /* ignore */ }
-      }
-      try {
-        document.execCommand('delete', false);
-      } catch { /* fallback below */ }
-      if ((el.textContent ?? '').trim().length > 0) {
-        el.textContent = '';
-        el.dispatchEvent(new InputEvent('input', {
-          bubbles: true,
-          inputType: 'deleteContentBackward',
-        }));
-      }
-      await new Promise((r) => setTimeout(r, 50));
-    }
-
-    async function insertTumblrPlainText(selector: string, anchor: HTMLElement, text: string): Promise<void> {
-      const blocks = findTumblrBodyBlocks(selector, { anchor });
-      for (const block of blocks) {
-        await clearEditableBlock(block);
-      }
-      const target = blocks[0] ?? anchor;
-      target.focus();
-      const sel = window.getSelection();
-      if (sel) {
-        try {
-          sel.removeAllRanges();
-          const range = document.createRange();
-          range.selectNodeContents(target);
-          sel.addRange(range);
-        } catch { /* ignore */ }
-      }
-      target.dispatchEvent(new InputEvent('beforeinput', {
-        bubbles: true,
-        cancelable: true,
-        inputType: 'insertText',
-        data: text,
-      }));
-      let inserted = false;
-      try {
-        inserted = document.execCommand('insertText', false, text);
-      } catch { /* fallback below */ }
-      const expectedSnippet = text.slice(0, Math.min(20, text.length)).trim();
-      const visible = () => readTumblrBodyTextFromBlocks(findTumblrBodyBlocks(selector, { anchor: target }));
-      if (!inserted || (expectedSnippet && !visible().includes(expectedSnippet))) {
-        target.textContent = text;
-      }
-      target.dispatchEvent(new InputEvent('input', {
-        bubbles: true,
-        data: text,
-        inputType: 'insertText',
-      }));
-      target.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: text.slice(-1) || 'a' }));
-      await new Promise((r) => setTimeout(r, 250));
-    }
-
-    async function injectTumblrText(req: InjectRequest): Promise<InjectResponse> {
-      const found = findEl(req.selector);
-      if (!found) {
-        return { source: RES_TAG, id: req.id, ok: false, error: 'Tumblr text target not found' };
-      }
-      const originalText = req.text ?? '';
-      const text = mergeStandaloneUrlParagraphs(originalText);
-      const expectedUrls = extractHttpUrls(originalText);
-      const blocks = findTumblrBodyBlocks(req.selector, { anchor: found.el });
-      const target = blocks[0] ?? found.el;
-      console.log(`[Tutti inject-helper] Tumblr text target matched "${found.matchedPart}" (${blocks.length} body blocks)`);
-
-      for (const block of blocks) {
-        await clearEditableBlock(block);
-      }
-      target.focus();
-
-      if (text) {
-        const dt = new DataTransfer();
-        dt.setData('text/plain', text);
-        target.dispatchEvent(new ClipboardEvent('paste', {
-          bubbles: true,
-          cancelable: true,
-          clipboardData: dt,
-        }));
-        const expectedSnippet = text.slice(0, Math.min(20, text.length)).trim();
-        const pasted = await waitFor(
-          () => readTumblrBodyTextFromBlocks(findTumblrBodyBlocks(req.selector, { anchor: target })).includes(expectedSnippet),
-          700,
-        );
-        if (!pasted) {
-          target.textContent = text;
-          target.dispatchEvent(new InputEvent('input', {
-            bubbles: true,
-            data: text,
-            inputType: 'insertText',
-          }));
-          await new Promise((r) => setTimeout(r, 100));
-        }
-      }
-
-      let afterBlocks = findTumblrBodyBlocks(req.selector, { anchor: target });
-      let bodyText = readTumblrBodyTextFromBlocks(afterBlocks);
-      let validation = validateTumblrBodyText(bodyText, text, {
-        allowHashtagStripped: true,
-      });
-      if (!validation.ok && expectedUrls.length > 0) {
-        console.warn(`[Tutti inject-helper] Tumblr paste validation failed with URL text; retrying plain insert (${validation.error ?? 'unknown'})`);
-        await insertTumblrPlainText(req.selector, target, text);
-        afterBlocks = findTumblrBodyBlocks(req.selector, { anchor: target });
-        bodyText = readTumblrBodyTextFromBlocks(afterBlocks);
-        validation = validateTumblrBodyText(bodyText, text, {
-          allowHashtagStripped: true,
-        });
-      }
-      return {
-        source: RES_TAG,
-        id: req.id,
-        ok: validation.ok,
-        error: validation.error,
-      };
-    }
-
-    async function injectViaDrop(req: InjectRequest): Promise<InjectResponse> {
-      const found = findEl(req.selector);
-      if (!found) {
-        return { source: RES_TAG, id: req.id, ok: false, error: 'drop target not found' };
-      }
-      const target = found.el;
-      console.log(`[Tutti inject-helper] drop target matched "${found.matchedPart}"`);
-      const built = buildDataTransfer(req.files);
-      if ('error' in built) return { source: RES_TAG, id: req.id, ok: false, error: built.error };
-      const requireMediaAccepted =
-        req.requireMediaAccepted === true ||
-        (
-          req.requireVideoAccepted !== false &&
-          req.files.some((file) => file.type.startsWith('video/'))
-        );
-      const beforePreviewCount = countMediaPreviews(mediaPreviewScope(target));
-      const rect = target.getBoundingClientRect();
-      const x = rect.left + rect.width / 2;
-      const y = rect.top + rect.height / 2;
-      for (const type of ['dragenter', 'dragover', 'drop'] as const) {
-        const ev = new DragEvent(type, {
-          bubbles: true,
-          cancelable: true,
-          composed: true,
-          dataTransfer: built.dt,
-          clientX: x,
-          clientY: y,
-        });
-        target.dispatchEvent(ev);
-      }
-      const wait = await waitForUploadComplete(req.uploadTimeoutMs ?? 30000, {
-        requireMediaAccepted,
-        requirePreviewAccepted: req.requireMediaPreview === true,
-        isMediaPreviewVisible: requireMediaAccepted
-          ? mediaAcceptedPredicate(target, beforePreviewCount)
-          : undefined,
-        getMediaRejectionMessage: requireMediaAccepted
-          ? () => mediaRejectionMessage(target)
-          : undefined,
-      });
-      const ok = !wait.error && (!wait.timedOut || wait.acceptedByPreview);
-      return {
-        source: RES_TAG,
-        id: req.id,
-        ok,
-        error: ok ? undefined : (wait.error ?? 'Timed out while waiting for the media upload or preview'),
-        fileCount: built.dt.files.length,
-        droppedOn: target.tagName,
-        uploadCount: wait.uploadCount,
-        acceptedByPreview: wait.acceptedByPreview,
-        uploadTimedOut: wait.timedOut,
-      };
-    }
-
-    async function injectTagList(req: InjectRequest): Promise<InjectResponse> {
-      const found = findEl(req.selector);
-      if (!found) {
-        return {
-          source: RES_TAG,
-          id: req.id,
-          ok: false,
-          error: `tag input not found: ${req.selector}`,
-        };
-      }
-      const input = found.el as HTMLInputElement | HTMLTextAreaElement;
-      // v0.4.73: textarea も許容 (Tumblr の "Tags editor" は textarea)。
-      const isTextarea = input instanceof HTMLTextAreaElement;
-      if (!(input instanceof HTMLInputElement) && !isTextarea) {
-        return {
-          source: RES_TAG,
-          id: req.id,
-          ok: false,
-          error: 'tag-list mode only supports <input> and <textarea> elements',
-        };
-      }
-      const tags = req.tags ?? [];
-      console.log(`[Tutti inject-helper] tag-list: ${tags.length} tags into "${found.matchedPart}" (${isTextarea ? 'textarea' : 'input'})`);
-      const setter = isTextarea
-        ? Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set
-        : Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-
-      // React は controlled input/textarea に対して内部で _valueTracker を持つ。
-      function setReactValue(el: HTMLInputElement | HTMLTextAreaElement, value: string): void {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const tracker = (el as any)._valueTracker as { setValue: (v: string) => void } | undefined;
-        if (tracker) tracker.setValue('');
-        if (setter) setter.call(el, value);
-        else el.value = value;
-      }
-      // 旧名 alias (function 内で使ってる古い名前のため)
-      const setReactInputValue = setReactValue;
-
-      let committed = 0;
-      for (const tag of tags) {
-        input.focus();
-        setReactInputValue(input, tag);
-        // input + change を両方発火。React は input イベントを listener として
-        // 登録するが、formik / react-hook-form 等は change を見ることもある
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-        await new Promise((r) => setTimeout(r, 150));
-        // Enter で commit。React 系は keydown を見るので 3 種 dispatch
-        const opts = { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true };
-        input.dispatchEvent(new KeyboardEvent('keydown', opts));
-        input.dispatchEvent(new KeyboardEvent('keypress', opts));
-        input.dispatchEvent(new KeyboardEvent('keyup', opts));
-        // Enter 後 input が空に戻れば commit 成功 (chip 化された証拠)。最大 1.5s 待つ
-        const cleared = await waitFor(() => input.value === '', 1500);
-        if (cleared) {
-          committed++;
-          console.log(`[Tutti inject-helper] tag committed: "${tag}"`);
-        } else {
-          console.warn(`[Tutti inject-helper] tag NOT committed (input not cleared): "${tag}" current="${input.value}"`);
-          // Enter が効いてない場合のフォールバック: keydown だけ再試行
-          input.dispatchEvent(new KeyboardEvent('keydown', opts));
-          await new Promise((r) => setTimeout(r, 400));
-          if (input.value === '') {
-            committed++;
-            console.log(`[Tutti inject-helper] tag committed on retry: "${tag}"`);
-          }
-        }
-      }
-      return {
-        source: RES_TAG,
-        id: req.id,
-        ok: committed > 0,
-        error: committed === 0 ? `no tags committed (tried ${tags.length})` : undefined,
-      };
-    }
-
-    async function clickElement(req: InjectRequest): Promise<InjectResponse> {
-      const texts = req.texts ?? [];
-      for (const part of req.selector.split(',').map((s) => s.trim()).filter(Boolean)) {
-        for (const el of document.querySelectorAll<HTMLElement>(part)) {
-          if (texts.length > 0 && !clickTextMatches(el, texts)) continue;
-          if (el.getAttribute('aria-disabled') === 'true' || (el as HTMLButtonElement).disabled) continue;
-          console.log(`[Tutti inject-helper] click target matched "${part}"`);
-          if (
-            /^(x|twitter)\.com$/.test(location.hostname) &&
-            (el.getAttribute('data-testid') === 'addButton' || /add post/i.test(el.getAttribute('aria-label') ?? ''))
-          ) {
-            el.focus();
-            const init = {
-              bubbles: true,
-              cancelable: true,
-              composed: true,
-              key: 'Enter',
-              code: 'Enter',
-            };
-            el.dispatchEvent(new KeyboardEvent('keydown', init));
-            el.dispatchEvent(new KeyboardEvent('keypress', init));
-            el.dispatchEvent(new KeyboardEvent('keyup', init));
-            return { source: RES_TAG, id: req.id, ok: true };
-          }
-          el.click();
-          return { source: RES_TAG, id: req.id, ok: true };
-        }
-      }
-      return { source: RES_TAG, id: req.id, ok: false, error: 'click target not found' };
-    }
-
-    function clickTextMatches(el: HTMLElement, texts: string[]): boolean {
-      const values = [
-        el.textContent,
-        el.getAttribute('aria-label'),
-        el.getAttribute('title'),
-      ].map((value) => (value ?? '').replace(/\s+/g, ' ').trim());
-      return values.some((value) => value && texts.includes(value));
-    }
-
     async function readLatestXPostUrl(req: InjectRequest): Promise<InjectResponse> {
       let captured = window.__tuttiXLatestPostId;
       try {
@@ -1315,16 +925,29 @@ export default defineContentScript({
       return false;
     }
 
+    const mediaCommandHandlers = createMediaCommandHandlers(RES_TAG, {
+      findElement: findEl,
+      buildDataTransfer,
+      mediaPreviewScope,
+      countMediaPreviews,
+      mediaAcceptedPredicate,
+      mediaRejectionMessage,
+      waitForUploadComplete,
+    });
+    const requestHandlers: InjectRequestHandlerMap<InjectRequest, InjectResponse> = {
+      input: mediaCommandHandlers.input,
+      drop: mediaCommandHandlers.drop,
+      text: injectText,
+      'tumblr-text': (request) => handleTumblrTextCommand(request, RES_TAG),
+      'tag-list': (request) => handleTagListCommand(request, RES_TAG),
+      click: (request) => handleClickCommand(request, RES_TAG),
+      'x-post-url': readLatestXPostUrl,
+    };
+
     async function handle(req: InjectRequest): Promise<InjectResponse> {
       try {
         installUploadHook();
-        if (req.mode === 'text') return await injectText(req);
-        if (req.mode === 'tumblr-text') return await injectTumblrText(req);
-        if (req.mode === 'drop') return await injectViaDrop(req);
-        if (req.mode === 'tag-list') return await injectTagList(req);
-        if (req.mode === 'click') return await clickElement(req);
-        if (req.mode === 'x-post-url') return await readLatestXPostUrl(req);
-        return await injectIntoInput(req);
+        return await dispatchInjectRequest(req, requestHandlers);
       } catch (e) {
         return {
           source: RES_TAG,
@@ -1344,17 +967,10 @@ export default defineContentScript({
       const data = ev.data as Partial<InjectRequest> | undefined;
       if (!data || data.source !== REQ_TAG || typeof data.id !== 'string') return;
       if (typeof data.selector !== 'string' || !Array.isArray(data.files)) return;
-      const mode: InjectRequest['mode'] =
-        data.mode === 'drop' ? 'drop' :
-        data.mode === 'text' ? 'text' :
-        data.mode === 'tumblr-text' ? 'tumblr-text' :
-        data.mode === 'tag-list' ? 'tag-list' :
-        data.mode === 'click' ? 'click' :
-        data.mode === 'x-post-url' ? 'x-post-url' : 'input';
       const req: InjectRequest = {
         source: REQ_TAG,
         id: data.id,
-        mode,
+        mode: decodeInjectRequestMode(data.mode),
         selector: data.selector,
         files: data.files,
         text: typeof data.text === 'string' ? data.text : undefined,

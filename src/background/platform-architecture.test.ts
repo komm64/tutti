@@ -1,4 +1,4 @@
-import { describe, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 import {
@@ -12,6 +12,7 @@ const GUARDED_ORCHESTRATORS = [
   'src/background/history-recorder.ts',
   'src/background/media-preprocess.ts',
   'src/background/platform-poster.ts',
+  'src/background/post-orchestrator.ts',
   'src/background/post-concurrency.ts',
   'src/background/post-scheduler.ts',
   'src/background/post-worker-pool.ts',
@@ -77,6 +78,90 @@ describe('platform architecture guard', () => {
       violations,
       allowances: PLATFORM_LITERAL_ALLOWANCES,
     });
+  });
+
+  it('keeps post result construction out of the central poster', () => {
+    const orchestrator = readFileSync('src/background/post-orchestrator.ts', 'utf8');
+
+    expect(orchestrator).toContain("from './post-result-policy'");
+    expect(orchestrator).not.toMatch(
+      /\bfunction (?:buildFinalChunkResult|unconfirmedPostResult|withFlow)\b/,
+    );
+  });
+
+  it('keeps DOM attempt policy out of the central poster', () => {
+    const orchestrator = readFileSync('src/background/post-orchestrator.ts', 'utf8');
+    const transport = readFileSync('src/background/posting-transport.ts', 'utf8');
+
+    expect(transport).toContain("from './dom-attempt-policy'");
+    expect(orchestrator).not.toMatch(
+      /\bfunction (?:buildDomPostAttempts|resolvePreSubmitLoadOptions|shouldOpenActive|shouldRetryPostAttempt|shouldReuseExistingTabForAttempt)\b/,
+    );
+  });
+
+  it('keeps URL capture and verification completion in PostConfirmation', () => {
+    const orchestrator = readFileSync('src/background/post-orchestrator.ts', 'utf8');
+
+    expect(orchestrator).toContain("from './post-confirmation'");
+    expect(orchestrator).not.toMatch(
+      /\bfunction (?:attachVerifyResult|buildVerifyExpectationForChunk|captureUrl|ensurePostUrl|maybeAutoOpenPostUrl|recoverFromAmbiguousDispatchFailure)\b/,
+    );
+  });
+
+  it('keeps single-chunk API and DOM effects in PostingTransport', () => {
+    const orchestrator = readFileSync('src/background/post-orchestrator.ts', 'utf8');
+
+    expect(orchestrator).toContain("from './posting-transport'");
+    expect(orchestrator).not.toMatch(
+      /\bfunction (?:closeOwnedAttemptTab|getComposeUrlForMedia|postSingleChunk|postSingleChunkWithRetry|resolveApiPostOutcome)\b/,
+    );
+    expect(orchestrator).not.toContain('sendPostMessageWhenReady');
+    expect(orchestrator).not.toContain('tryApiPath');
+  });
+
+  it('keeps platform-poster as a compatibility facade', () => {
+    const poster = readFileSync('src/background/platform-poster.ts', 'utf8');
+
+    expect(poster).toContain('createPostOrchestrator as createPlatformPoster');
+    expect(poster).not.toMatch(/\bfunction\b/);
+  });
+
+  it('keeps stored page-world API URL capture in its strategy module', () => {
+    const capture = readFileSync('src/background/post-url-capture.ts', 'utf8');
+
+    expect(capture).toContain("from './post-url-stored-api'");
+    expect(capture).not.toContain("'tutti:ig-latest-post'");
+    expect(capture).not.toContain("'tutti:mastodon-latest-post'");
+    expect(capture).not.toContain("'tutti:threads-latest-post'");
+    expect(capture).not.toContain("'tutti:tumblr-latest-post'");
+  });
+
+  it('keeps Mastodon public API URL capture in its strategy module', () => {
+    const capture = readFileSync('src/background/post-url-capture.ts', 'utf8');
+
+    expect(capture).toContain("from './post-url-mastodon-api'");
+    expect(capture).not.toMatch(
+      /\bfunction (?:captureMastodonPostViaPublicApi|fetchMastodonAccountId|inferMastodonInstance|resolveMastodonIdentity|stripHtml)\b/,
+    );
+  });
+
+  it('keeps serialized MAIN-world URL lookup in its strategy module', () => {
+    const capture = readFileSync('src/background/post-url-capture.ts', 'utf8');
+
+    expect(capture).toContain("from './post-url-in-page'");
+    expect(capture).toContain('func: capturePostUrlInPage');
+    expect(capture).not.toContain("platformName === 'x'");
+    expect(capture).not.toContain("localStorage.getItem('BSKY_STORAGE')");
+  });
+
+  it('keeps YouTube Studio completion in its strategy module', () => {
+    const capture = readFileSync('src/background/post-url-capture.ts', 'utf8');
+
+    expect(capture).toContain("from './post-url-youtube-studio'");
+    expect(capture).not.toMatch(
+      /\bfunction (?:captureYouTubeStudioPostUrlFromTab|captureYouTubeStudioPostUrlInPage)\b/,
+    );
+    expect(capture).not.toContain('reload YouTube Studio before URL capture');
   });
 });
 

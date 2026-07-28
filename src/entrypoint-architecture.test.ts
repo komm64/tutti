@@ -125,6 +125,51 @@ describe('entrypoint architecture guard', () => {
     expect(observer.match(/\bxhrPrototype\.open\s*=\s*function observedOpen/g)).toHaveLength(1);
     expect(observer.match(/\bxhrPrototype\.send\s*=\s*function observedSend/g)).toHaveLength(1);
   });
+
+  it('keeps page-world request modes behind the exhaustive handler map', () => {
+    const entrypoint = readFileSync('entrypoints/inject-helper.content.ts', 'utf8');
+    const dispatch = readFileSync('src/page-world/request-mode-dispatch.ts', 'utf8');
+
+    expect(entrypoint).toContain('dispatchInjectRequest(req, requestHandlers)');
+    expect(entrypoint).toContain('mode: decodeInjectRequestMode(data.mode)');
+    expect(entrypoint).not.toMatch(/\b(?:req|data)\.mode\s*===/);
+    expect(dispatch).toContain('[Mode in InjectRequestMode]');
+  });
+
+  it('keeps page-world tag and click commands out of the entrypoint', () => {
+    const entrypoint = readFileSync('entrypoints/inject-helper.content.ts', 'utf8');
+
+    expect(entrypoint).toContain('handleTagListCommand(request, RES_TAG)');
+    expect(entrypoint).toContain('handleClickCommand(request, RES_TAG)');
+    expect(entrypoint).not.toMatch(/\bfunction (?:injectTagList|clickElement|clickTextMatches)\b/);
+  });
+
+  it('keeps page-world input and drop commands behind one media runtime', () => {
+    const entrypoint = readFileSync('entrypoints/inject-helper.content.ts', 'utf8');
+
+    expect(entrypoint).toContain('const mediaCommandHandlers = createMediaCommandHandlers');
+    expect(entrypoint).toContain('input: mediaCommandHandlers.input');
+    expect(entrypoint).toContain('drop: mediaCommandHandlers.drop');
+    expect(entrypoint).not.toMatch(/\bfunction (?:injectIntoInput|injectViaDrop)\b/);
+  });
+
+  it('keeps native and generic contenteditable mechanics in editor drivers', () => {
+    const entrypoint = readFileSync('entrypoints/inject-helper.content.ts', 'utf8');
+
+    expect(entrypoint).toContain('const editorDriver = resolveTextEditorDriver(el)');
+    expect(entrypoint).toContain('injectNativeText(');
+    expect(entrypoint).toContain('injectContentEditableText(');
+    expect(entrypoint).not.toContain("Object.getOwnPropertyDescriptor(proto, 'value')");
+  });
+
+  it('keeps Tumblr block-editor mechanics in its page-world driver', () => {
+    const entrypoint = readFileSync('entrypoints/inject-helper.content.ts', 'utf8');
+
+    expect(entrypoint).toContain('handleTumblrTextCommand(request, RES_TAG)');
+    expect(entrypoint).not.toMatch(
+      /\bfunction (?:injectTumblrText|insertTumblrPlainText|clearEditableBlock)\b/,
+    );
+  });
 });
 
 function categorize(path: string): EntrypointCategory {
