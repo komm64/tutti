@@ -53,19 +53,27 @@ scopes, or entries whose removal version has been reached.
 
 ## v0.5.50 posting algorithm preference
 
+An early Issue #12 draft proposed install buckets and a percentage rollout.
+That proposal was withdrawn during design review and was never implemented or
+shipped.
+
 Issue #152 adds a durable, request-scoped `postingAlgorithm` preference in the
-collapsed experimental Options section. This does not restore the removed
-monolithic orchestrator or bundle two side-effect controllers, so it is not a
-temporary production compatibility switch and is not registered above.
+collapsed experimental Options section. The selection happens at the root
+platform-poster boundary: all platforms in the request are routed through one
+immutable `next` or `legacy` orchestrator profile. Both profiles reuse the
+decomposed safety/transport services, so this does not restore the removed
+monolithic orchestrator or bundle two side-effect controllers and is not a
+temporary production compatibility switch.
 
 - The default is deterministically `next`; there is no random bucket or
   percentage rollout.
 - The selected `next | legacy` value is read once before a new request reserves
   its platforms and is fixed for the request, retry, and thread chain.
-- Both profiles share the decomposed orchestrator. The bounded behavioral
-  difference is X long-text posting: `next` builds the complete compose thread
-  and submits once with **Post all**, while `legacy` posts sequentially and
-  replies to each captured post URL.
+- The selector is not an X-specific branch. The root profile owns the complete
+  request path; lower transport code cannot choose or change it.
+- The current bounded user-visible difference is X long-text posting: `next`
+  builds the complete compose thread and submits once with **Post all**, while
+  `legacy` posts sequentially and replies to each captured post URL.
 - Diagnostics record the selected profile for every platform result in that
   request. Platforms without a profile-specific behavior continue through the
-  shared implementation.
+  selected root profile with the same shared safety primitives.

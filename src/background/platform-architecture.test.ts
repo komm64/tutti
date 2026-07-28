@@ -119,11 +119,20 @@ describe('platform architecture guard', () => {
     expect(orchestrator).not.toContain('tryApiPath');
   });
 
-  it('keeps platform-poster as a compatibility facade', () => {
+  it('keeps the posting algorithm choice at the root poster boundary', () => {
     const poster = readFileSync('src/background/platform-poster.ts', 'utf8');
+    const orchestrator = readFileSync('src/background/post-orchestrator.ts', 'utf8');
+    const transport = readFileSync('src/background/posting-transport.ts', 'utf8');
 
-    expect(poster).toContain('createPostOrchestrator as createPlatformPoster');
-    expect(poster).not.toMatch(/\bfunction\b/);
+    expect(poster).toContain('Record<PostingAlgorithm, PostingAlgorithmOrchestrator>');
+    expect(poster).toContain("next: createPostOrchestrator(options, 'next')");
+    expect(poster).toContain("legacy: createPostOrchestrator(options, 'legacy')");
+    expect(poster).toContain("postOptions.postingAlgorithm ?? 'next'");
+    expect(readFileSync('src/background/post-request-handler.ts', 'utf8'))
+      .toContain('platformPoster.forAlgorithm(postingAlgorithm)');
+    expect(orchestrator).toContain('postingAlgorithm: PostingAlgorithm');
+    expect(orchestrator).not.toContain('postOptions.postingAlgorithm');
+    expect(transport).not.toContain('postOptions.postingAlgorithm');
   });
 
   it('keeps stored page-world API URL capture in its strategy module', () => {

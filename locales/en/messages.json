@@ -377,7 +377,7 @@
   "postingAlgorithmLabel": { "message": "Posting algorithm" },
   "postingAlgorithmNext": { "message": "New (recommended)" },
   "postingAlgorithmLegacy": { "message": "Legacy" },
-  "postingAlgorithmHint": { "message": "With the new algorithm, Tutti builds an X long-text thread as one sequence and submits it once with Post all. The setting is fixed when the next posting request starts and never changes mid-request." },
+  "postingAlgorithmHint": { "message": "The complete posting request uses either the new or legacy algorithm. The new algorithm also builds an X long-text thread as one sequence and submits it once with Post all. The choice applies to the next request and never changes mid-request." },
 
   "errorReportButton": { "message": "Report this issue" },
   "errorReportHint": { "message": "Opens GitHub Issues with recent logs prefilled." },

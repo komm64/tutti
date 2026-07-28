@@ -114,13 +114,14 @@ export function createPostRequestHandler(options: PostRequestHandlerOptions) {
           },
         );
         const hasVideo = adjustedImages?.some((image) => image.type.startsWith('video/')) === true;
+        const requestPoster = platformPoster.forAlgorithm(postingAlgorithm);
         const executionResults = await runPostScheduler({
           platforms,
           autoPost,
           planOptions: { hasVideo },
           post: async (platform, execution) => annotateImplementation(
             normalizePostEvidence(
-              await platformPoster.postToPlatform(
+              await requestPoster.postToPlatform(
                 platform,
                 request.text,
                 adjustedImages,
@@ -129,7 +130,6 @@ export function createPostRequestHandler(options: PostRequestHandlerOptions) {
                 autoPost,
                 {
                   forceForeground: execution.forceForeground,
-                  postingAlgorithm,
                 },
               ),
             ),

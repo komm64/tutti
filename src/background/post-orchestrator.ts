@@ -4,6 +4,7 @@ import type {
   PlatformId,
   PostResultMessage,
 } from '../messages';
+import type { PostingAlgorithm } from '../types/posting';
 import { t } from '../utils/i18n';
 import { log } from '../utils/logger';
 import { splitTextForPlatform } from '../utils/platform-text';
@@ -41,7 +42,17 @@ export interface PostOrchestratorOptions {
   appendBackgroundLog?: (message: string) => void;
 }
 
-export function createPostOrchestrator(options: PostOrchestratorOptions) {
+/**
+ * One orchestrator instance owns one immutable posting algorithm.
+ *
+ * The platform-poster boundary selects the instance before platform work
+ * starts. Keeping the choice in this closure prevents an X-only setting or a
+ * mid-request algorithm change from leaking into lower-level transport code.
+ */
+export function createPostOrchestrator(
+  options: PostOrchestratorOptions,
+  postingAlgorithm: PostingAlgorithm,
+) {
   const confirmation = createPostConfirmation({
     appendBackgroundLog: options.appendBackgroundLog,
   });
@@ -88,7 +99,7 @@ export function createPostOrchestrator(options: PostOrchestratorOptions) {
       shouldUseInlineThread(
         adapter.id,
         autoPost,
-        postOptions.postingAlgorithm,
+        postingAlgorithm,
       )
       && chunks.length > 1
     ) {

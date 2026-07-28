@@ -33,6 +33,7 @@ describe('post request settings boundary', () => {
       success: true,
       preview: true,
     }));
+    const forAlgorithm = vi.fn(() => ({ postToPlatform }));
     const handler = createPostRequestHandler({
       submissionGuard: createSubmissionGuard(),
       openedTabs: {
@@ -42,7 +43,10 @@ describe('post request settings boundary', () => {
         cleanup: vi.fn(async () => undefined),
       },
       postingState: createPostingStateManager(),
-      platformPoster: { postToPlatform },
+      platformPoster: {
+        forAlgorithm,
+        postToPlatform,
+      },
       appendBackgroundLog: vi.fn(),
       sendRuntimeMessage: vi.fn(async () => undefined),
     });
@@ -56,10 +60,9 @@ describe('post request settings boundary', () => {
 
     const results = await handler(request);
 
+    expect(forAlgorithm).toHaveBeenCalledTimes(1);
+    expect(forAlgorithm).toHaveBeenCalledWith('legacy');
     expect(postToPlatform).toHaveBeenCalledTimes(2);
-    for (const call of postToPlatform.mock.calls as unknown as unknown[][]) {
-      expect(call[6]).toMatchObject({ postingAlgorithm: 'legacy' });
-    }
     expect(results).toHaveLength(2);
     expect(results.every((result) => (
       result.implementation?.revision === 1
