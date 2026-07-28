@@ -257,6 +257,7 @@ export function createPostingTransport(options: PostingTransportOptions) {
       const message: PostToPlatformMessage = {
         type: 'POST_TO_PLATFORM',
         platform: adapter.id,
+        implementationPath: 'next',
         text,
         textChunks,
         images,

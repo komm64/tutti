@@ -31,6 +31,11 @@ export interface WaitForConditionOptions {
   observerInit?: MutationObserverInit | false;
 }
 
+export interface WaitForStableConditionOptions extends WaitForConditionOptions {
+  /** 同じ候補がこの時間維持されたら安定とみなす。 */
+  quietMs: number;
+}
+
 /**
  * 条件が成立するまで待つ。DOM変化があれば即チェックし、DOM変化が起きない
  * 状態変化(value/property/location等)も取りこぼさないよう短いintervalでも見る。
@@ -99,6 +104,79 @@ export function waitForCondition<T>(
     timer = setTimeout(() => finish(null), timeoutMs);
     check();
   });
+}
+
+/**
+ * 条件が一度成立しただけでは進まず、同じ候補が quietMs 維持された時点で返す。
+ * React / Lexical が input や wizard page を遅れて差し替えるケース向け。
+ *
+ * DOM mutation時は waitForCondition の MutationObserver callbackから即再評価し、
+ * intervalはproperty変化とquiet window満了を拾うfallbackとしてだけ使う。
+ */
+export function waitForStableCondition<T>(
+  predicate: () => T | null | undefined | false,
+  options: WaitForStableConditionOptions,
+  identity: (value: T) => unknown = (value) => value,
+): Promise<T | null> {
+  let candidateIdentity: unknown;
+  let candidateSince: number | undefined;
+
+  return waitForCondition<T>(() => {
+    const candidate = predicate();
+    if (!candidate) {
+      candidateIdentity = undefined;
+      candidateSince = undefined;
+      return null;
+    }
+
+    const nextIdentity = identity(candidate);
+    if (candidateSince === undefined || nextIdentity !== candidateIdentity) {
+      candidateIdentity = nextIdentity;
+      candidateSince = Date.now();
+      return null;
+    }
+    return Date.now() - candidateSince >= options.quietMs
+      ? candidate
+      : null;
+  }, options);
+}
+
+export function readEditableText(element: Element | null | undefined): string {
+  if (!element) return '';
+  if (
+    element instanceof HTMLInputElement ||
+    element instanceof HTMLTextAreaElement
+  ) {
+    return element.value;
+  }
+  return element.textContent ?? '';
+}
+
+export function normalizedEditableText(element: Element | null | undefined): string {
+  return normalizeElementText(readEditableText(element));
+}
+
+export function waitForStableEditableText(
+  selector: string,
+  expectedText: string,
+  options: Partial<WaitForStableConditionOptions> = {},
+): Promise<HTMLElement | null> {
+  const expected = normalizeElementText(expectedText);
+  return waitForStableCondition<HTMLElement>(
+    () => {
+      const element = document.querySelector<HTMLElement>(selector);
+      return element && normalizedEditableText(element) === expected
+        ? element
+        : null;
+    },
+    {
+      timeoutMs: options.timeoutMs ?? 1_000,
+      quietMs: options.quietMs ?? 150,
+      intervalMs: options.intervalMs ?? 50,
+      root: options.root ?? document.body,
+      observerInit: options.observerInit,
+    },
+  );
 }
 
 /**

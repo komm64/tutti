@@ -1,5 +1,9 @@
 import { log } from '../src/utils/logger';
-import type { ImageAttachment, PostResultMessage } from '../src/messages';
+import type {
+  ImageAttachment,
+  PostImplementationPath,
+  PostResultMessage,
+} from '../src/messages';
 import { TUMBLR_SELECTORS, tumblrAdapter } from '../src/adapters/tumblr';
 import { executePostFlow } from '../src/utils/post-flow';
 import { sleep, waitForCondition, waitForElement } from '../src/utils/dom';
@@ -304,7 +308,13 @@ export default defineContentScript({
   }),
 });
 
-async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolean): Promise<PostResultMessage> {
+async function runPost(
+  text: string,
+  images?: ImageAttachment[],
+  dryRun?: boolean,
+  _textChunks?: string[],
+  implementationPath?: PostImplementationPath,
+): Promise<PostResultMessage> {
   const sel = await resolveSelectors('tumblr', TUMBLR_SELECTORS);
   const tumblrText = mergeStandaloneUrlParagraphs(text);
   const postingUser = dryRun ? null : await detectTumblrUser();
@@ -356,6 +366,7 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     confirmDialogGraceMs: 5000,
     text: tumblrText,
     images,
+    implementationPath,
     postButtonTimeoutMs: 10000,
     textInjector: injectTumblrTextIntoElement,
     requireMediaAccepted: hasVideo || undefined,
@@ -374,7 +385,14 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
       if (tumblrText && !validation.ok) {
         log.warn(`Tumblr: body validation failed before submit; reinjecting (${validation.error ?? 'unknown'})`);
         await injectTumblrTextIntoElement(tumblrText, sel.textarea);
-        await sleep(300);
+        if (implementationPath === 'next') {
+          await waitForCondition(
+            () => validateCurrentBody().ok || null,
+            { timeoutMs: 300, intervalMs: 25 },
+          );
+        } else {
+          await sleep(300);
+        }
         const after = validateCurrentBody();
         if (!after.ok) {
           throw new Error(after.error ?? 'Tumblr body validation failed');
@@ -392,7 +410,7 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
         throw new Error('Tumblr tags input not found; refusing to submit because the draft contains hashtags.');
       }
       try {
-        await injectTagList(tags, sel.tagInput);
+        await injectTagList(tags, sel.tagInput, { implementationPath });
         log.info(`Tumblr: ${tags.length} 個の tag を chip 化`);
       } catch (e) {
         throw new Error(`Tumblr tag commit failed: ${e instanceof Error ? e.message : String(e)}`);

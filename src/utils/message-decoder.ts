@@ -48,6 +48,11 @@ const MESSAGE_VALIDATORS = {
   POST_TO_PLATFORM: (value) =>
     isPlatformId(value.platform) &&
     isString(value.text) &&
+    optional(
+      value,
+      'implementationPath',
+      (item) => item === 'legacy' || item === 'next',
+    ) &&
     optional(value, 'textChunks', isStringArray) &&
     optional(value, 'images', isAttachmentArray) &&
     optional(value, 'dryRun', isBoolean) &&

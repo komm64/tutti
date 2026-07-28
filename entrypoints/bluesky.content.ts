@@ -1,8 +1,17 @@
 import { log } from '../src/utils/logger';
-import type { ImageAttachment, PostResultMessage } from '../src/messages';
+import type {
+  ImageAttachment,
+  PostImplementationPath,
+  PostResultMessage,
+} from '../src/messages';
 import { BLUESKY_EDITOR_SELECTOR, BLUESKY_SELECTORS, blueskyAdapter } from '../src/adapters/bluesky';
 import { executePostFlow, resolvePostButtonTimeoutMs } from '../src/utils/post-flow';
-import { sleep, waitForCondition, waitForElement } from '../src/utils/dom';
+import {
+  sleep,
+  waitForCondition,
+  waitForElement,
+  waitForStableEditableText,
+} from '../src/utils/dom';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
 import { clickElementInMainWorld, dropImages, injectImages, injectTextIntoElement } from '../src/utils/image';
@@ -99,6 +108,7 @@ async function executeBlueskyInlineThread(
   chunks: string[],
   images: ImageAttachment[] | undefined,
   dryRun: boolean | undefined,
+  implementationPath: PostImplementationPath | undefined,
 ): Promise<void> {
   const hasVideo = !!images?.some((image) => image.type.startsWith('video/'));
   // 最初の textarea の wait (compose modal のロード待ち)
@@ -107,16 +117,42 @@ async function executeBlueskyInlineThread(
 
   // /intent/compose?text= で chunk 0 は通常 prefill 済み。再注入すると TipTap が
   // 既存本文へ追記して重複するため、空または不一致の場合だけ補完する。
-  await sleep(300);
   const normalizeText = (value: string) => value.replace(/\s+/g, ' ').trim();
-  if (normalizeText(textarea0.textContent ?? '') !== normalizeText(chunks[0]!)) {
+  if (implementationPath === 'next') {
+    await waitForStableEditableText(sel.textarea, chunks[0]!, {
+      timeoutMs: 300,
+      quietMs: 75,
+      intervalMs: 25,
+    });
+  } else {
+    await sleep(300);
+  }
+  const currentTextarea0 =
+    document.querySelector<HTMLElement>(sel.textarea) ?? textarea0;
+  if (
+    normalizeText(currentTextarea0.textContent ?? '') !==
+    normalizeText(chunks[0]!)
+  ) {
     await injectTextIntoElement(chunks[0]!, sel.textarea);
   }
-  await sleep(500);
+  if (implementationPath === 'next') {
+    await waitForStableEditableText(sel.textarea, chunks[0]!, {
+      timeoutMs: 500,
+      quietMs: 100,
+      intervalMs: 25,
+    });
+  } else {
+    await sleep(500);
+  }
 
   // images は最初の chunk にだけ attach
   if (images && images.length > 0) {
-    await attachBlueskyMedia(images, sel, hasVideo);
+    await attachBlueskyMedia(
+      images,
+      sel,
+      hasVideo,
+      implementationPath,
+    );
   }
 
   // 各 chunk を 「+」 click → wait → inject の繰り返し
@@ -135,7 +171,19 @@ async function executeBlueskyInlineThread(
     const marker = `tutti-bsky-chunk-${i}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     target.setAttribute('data-tutti-marker', marker);
     await injectTextIntoElement(chunks[i]!, `[data-tutti-marker="${marker}"]`);
-    await sleep(300);
+    if (implementationPath === 'next') {
+      await waitForStableEditableText(
+        `[data-tutti-marker="${marker}"]`,
+        chunks[i]!,
+        {
+          timeoutMs: 300,
+          quietMs: 75,
+          intervalMs: 25,
+        },
+      );
+    } else {
+      await sleep(300);
+    }
   }
 
   // Post button (preview なら highlight、 autoPost なら click)
@@ -255,7 +303,13 @@ export default defineContentScript({
   }),
 });
 
-async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolean, textChunks?: string[]): Promise<PostResultMessage> {
+async function runPost(
+  text: string,
+  images?: ImageAttachment[],
+  dryRun?: boolean,
+  textChunks?: string[],
+  implementationPath?: PostImplementationPath,
+): Promise<PostResultMessage> {
   const sel = await resolveSelectors('bluesky', BLUESKY_SELECTORS);
   const hasVideo = !!images?.some((image) => image.type.startsWith('video/'));
   log.info(`Bluesky runPost: dryRun=${dryRun} media=${images?.length ?? 0} video=${hasVideo}`);
@@ -264,10 +318,21 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
   // compose modal の 「+」 button で reply block を追加して、 全 chunks を 1 click
   // で thread 投稿する。
   if (textChunks && textChunks.length > 1) {
-    await executeBlueskyInlineThread(sel, textChunks, images, dryRun);
+    await executeBlueskyInlineThread(
+      sel,
+      textChunks,
+      images,
+      dryRun,
+      implementationPath,
+    );
   } else {
     if (images && images.length > 0) {
-      await attachBlueskyMedia(images, sel, hasVideo);
+      await attachBlueskyMedia(
+        images,
+        sel,
+        hasVideo,
+        implementationPath,
+      );
     }
     await executePostFlow({
       prefillsViaUrl: blueskyAdapter.prefillsViaUrl,
@@ -276,6 +341,7 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
       postButtonTexts: ['Publish', 'Post', '投稿', 'Publish post'],
       text,
       dryRun,
+      implementationPath,
       beforeSubmit: hasVideo ? assertBlueskyVideoAttached : undefined,
       clickPostButton: () => clickElementInMainWorld(sel.postButton),
     });
@@ -333,6 +399,7 @@ async function attachBlueskyMedia(
   images: ImageAttachment[],
   sel: typeof BLUESKY_SELECTORS,
   hasVideo: boolean,
+  implementationPath?: PostImplementationPath,
 ): Promise<void> {
   const order: Array<'input' | 'drop'> = hasVideo ? ['input', 'drop'] : ['drop', 'input'];
   let lastError: unknown;
@@ -344,12 +411,14 @@ async function attachBlueskyMedia(
         await injectImages(images, sel.fileInput, {
           requireVideoAccepted: hasVideo ? false : undefined,
           requireMediaAccepted: hasVideo ? false : undefined,
+          implementationPath,
         });
       } else {
         await dropImages(images, sel.dropTarget, {
           requireVideoAccepted: hasVideo ? false : undefined,
           requireMediaAccepted: hasVideo ? false : undefined,
           beforeDropDelayMs: hasVideo ? 500 : undefined,
+          implementationPath,
         });
       }
       if (hasVideo) await assertBlueskyVideoAttached(30_000);

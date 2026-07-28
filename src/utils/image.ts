@@ -1,5 +1,5 @@
-import type { ImageAttachment } from '../messages';
-import { sleep, waitForElement } from './dom';
+import type { ImageAttachment, PostImplementationPath } from '../messages';
+import { sleep, waitForElement, waitForStableCondition } from './dom';
 import { t } from './i18n';
 import { log } from './logger';
 
@@ -82,7 +82,12 @@ async function sendInjectRequest(req: Omit<InjectRequest, 'source' | 'id'>): Pro
 export async function injectImages(
   rawImages: ImageAttachment[],
   fileInputSelector: string,
-  options: { requireVideoAccepted?: boolean; requireMediaAccepted?: boolean; requireMediaPreview?: boolean } = {},
+  options: {
+    requireVideoAccepted?: boolean;
+    requireMediaAccepted?: boolean;
+    requireMediaPreview?: boolean;
+    implementationPath?: PostImplementationPath;
+  } = {},
 ): Promise<void> {
   await waitForElement<HTMLInputElement>(fileInputSelector, 5000);
   const hasVideo = rawImages.some((m) => m.type.startsWith('video/'));
@@ -121,7 +126,9 @@ export async function injectImages(
   );
   // helper が in-flight = 0 + quiet 800ms を確認した直後。少し追加で
   // SNS フロントエンドの thumbnail 描画反映を待つ
-  await sleep(300);
+  if (options.implementationPath !== 'next') {
+    await sleep(300);
+  }
 }
 
 /**
@@ -172,6 +179,7 @@ export async function injectTumblrTextIntoElement(
 export async function injectTagList(
   tags: string[],
   inputSelector: string,
+  options: { implementationPath?: PostImplementationPath } = {},
 ): Promise<void> {
   await waitForElement<HTMLElement>(inputSelector, 5000);
   const result = await sendInjectRequest({
@@ -183,7 +191,9 @@ export async function injectTagList(
   if (!result.ok) {
     throw new Error(result.error ?? t('runtimeTagInjectFailed'));
   }
-  await sleep(200);
+  if (options.implementationPath !== 'next') {
+    await sleep(200);
+  }
 }
 
 export async function clickElementInMainWorld(selector: string, texts?: string[]): Promise<void> {
@@ -225,11 +235,23 @@ export async function dropImages(
     requireMediaAccepted?: boolean;
     requireMediaPreview?: boolean;
     beforeDropDelayMs?: number;
+    implementationPath?: PostImplementationPath;
   } = {},
 ): Promise<void> {
   await waitForElement<HTMLElement>(dropTargetSelector, 5000);
   if (options.beforeDropDelayMs && options.beforeDropDelayMs > 0) {
-    await sleep(options.beforeDropDelayMs);
+    if (options.implementationPath === 'next') {
+      await waitForStableCondition(
+        () => document.querySelector<HTMLElement>(dropTargetSelector),
+        {
+          timeoutMs: options.beforeDropDelayMs,
+          quietMs: 150,
+          intervalMs: 50,
+        },
+      );
+    } else {
+      await sleep(options.beforeDropDelayMs);
+    }
   }
   const hasVideo = rawImages.some((m) => m.type.startsWith('video/'));
   log.info(`media attach drop start: files=${rawImages.length} video=${hasVideo}`);
@@ -263,5 +285,7 @@ export async function dropImages(
     `media attach drop accepted: files=${result.fileCount ?? rawImages.length} ` +
     `uploads=${result.uploadCount ?? 0} preview=${result.acceptedByPreview === true}`,
   );
-  await sleep(300);
+  if (options.implementationPath !== 'next') {
+    await sleep(300);
+  }
 }

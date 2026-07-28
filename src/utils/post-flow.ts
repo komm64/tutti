@@ -1,8 +1,10 @@
 import type { ImageAttachment } from '../messages';
+import type { PostImplementationPath } from '../messages';
 import {
   sleep,
   waitForCondition,
   waitForElement,
+  waitForStableEditableText,
 } from './dom';
 import {
   collectConfirmDialogs,
@@ -89,6 +91,8 @@ export interface PostFlowOptions {
    * drop target first when present, otherwise file input.
    */
   mediaAttachOrder?: ('input' | 'drop')[];
+  /** 欠落時は配布済みlegacyの固定待機を維持する。 */
+  implementationPath?: PostImplementationPath;
 }
 
 /**
@@ -121,6 +125,7 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
     beforeDropDelayMs,
     allowDisabledPostButtonInPreview,
     mediaAttachOrder,
+    implementationPath,
   } = options;
   if (!postButtonSelector && !postButtonTexts?.length && !postButtonFinder) {
     throw new Error('postButtonSelector, postButtonTexts, or postButtonFinder is required');
@@ -143,7 +148,15 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
     if (text) {
       markPostStepStarted('inject-text');
       await textInjector(text, injectSelector);
-      await sleep(300);
+      if (implementationPath === 'next') {
+        await waitForStableEditableText(injectSelector, text, {
+          timeoutMs: 300,
+          quietMs: 75,
+          intervalMs: 25,
+        });
+      } else {
+        await sleep(300);
+      }
       markPostStepCompleted('inject-text');
       markPostStepCompleted('verify-text');
     }
@@ -167,6 +180,7 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
       requireMediaPreview,
       beforeDropDelayMs,
       mediaAttachOrder,
+      implementationPath,
     });
     markPostStepCompleted('attach-media');
     markPostStepCompleted('verify-media');
@@ -269,7 +283,7 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
       excludedButtons: [button],
       composeInputSelector: textareaSelector,
     },
-    afterClickDelayMs,
+    afterClickDelayMs: implementationPath === 'next' ? 0 : afterClickDelayMs,
   });
 }
 
@@ -281,7 +295,8 @@ async function attachMedia(
     'requireMediaAccepted' |
     'requireMediaPreview' |
     'beforeDropDelayMs' |
-    'mediaAttachOrder'
+    'mediaAttachOrder' |
+    'implementationPath'
   >,
 ): Promise<void> {
   const defaultOrder: ('input' | 'drop')[] = options.dropTargetSelector
@@ -296,6 +311,7 @@ async function attachMedia(
         await injectImages(images, options.fileInputSelector, {
           requireMediaAccepted: options.requireMediaAccepted,
           requireMediaPreview: options.requireMediaPreview,
+          implementationPath: options.implementationPath,
         });
         return;
       }
@@ -304,6 +320,7 @@ async function attachMedia(
           requireMediaAccepted: options.requireMediaAccepted,
           requireMediaPreview: options.requireMediaPreview,
           beforeDropDelayMs: options.beforeDropDelayMs,
+          implementationPath: options.implementationPath,
         });
         return;
       }

@@ -192,6 +192,21 @@ describe('runtime message decoder', () => {
     })).toBeUndefined();
   });
 
+  it('accepts only explicit legacy or next implementation paths on content messages', () => {
+    expect(decodeMessage({
+      type: 'POST_TO_PLATFORM',
+      platform: 'x',
+      text: 'sample',
+      implementationPath: 'next',
+    })).toMatchObject({ implementationPath: 'next' });
+    expect(decodeMessage({
+      type: 'POST_TO_PLATFORM',
+      platform: 'x',
+      text: 'sample',
+      implementationPath: 'future',
+    })).toBeUndefined();
+  });
+
   it.each([
     null,
     [],

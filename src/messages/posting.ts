@@ -79,6 +79,8 @@ export interface PostRequestMessage {
 export interface PostToPlatformMessage {
   type: 'POST_TO_PLATFORM';
   platform: PlatformId;
+  /** request rootで固定済みの実装。欠落は配布済みlegacy callerとして扱う。 */
+  implementationPath?: PostImplementationPath;
   text: string;
   textChunks?: string[];
   images?: ImageAttachment[];

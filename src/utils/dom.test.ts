@@ -4,6 +4,7 @@ import {
   findClickableByText,
   isElementDisabled,
   normalizeElementText,
+  waitForStableCondition,
 } from './dom';
 
 function el(options: {
@@ -25,6 +26,7 @@ function el(options: {
 
 describe('DOM text helpers', () => {
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
@@ -53,5 +55,33 @@ describe('DOM text helpers', () => {
 
     expect(findClickableByText('Next')?.textContent).toBe('  Next\n');
   });
-});
 
+  it('resolves after the same event-driven candidate stays stable', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const first = {};
+    const second = {};
+    let candidate: object | null = first;
+    const waiting = waitForStableCondition(
+      () => candidate,
+      {
+        timeoutMs: 1_000,
+        quietMs: 100,
+        intervalMs: 10,
+        root: null,
+        observerInit: false,
+      },
+    );
+
+    await vi.advanceTimersByTimeAsync(70);
+    candidate = second;
+    await vi.advanceTimersByTimeAsync(90);
+    let settled = false;
+    void waiting.then(() => { settled = true; });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(20);
+    await expect(waiting).resolves.toBe(second);
+  });
+});
