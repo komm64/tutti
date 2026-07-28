@@ -1,8 +1,8 @@
 import type { LogLevel, PlatformId } from '../messages';
-import type { XThreadPostingMode } from '../types/posting';
+import type { PostingAlgorithm } from '../types/posting';
 import { resolveTuttiLocale } from '../utils/i18n';
 
-export type { XThreadPostingMode } from '../types/posting';
+export type { PostingAlgorithm } from '../types/posting';
 
 export interface Settings {
   mastodonInstance: string;
@@ -13,7 +13,7 @@ export interface Settings {
   logLevel: LogLevel;
   disableReportDedup: boolean;
   autoOpenPostUrl: 'always' | 'on-issue' | 'never';
-  xThreadPostingMode: XThreadPostingMode;
+  postingAlgorithm: PostingAlgorithm;
   pixivVisibility: 'general' | 'r18' | 'r18g';
   pixivAiType: 'notAiGenerated' | 'aiGenerated';
   autoLetterboxVerticalVideo: boolean;
@@ -36,7 +36,7 @@ const DEFAULT_SETTINGS: Settings = {
   logLevel: 'INFO',
   disableReportDedup: false,
   autoOpenPostUrl: 'always',
-  xThreadPostingMode: 'inline',
+  postingAlgorithm: 'next',
   pixivVisibility: 'general',
   pixivAiType: 'notAiGenerated',
   autoLetterboxVerticalVideo: false,
@@ -59,25 +59,41 @@ function migrateSelectorOverrideUrl(url: string | undefined): string {
   return url;
 }
 
-function resolveXThreadPostingMode(
-  mode: XThreadPostingMode | undefined,
-): XThreadPostingMode {
-  return mode === 'sequential' ? 'sequential' : 'inline';
+function resolvePostingAlgorithm(
+  algorithm: unknown,
+  temporaryXThreadMode: unknown,
+): PostingAlgorithm {
+  if (algorithm === 'legacy') return 'legacy';
+  if (algorithm === 'next') return 'next';
+  // v0.5.50 release candidateで一時的に保存したX限定設定を移行する。
+  return temporaryXThreadMode === 'sequential' ? 'legacy' : 'next';
 }
 
 export async function getSettings(): Promise<Settings> {
   const stored = await browser.storage.sync.get('settings');
-  const raw = (stored['settings'] as Partial<Settings> & { dryRun?: boolean } | undefined) ?? {};
+  const raw = (
+    stored['settings'] as Partial<Settings> & {
+      dryRun?: boolean;
+      xThreadPostingMode?: unknown;
+    } | undefined
+  ) ?? {};
   // Legacy `dryRun` had inverted semantics and is intentionally ignored.
-  const { dryRun: _ignored, ...rest } = raw;
-  void _ignored;
+  const {
+    dryRun: _ignoredDryRun,
+    xThreadPostingMode: temporaryXThreadMode,
+    ...rest
+  } = raw;
+  void _ignoredDryRun;
   return {
     ...DEFAULT_SETTINGS,
     ...rest,
     selectorOverrideUrl: migrateSelectorOverrideUrl(
       rest.selectorOverrideUrl ?? DEFAULT_SETTINGS.selectorOverrideUrl,
     ),
-    xThreadPostingMode: resolveXThreadPostingMode(rest.xThreadPostingMode),
+    postingAlgorithm: resolvePostingAlgorithm(
+      rest.postingAlgorithm,
+      temporaryXThreadMode,
+    ),
     uiLanguage: resolveTuttiLocale(rest.uiLanguage),
   };
 }

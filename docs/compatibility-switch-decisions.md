@@ -50,3 +50,22 @@ field evidence and amend this decision before registering a switch.
 must default to `next` and declare an owner issue, introduction version, and
 removal version. `architecture:check` fails invalid metadata, duplicate active
 scopes, or entries whose removal version has been reached.
+
+## v0.5.50 posting algorithm preference
+
+Issue #152 adds a durable, request-scoped `postingAlgorithm` preference in the
+collapsed experimental Options section. This does not restore the removed
+monolithic orchestrator or bundle two side-effect controllers, so it is not a
+temporary production compatibility switch and is not registered above.
+
+- The default is deterministically `next`; there is no random bucket or
+  percentage rollout.
+- The selected `next | legacy` value is read once before a new request reserves
+  its platforms and is fixed for the request, retry, and thread chain.
+- Both profiles share the decomposed orchestrator. The bounded behavioral
+  difference is X long-text posting: `next` builds the complete compose thread
+  and submits once with **Post all**, while `legacy` posts sequentially and
+  replies to each captured post URL.
+- Diagnostics record the selected profile for every platform result in that
+  request. Platforms without a profile-specific behavior continue through the
+  shared implementation.

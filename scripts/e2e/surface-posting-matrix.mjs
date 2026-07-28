@@ -218,15 +218,16 @@ console.log(`[matrix] extension=${extensionId}`);
 
 let popup = await openPopupPage(ctx, extensionId);
 const version = await popup.evaluate(() => chrome.runtime.getManifest().version);
-const xThreadPostingMode = await popup.evaluate(async () => (
-  (await chrome.storage.sync.get('settings'))['settings']?.xThreadPostingMode ?? 'inline'
-));
+const postingAlgorithm = await popup.evaluate(async () => {
+  const settings = (await chrome.storage.sync.get('settings'))['settings'] ?? {};
+  if (settings.postingAlgorithm === 'legacy') return 'legacy';
+  if (settings.postingAlgorithm === 'next') return 'next';
+  return settings.xThreadPostingMode === 'sequential' ? 'legacy' : 'next';
+});
 console.log(`[matrix] extension version=${version}`);
-console.log(`[matrix] xThreadPostingMode=${xThreadPostingMode}`);
+console.log(`[matrix] postingAlgorithm=${postingAlgorithm}`);
 
-const expectedImplementationPath = (platform) => (
-  platform === 'x' && xThreadPostingMode === 'sequential' ? 'legacy' : 'next'
-);
+const expectedImplementationPath = () => postingAlgorithm;
 
 const failures = [];
 const summary = [];
@@ -234,7 +235,7 @@ const persistSummary = async () => {
   await writeSummary(summaryPath, {
     mode,
     version,
-    xThreadPostingMode,
+    postingAlgorithm,
     platforms: requestedPlatforms,
     cases: requestedCases,
     repeat,

@@ -9,14 +9,14 @@ describe('post request settings boundary', () => {
     vi.unstubAllGlobals();
   });
 
-  it('fixes the selected X thread mode at request start and forwards it', async () => {
+  it('fixes the selected posting algorithm at request start and forwards it', async () => {
     vi.stubGlobal('browser', {
       storage: {
         sync: {
           get: vi.fn(async () => ({
             settings: {
               autoPost: false,
-              xThreadPostingMode: 'sequential',
+              postingAlgorithm: 'legacy',
             },
           })),
         },
@@ -25,9 +25,11 @@ describe('post request settings boundary', () => {
         setBadgeText: vi.fn(async () => undefined),
       },
     });
-    const postToPlatform = vi.fn(async (): Promise<PostResultMessage> => ({
+    const postToPlatform = vi.fn(async (
+      platform: PostResultMessage['platform'],
+    ): Promise<PostResultMessage> => ({
       type: 'POST_RESULT',
-      platform: 'x',
+      platform,
       success: true,
       preview: true,
     }));
@@ -49,20 +51,19 @@ describe('post request settings boundary', () => {
       requestId: 'request-1',
       intent: 'new',
       text: 'a'.repeat(400),
-      platforms: ['x'],
+      platforms: ['x', 'bluesky'],
     };
 
     const results = await handler(request);
 
-    expect(postToPlatform).toHaveBeenCalledOnce();
-    const call = postToPlatform.mock.calls[0] as unknown as unknown[];
-    expect(call[6]).toEqual({
-      forceForeground: true,
-      xThreadPostingMode: 'sequential',
-    });
-    expect(results[0]?.implementation).toEqual({
-      revision: 1,
-      path: 'legacy',
-    });
+    expect(postToPlatform).toHaveBeenCalledTimes(2);
+    for (const call of postToPlatform.mock.calls as unknown as unknown[][]) {
+      expect(call[6]).toMatchObject({ postingAlgorithm: 'legacy' });
+    }
+    expect(results).toHaveLength(2);
+    expect(results.every((result) => (
+      result.implementation?.revision === 1
+      && result.implementation.path === 'legacy'
+    ))).toBe(true);
   });
 });

@@ -3,6 +3,7 @@
  */
 
 import type { PlatformId } from '../types/platform';
+import type { PostingAlgorithm } from '../types/posting';
 import type { ImageAttachment } from './media';
 
 export type UserActionCategory =
@@ -45,7 +46,7 @@ export interface SubmissionGuardTrace {
   requestId: string;
 }
 
-export type PostImplementationPath = 'next' | 'legacy';
+export type PostImplementationPath = PostingAlgorithm;
 
 export interface PostImplementationDiagnostics {
   revision: number;

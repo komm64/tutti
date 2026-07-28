@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { LogEntry, LogLevel } from '../../src/messages';
-  import type { XThreadPostingMode } from '../../src/types/posting';
+  import type { PostingAlgorithm } from '../../src/types/posting';
   import {
     clearPostHistory,
     getSettings,
@@ -37,7 +37,7 @@
   let logStatus = $state<string | null>(null);
   let disableReportDedup = $state(false);
   let autoOpenPostUrl = $state<'always' | 'on-issue' | 'never'>('on-issue');
-  let xThreadPostingMode = $state<XThreadPostingMode>('inline');
+  let postingAlgorithm = $state<PostingAlgorithm>('next');
   let pixivVisibility = $state<'general' | 'r18' | 'r18g'>('general');
   let pixivAiType = $state<'notAiGenerated' | 'aiGenerated'>('notAiGenerated');
   let autoLetterboxVerticalVideo = $state(false);
@@ -65,7 +65,7 @@
       logLevel = s.logLevel;
       disableReportDedup = s.disableReportDedup;
       autoOpenPostUrl = s.autoOpenPostUrl;
-      xThreadPostingMode = s.xThreadPostingMode;
+      postingAlgorithm = s.postingAlgorithm;
       pixivVisibility = s.pixivVisibility;
       pixivAiType = s.pixivAiType;
       autoLetterboxVerticalVideo = s.autoLetterboxVerticalVideo;
@@ -213,7 +213,7 @@
       alert(t('alertPermissionDenied'));
       return;
     }
-    await saveSettings({ mastodonInstance: m, misskeyInstance: k, selectorOverrideUrl, logLevel, disableReportDedup, autoOpenPostUrl, xThreadPostingMode, pixivVisibility, pixivAiType, autoLetterboxVerticalVideo, notifyInteractions, displayMode, uiLanguage });
+    await saveSettings({ mastodonInstance: m, misskeyInstance: k, selectorOverrideUrl, logLevel, disableReportDedup, autoOpenPostUrl, postingAlgorithm, pixivVisibility, pixivAiType, autoLetterboxVerticalVideo, notifyInteractions, displayMode, uiLanguage });
     // disableReportDedup=true にしたら既存の dedup 履歴も clear
     // (再 enable まで storage に dead key が残らないように)
     if (disableReportDedup) {
@@ -525,18 +525,18 @@
         {t('experimentalPostingTitle')}
       </summary>
       <div class="space-y-2 pt-3">
-        <label for="x-thread-posting-mode" class="block text-sm text-gray-600">
-          {t('xThreadPostingModeLabel')}
+        <label for="posting-algorithm" class="block text-sm text-gray-600">
+          {t('postingAlgorithmLabel')}
         </label>
         <select
-          id="x-thread-posting-mode"
-          bind:value={xThreadPostingMode}
+          id="posting-algorithm"
+          bind:value={postingAlgorithm}
           class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
         >
-          <option value="inline">{t('xThreadPostingModeInline')}</option>
-          <option value="sequential">{t('xThreadPostingModeSequential')}</option>
+          <option value="next">{t('postingAlgorithmNext')}</option>
+          <option value="legacy">{t('postingAlgorithmLegacy')}</option>
         </select>
-        <p class="text-xs text-gray-400">{t('xThreadPostingModeHint')}</p>
+        <p class="text-xs text-gray-400">{t('postingAlgorithmHint')}</p>
       </div>
     </details>
 

@@ -50,7 +50,7 @@ describe('storage migration fixtures', () => {
       selectorOverrideUrl: CURRENT_SELECTOR_FEED_URL,
       logLevel: 'DEBUG',
       autoOpenPostUrl: 'never',
-      xThreadPostingMode: 'inline',
+      postingAlgorithm: 'next',
       uiLanguage: 'auto',
     });
     expect(settings).not.toHaveProperty('dryRun');
@@ -74,7 +74,7 @@ describe('storage migration fixtures', () => {
     });
   });
 
-  it('preserves the legacy X thread mode only when explicitly selected', async () => {
+  it('migrates the temporary X selector to the global posting algorithm', async () => {
     stubStorage({
       sync: {
         settings: {
@@ -83,18 +83,31 @@ describe('storage migration fixtures', () => {
       },
     });
     await expect(getSettings()).resolves.toMatchObject({
-      xThreadPostingMode: 'sequential',
+      postingAlgorithm: 'legacy',
     });
 
     stubStorage({
       sync: {
         settings: {
+          postingAlgorithm: 'next',
+          xThreadPostingMode: 'sequential',
+        },
+      },
+    });
+    await expect(getSettings()).resolves.toMatchObject({
+      postingAlgorithm: 'next',
+    });
+
+    stubStorage({
+      sync: {
+        settings: {
+          postingAlgorithm: 'unknown',
           xThreadPostingMode: 'unknown',
         },
       },
     });
     await expect(getSettings()).resolves.toMatchObject({
-      xThreadPostingMode: 'inline',
+      postingAlgorithm: 'next',
     });
   });
 

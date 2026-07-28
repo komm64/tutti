@@ -1,6 +1,9 @@
-import type { PostRequestMessage, PostResultMessage } from '../messages';
+import type {
+  PostRequestMessage,
+  PostResultMessage,
+} from '../messages';
 import { getSettings } from '../storage';
-import type { XThreadPostingMode } from '../types/posting';
+import type { PostingAlgorithm } from '../types/posting';
 import { releasePostAttachments, recordHistoryEntry } from './history-recorder';
 import { maybeCompressVideoForBudget } from './media-preprocess';
 import type { OpenedTabRegistry } from './opened-tab-registry';
@@ -55,19 +58,14 @@ export function createPostRequestHandler(options: PostRequestHandlerOptions) {
     let adjustedImages: PostRequestMessage['images'];
     let postingStateStarted = false;
     let autoPost = false;
-    let xThreadPostingMode: XThreadPostingMode = 'inline';
+    let postingAlgorithm: PostingAlgorithm = 'next';
     const annotateImplementation = (result: PostResultMessage): PostResultMessage =>
-      withPostImplementationDiagnostics(
-        result,
-        result.platform === 'x' && xThreadPostingMode === 'sequential'
-          ? 'legacy'
-          : 'next',
-      );
+      withPostImplementationDiagnostics(result, postingAlgorithm);
     return await executeGuardedSubmission<SubmissionGuardReservation, PostResultMessage[]>({
       reserve: async () => {
         const settings = await getSettings();
         autoPost = request.autoPost ?? settings.autoPost;
-        xThreadPostingMode = settings.xThreadPostingMode;
+        postingAlgorithm = settings.postingAlgorithm;
         return await submissionGuard.reserve({
           requestId: request.requestId,
           intent: request.intent,
@@ -131,7 +129,7 @@ export function createPostRequestHandler(options: PostRequestHandlerOptions) {
                 autoPost,
                 {
                   forceForeground: execution.forceForeground,
-                  xThreadPostingMode,
+                  postingAlgorithm,
                 },
               ),
             ),

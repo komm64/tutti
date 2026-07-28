@@ -125,7 +125,7 @@ describe('X inline thread orchestration', () => {
       undefined,
       undefined,
       true,
-      { xThreadPostingMode: 'sequential' },
+      { postingAlgorithm: 'legacy' },
     );
     const result = await resultPromise;
 

@@ -88,7 +88,7 @@ export function createPostOrchestrator(options: PostOrchestratorOptions) {
       shouldUseInlineThread(
         adapter.id,
         autoPost,
-        postOptions.xThreadPostingMode,
+        postOptions.postingAlgorithm,
       )
       && chunks.length > 1
     ) {
