@@ -61,6 +61,11 @@ export interface BlueskyReplyTarget {
   parentCid: string;
 }
 
+export interface BlueskyThreadPostInput {
+  chunks: string[];
+  images?: ApiPostInput['images'];
+}
+
 async function createSession(creds: BlueskyCredentials): Promise<Session> {
   const pds = creds.pdsHost || DEFAULT_PDS;
   const res = await fetch(`${pds}/xrpc/com.atproto.server.createSession`, {
@@ -270,6 +275,86 @@ export async function postViaApi(
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : String(e) };
   }
+}
+
+/**
+ * 1 sessionで全chunkを順次createRecordし、root/parentのuri+cidでthread化する。
+ * 投稿間の固定waitは不要。途中失敗時は先頭postが既に存在するためuncertainを返し、
+ * 上位層がDOM fallbackで重複投稿しないようにする。
+ */
+export async function postThreadViaApi(
+  creds: BlueskyCredentials,
+  input: BlueskyThreadPostInput,
+): Promise<ApiPostResult> {
+  try {
+    const session = await createSession(creds);
+    return await postThreadViaSession(session, input);
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+export async function postThreadViaSession(
+  session: Session,
+  input: BlueskyThreadPostInput,
+): Promise<ApiPostResult> {
+  if (input.chunks.length === 0) {
+    return { success: false, error: 'Bluesky API thread requires at least one chunk' };
+  }
+
+  let root: { uri: string; cid: string } | undefined;
+  let parent: { uri: string; cid: string } | undefined;
+  let lastPostUrl: string | undefined;
+
+  for (let index = 0; index < input.chunks.length; index += 1) {
+    const replyTarget = root && parent
+      ? {
+          rootUri: root.uri,
+          rootCid: root.cid,
+          parentUri: parent.uri,
+          parentCid: parent.cid,
+        }
+      : undefined;
+    const result = await postViaSession(
+      session,
+      {
+        text: input.chunks[index]!,
+        images: index === 0 ? input.images : undefined,
+      },
+      replyTarget,
+    );
+
+    if (!result.success) {
+      return {
+        success: false,
+        uncertain: index > 0 || result.uncertain || undefined,
+        postUrl: lastPostUrl,
+        error:
+          `Bluesky thread chunk ${index + 1}/${input.chunks.length} failed: ` +
+          `${result.error ?? 'unknown error'}`,
+      };
+    }
+    if (!result.uri || !result.cid) {
+      return {
+        success: false,
+        uncertain: true,
+        postUrl: result.postUrl ?? lastPostUrl,
+        error:
+          `Bluesky thread chunk ${index + 1}/${input.chunks.length} ` +
+          'was created without uri/cid',
+      };
+    }
+
+    const created = { uri: result.uri, cid: result.cid };
+    root ??= created;
+    parent = created;
+    lastPostUrl = result.postUrl ?? lastPostUrl;
+  }
+
+  return {
+    success: true,
+    postUrl: lastPostUrl,
+  };
 }
 
 /**

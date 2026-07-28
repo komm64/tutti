@@ -1,10 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { postViaApi as postBlueskyApi, postViaSession as postBlueskySessionApi } from '../api/bluesky';
+import {
+  postThreadViaApi as postBlueskyThreadApi,
+  postThreadViaSession as postBlueskyThreadSessionApi,
+  postViaApi as postBlueskyApi,
+  postViaSession as postBlueskySessionApi,
+} from '../api/bluesky';
 import { postViaApi as postMastodonApi } from '../api/mastodon';
 import { getApiCredentials } from '../utils/api-credentials';
-import { backgroundPlatformStrategies, tryApiPath } from './platform-strategies';
+import {
+  backgroundPlatformStrategies,
+  tryApiPath,
+  tryApiThreadPath,
+} from './platform-strategies';
 
 vi.mock('../api/bluesky', () => ({
+  postThreadViaApi: vi.fn(async () => ({ success: true, postUrl: 'https://bsky.app/profile/alice/post/thread-api' })),
+  postThreadViaSession: vi.fn(async () => ({ success: true, postUrl: 'https://bsky.app/profile/alice/post/thread-session' })),
   postViaApi: vi.fn(async () => ({ success: true, postUrl: 'https://bsky.app/profile/alice/post/abc' })),
   postViaSession: vi.fn(async () => ({ success: true, postUrl: 'https://bsky.app/profile/alice/post/session-abc' })),
 }));
@@ -25,6 +36,8 @@ describe('tryApiPath', () => {
   const getCreds = vi.mocked(getApiCredentials);
   const postBluesky = vi.mocked(postBlueskyApi);
   const postBlueskySession = vi.mocked(postBlueskySessionApi);
+  const postBlueskyThread = vi.mocked(postBlueskyThreadApi);
+  const postBlueskyThreadSession = vi.mocked(postBlueskyThreadSessionApi);
   const postMastodon = vi.mocked(postMastodonApi);
 
   beforeEach(() => {
@@ -42,6 +55,9 @@ describe('tryApiPath', () => {
     expect(Object.entries(backgroundPlatformStrategies)
       .filter(([, strategy]) => strategy.apiPost)
       .map(([platform]) => platform)).toEqual(['bluesky', 'mastodon', 'misskey']);
+    expect(Object.entries(backgroundPlatformStrategies)
+      .filter(([, strategy]) => strategy.apiThreadPost)
+      .map(([platform]) => platform)).toEqual(['bluesky']);
   });
 
   it('returns no-credentials without credential lookup when no API strategy is registered', async () => {
@@ -120,6 +136,50 @@ describe('tryApiPath', () => {
           durationS: 1,
         }],
       },
+    );
+  });
+
+  it('posts all Bluesky chunks through one credential-backed API thread call', async () => {
+    const result = await tryApiThreadPath(
+      'bluesky',
+      ['first', 'second'],
+      [{ name: 'photo.png', type: 'image/png', data: 'AA==' }],
+    );
+
+    expect(result).toMatchObject({ success: true });
+    expect(postBlueskyThread).toHaveBeenCalledWith(
+      { identifier: 'alice.test', appPassword: 'xxxx-xxxx-xxxx-xxxx' },
+      {
+        chunks: ['first', 'second'],
+        images: [{ name: 'photo.png', type: 'image/png', data: 'AA==' }],
+      },
+    );
+  });
+
+  it('uses a borrowed Bluesky session for API threads without saved credentials', async () => {
+    getCreds.mockResolvedValue({});
+    vi.stubGlobal('browser', {
+      tabs: {
+        query: vi.fn(async () => [{ id: 42, url: 'https://bsky.app/profile/alice.test' }]),
+        sendMessage: vi.fn(async () => ({
+          type: 'BLUESKY_SESSION_RESULT',
+          accessJwt: 'jwt',
+          did: 'did:plc:alice',
+          handle: 'alice.test',
+        })),
+      },
+    });
+
+    const result = await tryApiThreadPath('bluesky', ['first', 'second']);
+
+    expect(result).toMatchObject({ success: true });
+    expect(postBlueskyThreadSession).toHaveBeenCalledWith(
+      {
+        accessJwt: 'jwt',
+        did: 'did:plc:alice',
+        handle: 'alice.test',
+      },
+      { chunks: ['first', 'second'], images: undefined },
     );
   });
 
