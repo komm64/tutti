@@ -51,7 +51,9 @@ export interface PostingTransportOptions {
   openedTabs: Pick<OpenedTabRegistry, 'record' | 'forget'>;
   confirmation: Pick<
     PostConfirmation,
-    'ensurePostUrl' | 'recoverFromAmbiguousDispatchFailure'
+    | 'preparePostUrlCapture'
+    | 'ensurePostUrl'
+    | 'recoverFromAmbiguousDispatchFailure'
   >;
 }
 
@@ -247,6 +249,12 @@ export function createPostingTransport(options: PostingTransportOptions) {
 
       const lastSeenUsers = await getLastSeenUsers();
       const expectedUser = lastSeenUsers[adapter.id] ?? undefined;
+      const captureBaseline = dryRun
+        ? undefined
+        : await options.confirmation.preparePostUrlCapture(
+            adapter.id,
+            tab.id,
+          );
       const message: PostToPlatformMessage = {
         type: 'POST_TO_PLATFORM',
         platform: adapter.id,
@@ -290,6 +298,7 @@ export function createPostingTransport(options: PostingTransportOptions) {
             expectedUser,
             dryRun,
             dispatchStartedAt,
+            captureBaseline,
           );
         if (recovered) {
           return withFlow(recovered, { ...baseFlow, tabUrlBefore });
@@ -316,6 +325,7 @@ export function createPostingTransport(options: PostingTransportOptions) {
         tab.id,
         text,
         expectedUser,
+        captureBaseline,
       );
       if (withUrl.url) return { ...withUrl, confirmed: true };
       return unconfirmedPostResult(adapter.id, {

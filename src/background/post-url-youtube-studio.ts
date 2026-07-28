@@ -7,9 +7,35 @@ export interface YouTubeStudioCaptureResult {
   trace: string[];
 }
 
+export async function captureYouTubeStudioPostIdsFromTab(
+  tabId: number,
+  debug: (message: string) => void,
+): Promise<string[]> {
+  const contentUrl = await resolveYouTubeStudioContentUrlFromTab(tabId);
+  debug(`open Studio content list before posting: ${contentUrl}`);
+  await retryTransientTabAction('open YouTube Studio content list before posting', () => (
+    browser.tabs.update(tabId, { url: contentUrl })
+  ));
+  await waitForTabComplete(tabId);
+  await sleep(1500);
+
+  const results = await browser.scripting.executeScript({
+    target: { tabId },
+    func: captureYouTubeStudioPostIdsInPage,
+    world: 'MAIN',
+  });
+  const ids = results?.[0]?.result as string[] | null | undefined;
+  if (!Array.isArray(ids)) {
+    throw new Error('YouTube Studio baseline did not return video IDs');
+  }
+  debug(`captured pre-submit video ID baseline: count=${ids.length}`);
+  return ids;
+}
+
 export async function captureYouTubeStudioPostUrlFromTab(
   tabId: number,
   sourceText: string,
+  excludedPostIds: readonly string[] | undefined,
   debug: (message: string) => void,
 ): Promise<string | undefined> {
   const targetTitle = buildYouTubeStudioCaptureTarget(sourceText);
@@ -23,7 +49,7 @@ export async function captureYouTubeStudioPostUrlFromTab(
   const results = await browser.scripting.executeScript({
     target: { tabId },
     func: captureYouTubeStudioPostUrlInPage,
-    args: [targetTitle],
+    args: [targetTitle, [...(excludedPostIds ?? [])]],
     world: 'MAIN',
   });
   debug(`scripting result count=${results?.length}`);
@@ -43,11 +69,40 @@ export function buildYouTubeStudioCaptureTarget(sourceText: string): string {
   return buildYouTubeTitle(sourceText).replace(/\s+/g, ' ').trim().slice(0, 60);
 }
 
+export function buildYouTubeStudioContentUrl(rawUrl: string): string | undefined {
+  try {
+    const url = new URL(rawUrl);
+    const channelId = url.pathname.match(/^\/channel\/([^/]+)/)?.[1];
+    if (url.hostname !== 'studio.youtube.com' || !channelId) return undefined;
+    return (
+      `https://studio.youtube.com/channel/${channelId}/videos/upload` +
+      '?filter=%5B%5D&sort=%7B%22columnType%22%3A%22date%22%2C%22sortOrder%22%3A%22DESCENDING%22%7D'
+    );
+  } catch {
+    return undefined;
+  }
+}
+
+export function captureYouTubeStudioPostIdsInPage(
+  root: ParentNode = document,
+): string[] {
+  const ids = new Set<string>();
+  for (const link of Array.from(
+    root.querySelectorAll<HTMLAnchorElement>('a[href*="/video/"]'),
+  )) {
+    const id = link.href.match(/\/video\/([\w-]+)(?:\/|$)/)?.[1];
+    if (id) ids.add(id);
+  }
+  return [...ids];
+}
+
 export async function captureYouTubeStudioPostUrlInPage(
   targetText: string,
+  excludedPostIds: readonly string[] = [],
   root: ParentNode = document,
 ): Promise<YouTubeStudioCaptureResult> {
   const trace: string[] = [];
+  const excluded = new Set(excludedPostIds);
 
   const normalize = (value: string | null | undefined): string => (
     (value ?? '').replace(/\s+/g, ' ').trim()
@@ -77,10 +132,10 @@ export async function captureYouTubeStudioPostUrlInPage(
         );
         for (const link of links) {
           const id = link.href.match(/\/video\/([\w-]+)(?:\/|$)/)?.[1];
-          if (id) {
+          if (id && !excluded.has(id)) {
             trace.push(
-              `matched target title in scoped video card ` +
-              `(attempt=${attempt}, depth=${depth})`,
+              `matched new target title in scoped video card ` +
+              `(attempt=${attempt}, depth=${depth}, excluded=${excluded.size})`,
             );
             return {
               url: `https://www.youtube.com/watch?v=${id}`,
@@ -92,12 +147,26 @@ export async function captureYouTubeStudioPostUrlInPage(
     }
 
     if (attempt === 0) {
-      trace.push(`target title matches=${titleNodes.length}`);
+      trace.push(
+        `target title matches=${titleNodes.length}, excluded IDs=${excluded.size}`,
+      );
     }
     await sleep(500);
   }
 
   return { trace };
+}
+
+async function resolveYouTubeStudioContentUrlFromTab(tabId: number): Promise<string> {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const tab = await browser.tabs.get(tabId);
+    const contentUrl = buildYouTubeStudioContentUrl(
+      tab.url ?? tab.pendingUrl ?? '',
+    );
+    if (contentUrl) return contentUrl;
+    await sleep(500);
+  }
+  throw new Error('YouTube Studio channel URL was not available before posting');
 }
 
 function sleep(ms: number): Promise<void> {
