@@ -50,6 +50,7 @@ describe('storage migration fixtures', () => {
       selectorOverrideUrl: CURRENT_SELECTOR_FEED_URL,
       logLevel: 'DEBUG',
       autoOpenPostUrl: 'never',
+      xThreadPostingMode: 'inline',
       uiLanguage: 'auto',
     });
     expect(settings).not.toHaveProperty('dryRun');
@@ -70,6 +71,30 @@ describe('storage migration fixtures', () => {
 
     await expect(getSettings()).resolves.toMatchObject({
       selectorOverrideUrl: CURRENT_SELECTOR_FEED_URL,
+    });
+  });
+
+  it('preserves the legacy X thread mode only when explicitly selected', async () => {
+    stubStorage({
+      sync: {
+        settings: {
+          xThreadPostingMode: 'sequential',
+        },
+      },
+    });
+    await expect(getSettings()).resolves.toMatchObject({
+      xThreadPostingMode: 'sequential',
+    });
+
+    stubStorage({
+      sync: {
+        settings: {
+          xThreadPostingMode: 'unknown',
+        },
+      },
+    });
+    await expect(getSettings()).resolves.toMatchObject({
+      xThreadPostingMode: 'inline',
     });
   });
 

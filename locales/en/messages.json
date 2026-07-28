@@ -373,6 +373,11 @@
   "autoOpenOnIssueDesc": { "message": "Open only when verify detects an issue (recommended)" },
   "autoOpenAlwaysDesc": { "message": "Open the post page for every successful post" },
   "autoOpenHint": { "message": "Choose 'on-issue' or 'always' to immediately spot silent failures (e.g. caption stripped, image missing). Note: 'always' opens one tab per platform — busy with multi-SNS posts." },
+  "experimentalPostingTitle": { "message": "Advanced posting controls (experimental)" },
+  "xThreadPostingModeLabel": { "message": "X long-text thread posting mode" },
+  "xThreadPostingModeInline": { "message": "New — build the full thread, then click Post all once (recommended)" },
+  "xThreadPostingModeSequential": { "message": "Legacy — post one at a time and reply to each captured URL" },
+  "xThreadPostingModeHint": { "message": "Applies only when an X post exceeds the character limit. The setting is read when the next posting request starts." },
 
   "errorReportButton": { "message": "Report this issue" },
   "errorReportHint": { "message": "Opens GitHub Issues with recent logs prefilled." },

@@ -1,5 +1,8 @@
 import type { LogLevel, PlatformId } from '../messages';
+import type { XThreadPostingMode } from '../types/posting';
 import { resolveTuttiLocale } from '../utils/i18n';
+
+export type { XThreadPostingMode } from '../types/posting';
 
 export interface Settings {
   mastodonInstance: string;
@@ -10,6 +13,7 @@ export interface Settings {
   logLevel: LogLevel;
   disableReportDedup: boolean;
   autoOpenPostUrl: 'always' | 'on-issue' | 'never';
+  xThreadPostingMode: XThreadPostingMode;
   pixivVisibility: 'general' | 'r18' | 'r18g';
   pixivAiType: 'notAiGenerated' | 'aiGenerated';
   autoLetterboxVerticalVideo: boolean;
@@ -32,6 +36,7 @@ const DEFAULT_SETTINGS: Settings = {
   logLevel: 'INFO',
   disableReportDedup: false,
   autoOpenPostUrl: 'always',
+  xThreadPostingMode: 'inline',
   pixivVisibility: 'general',
   pixivAiType: 'notAiGenerated',
   autoLetterboxVerticalVideo: false,
@@ -54,6 +59,12 @@ function migrateSelectorOverrideUrl(url: string | undefined): string {
   return url;
 }
 
+function resolveXThreadPostingMode(
+  mode: XThreadPostingMode | undefined,
+): XThreadPostingMode {
+  return mode === 'sequential' ? 'sequential' : 'inline';
+}
+
 export async function getSettings(): Promise<Settings> {
   const stored = await browser.storage.sync.get('settings');
   const raw = (stored['settings'] as Partial<Settings> & { dryRun?: boolean } | undefined) ?? {};
@@ -66,6 +77,7 @@ export async function getSettings(): Promise<Settings> {
     selectorOverrideUrl: migrateSelectorOverrideUrl(
       rest.selectorOverrideUrl ?? DEFAULT_SETTINGS.selectorOverrideUrl,
     ),
+    xThreadPostingMode: resolveXThreadPostingMode(rest.xThreadPostingMode),
     uiLanguage: resolveTuttiLocale(rest.uiLanguage),
   };
 }

@@ -30,6 +30,19 @@ describe('post result policy', () => {
     expect(result.implementation).toEqual(CURRENT_POST_IMPLEMENTATION);
   });
 
+  it('records the explicitly selected legacy X path', () => {
+    const result = withPostImplementationDiagnostics({
+      type: 'POST_RESULT',
+      platform: 'x',
+      success: true,
+    }, 'legacy');
+
+    expect(result.implementation).toEqual({
+      revision: CURRENT_POST_IMPLEMENTATION.revision,
+      path: 'legacy',
+    });
+  });
+
   it('preserves the final chunk flow trace on aggregated preview results', () => {
     const result = buildFinalChunkResult('x', false, true, undefined, {
       mode: 'preview',

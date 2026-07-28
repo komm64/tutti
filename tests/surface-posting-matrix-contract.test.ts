@@ -88,6 +88,28 @@ describe('Surface posting matrix result contract', () => {
     })).toEqual([]);
   });
 
+  it('accepts the explicitly expected legacy X implementation path', () => {
+    expect(validateSurfaceResultContract({
+      mode: 'post',
+      caseName: 'long-text-image',
+      platform: 'x',
+      expectedImplementationPath: 'legacy',
+      result: {
+        success: true,
+        confirmed: true,
+        implementation: {
+          revision: 1,
+          path: 'legacy',
+        },
+        url: 'https://x.com/example/status/1',
+        flow: {
+          submitReached: true,
+          lastCompletedStep: 'verify-post',
+        },
+      },
+    })).toEqual([]);
+  });
+
   it('keeps unsafe recovered results visible', () => {
     expect(validateSurfaceResultContract({
       mode: 'preview',

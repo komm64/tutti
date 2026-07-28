@@ -84,7 +84,14 @@ export function createPostOrchestrator(options: PostOrchestratorOptions) {
     images = media.images;
 
     const chunks = splitTextForPlatform(adapter.id, text, adapter.charLimit);
-    if (shouldUseInlineThread(adapter.id, autoPost) && chunks.length > 1) {
+    if (
+      shouldUseInlineThread(
+        adapter.id,
+        autoPost,
+        postOptions.xThreadPostingMode,
+      )
+      && chunks.length > 1
+    ) {
       return await postSingleChunkInlineThread(adapter, chunks, images, autoPost);
     }
 

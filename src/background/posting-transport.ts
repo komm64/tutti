@@ -8,6 +8,7 @@ import type {
   PostToPlatformMessage,
 } from '../messages';
 import { getLastSeenUsers } from '../storage';
+import type { XThreadPostingMode } from '../types/posting';
 import { t } from '../utils/i18n';
 import { log } from '../utils/logger';
 import {
@@ -43,6 +44,7 @@ export type Visibility = 'public' | 'unlisted' | 'private' | 'direct';
 
 export interface PostToPlatformOptions {
   forceForeground?: boolean;
+  xThreadPostingMode?: XThreadPostingMode;
 }
 
 export interface PostingTransportOptions {

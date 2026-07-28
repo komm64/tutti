@@ -218,7 +218,15 @@ console.log(`[matrix] extension=${extensionId}`);
 
 let popup = await openPopupPage(ctx, extensionId);
 const version = await popup.evaluate(() => chrome.runtime.getManifest().version);
+const xThreadPostingMode = await popup.evaluate(async () => (
+  (await chrome.storage.sync.get('settings'))['settings']?.xThreadPostingMode ?? 'inline'
+));
 console.log(`[matrix] extension version=${version}`);
+console.log(`[matrix] xThreadPostingMode=${xThreadPostingMode}`);
+
+const expectedImplementationPath = (platform) => (
+  platform === 'x' && xThreadPostingMode === 'sequential' ? 'legacy' : 'next'
+);
 
 const failures = [];
 const summary = [];
@@ -226,6 +234,7 @@ const persistSummary = async () => {
   await writeSummary(summaryPath, {
     mode,
     version,
+    xThreadPostingMode,
     platforms: requestedPlatforms,
     cases: requestedCases,
     repeat,
@@ -299,6 +308,7 @@ for (const caseName of requestedCases) {
           caseName,
           platform: result.platform,
           result,
+          expectedImplementationPath: expectedImplementationPath(result.platform),
         }));
       }
       failures.push(`${caseName}: ${message}`);
@@ -334,6 +344,7 @@ for (const caseName of requestedCases) {
         caseName,
         platform,
         result,
+        expectedImplementationPath: expectedImplementationPath(platform),
       }));
       if (!result?.success) continue;
       if (mode === 'preview') {

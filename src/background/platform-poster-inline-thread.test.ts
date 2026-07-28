@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PostResultMessage, PostToPlatformMessage } from '../messages';
 
 const mocks = vi.hoisted(() => ({
@@ -33,6 +33,10 @@ vi.mock('../storage', async (importOriginal) => {
 import { createPlatformPoster } from './platform-poster';
 
 describe('X inline thread orchestration', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.openOrFocusTab.mockResolvedValue({
@@ -90,5 +94,56 @@ describe('X inline thread orchestration', () => {
     expect(message.textChunks?.length).toBeGreaterThan(1);
     expect(message.text).toBe(message.textChunks?.[0]);
     expect(message.textChunks?.join('')).toContain('word119');
+  });
+
+  it('uses captured post URLs when the legacy sequential mode is selected', async () => {
+    mocks.sendPostMessageWhenReady
+      .mockResolvedValueOnce({
+        type: 'POST_RESULT',
+        platform: 'x',
+        success: true,
+        url: 'https://x.com/alice/status/111',
+      } satisfies PostResultMessage)
+      .mockResolvedValueOnce({
+        type: 'POST_RESULT',
+        platform: 'x',
+        success: true,
+        url: 'https://x.com/alice/status/222',
+      } satisfies PostResultMessage);
+    const poster = createPlatformPoster({
+      openedTabs: {
+        record: vi.fn(),
+        forget: vi.fn(),
+      },
+    });
+    const text = 'a'.repeat(400);
+
+    const resultPromise = poster.postToPlatform(
+      'x',
+      text,
+      undefined,
+      undefined,
+      undefined,
+      true,
+      { xThreadPostingMode: 'sequential' },
+    );
+    const result = await resultPromise;
+
+    expect(result).toMatchObject({
+      platform: 'x',
+      success: true,
+      confirmed: true,
+      url: 'https://x.com/alice/status/222',
+    });
+    expect(mocks.openOrFocusTab).toHaveBeenCalledTimes(2);
+    expect(mocks.openOrFocusTab.mock.calls[1]?.[0]).toBe(
+      'https://x.com/intent/post?in_reply_to=111',
+    );
+    expect(mocks.sendPostMessageWhenReady).toHaveBeenCalledTimes(2);
+    for (const [, message] of mocks.sendPostMessageWhenReady.mock.calls as Array<
+      [number, PostToPlatformMessage]
+    >) {
+      expect(message.textChunks).toBeUndefined();
+    }
   });
 });

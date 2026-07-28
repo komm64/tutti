@@ -373,6 +373,11 @@
   "autoOpenOnIssueDesc": { "message": "verify エラー検知時のみ自動オープン (推奨)" },
   "autoOpenAlwaysDesc": { "message": "全 投稿成功で post ページを自動オープン" },
   "autoOpenHint": { "message": "投稿後に caption / 画像が SNS 側で消える silent failure を即時確認したい場合は 'on-issue' か 'always' を選択。 複数 SNS に投稿すると 'always' は多数のタブが開く点に注意。" },
+  "experimentalPostingTitle": { "message": "詳細な投稿設定 (実験的)" },
+  "xThreadPostingModeLabel": { "message": "X 長文スレッドの投稿方式" },
+  "xThreadPostingModeInline": { "message": "新方式 — 全投稿を組み立てて「Post all」を 1 回 (推奨)" },
+  "xThreadPostingModeSequential": { "message": "旧方式 — 1 件ずつ投稿し、取得 URL へ返信" },
+  "xThreadPostingModeHint": { "message": "X で本文が文字数制限を超えた場合だけ適用されます。設定は次の投稿開始時に読み込まれます。" },
 
   "errorReportButton": { "message": "この問題を報告" },
   "errorReportHint": { "message": "GitHub Issues に最近のログを添えて報告ページを開きます。" },

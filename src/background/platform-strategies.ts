@@ -1,6 +1,7 @@
 import type { ImageAttachment } from '../messages';
 import type { ApiPostResult } from '../api/types';
 import type { PlatformId } from '../types/platform';
+import type { XThreadPostingMode } from '../types/posting';
 import {
   verifyError,
   type VerifyExpectation,
@@ -46,7 +47,10 @@ export interface BackgroundPlatformStrategy {
   apiReplyContinuation?: true;
   /** 複数chunkを1つのcompose surfaceへまとめるplatform固有policy。 */
   inlineThread?: {
-    shouldUse: (autoPost: boolean) => boolean;
+    shouldUse: (
+      autoPost: boolean,
+      xThreadPostingMode: XThreadPostingMode,
+    ) => boolean;
     forceForegroundPreview?: true;
   };
   /** 2 chunk 目以降を captured parent URL へ接続する compose URL 手続き。 */
@@ -73,9 +77,16 @@ export const backgroundPlatformStrategies: Record<PlatformId, BackgroundPlatform
     parsePostId: ({ pathname }) => pathname.match(/\/status(?:es)?\/(\d+)/)?.[1] ?? null,
     inlineThread: {
       // X の複数投稿は preview / 本投稿とも compose 上で全件を組み立て、
-      // 最後に "Post all" を 1 回だけ実行する。
-      shouldUse: () => true,
+      // 最後に "Post all" を 1 回だけ実行する。旧方式を明示選択した
+      // 本投稿だけ、URL capture を挟む逐次 reply 経路へ戻す。
+      shouldUse: (autoPost, mode) => !autoPost || mode === 'inline',
       forceForegroundPreview: true,
+    },
+    continuationUrl: (previousPostUrl) => {
+      const statusId = previousPostUrl.match(/\/status\/(\d+)/)?.[1];
+      return statusId
+        ? `https://x.com/intent/post?in_reply_to=${statusId}`
+        : undefined;
     },
     verifyPost: verifyXPost,
     capturePostUrl: capturePostUrlWithGenericFlow,
@@ -202,8 +213,13 @@ export function continuationNeedsReplyUrl(platform: PlatformId): boolean {
   return getBackgroundPlatformStrategy(platform).continuationUrl !== undefined;
 }
 
-export function shouldUseInlineThread(platform: PlatformId, autoPost: boolean): boolean {
-  return getBackgroundPlatformStrategy(platform).inlineThread?.shouldUse(autoPost) === true;
+export function shouldUseInlineThread(
+  platform: PlatformId,
+  autoPost: boolean,
+  xThreadPostingMode: XThreadPostingMode = 'inline',
+): boolean {
+  return getBackgroundPlatformStrategy(platform).inlineThread
+    ?.shouldUse(autoPost, xThreadPostingMode) === true;
 }
 
 export function canUseApiWithReplyUrl(

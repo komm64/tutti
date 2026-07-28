@@ -1,5 +1,6 @@
 import type { PostRequestMessage, PostResultMessage } from '../messages';
 import { getSettings } from '../storage';
+import type { XThreadPostingMode } from '../types/posting';
 import { releasePostAttachments, recordHistoryEntry } from './history-recorder';
 import { maybeCompressVideoForBudget } from './media-preprocess';
 import type { OpenedTabRegistry } from './opened-tab-registry';
@@ -54,10 +55,19 @@ export function createPostRequestHandler(options: PostRequestHandlerOptions) {
     let adjustedImages: PostRequestMessage['images'];
     let postingStateStarted = false;
     let autoPost = false;
+    let xThreadPostingMode: XThreadPostingMode = 'inline';
+    const annotateImplementation = (result: PostResultMessage): PostResultMessage =>
+      withPostImplementationDiagnostics(
+        result,
+        result.platform === 'x' && xThreadPostingMode === 'sequential'
+          ? 'legacy'
+          : 'next',
+      );
     return await executeGuardedSubmission<SubmissionGuardReservation, PostResultMessage[]>({
       reserve: async () => {
         const settings = await getSettings();
         autoPost = request.autoPost ?? settings.autoPost;
+        xThreadPostingMode = settings.xThreadPostingMode;
         return await submissionGuard.reserve({
           requestId: request.requestId,
           intent: request.intent,
@@ -70,9 +80,7 @@ export function createPostRequestHandler(options: PostRequestHandlerOptions) {
       run: async (reservation) => {
         const platforms = reservation.allowedPlatforms;
         const requestedPlatforms = reservation.decisions.map(({ platform }) => platform);
-        const rejectedResults = reservation.rejectedResults.map(
-          withPostImplementationDiagnostics,
-        );
+        const rejectedResults = reservation.rejectedResults.map(annotateImplementation);
 
         // Guard reservation が確定するまで tab / posting side effect を開始しない。
         // POST_REQUEST ごとに cleanup 所有権を切り、前回 state を完全上書きする。
@@ -112,7 +120,7 @@ export function createPostRequestHandler(options: PostRequestHandlerOptions) {
           platforms,
           autoPost,
           planOptions: { hasVideo },
-          post: async (platform, execution) => withPostImplementationDiagnostics(
+          post: async (platform, execution) => annotateImplementation(
             normalizePostEvidence(
               await platformPoster.postToPlatform(
                 platform,
@@ -121,7 +129,10 @@ export function createPostRequestHandler(options: PostRequestHandlerOptions) {
                 request.cw,
                 request.visibility,
                 autoPost,
-                { forceForeground: execution.forceForeground },
+                {
+                  forceForeground: execution.forceForeground,
+                  xThreadPostingMode,
+                },
               ),
             ),
           ),

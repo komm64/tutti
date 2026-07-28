@@ -1,6 +1,7 @@
 import type {
   PlatformId,
   PostFlowTrace,
+  PostImplementationPath,
   PostResultMessage,
 } from '../messages';
 import { t } from '../utils/i18n';
@@ -12,10 +13,14 @@ export const CURRENT_POST_IMPLEMENTATION = {
 
 export function withPostImplementationDiagnostics(
   result: PostResultMessage,
+  path: PostImplementationPath = 'next',
 ): PostResultMessage {
   return {
     ...result,
-    implementation: CURRENT_POST_IMPLEMENTATION,
+    implementation: {
+      revision: CURRENT_POST_IMPLEMENTATION.revision,
+      path,
+    },
   };
 }
 
