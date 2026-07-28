@@ -6,6 +6,7 @@ import {
   captureYouTubeStudioPostIdBaselineStateInPage,
   captureYouTubeStudioPostIdsFromTab,
   captureYouTubeStudioPostIdsInPage,
+  captureYouTubeStudioPostUrlFromTab,
   captureYouTubeStudioPostUrlInPage,
 } from './post-url-youtube-studio';
 
@@ -112,6 +113,59 @@ describe('YouTube Studio post URL capture', () => {
       target: { tabId: 8 },
     }));
     expect(remove).toHaveBeenCalledWith(8);
+  });
+
+  it('opens the newest-first content list when capturing the submitted URL', async () => {
+    vi.useFakeTimers();
+    const update = vi.fn(async () => ({
+      id: 7,
+      url: 'https://studio.youtube.com/channel/UC123/videos/upload',
+    }));
+    const get = vi.fn(async () => ({
+      id: 7,
+      status: 'complete',
+      url: 'https://studio.youtube.com/channel/UC123',
+    }));
+    const executeScript = vi.fn(async (
+      options: { func: (...args: never[]) => unknown },
+    ) => [{
+      result: options.func === captureYouTubeStudioPostUrlInPage
+        ? {
+            url: 'https://www.youtube.com/watch?v=new-id',
+            trace: ['matched new target'],
+          }
+        : true,
+    }]);
+    vi.stubGlobal('browser', {
+      tabs: {
+        get,
+        update,
+        onUpdated: {
+          addListener: vi.fn(),
+          removeListener: vi.fn(),
+        },
+      },
+      scripting: { executeScript },
+    });
+
+    const pending = captureYouTubeStudioPostUrlFromTab(
+      7,
+      '',
+      ['older-id'],
+      vi.fn(),
+    );
+    await vi.advanceTimersByTimeAsync(250);
+
+    await expect(pending).resolves.toBe(
+      'https://www.youtube.com/watch?v=new-id',
+    );
+    expect(update).toHaveBeenCalledWith(7, {
+      url: expect.stringContaining('/channel/UC123/videos/upload?'),
+    });
+    expect(executeScript).toHaveBeenCalledWith(expect.objectContaining({
+      target: { tabId: 7 },
+      args: ['Untitled', ['older-id']],
+    }));
   });
 
   it('finds the matching video card without depending on the localized dashboard heading', async () => {

@@ -73,12 +73,12 @@ export async function captureYouTubeStudioPostUrlFromTab(
   debug: (message: string) => void,
 ): Promise<string | undefined> {
   const targetTitle = buildYouTubeStudioCaptureTarget(sourceText);
-  debug('reload Studio dashboard before latest Short lookup');
-  await retryTransientTabAction('reload YouTube Studio before URL capture', () => (
-    browser.tabs.reload(tabId)
+  const contentUrl = await resolveYouTubeStudioContentUrlFromTab(tabId);
+  debug(`open newest-first Studio content list for URL lookup: ${contentUrl}`);
+  await retryTransientTabAction('open YouTube Studio content list for URL capture', () => (
+    browser.tabs.update(tabId, { url: contentUrl })
   ));
   await waitForTabComplete(tabId);
-  await sleep(1000);
 
   const results = await browser.scripting.executeScript({
     target: { tabId },
@@ -210,7 +210,7 @@ export async function captureYouTubeStudioPostUrlInPage(
         `target title matches=${titleNodes.length}, excluded IDs=${excluded.size}`,
       );
     }
-    await sleep(500);
+    await new Promise((resolve) => setTimeout(resolve, 500));
   }
 
   return { trace };
