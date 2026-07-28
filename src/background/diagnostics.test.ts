@@ -67,6 +67,10 @@ describe('diagnostic redaction helpers', () => {
         x: {
           success: false,
           uncertain: true,
+          implementation: {
+            revision: 1,
+            path: 'next',
+          },
           submissionGuard: {
             decision: 'indeterminate',
             reason: 'recent-uncertain',
@@ -93,6 +97,10 @@ describe('diagnostic redaction helpers', () => {
         x: {
           success: false,
           uncertain: true,
+          implementation: {
+            revision: 1,
+            path: 'next',
+          },
           submissionGuard: {
             decision: 'indeterminate',
             reason: 'recent-uncertain',

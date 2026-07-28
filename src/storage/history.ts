@@ -5,6 +5,7 @@ export interface HistoryPlatformResult {
   success: boolean;
   confirmed?: boolean;
   uncertain?: boolean;
+  implementation?: PostResultMessage['implementation'];
   submissionGuard?: PostResultMessage['submissionGuard'];
   userAction?: PostResultMessage['userAction'];
   flow?: Pick<
@@ -93,6 +94,7 @@ export async function addToPostHistory(
           success: result.success,
           confirmed: result.confirmed,
           uncertain: result.uncertain,
+          implementation: result.implementation,
           submissionGuard: result.submissionGuard,
           userAction: result.userAction,
           flow: result.flow

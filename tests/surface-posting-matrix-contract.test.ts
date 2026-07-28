@@ -76,6 +76,10 @@ describe('Surface posting matrix result contract', () => {
       result: {
         success: true,
         preview: true,
+        implementation: {
+          revision: 1,
+          path: 'next',
+        },
         flow: {
           submitReached: false,
           lastCompletedStep: 'verify-login',
@@ -92,6 +96,10 @@ describe('Surface posting matrix result contract', () => {
       result: {
         success: true,
         preview: true,
+        implementation: {
+          revision: 1,
+          path: 'next',
+        },
         url: 'https://x.com/example/status/1',
         flow: {
           submitReached: true,
@@ -111,6 +119,10 @@ describe('Surface posting matrix result contract', () => {
       platform: 'x',
       result: {
         success: true,
+        implementation: {
+          revision: 1,
+          path: 'next',
+        },
         flow: {
           submitReached: false,
           lastCompletedStep: 'wait-submit',
@@ -120,6 +132,24 @@ describe('Surface posting matrix result contract', () => {
       'text-only/x: post result was not confirmed',
       'text-only/x: post URL was not captured',
       'text-only/x: post result did not record submitReached=true',
+    ]);
+  });
+
+  it('rejects results without background-owned next implementation diagnostics', () => {
+    expect(validateSurfaceResultContract({
+      mode: 'preview',
+      caseName: 'text-only',
+      platform: 'x',
+      result: {
+        success: true,
+        preview: true,
+        flow: {
+          submitReached: false,
+          lastCompletedStep: 'wait-submit',
+        },
+      },
+    })).toEqual([
+      'text-only/x: missing or invalid next implementation diagnostics',
     ]);
   });
 });

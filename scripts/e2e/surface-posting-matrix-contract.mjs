@@ -28,6 +28,13 @@ export function validateSurfaceResultContract({
   const failures = [];
 
   if (!result) return [`${prefix}: missing result`];
+  if (
+    result.implementation?.path !== 'next'
+    || !Number.isInteger(result.implementation?.revision)
+    || result.implementation.revision < 1
+  ) {
+    failures.push(`${prefix}: missing or invalid next implementation diagnostics`);
+  }
   if (!result.flow) {
     failures.push(`${prefix}: result missing flow trace`);
   } else if (!result.flow.lastCompletedStep && !result.flow.failedStep) {
