@@ -19,6 +19,12 @@ export type UserActionCategory =
 
 export type PostFlowStep = string;
 
+export interface PostStageTiming {
+  step: PostFlowStep;
+  durationMs: number;
+  outcome?: 'completed' | 'failed';
+}
+
 export interface PostFlowTrace {
   mode?: 'preview' | 'post';
   attempt?: string;
@@ -29,6 +35,9 @@ export interface PostFlowTrace {
   tabUrlBefore?: string;
   tabUrlAfter?: string;
   urlCaptureTrace?: string[];
+  /** ローカル診断用。投稿内容・URL・account情報を含めない。 */
+  totalDurationMs?: number;
+  stageTimings?: PostStageTiming[];
 }
 
 export type PostRequestIntent = 'new' | 'retry' | 'history-repost';

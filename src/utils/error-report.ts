@@ -126,6 +126,14 @@ function buildResultSummaryLines(results: readonly PostResultMessage[] | null | 
         flow?.submitReached !== undefined ? `submitReached=${flow.submitReached}` : undefined,
         flow?.lastCompletedStep ? `lastCompletedStep=${flow.lastCompletedStep}` : undefined,
         flow?.failedStep ? `failedStep=${flow.failedStep}` : undefined,
+        flow?.totalDurationMs !== undefined
+          ? `totalMs=${Math.round(flow.totalDurationMs)}`
+          : undefined,
+        flow?.stageTimings?.length
+          ? `stages=${flow.stageTimings
+              .map((timing) => `${timing.step}:${Math.round(timing.durationMs)}`)
+              .join(',')}`
+          : undefined,
       ].filter(Boolean).join(' ').replace(': success=', ': success=');
     }),
   ];

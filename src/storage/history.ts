@@ -10,7 +10,13 @@ export interface HistoryPlatformResult {
   userAction?: PostResultMessage['userAction'];
   flow?: Pick<
     NonNullable<PostResultMessage['flow']>,
-    'mode' | 'attempt' | 'lastCompletedStep' | 'failedStep' | 'submitReached'
+    | 'mode'
+    | 'attempt'
+    | 'lastCompletedStep'
+    | 'failedStep'
+    | 'submitReached'
+    | 'totalDurationMs'
+    | 'stageTimings'
   >;
   url?: string;
   error?: string;
@@ -104,6 +110,8 @@ export async function addToPostHistory(
                 lastCompletedStep: result.flow.lastCompletedStep,
                 failedStep: result.flow.failedStep,
                 submitReached: result.flow.submitReached,
+                totalDurationMs: result.flow.totalDurationMs,
+                stageTimings: result.flow.stageTimings,
               }
             : undefined,
           url: result.url,

@@ -69,4 +69,71 @@ describe('post request settings boundary', () => {
       && result.implementation.path === 'legacy'
     ))).toBe(true);
   });
+
+  it('adds local stage timings only to the next implementation', async () => {
+    vi.stubGlobal('browser', {
+      storage: {
+        sync: {
+          get: vi.fn(async () => ({
+            settings: {
+              autoPost: false,
+              postingAlgorithm: 'next',
+            },
+          })),
+        },
+      },
+      action: {
+        setBadgeText: vi.fn(async () => undefined),
+      },
+    });
+    const postToPlatform = vi.fn(async (
+      platform: PostResultMessage['platform'],
+    ): Promise<PostResultMessage> => ({
+      type: 'POST_RESULT',
+      platform,
+      success: true,
+      preview: true,
+      flow: {
+        submitReached: false,
+        stageTimings: [{
+          step: 'inject-text',
+          durationMs: 12,
+          outcome: 'completed',
+        }],
+      },
+    }));
+    const handler = createPostRequestHandler({
+      submissionGuard: createSubmissionGuard(),
+      openedTabs: {
+        clear: vi.fn(),
+        record: vi.fn(),
+        forget: vi.fn(),
+        cleanup: vi.fn(async () => undefined),
+      },
+      postingState: createPostingStateManager(),
+      platformPoster: {
+        forAlgorithm: vi.fn(() => ({ postToPlatform })),
+        postToPlatform,
+      },
+      appendBackgroundLog: vi.fn(),
+      sendRuntimeMessage: vi.fn(async () => undefined),
+    });
+
+    const [result] = await handler({
+      type: 'POST_REQUEST',
+      requestId: 'request-next-timing',
+      intent: 'new',
+      text: 'timed preview',
+      platforms: ['x'],
+    });
+
+    expect(result?.flow).toMatchObject({
+      totalDurationMs: expect.any(Number),
+      stageTimings: [
+        { step: 'inject-text', durationMs: 12 },
+        { step: 'scheduler-queue:foreground', durationMs: expect.any(Number) },
+        { step: 'platform-total', durationMs: expect.any(Number) },
+      ],
+    });
+  });
 });
