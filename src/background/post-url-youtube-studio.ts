@@ -1,3 +1,4 @@
+import { buildYouTubeTitle } from '../adapters/youtube';
 import { retryTransientTabAction } from './tab-action-retry';
 import { waitForTabComplete } from './tab-management';
 
@@ -8,9 +9,10 @@ export interface YouTubeStudioCaptureResult {
 
 export async function captureYouTubeStudioPostUrlFromTab(
   tabId: number,
-  targetText: string,
+  sourceText: string,
   debug: (message: string) => void,
 ): Promise<string | undefined> {
+  const targetTitle = buildYouTubeStudioCaptureTarget(sourceText);
   debug('reload Studio dashboard before latest Short lookup');
   await retryTransientTabAction('reload YouTube Studio before URL capture', () => (
     browser.tabs.reload(tabId)
@@ -21,7 +23,7 @@ export async function captureYouTubeStudioPostUrlFromTab(
   const results = await browser.scripting.executeScript({
     target: { tabId },
     func: captureYouTubeStudioPostUrlInPage,
-    args: [targetText],
+    args: [targetTitle],
     world: 'MAIN',
   });
   debug(`scripting result count=${results?.length}`);
@@ -37,12 +39,15 @@ export async function captureYouTubeStudioPostUrlFromTab(
   return undefined;
 }
 
+export function buildYouTubeStudioCaptureTarget(sourceText: string): string {
+  return buildYouTubeTitle(sourceText).replace(/\s+/g, ' ').trim().slice(0, 60);
+}
+
 export async function captureYouTubeStudioPostUrlInPage(
   targetText: string,
   root: ParentNode = document,
 ): Promise<YouTubeStudioCaptureResult> {
   const trace: string[] = [];
-  if (!targetText) return { trace };
 
   const normalize = (value: string | null | undefined): string => (
     (value ?? '').replace(/\s+/g, ' ').trim()

@@ -140,11 +140,11 @@ export async function capturePostUrlFromTab(options: CapturePostUrlOptions): Pro
     if (platform === 'tumblr') {
       await sleep(1000);
     }
-    const target = text.replace(/\s+/g, ' ').trim().slice(0, 60);
     if (platform === 'youtube') {
-      return await captureYouTubeStudioPostUrlFromTab(tabId, target, dbg);
+      return await captureYouTubeStudioPostUrlFromTab(tabId, text, dbg);
     }
 
+    const target = text.replace(/\s+/g, ' ').trim().slice(0, 60);
     const scriptArgs = buildPostUrlCaptureScriptArgs(
       platform,
       target,
