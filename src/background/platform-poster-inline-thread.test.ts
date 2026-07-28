@@ -97,6 +97,7 @@ describe('X inline thread orchestration', () => {
   });
 
   it('uses captured post URLs when the legacy sequential mode is selected', async () => {
+    vi.useFakeTimers();
     mocks.sendPostMessageWhenReady
       .mockResolvedValueOnce({
         type: 'POST_RESULT',
@@ -116,17 +117,18 @@ describe('X inline thread orchestration', () => {
         forget: vi.fn(),
       },
     });
+    const legacyPoster = poster.forAlgorithm('legacy');
     const text = 'a'.repeat(400);
 
-    const resultPromise = poster.postToPlatform(
+    const resultPromise = legacyPoster.postToPlatform(
       'x',
       text,
       undefined,
       undefined,
       undefined,
       true,
-      { postingAlgorithm: 'legacy' },
     );
+    await vi.runAllTimersAsync();
     const result = await resultPromise;
 
     expect(result).toMatchObject({
