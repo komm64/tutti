@@ -423,13 +423,18 @@ console.log('\n[matrix] summary');
 console.log(JSON.stringify(summary, null, 2));
 await persistSummary();
 
+// CDP接続用に起動したSurface Braveで最後のpopupまで閉じると、windowが0枚に
+// なってbrowser process自体が終了する。次のmatrixも同じsession/profileで
+// 継続できるよう、接続を切る前に通常pageを1枚残す。
+const keepalivePage = await ctx.newPage();
+await keepalivePage.goto('about:blank', { waitUntil: 'domcontentloaded' });
 await popup.close().catch(() => {});
-await disconnectCdp(browser);
+await disconnectCdp(browser, { preserveRemoteBrowser: true });
 
 const outcome = formatSurfaceMatrixOutcome(failures);
 for (const line of outcome.stdout) console.log(line);
 for (const line of outcome.stderr) console.error(line);
-if (!outcome.passed) process.exit(outcome.exitCode);
+process.exit(outcome.passed ? 0 : outcome.exitCode);
 
 function argValue(name) {
   const idx = args.indexOf(name);

@@ -214,12 +214,19 @@ export class RawCdpClient {
   }
 }
 
-export async function disconnectCdp(browser) {
+export async function disconnectCdp(
+  browser,
+  { preserveRemoteBrowser = false } = {},
+) {
   if (!browser) return;
   if (typeof browser.disconnect === 'function') {
     await browser.disconnect();
     return;
   }
+  // Playwright の connectOverCDP() が返す Browser には disconnect() が無く、
+  // close() はSurfaceのリモートBrave本体まで終了する。継続利用するCLIは
+  // keepalive pageを残し、このoption指定後にprocessを終了してsocketを解放する。
+  if (preserveRemoteBrowser && typeof browser.contexts === 'function') return;
   if (typeof browser.close === 'function') {
     await browser.close();
   }
