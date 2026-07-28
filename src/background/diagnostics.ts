@@ -23,6 +23,7 @@ export interface DiagnosticsReport {
     results: Partial<Record<PlatformId, {
       success: boolean;
       uncertain?: boolean;
+      implementation?: HistoryPlatformResult['implementation'];
       submissionGuard?: HistoryPlatformResult['submissionGuard'];
       userAction?: HistoryPlatformResult['userAction'];
       flow?: HistoryPlatformResult['flow'];
@@ -116,6 +117,7 @@ export function redactHistoryForDiagnostics(
       Object.entries(h.results).map(([k, v]) => [k, {
         success: v?.success ?? false,
         uncertain: v?.uncertain ?? false,
+        implementation: v?.implementation,
         submissionGuard: v?.submissionGuard,
         userAction: v?.userAction,
         flow: v?.flow,

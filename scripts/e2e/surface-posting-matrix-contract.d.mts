@@ -17,6 +17,10 @@ export function validateSurfaceResultContract(input: {
     success?: boolean;
     preview?: boolean;
     confirmed?: boolean;
+    implementation?: {
+      revision?: number;
+      path?: 'next' | 'legacy';
+    };
     url?: string;
     error?: string;
     flow?: {

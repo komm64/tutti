@@ -5,6 +5,20 @@ import type {
 } from '../messages';
 import { t } from '../utils/i18n';
 
+export const CURRENT_POST_IMPLEMENTATION = {
+  revision: 1,
+  path: 'next',
+} as const;
+
+export function withPostImplementationDiagnostics(
+  result: PostResultMessage,
+): PostResultMessage {
+  return {
+    ...result,
+    implementation: CURRENT_POST_IMPLEMENTATION,
+  };
+}
+
 export function toPreviewResult(result: PostResultMessage): PostResultMessage {
   const { url: _url, verify: _verify, confirmed: _confirmed, ...rest } = result;
   return {

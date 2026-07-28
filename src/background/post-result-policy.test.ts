@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { PostResultMessage } from '../messages';
 import {
   buildFinalChunkResult,
+  CURRENT_POST_IMPLEMENTATION,
   downgradeHardVerifyFailures,
   hasDurablePostEvidence,
   normalizePostEvidence,
@@ -11,9 +12,24 @@ import {
   toPreviewResult,
   unconfirmedPostResult,
   withFlow,
+  withPostImplementationDiagnostics,
 } from './post-result-policy';
 
 describe('post result policy', () => {
+  it('tags results with the background-owned next implementation revision', () => {
+    const result = withPostImplementationDiagnostics({
+      type: 'POST_RESULT',
+      platform: 'x',
+      success: true,
+      implementation: {
+        revision: 999,
+        path: 'legacy',
+      },
+    });
+
+    expect(result.implementation).toEqual(CURRENT_POST_IMPLEMENTATION);
+  });
+
   it('preserves the final chunk flow trace on aggregated preview results', () => {
     const result = buildFinalChunkResult('x', false, true, undefined, {
       mode: 'preview',

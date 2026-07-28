@@ -45,6 +45,13 @@ export interface SubmissionGuardTrace {
   requestId: string;
 }
 
+export type PostImplementationPath = 'next' | 'legacy';
+
+export interface PostImplementationDiagnostics {
+  revision: number;
+  path: PostImplementationPath;
+}
+
 export interface PostRequestMessage {
   type: 'POST_REQUEST';
   requestId: string;
@@ -78,6 +85,7 @@ export interface PostResultMessage {
   preview?: boolean;
   confirmed?: boolean;
   uncertain?: boolean;
+  implementation?: PostImplementationDiagnostics;
   submissionGuard?: SubmissionGuardTrace;
   userAction?: UserActionCategory;
   flow?: PostFlowTrace;

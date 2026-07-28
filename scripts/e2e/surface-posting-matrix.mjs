@@ -750,6 +750,7 @@ function compactResult(result) {
     preview: result.preview,
     confirmed: result.confirmed,
     uncertain: result.uncertain,
+    implementation: result.implementation,
     userAction: result.userAction,
     flow: result.flow,
     url: result.url,

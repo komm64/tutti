@@ -7,6 +7,7 @@ import type { createPlatformPoster } from './platform-poster';
 import {
   normalizePostEvidence,
   shouldRunPostCompletionSideEffects,
+  withPostImplementationDiagnostics,
 } from './post-result-policy';
 import { runPostScheduler } from './post-scheduler';
 import { clearBadge, notifyResults } from './post-status-ui';
@@ -69,13 +70,16 @@ export function createPostRequestHandler(options: PostRequestHandlerOptions) {
       run: async (reservation) => {
         const platforms = reservation.allowedPlatforms;
         const requestedPlatforms = reservation.decisions.map(({ platform }) => platform);
+        const rejectedResults = reservation.rejectedResults.map(
+          withPostImplementationDiagnostics,
+        );
 
         // Guard reservation が確定するまで tab / posting side effect を開始しない。
         // POST_REQUEST ごとに cleanup 所有権を切り、前回 state を完全上書きする。
         openedTabs.clear();
         postingState.start(requestedPlatforms);
         postingStateStarted = true;
-        for (const rejected of reservation.rejectedResults) {
+        for (const rejected of rejectedResults) {
           const guard = rejected.submissionGuard;
           appendBackgroundLog(
             `SubmissionGuard decision=${guard?.decision ?? 'indeterminate'} ` +
@@ -88,7 +92,7 @@ export function createPostRequestHandler(options: PostRequestHandlerOptions) {
         if (platforms.length === 0) {
           clearBadge();
           openedTabs.clear();
-          return reservation.rejectedResults;
+          return rejectedResults;
         }
 
         // 投稿前に動画を安全な MP4/H.264/AAC へ正規化し、必要に応じて
@@ -108,20 +112,22 @@ export function createPostRequestHandler(options: PostRequestHandlerOptions) {
           platforms,
           autoPost,
           planOptions: { hasVideo },
-          post: async (platform, execution) => normalizePostEvidence(
-            await platformPoster.postToPlatform(
-              platform,
-              request.text,
-              adjustedImages,
-              request.cw,
-              request.visibility,
-              autoPost,
-              { forceForeground: execution.forceForeground },
+          post: async (platform, execution) => withPostImplementationDiagnostics(
+            normalizePostEvidence(
+              await platformPoster.postToPlatform(
+                platform,
+                request.text,
+                adjustedImages,
+                request.cw,
+                request.visibility,
+                autoPost,
+                { forceForeground: execution.forceForeground },
+              ),
             ),
           ),
           onResult: recordPlatformProgress,
         });
-        const results = [...reservation.rejectedResults, ...executionResults];
+        const results = [...rejectedResults, ...executionResults];
 
         if (shouldRunPostCompletionSideEffects(autoPost, executionResults)) {
           notifyResults(results);
