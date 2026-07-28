@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   getPostSubmissionStartedAt,
   hasPostSubmissionStarted,
@@ -11,7 +11,13 @@ import {
 } from './post-submission-state';
 
 describe('post submission state', () => {
-  beforeEach(() => resetPostSubmissionState());
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000);
+    resetPostSubmissionState();
+  });
+
+  afterEach(() => vi.useRealTimers());
 
   it('starts clear', () => {
     expect(hasPostSubmissionStarted()).toBe(false);
@@ -37,6 +43,8 @@ describe('post submission state', () => {
       submissionStartedAt: undefined,
       lastCompletedStep: undefined,
       failedStep: undefined,
+      totalDurationMs: 0,
+      stageTimings: [],
     });
   });
 
@@ -52,6 +60,23 @@ describe('post submission state', () => {
     expect(getPostSubmissionTrace()).toMatchObject({
       lastCompletedStep: 'attach-media',
       failedStep: 'attach-media',
+    });
+  });
+
+  it('records completed and failed stage durations without content data', () => {
+    markPostStepStarted('inject-text');
+    vi.setSystemTime(1_125);
+    markPostStepCompleted('inject-text');
+    markPostStepStarted('attach-media');
+    vi.setSystemTime(1_400);
+    markPostStepFailed();
+
+    expect(getPostSubmissionTrace()).toMatchObject({
+      totalDurationMs: 400,
+      stageTimings: [
+        { step: 'inject-text', durationMs: 125, outcome: 'completed' },
+        { step: 'attach-media', durationMs: 275, outcome: 'failed' },
+      ],
     });
   });
 });

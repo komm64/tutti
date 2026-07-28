@@ -29,6 +29,7 @@
  *   - 単体テストは「dry-run で全 step が走り finalize は click されない」を最低限カバー。
  */
 import { sleep, waitForCondition, waitForElement } from './dom';
+import type { PostImplementationPath } from '../messages';
 import {
   finalizeFlow,
   findFlowButton,
@@ -58,6 +59,11 @@ export interface Step {
   /** action 完了後の DOM settle 待機 (default 300ms)。React の state 反映を待つ */
   settleMs?: number;
   /**
+   * next経路のaction完了条件。指定時は固定settleMsの代わりにこのPromiseを待つ。
+   * 即完了を保証できるactionは `async () => {}` を指定できる。
+   */
+  waitAfterAction?: () => Promise<void>;
+  /**
    * 次のページへ進むボタン。selector / texts / finder のどれか必須。
    * 最終 step は省略 (省略 = MultiStepFlowOptions.finalize に委譲)。
    */
@@ -70,6 +76,8 @@ export interface Step {
     selector: string;
     timeoutMs?: number;
   };
+  /** next経路の画面遷移完了条件。awaitNextDomより具体的な状態判定に使う。 */
+  waitAfterAdvance?: () => Promise<void>;
 }
 
 export interface AdvanceSpec {
@@ -104,6 +112,8 @@ export interface MultiStepFlowOptions {
   finalize: FinalizeSpec;
   /** dry-run: 全 step は実行するが finalize.click は行わない */
   dryRun?: boolean;
+  /** 欠落時は配布済みlegacyの固定待機を維持する。 */
+  implementationPath?: PostImplementationPath;
 }
 
 /**
@@ -124,7 +134,12 @@ export interface MultiStepFlowOptions {
  * (executePostFlow と同じ挙動)。
  */
 export async function executeMultiStepFlow(options: MultiStepFlowOptions): Promise<void> {
-  const { steps, finalize, dryRun = false } = options;
+  const {
+    steps,
+    finalize,
+    dryRun = false,
+    implementationPath,
+  } = options;
   if (steps.length === 0) {
     throw new Error('executeMultiStepFlow: steps must not be empty');
   }
@@ -138,7 +153,17 @@ export async function executeMultiStepFlow(options: MultiStepFlowOptions): Promi
       const msg = err instanceof Error ? err.message : String(err);
       throw new Error(t('runtimeStepActionFailed', step.name, msg));
     }
-    await sleep(step.settleMs ?? 300);
+    try {
+      if (implementationPath === 'next' && step.waitAfterAction) {
+        await step.waitAfterAction();
+      } else {
+        await sleep(step.settleMs ?? 300);
+      }
+    } catch (err) {
+      markPostStepFailed(step.name);
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new Error(t('runtimeStepActionFailed', step.name, msg));
+    }
     markPostStepCompleted(step.name);
 
     if (!step.advance) continue;
@@ -159,7 +184,17 @@ export async function executeMultiStepFlow(options: MultiStepFlowOptions): Promi
     advanceBtn.click();
     markPostStepCompleted(`${step.name}:advance`);
 
-    if (step.awaitNextDom) {
+    if (implementationPath === 'next' && step.waitAfterAdvance) {
+      markPostStepStarted(`${step.name}:await-next`);
+      try {
+        await step.waitAfterAdvance();
+      } catch (err) {
+        markPostStepFailed(`${step.name}:await-next`);
+        const msg = err instanceof Error ? err.message : String(err);
+        throw new Error(t('runtimeStepActionFailed', `${step.name}:await-next`, msg));
+      }
+      markPostStepCompleted(`${step.name}:await-next`);
+    } else if (step.awaitNextDom) {
       markPostStepStarted(`${step.name}:await-next`);
       const next = await waitForElement<HTMLElement>(
         step.awaitNextDom.selector,
@@ -200,7 +235,9 @@ export async function executeMultiStepFlow(options: MultiStepFlowOptions): Promi
     button: finalizeBtn,
     confirmDialogButtonTexts: finalize.confirmDialogButtonTexts,
     confirmDialogGraceMs: finalize.confirmDialogGraceMs,
-    afterClickDelayMs: finalize.afterClickDelayMs,
+    afterClickDelayMs: implementationPath === 'next'
+      ? 0
+      : finalize.afterClickDelayMs,
   });
 }
 

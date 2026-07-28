@@ -12,8 +12,10 @@ import {
   normalizePostEvidence,
   shouldRunPostCompletionSideEffects,
   withPostImplementationDiagnostics,
+  withPostTiming,
 } from './post-result-policy';
 import { runPostScheduler } from './post-scheduler';
+import { resolveCredentialBackedApiPlatforms } from './platform-strategies';
 import { clearBadge, notifyResults } from './post-status-ui';
 import type { createPostingStateManager } from './posting-state';
 import { executeGuardedSubmission } from './submission-execution';
@@ -115,25 +117,52 @@ export function createPostRequestHandler(options: PostRequestHandlerOptions) {
         );
         const hasVideo = adjustedImages?.some((image) => image.type.startsWith('video/')) === true;
         const requestPoster = platformPoster.forAlgorithm(postingAlgorithm);
+        const apiPlatforms = postingAlgorithm === 'next' && autoPost
+          ? await resolveCredentialBackedApiPlatforms(platforms)
+          : [];
+        const schedulerStartedAt = Date.now();
         const executionResults = await runPostScheduler({
           platforms,
           autoPost,
-          planOptions: { hasVideo },
-          post: async (platform, execution) => annotateImplementation(
-            normalizePostEvidence(
-              await requestPoster.postToPlatform(
-                platform,
-                request.text,
-                adjustedImages,
-                request.cw,
-                request.visibility,
-                autoPost,
-                {
-                  forceForeground: execution.forceForeground,
-                },
+          planOptions: {
+            hasVideo,
+            postingAlgorithm,
+            apiPlatforms,
+          },
+          post: async (platform, execution) => {
+            const platformStartedAt = Date.now();
+            let result = annotateImplementation(
+              normalizePostEvidence(
+                await requestPoster.postToPlatform(
+                  platform,
+                  request.text,
+                  adjustedImages,
+                  request.cw,
+                  request.visibility,
+                  autoPost,
+                  {
+                    forceForeground: execution.forceForeground,
+                    forceBackground: execution.forceBackground,
+                    transportPolicy: execution.transportPolicy,
+                  },
+                ),
               ),
-            ),
-          ),
+            );
+            if (postingAlgorithm === 'next') {
+              const completedAt = Date.now();
+              result = withPostTiming(result, {
+                step: `scheduler-queue:${execution.lane}`,
+                durationMs: Math.max(0, platformStartedAt - schedulerStartedAt),
+                outcome: 'completed',
+              });
+              result = withPostTiming(result, {
+                step: 'platform-total',
+                durationMs: Math.max(0, completedAt - platformStartedAt),
+                outcome: result.success ? 'completed' : 'failed',
+              }, Math.max(0, completedAt - schedulerStartedAt));
+            }
+            return result;
+          },
           onResult: recordPlatformProgress,
         });
         const results = [...rejectedResults, ...executionResults];

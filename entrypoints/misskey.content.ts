@@ -1,5 +1,9 @@
 import { log } from '../src/utils/logger';
-import type { ImageAttachment, PostResultMessage } from '../src/messages';
+import type {
+  ImageAttachment,
+  PostImplementationPath,
+  PostResultMessage,
+} from '../src/messages';
 import { MISSKEY_SELECTORS, misskeyAdapter } from '../src/adapters/misskey';
 import { sleep, waitForCondition } from '../src/utils/dom';
 import { executePostFlow } from '../src/utils/post-flow';
@@ -71,7 +75,13 @@ export default defineContentScript({
   }),
 });
 
-async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolean): Promise<PostResultMessage> {
+async function runPost(
+  text: string,
+  images?: ImageAttachment[],
+  dryRun?: boolean,
+  _textChunks?: string[],
+  implementationPath?: PostImplementationPath,
+): Promise<PostResultMessage> {
   const sel = await resolveSelectors('misskey', MISSKEY_SELECTORS);
   const initialPageState = await waitForCondition<'compose' | 'sign-in'>(() => {
     if (isMisskeyComposePresent(document, sel)) return 'compose';
@@ -92,6 +102,7 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     text,
     images,
     dryRun,
+    implementationPath,
     clickPostButton: () => clickElementInMainWorld('button, [role="button"]', ['投稿', 'ノート', 'Note', 'Post', 'Submit']),
   });
   if (!dryRun) {

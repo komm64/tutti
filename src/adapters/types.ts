@@ -57,6 +57,11 @@ export interface PlatformAdapter {
    * requiresForegroundTab は別の強い要件として常に foreground を優先する。
    */
   previewLane?: 'foreground';
+  /**
+   * next実投稿をinactive tabで実行してよいことを明示する。
+   * 未指定は安全側のforeground。指定adapterはリリース前にSurface gateで継続検証する。
+   */
+  realPostLane?: 'background';
   /** 投稿操作前の compose page load timeout に対する宣言policy */
   preSubmitLoad?: PreSubmitLoadPolicy;
   /** 動画投稿で優先する表示aspect。未指定なら原寸を維持する */

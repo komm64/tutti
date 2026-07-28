@@ -1,9 +1,13 @@
 import { log } from '../src/utils/logger';
-import type { ImageAttachment, PostResultMessage } from '../src/messages';
+import type {
+  ImageAttachment,
+  PostImplementationPath,
+  PostResultMessage,
+} from '../src/messages';
 import { TIKTOK_SELECTORS, buildTikTokCaption } from '../src/adapters/tiktok';
 import { executeMultiStepFlow, type Step } from '../src/utils/step-runner';
 import { injectImages, injectTextIntoElement } from '../src/utils/image';
-import { sleep, waitForElement } from '../src/utils/dom';
+import { sleep, waitForCondition, waitForElement } from '../src/utils/dom';
 import { waitForPostUrl } from '../src/utils/url-capture';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
@@ -52,6 +56,8 @@ async function runPost(
   text: string,
   images?: ImageAttachment[],
   dryRun?: boolean,
+  _textChunks?: string[],
+  implementationPath?: PostImplementationPath,
 ): Promise<PostResultMessage> {
   log.info(`TikTok runPost: dryRun=${dryRun} media=${images?.length ?? 0}`);
   const video = images?.find((m) => m.type.startsWith('video/'));
@@ -72,10 +78,11 @@ async function runPost(
           const buttonHint = buttons ? ` [visible buttons: ${buttons}]` : '';
           throw new Error(`file input not found on ${location.pathname}${buttonHint}`);
         }
-        await injectImages([video], sel.fileInput);
+        await injectImages([video], sel.fileInput, { implementationPath });
       },
       // upload + caption form 描画。30s 程度かかることもあるので長め
       settleMs: 200,
+      waitAfterAction: async () => {},
     },
     {
       // caption 入力。動画 upload 完了を待ってから fill (waitForElement で出現確認)
@@ -85,9 +92,14 @@ async function runPost(
         if (!el) {
           throw new Error(t('runtimeTikTokCaptionMissing'));
         }
-        await setTikTokCaption(caption, sel.captionEditor);
+        await setTikTokCaption(
+          caption,
+          sel.captionEditor,
+          implementationPath,
+        );
       },
       settleMs: 500,
+      waitAfterAction: async () => {},
     },
   ];
 
@@ -110,6 +122,7 @@ async function runPost(
       afterClickDelayMs: 250,
     },
     dryRun,
+    implementationPath,
   });
 
   // dryRun でなければ個別の post URL への遷移を待つ。
@@ -137,7 +150,11 @@ async function runPost(
   };
 }
 
-async function setTikTokCaption(caption: string, selector: string): Promise<void> {
+async function setTikTokCaption(
+  caption: string,
+  selector: string,
+  implementationPath?: PostImplementationPath,
+): Promise<void> {
   let lastError: string | undefined;
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     try {
@@ -146,7 +163,14 @@ async function setTikTokCaption(caption: string, selector: string): Promise<void
       lastError = e instanceof Error ? e.message : String(e);
     }
 
-    await sleep(500);
+    if (implementationPath === 'next') {
+      await waitForCondition<boolean>(
+        () => captionMatches(readTikTokCaption(selector), caption) || null,
+        { timeoutMs: 500, intervalMs: 25 },
+      );
+    } else {
+      await sleep(500);
+    }
     const visible = readTikTokCaption(selector);
     if (captionMatches(visible, caption)) return;
 
@@ -155,7 +179,14 @@ async function setTikTokCaption(caption: string, selector: string): Promise<void
       : `caption was not cleared after inject attempt ${attempt}: "${visible.slice(0, 80)}"`;
     log.warn(`TikTok: ${lastError}`);
     await injectTextIntoElement('', selector).catch(() => {});
-    await sleep(300);
+    if (implementationPath === 'next') {
+      await waitForCondition<boolean>(
+        () => captionMatches(readTikTokCaption(selector), '') || null,
+        { timeoutMs: 300, intervalMs: 25 },
+      );
+    } else {
+      await sleep(300);
+    }
   }
   throw new Error(lastError ?? 'TikTok caption injection failed');
 }

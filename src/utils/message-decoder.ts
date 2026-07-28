@@ -48,6 +48,11 @@ const MESSAGE_VALIDATORS = {
   POST_TO_PLATFORM: (value) =>
     isPlatformId(value.platform) &&
     isString(value.text) &&
+    optional(
+      value,
+      'implementationPath',
+      (item) => item === 'legacy' || item === 'next',
+    ) &&
     optional(value, 'textChunks', isStringArray) &&
     optional(value, 'images', isAttachmentArray) &&
     optional(value, 'dryRun', isBoolean) &&
@@ -186,7 +191,22 @@ function isPostFlowTrace(value: unknown): boolean {
     optional(value, 'submissionStartedAt', isFiniteNumber) &&
     optional(value, 'tabUrlBefore', isString) &&
     optional(value, 'tabUrlAfter', isString) &&
-    optional(value, 'urlCaptureTrace', isStringArray);
+    optional(value, 'urlCaptureTrace', isStringArray) &&
+    optional(value, 'totalDurationMs', isFiniteNumber) &&
+    optional(value, 'stageTimings', (item) => (
+      Array.isArray(item) && item.every(isPostStageTiming)
+    ));
+}
+
+function isPostStageTiming(value: unknown): boolean {
+  return isRecord(value) &&
+    isString(value.step) &&
+    isFiniteNumber(value.durationMs) &&
+    optional(
+      value,
+      'outcome',
+      (item) => item === 'completed' || item === 'failed',
+    );
 }
 
 function isSubmissionGuardTrace(value: unknown): boolean {

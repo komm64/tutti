@@ -1,5 +1,9 @@
 import { log } from '../src/utils/logger';
-import type { ImageAttachment, PostResultMessage } from '../src/messages';
+import type {
+  ImageAttachment,
+  PostImplementationPath,
+  PostResultMessage,
+} from '../src/messages';
 import {
   MASTODON_SELECTORS,
 } from '../src/adapters/mastodon';
@@ -108,7 +112,13 @@ export default defineContentScript({
   }),
 });
 
-async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolean): Promise<PostResultMessage> {
+async function runPost(
+  text: string,
+  images?: ImageAttachment[],
+  dryRun?: boolean,
+  _textChunks?: string[],
+  implementationPath?: PostImplementationPath,
+): Promise<PostResultMessage> {
   const sel = await resolveSelectors('mastodon', MASTODON_SELECTORS);
   if (!dryRun) {
     try {
@@ -119,6 +129,7 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
 
   await openReplyComposerIfOnPostPage('mastodon', sel.textarea, {
     timeoutMs: 20_000,
+    implementationPath,
   });
 
   await executePostFlow({
@@ -135,6 +146,7 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     text,
     images,
     dryRun,
+    implementationPath,
     composeInputTimeoutMs: 30000,
     postButtonTimeoutMs: 30000,
   });

@@ -1,5 +1,9 @@
 import { log } from '../src/utils/logger';
-import type { ImageAttachment, PostResultMessage } from '../src/messages';
+import type {
+  ImageAttachment,
+  PostImplementationPath,
+  PostResultMessage,
+} from '../src/messages';
 import { INSTAGRAM_SELECTORS } from '../src/adapters/instagram';
 import { executeMultiStepFlow, type Step } from '../src/utils/step-runner';
 import { injectImages, injectTextIntoElement } from '../src/utils/image';
@@ -78,6 +82,8 @@ async function runPost(
   text: string,
   images?: ImageAttachment[],
   dryRun?: boolean,
+  _textChunks?: string[],
+  implementationPath?: PostImplementationPath,
 ): Promise<PostResultMessage> {
   if (!images || images.length === 0) {
     throw new Error(t('runtimeInstagramMediaRequired'));
@@ -154,6 +160,7 @@ async function runPost(
         }
       },
       settleMs: 300,
+      waitAfterAction: async () => {},
     },
     // Step 2: image / video inject。Modal #2 (Crop / Reel intro) に自動遷移する
     {
@@ -164,14 +171,20 @@ async function runPost(
         if (!fi) {
           throw new Error(t('runtimeInstagramFileInputMissing'));
         }
-        await injectImages(images, sel.fileInput, { requireVideoAccepted: false });
+        await injectImages(images, sel.fileInput, {
+          requireVideoAccepted: false,
+          requireMediaAccepted: implementationPath === 'next',
+          requireMediaPreview: implementationPath === 'next',
+          implementationPath,
+        });
         // v0.4.61: Crop dialog が mount された直後に Original aspect ratio を選んで、
         // 横長/縦長の写真が IG default の 1:1 で左右 (or 上下) 見切れるのを回避。
         // 失敗は warn のみで続行 (IG が許す範囲外なら IG 側で勝手に fit させる、
         // ユーザー報告は: 2026-05-17 横長で左右見切れ)。
-        await selectOriginalCrop();
+        await selectOriginalCrop(implementationPath);
       },
       settleMs: 200,
+      waitAfterAction: async () => {},
       // Crop / Reel intro 画面の primary action ボタン click で進む。
       // v0.5.11: video の場合、 file 注入後に IG が 「Post as Reel?」 系の
       // 中間 dialog (OK / Continue / Confirm / Got it) を挟んでくることがある。
@@ -198,6 +211,7 @@ async function runPost(
         // filter は default のまま (画像加工しない)
       },
       settleMs: 500,
+      waitAfterAction: async () => {},
       advance: {
         // polling のたびにエラー dialog 検出も走らせて、IG 側が
         // 'Something went wrong' / 'File too small' 等を後から被せた場合に
@@ -245,6 +259,7 @@ async function runPost(
         await waitForShareEnabled(8000);
       },
       settleMs: 500,
+      waitAfterAction: async () => {},
     },
   ];
 
@@ -256,6 +271,7 @@ async function runPost(
       afterClickDelayMs: 250,
     },
     dryRun,
+    implementationPath,
   });
 
   // dry-run は finalize click をスキップしてるので verify も skip
@@ -298,7 +314,9 @@ async function runPost(
  * 元アスペクト比を保つ (v0.4.61)。IG が許す範囲外でも IG 側で fit するので
  * 失敗は warn のみで続行 (= 既存挙動 = 1:1 default)。
  */
-async function selectOriginalCrop(): Promise<void> {
+async function selectOriginalCrop(
+  implementationPath?: PostImplementationPath,
+): Promise<void> {
   const cropBtn = await waitForCondition<HTMLElement>(findCropAspectButton, {
     timeoutMs: 800,
     intervalMs: 100,
@@ -316,12 +334,16 @@ async function selectOriginalCrop(): Promise<void> {
   if (!originalItem) {
     log.warn('IG: Crop popover に "Original" 系の選択肢が無い、default 1:1 で続行');
     cropBtn.click(); // popover を閉じる (toggle)
-    await sleep(200);
+    if (implementationPath !== 'next') {
+      await sleep(200);
+    }
     return;
   }
   originalItem.click();
   log.info('IG: Original aspect ratio を選択');
-  await sleep(400);
+  if (implementationPath !== 'next') {
+    await sleep(400);
+  }
 }
 
 function findCropAspectButton(): HTMLElement | null {

@@ -80,6 +80,7 @@ export function createPostingTransport(options: PostingTransportOptions) {
       adapter,
       autoPost,
       postOptions.forceForeground === true,
+      postOptions.forceBackground === true,
     );
     let lastError: unknown;
     for (let index = 0; index < attempts.length; index += 1) {
@@ -164,7 +165,8 @@ export function createPostingTransport(options: PostingTransportOptions) {
       autoPost &&
       (!overrideUrl || canUseApiWithReplyUrl(adapter.id, replyToUrl)) &&
       !textChunks &&
-      !attempt.skipApi
+      !attempt.skipApi &&
+      postOptions.transportPolicy !== 'dom-only'
     ) {
       const apiResult = await tryApiPath(
         adapter.id,
@@ -174,7 +176,12 @@ export function createPostingTransport(options: PostingTransportOptions) {
         visibility,
         replyToUrl,
       );
-      const apiOutcome = resolveApiPostOutcome(adapter.id, apiResult, baseFlow);
+      const apiOutcome = resolveApiPostOutcome(
+        adapter.id,
+        apiResult,
+        baseFlow,
+        postOptions.transportPolicy === 'api-only',
+      );
       if (apiOutcome) {
         if (apiOutcome.success) {
           log.info(`${adapter.id} via API ✓ ${apiOutcome.url ?? ''}`);
@@ -193,10 +200,20 @@ export function createPostingTransport(options: PostingTransportOptions) {
       }
     }
 
+    if (postOptions.transportPolicy === 'api-only') {
+      return apiTransportUnavailableResult(adapter.id, baseFlow);
+    }
+
     const dryRun = !autoPost;
     const forceForeground = postOptions.forceForeground === true;
-    const active = forceForeground || attempt.forceActive === true ||
-      shouldOpenActive(adapter, dryRun, textChunks, autoPost);
+    const forceBackground = postOptions.forceBackground === true;
+    if (forceForeground && forceBackground) {
+      throw new Error('Conflicting post tab activation policy');
+    }
+    const active = !forceBackground && (
+      forceForeground || attempt.forceActive === true ||
+      shouldOpenActive(adapter, dryRun, textChunks, autoPost)
+    );
     const reuseExistingTab = shouldReuseExistingTabForAttempt(
       adapter,
       autoPost,
@@ -257,6 +274,7 @@ export function createPostingTransport(options: PostingTransportOptions) {
       const message: PostToPlatformMessage = {
         type: 'POST_TO_PLATFORM',
         platform: adapter.id,
+        implementationPath: 'next',
         text,
         textChunks,
         images,
@@ -364,8 +382,13 @@ export function resolveApiPostOutcome(
   platform: PlatformId,
   apiResult: ApiPostResult | 'no-credentials',
   baseFlow: Partial<PostFlowTrace> = {},
+  requireApi = false,
 ): PostResultMessage | null {
-  if (apiResult === 'no-credentials') return null;
+  if (apiResult === 'no-credentials') {
+    return requireApi
+      ? apiTransportUnavailableResult(platform, baseFlow)
+      : null;
+  }
   const flow = {
     ...baseFlow,
     attempt: 'api',
@@ -400,6 +423,25 @@ export function resolveApiPostOutcome(
     ...flow,
     submitReached: false,
     failedStep: 'api-post',
+  });
+}
+
+function apiTransportUnavailableResult(
+  platform: PlatformId,
+  baseFlow: Partial<PostFlowTrace>,
+): PostResultMessage {
+  return withFlow({
+    type: 'POST_RESULT',
+    platform,
+    success: false,
+    error:
+      'Saved API credentials became unavailable before posting. ' +
+      'No DOM fallback was attempted.',
+  }, {
+    ...baseFlow,
+    attempt: 'api',
+    submitReached: false,
+    failedStep: 'preflight:api-credentials',
   });
 }
 

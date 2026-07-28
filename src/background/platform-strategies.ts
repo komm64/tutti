@@ -9,9 +9,11 @@ import {
 } from '../utils/post-verify';
 import {
   tryBlueskyApiPost,
+  tryBlueskyApiThreadPost,
   tryMastodonApiPost,
   tryMisskeyApiPost,
   type ApiPostingStrategy,
+  type ApiThreadPostingStrategy,
   type ApiPostingVisibility,
 } from './api-posting';
 import {
@@ -33,6 +35,10 @@ import {
   type CapturePostUrlOptions,
 } from './post-url-capture';
 import { extractHttpUrls } from '../utils/text-urls';
+import {
+  getApiCredentials,
+  type ApiCredentials,
+} from '../utils/api-credentials';
 
 export type PostUrlCaptureStrategy = (
   options: CapturePostUrlOptions,
@@ -43,6 +49,10 @@ export interface BackgroundPlatformStrategy {
   parsePostId: (url: URL) => string | null;
   /** credentials / borrowed session がある場合だけ使う API posting 手続き。 */
   apiPost?: ApiPostingStrategy;
+  /** schedulerが副作用なしでAPI laneを確定するための保存credential key。 */
+  apiCredentialKey?: keyof ApiCredentials;
+  /** 複数chunkを1 sessionでreply chainにするAPI posting手続き。 */
+  apiThreadPost?: ApiThreadPostingStrategy;
   /** API posting strategyがreply URLをthread continuationとして処理できる。 */
   apiReplyContinuation?: true;
   /** 複数chunkを1つのcompose surfaceへまとめるplatform固有policy。 */
@@ -94,6 +104,8 @@ export const backgroundPlatformStrategies: Record<PlatformId, BackgroundPlatform
   bluesky: {
     parsePostId: ({ pathname }) => pathname.match(/\/post\/([a-zA-Z0-9]+)/)?.[1] ?? null,
     apiPost: tryBlueskyApiPost,
+    apiCredentialKey: 'bluesky',
+    apiThreadPost: tryBlueskyApiThreadPost,
     inlineThread: {
       shouldUse: () => true,
     },
@@ -113,6 +125,7 @@ export const backgroundPlatformStrategies: Record<PlatformId, BackgroundPlatform
       ?? null
     ),
     apiPost: tryMastodonApiPost,
+    apiCredentialKey: 'mastodon',
     apiReplyContinuation: true,
     continuationUrl: (previousPostUrl) => previousPostUrl,
     verifyPost: verifyMastodonPost,
@@ -121,6 +134,7 @@ export const backgroundPlatformStrategies: Record<PlatformId, BackgroundPlatform
   misskey: {
     parsePostId: ({ pathname }) => pathname.match(/\/notes\/([a-zA-Z0-9]+)/)?.[1] ?? null,
     apiPost: tryMisskeyApiPost,
+    apiCredentialKey: 'misskey',
     verifyPost: verifyMisskeyPost,
     capturePostUrl: capturePostUrlWithGenericFlow,
   },
@@ -207,6 +221,28 @@ export async function tryApiPath(
   const strategy = getBackgroundPlatformStrategy(platform).apiPost;
   if (!strategy) return 'no-credentials';
   return await strategy({ text, images, cw, visibility, replyToUrl });
+}
+
+export async function tryApiThreadPath(
+  platform: PlatformId,
+  chunks: string[],
+  images?: ImageAttachment[],
+): Promise<ApiPostResult | 'no-credentials'> {
+  const strategy = getBackgroundPlatformStrategy(platform).apiThreadPost;
+  if (!strategy) return 'no-credentials';
+  return await strategy({ chunks, images });
+}
+
+export async function resolveCredentialBackedApiPlatforms(
+  platforms: readonly PlatformId[],
+): Promise<PlatformId[]> {
+  const credentials = await getApiCredentials();
+  return platforms.filter((platform) => {
+    const strategy = getBackgroundPlatformStrategy(platform);
+    return !!strategy.apiPost &&
+      !!strategy.apiCredentialKey &&
+      credentials[strategy.apiCredentialKey] !== undefined;
+  });
 }
 
 export function continuationNeedsReplyUrl(platform: PlatformId): boolean {

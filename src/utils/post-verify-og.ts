@@ -25,6 +25,8 @@ export type DescriptionCleaner = (desc: string, html?: string) => string;
 
 /** og:image を「実際の post 画像か placeholder か」 を識別する optional filter */
 export type ImageJudge = (ogImage: string, html?: string) => boolean;
+/** platform固有の公開HTMLから動画実体を識別する optional filter */
+export type VideoJudge = (html: string, postUrl: string) => boolean;
 
 /**
  * MV3 SW では DOMParser が無いので regex で og:* meta tag を抽出する。
@@ -75,6 +77,8 @@ export interface VerifyViaOgOptions {
   cleanDescription?: DescriptionCleaner;
   /** og:image が「実 post image」 か判定。 default: og:image が存在すれば true */
   judgeImage?: ImageJudge;
+  /** 動画evidenceのplatform固有判定。defaultは標準OG/video要素。 */
+  judgeVideo?: VideoJudge;
   /** fetch UA を override (X 等 default UA が block されるとき) */
   userAgent?: string;
   /** fetch timeout (ms)、 default 15000 */
@@ -86,7 +90,13 @@ export async function verifyViaOg(
   expected: VerifyExpectation,
   options: VerifyViaOgOptions = {},
 ): Promise<VerifyResult> {
-  const { cleanDescription, judgeImage, userAgent, timeoutMs = 15000 } = options;
+  const {
+    cleanDescription,
+    judgeImage,
+    judgeVideo,
+    userAgent,
+    timeoutMs = 15000,
+  } = options;
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -110,7 +120,9 @@ export async function verifyViaOg(
 
     const text = cleanDescription ? cleanDescription(ogDesc, html) : ogDesc;
     const hasImages = judgeImage ? judgeImage(ogImage, html) : !!ogImage;
-    const hasVideo = expected.hasVideo ? hasVideoEvidenceInHtml(html) : undefined;
+    const hasVideo = expected.hasVideo
+      ? (judgeVideo ? judgeVideo(html, postUrl) : hasVideoEvidenceInHtml(html))
+      : undefined;
 
     return buildVerifyResult(expected, {
       text,
@@ -184,6 +196,14 @@ export const judgeXImage: ImageJudge = (ogImage) => {
   if (!ogImage) return true; // 判定不能なので false positive を出さない
   return /pbs\.twimg\.com\/media\//i.test(ogImage);
 };
+
+export const judgeTikTokVideo: VideoJudge = (html, postUrl) => (
+  hasVideoEvidenceInHtml(html) ||
+  (
+    /^https:\/\/(?:www\.)?tiktok\.com\/@[^/]+\/video\/\d+/i.test(postUrl) &&
+    /"(?:playAddr|PlayAddrStruct|videoID)"\s*:/i.test(html)
+  )
+);
 
 /**
  * YouTube: og:description は description text の冒頭 (snippet)。

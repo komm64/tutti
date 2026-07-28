@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { postViaSession } from './bluesky';
+import { postThreadViaSession, postViaSession } from './bluesky';
 
 describe('Bluesky API client', () => {
   let fetchSpy: ReturnType<typeof vi.fn>;
@@ -103,5 +103,83 @@ describe('Bluesky API client', () => {
     expect(result.success).toBe(false);
     expect(result.error).toContain('cannot combine video and images');
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('creates an entire thread in one session with root and parent chaining', async () => {
+    let createIndex = 0;
+    fetchSpy.mockImplementation(async (url: string) => {
+      if (url.endsWith('/xrpc/com.atproto.repo.createRecord')) {
+        createIndex += 1;
+        return new Response(JSON.stringify({
+          uri: `at://did:plc:alice/app.bsky.feed.post/chunk${createIndex}`,
+          cid: `cid${createIndex}`,
+        }), { status: 200 });
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+
+    const result = await postThreadViaSession(
+      { accessJwt: 'jwt', did: 'did:plc:alice', handle: 'alice.test' },
+      { chunks: ['first', 'second', 'third'] },
+    );
+
+    expect(result).toEqual({
+      success: true,
+      postUrl: 'https://bsky.app/profile/alice.test/post/chunk3',
+    });
+    const createCalls = fetchSpy.mock.calls
+      .filter(([url]) => String(url).endsWith('/xrpc/com.atproto.repo.createRecord'));
+    expect(createCalls).toHaveLength(3);
+    const records = createCalls.map(([, init]) => JSON.parse(String(init?.body)).record);
+    expect(records[0].reply).toBeUndefined();
+    expect(records[1].reply).toEqual({
+      root: {
+        uri: 'at://did:plc:alice/app.bsky.feed.post/chunk1',
+        cid: 'cid1',
+      },
+      parent: {
+        uri: 'at://did:plc:alice/app.bsky.feed.post/chunk1',
+        cid: 'cid1',
+      },
+    });
+    expect(records[2].reply).toEqual({
+      root: {
+        uri: 'at://did:plc:alice/app.bsky.feed.post/chunk1',
+        cid: 'cid1',
+      },
+      parent: {
+        uri: 'at://did:plc:alice/app.bsky.feed.post/chunk2',
+        cid: 'cid2',
+      },
+    });
+  });
+
+  it('marks a thread as uncertain when a later chunk fails after the root exists', async () => {
+    let createIndex = 0;
+    fetchSpy.mockImplementation(async (url: string) => {
+      if (!url.endsWith('/xrpc/com.atproto.repo.createRecord')) {
+        throw new Error(`unexpected fetch: ${url}`);
+      }
+      createIndex += 1;
+      if (createIndex === 2) {
+        return new Response('rate limited', { status: 429 });
+      }
+      return new Response(JSON.stringify({
+        uri: 'at://did:plc:alice/app.bsky.feed.post/root',
+        cid: 'rootcid',
+      }), { status: 200 });
+    });
+
+    const result = await postThreadViaSession(
+      { accessJwt: 'jwt', did: 'did:plc:alice', handle: 'alice.test' },
+      { chunks: ['first', 'second'] },
+    );
+
+    expect(result).toMatchObject({
+      success: false,
+      uncertain: true,
+      postUrl: 'https://bsky.app/profile/alice.test/post/root',
+    });
+    expect(result.error).toContain('chunk 2/2');
   });
 });

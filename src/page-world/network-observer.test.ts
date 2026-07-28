@@ -57,6 +57,24 @@ describe('page-world network observer', () => {
     ));
   });
 
+  it('captures XHR payloads when the page requests responseType=json', async () => {
+    const capture = vi.fn();
+    const payload = { meta: { status: 403 }, errors: [{ detail: 'daily limit' }] };
+    const FakeXhr = createFakeJsonXhr(payload);
+    const target = createTarget(vi.fn(), FakeXhr);
+
+    installNetworkObserver(target, observerOptions(captureRule(capture)));
+    const xhr = new target.XMLHttpRequest();
+    xhr.open('POST', 'https://example.test/create');
+    xhr.send('before');
+
+    await vi.waitFor(() => expect(capture).toHaveBeenCalledWith(
+      payload,
+      expect.objectContaining({ transport: 'xhr' }),
+      { matched: true },
+    ));
+  });
+
   it('does not wrap again for the same owner and revision', async () => {
     const originalFetch = vi.fn<typeof fetch>(
       async () => jsonResponse({ ok: true }),
@@ -158,7 +176,7 @@ function captureRule(capture: NetworkCaptureRule['capture']): NetworkCaptureRule
 
 function createTarget(
   fetchImplementation: typeof fetch,
-  XMLHttpRequestImplementation = createFakeXhr('{}'),
+  XMLHttpRequestImplementation: unknown = createFakeXhr('{}'),
 ): NetworkObserverTarget {
   return {
     fetch: fetchImplementation,
@@ -182,6 +200,28 @@ function createFakeXhr(responseText: string) {
 
     send(body?: unknown): void {
       FakeXMLHttpRequest.sendBodies.push(body);
+      for (const listener of this.listeners.get('load') ?? []) listener();
+    }
+
+    addEventListener(type: string, listener: () => void): void {
+      this.listeners.set(type, [...(this.listeners.get(type) ?? []), listener]);
+    }
+  };
+}
+
+function createFakeJsonXhr(response: unknown) {
+  return class FakeJsonXMLHttpRequest {
+    responseType = 'json';
+    response = response;
+    private listeners = new Map<string, Array<() => void>>();
+
+    get responseText(): string {
+      throw new DOMException('InvalidStateError');
+    }
+
+    open(): void {}
+
+    send(): void {
       for (const listener of this.listeners.get('load') ?? []) listener();
     }
 

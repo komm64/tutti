@@ -18,6 +18,7 @@ import {
   continuationNeedsReplyUrl,
   isVerifySupported,
   shouldUseInlineThread,
+  tryApiThreadPath,
 } from './platform-strategies';
 import { prepareMediaForPlatform } from './platform-media';
 import {
@@ -29,6 +30,7 @@ import {
 import {
   createPostingTransport,
   PostFlowError,
+  resolveApiPostOutcome,
 } from './posting-transport';
 import type {
   PostExecutionOptions,
@@ -92,7 +94,14 @@ export function createNextPostOrchestrator(options: PostOrchestratorOptions) {
       )
       && chunks.length > 1
     ) {
-      return await postSingleChunkInlineThread(adapter, chunks, images, autoPost);
+      return await postSingleChunkInlineThread(
+        adapter,
+        chunks,
+        images,
+        autoPost,
+        text,
+        postOptions,
+      );
     }
 
     let previousPostUrl: string | undefined;
@@ -204,7 +213,36 @@ export function createNextPostOrchestrator(options: PostOrchestratorOptions) {
     chunks: string[],
     images?: ImageAttachment[],
     autoPost = true,
+    fullText = chunks.join(''),
+    postOptions: PostExecutionOptions = {},
   ): Promise<PostResultMessage> {
+    if (autoPost && postOptions.transportPolicy !== 'dom-only') {
+      const apiResult = await tryApiThreadPath(adapter.id, chunks, images);
+      const apiOutcome = resolveApiPostOutcome(adapter.id, apiResult, {
+        mode: 'post',
+        submitReached: false,
+        lastCompletedStep: 'preflight',
+      }, postOptions.transportPolicy === 'api-only');
+      if (apiOutcome) {
+        let finalOutcome = apiOutcome;
+        if (apiOutcome.success && apiOutcome.url) {
+          if (isVerifySupported(adapter.id)) {
+            await attachVerifyResult(
+              apiOutcome,
+              adapter.id,
+              apiOutcome.url,
+              chunks,
+              fullText,
+              images,
+            );
+            finalOutcome = downgradeHardVerifyFailures(apiOutcome);
+          }
+          void maybeAutoOpenPostUrl(apiOutcome.url, finalOutcome.verify);
+        }
+        return finalOutcome;
+      }
+    }
+
     log.info(
       `${adapter.id}: inline thread compose で ` +
       `${chunks.length} chunks を 1 つの compose に並べる`,
@@ -218,6 +256,8 @@ export function createNextPostOrchestrator(options: PostOrchestratorOptions) {
       undefined,
       undefined,
       autoPost,
+      undefined,
+      postOptions,
     );
   }
 

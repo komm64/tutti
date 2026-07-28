@@ -86,6 +86,7 @@ describe('additive message wire fixtures', () => {
       ]),
       true,
       undefined,
+      undefined,
     );
     expect(response).toMatchObject({
       type: 'POST_RESULT',
@@ -101,6 +102,26 @@ describe('additive message wire fixtures', () => {
         futureFlowField: 'preserve-me',
       },
     });
+  });
+
+  it('forwards the selected implementation path to the content posting flow', async () => {
+    const runPost = vi.fn(async () => postResultFixture as unknown as PostResultMessage);
+    const listener = installContentBootstrap(runPost);
+
+    await new Promise<unknown>((resolve) => {
+      expect(listener({
+        ...postToPlatformFixture,
+        implementationPath: 'next',
+      }, {}, resolve)).toBe(true);
+    });
+
+    expect(runPost).toHaveBeenCalledWith(
+      'additive contract',
+      expect.any(Array),
+      true,
+      undefined,
+      'next',
+    );
   });
 
   it('ignores an unknown message type without invoking the post handler', () => {

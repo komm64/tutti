@@ -1,6 +1,11 @@
 import type { ImageAttachment } from '../messages';
 import type { BlueskySessionResult } from '../messages';
-import { postViaApi as postBlueskyApi, postViaSession as postBlueskySession } from '../api/bluesky';
+import {
+  postThreadViaApi as postBlueskyThreadApi,
+  postThreadViaSession as postBlueskyThreadSession,
+  postViaApi as postBlueskyApi,
+  postViaSession as postBlueskySession,
+} from '../api/bluesky';
 import type { Session as BlueskySession } from '../api/bluesky';
 import { postViaApi as postMastodonApi } from '../api/mastodon';
 import { postViaApi as postMisskeyApi } from '../api/misskey';
@@ -23,6 +28,15 @@ export type ApiPostingStrategy = (
   input: ApiPostingInput,
 ) => Promise<ApiPostResult | 'no-credentials'>;
 
+export interface ApiThreadPostingInput {
+  chunks: string[];
+  images?: ImageAttachment[];
+}
+
+export type ApiThreadPostingStrategy = (
+  input: ApiThreadPostingInput,
+) => Promise<ApiPostResult | 'no-credentials'>;
+
 export async function tryBlueskyApiPost({
   text,
   images,
@@ -36,6 +50,26 @@ export async function tryBlueskyApiPost({
     const hasVideo = !!images?.some((image) => image.type.startsWith('video/'));
     log.info(`bluesky via borrowed web session API start: media=${images?.length ?? 0} video=${hasVideo}`);
     return await postBlueskySession(session, { text, images });
+  }
+  return 'no-credentials';
+}
+
+export async function tryBlueskyApiThreadPost({
+  chunks,
+  images,
+}: ApiThreadPostingInput): Promise<ApiPostResult | 'no-credentials'> {
+  const creds = await getApiCredentials();
+  if (creds.bluesky) {
+    return await postBlueskyThreadApi(creds.bluesky, { chunks, images });
+  }
+  const session = await readBlueskySessionFromOpenTab();
+  if (session) {
+    const hasVideo = !!images?.some((image) => image.type.startsWith('video/'));
+    log.info(
+      `bluesky thread via borrowed web session API start: ` +
+      `chunks=${chunks.length} media=${images?.length ?? 0} video=${hasVideo}`,
+    );
+    return await postBlueskyThreadSession(session, { chunks, images });
   }
   return 'no-credentials';
 }

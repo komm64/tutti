@@ -23,6 +23,7 @@ import {
   cleanYouTubeDescription,
   cleanGenericDescription,
   judgeInstagramImage,
+  judgeTikTokVideo,
   judgeXImage,
 } from '../utils/post-verify-og';
 import { buildVerifyResult, type VerifyExpectation, type VerifyResult } from '../utils/post-verify';
@@ -38,11 +39,17 @@ export type VerificationStrategy = (
 interface OgVerificationPolicy {
   cleanDescription: (description: string) => string;
   judgeImage?: (ogImage: string) => boolean;
+  judgeVideo?: (html: string, postUrl: string) => boolean;
   forceDomFallback?: (initial: VerifyResult, expected: VerifyExpectation) => boolean;
   resolveDomHasImages?: (
     response: VerifyPostDomResult,
     expected: VerifyExpectation,
     ogImage: string,
+  ) => boolean;
+  resolveDomHasVideo?: (
+    response: VerifyPostDomResult,
+    expected: VerifyExpectation,
+    postUrl: string,
   ) => boolean;
   acceptDomResult?: (result: VerifyResult) => boolean;
 }
@@ -108,7 +115,15 @@ export const verifyTikTokPost: VerificationStrategy = (postUrl, expected) => ver
   expected,
   {
     cleanDescription: cleanGenericDescription,
+    judgeVideo: judgeTikTokVideo,
     forceDomFallback: (initial) => initial.issues.length > 0,
+    resolveDomHasVideo: (response, expectation, url) => (
+      expectation.hasVideo === true &&
+      (
+        response.hasVideo === true ||
+        /^https:\/\/(?:www\.)?tiktok\.com\/@[^/]+\/video\/\d+/i.test(url)
+      )
+    ),
   },
 );
 
@@ -138,6 +153,7 @@ async function verifyOgPost(
   const r1 = await verifyViaOg(postUrl, expected, {
     cleanDescription: policy.cleanDescription,
     judgeImage: policy.judgeImage,
+    judgeVideo: policy.judgeVideo,
   });
   const needsDomFallback =
     !r1.verified ||
@@ -188,7 +204,12 @@ async function verifyViaDomTab(
         const hasImages = policy.resolveDomHasImages
           ? policy.resolveDomHasImages(resp, expected, img)
           : policy.judgeImage ? policy.judgeImage(img) : !!img;
-        const hasVideo = expected.hasVideo ? resp.hasVideo === true : undefined;
+        const hasVideo = expected.hasVideo
+          ? (
+              policy.resolveDomHasVideo?.(resp, expected, postUrl) ??
+              (resp.hasVideo === true)
+            )
+          : undefined;
         latestResult = buildVerifyResult(expected, {
           text,
           hasImages,

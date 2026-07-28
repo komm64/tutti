@@ -1,5 +1,9 @@
 import { log } from '../src/utils/logger';
-import type { ImageAttachment, PostResultMessage } from '../src/messages';
+import type {
+  ImageAttachment,
+  PostImplementationPath,
+  PostResultMessage,
+} from '../src/messages';
 import { getSettings } from '../src/storage';
 import {
   PIXIV_SELECTORS,
@@ -9,7 +13,10 @@ import {
 } from '../src/adapters/pixiv';
 import { executeMultiStepFlow, type Step } from '../src/utils/step-runner';
 import { injectImages, injectTagList, injectTextIntoElement } from '../src/utils/image';
-import { waitForCondition } from '../src/utils/dom';
+import {
+  waitForCondition,
+  waitForStableEditableText,
+} from '../src/utils/dom';
 import { waitForPostUrl } from '../src/utils/url-capture';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
@@ -96,6 +103,8 @@ async function runPost(
   text: string,
   images?: ImageAttachment[],
   dryRun?: boolean,
+  _textChunks?: string[],
+  implementationPath?: PostImplementationPath,
 ): Promise<PostResultMessage> {
   log.info(`Pixiv runPost: dryRun=${dryRun} images=${images?.length ?? 0} textLen=${text.length}`);
   if (!images || images.length === 0) {
@@ -116,11 +125,16 @@ async function runPost(
     {
       name: 'inject-images',
       action: async () => {
-        await injectImages(images, sel.fileInput);
+        await injectImages(images, sel.fileInput, {
+          requireMediaAccepted: implementationPath === 'next',
+          requireMediaPreview: implementationPath === 'next',
+          implementationPath,
+        });
       },
       // サムネイル描画 + 内部 React state 反映を待つ。Pixiv のサーバ upload は
       // injectImages 内の MAIN-world helper で完了確認済 (PerformanceObserver)。
       settleMs: 1500,
+      waitAfterAction: async () => {},
     },
     {
       name: 'fill-title',
@@ -128,6 +142,13 @@ async function runPost(
         await injectTextIntoElement(title, sel.titleInput);
       },
       settleMs: 200,
+      waitAfterAction: async () => {
+        await waitForStableEditableText(sel.titleInput, title, {
+          timeoutMs: 200,
+          quietMs: 50,
+          intervalMs: 25,
+        });
+      },
     },
     {
       name: 'fill-caption',
@@ -136,15 +157,23 @@ async function runPost(
         await injectTextIntoElement(caption, sel.captionTextarea);
       },
       settleMs: 200,
+      waitAfterAction: async () => {
+        await waitForStableEditableText(sel.captionTextarea, caption, {
+          timeoutMs: 200,
+          quietMs: 50,
+          intervalMs: 25,
+        });
+      },
     },
     {
       // Pixiv は tags が必須 (Required ラベル付き)。本文の #hashtag を抽出、
       // 無ければ default ['Tutti'] が使われる。Enter で 1 tag ずつ確定。
       name: 'fill-tags',
       action: async () => {
-        await injectTagList(tags, sel.tagInput);
+        await injectTagList(tags, sel.tagInput, { implementationPath });
       },
       settleMs: 400,
+      waitAfterAction: async () => {},
     },
     {
       // Visible to (x_restrict) も必須。 default は Settings.pixivVisibility
@@ -162,6 +191,9 @@ async function runPost(
         r.click();
       },
       settleMs: 200,
+      waitAfterAction: async () => {
+        await waitForCheckedControl('input[name="x_restrict"]:checked', 200);
+      },
     },
     {
       // AI-generated work (ai_type) も必須。 Settings.pixivAiType 経由で切替。
@@ -175,6 +207,9 @@ async function runPost(
         r.click();
       },
       settleMs: 200,
+      waitAfterAction: async () => {
+        await waitForCheckedControl('input[name="ai_type"]:checked', 200);
+      },
     },
     {
       // Adult content (sexual) も必須。クロスポスト content は基本 non-sexual。
@@ -186,6 +221,9 @@ async function runPost(
         r.click();
       },
       settleMs: 200,
+      waitAfterAction: async () => {
+        await waitForCheckedControl(sel.sexualNo, 200);
+      },
     },
     {
       // Pixiv は時々 "Security check" / captcha section を出して bottom Post を
@@ -208,8 +246,10 @@ async function runPost(
           const text = document.body?.innerText ?? '';
           return /Security check|セキュリティチェック|reCAPTCHA/i.test(text);
         };
-        // 200ms 程度 React state 反映を待つ (radio click 後)
-        await new Promise((r) => setTimeout(r, 200));
+        // next は直前のradio stepでchecked反映を条件待ち済み。
+        if (implementationPath !== 'next') {
+          await new Promise((r) => setTimeout(r, 200));
+        }
         if (!isPostDisabled() || !hasSecurityCheck()) return;
 
         // banner overlay 注入 (既存があれば再利用)
@@ -246,6 +286,7 @@ async function runPost(
         throw new Error(t('runtimePixivSecurityTimeout'));
       },
       settleMs: 100,
+      waitAfterAction: async () => {},
     },
   ];
 
@@ -282,6 +323,7 @@ async function runPost(
       afterClickDelayMs: 500,
     },
     dryRun,
+    implementationPath,
   });
 
   // dryRun でなければ Pixiv が /artworks/<id> に redirect
@@ -307,4 +349,22 @@ async function runPost(
     success: true,
     url,
   };
+}
+
+async function waitForCheckedControl(
+  selector: string,
+  timeoutMs: number,
+): Promise<void> {
+  await waitForCondition<HTMLElement>(() => {
+    const control = document.querySelector<HTMLElement>(selector);
+    if (!control) return null;
+    if (
+      (control as HTMLInputElement).checked === true ||
+      control.getAttribute('aria-checked') === 'true' ||
+      control.hasAttribute('checked')
+    ) {
+      return control;
+    }
+    return null;
+  }, { timeoutMs, intervalMs: 25 });
 }

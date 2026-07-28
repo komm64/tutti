@@ -1,5 +1,9 @@
 import { log } from '../src/utils/logger';
-import type { ImageAttachment, PostResultMessage } from '../src/messages';
+import type {
+  ImageAttachment,
+  PostImplementationPath,
+  PostResultMessage,
+} from '../src/messages';
 import { THREADS_SELECTORS, threadsAdapter } from '../src/adapters/threads';
 import { findClickableByText, sleep, waitForCondition } from '../src/utils/dom';
 import { executePostFlow } from '../src/utils/post-flow';
@@ -26,7 +30,13 @@ export default defineContentScript({
   }),
 });
 
-async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolean): Promise<PostResultMessage> {
+async function runPost(
+  text: string,
+  images?: ImageAttachment[],
+  dryRun?: boolean,
+  _textChunks?: string[],
+  implementationPath?: PostImplementationPath,
+): Promise<PostResultMessage> {
   const sel = await resolveSelectors('threads', THREADS_SELECTORS);
   const postingUser = detectThreadsUser()?.replace(/^@/, '') ?? null;
   const hasMedia = !!images?.length;
@@ -49,6 +59,7 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
   const replyContinuation = await openReplyComposerIfOnPostPage('threads', replyTextareaSelector, {
     timeoutMs: 20_000,
     clickInMainWorld: true,
+    implementationPath,
   });
   if (!replyContinuation) {
     await ensureThreadsComposerOpen(sel.textarea);
@@ -70,6 +81,7 @@ async function runPost(text: string, images?: ImageAttachment[], dryRun?: boolea
     images,
     postButtonTimeoutMs: 12000,
     dryRun,
+    implementationPath,
     requireMediaAccepted: hasMedia,
     requireMediaPreview: hasMedia,
     beforeDropDelayMs: hasMedia ? 5000 : undefined,

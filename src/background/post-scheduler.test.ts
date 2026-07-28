@@ -85,6 +85,54 @@ describe('runPostScheduler', () => {
     expect(forceForegroundFlags).toEqual([false, false, false]);
   });
 
+  it('runs next API and background DOM lanes beside one serialized foreground lane', async () => {
+    const platforms: PlatformId[] = [
+      'bluesky',
+      'mastodon',
+      'x',
+      'misskey',
+      'threads',
+      'instagram',
+    ];
+    const started = new Map<PlatformId, string>();
+    const release = deferred<void>();
+    const firstWaveStarted = deferred<void>();
+    let firstWaveCount = 0;
+
+    const resultPromise = runPostScheduler({
+      platforms,
+      autoPost: true,
+      planOptions: {
+        postingAlgorithm: 'next',
+        apiPlatforms: ['bluesky', 'mastodon'],
+      },
+      post: async (platform, execution): Promise<PostResultMessage> => {
+        started.set(
+          platform,
+          `${execution.lane}:${execution.forceForeground}:` +
+          `${execution.forceBackground}:${execution.transportPolicy}`,
+        );
+        firstWaveCount += 1;
+        if (firstWaveCount === 5) firstWaveStarted.resolve();
+        await release.promise;
+        return { type: 'POST_RESULT', platform, success: true };
+      },
+    });
+
+    await firstWaveStarted.promise;
+    expect(started.get('bluesky')).toBe('api:false:false:api-only');
+    expect(started.get('mastodon')).toBe('api:false:false:api-only');
+    expect(started.get('x')).toBe('background:false:true:auto');
+    expect(started.get('misskey')).toBe('background:false:true:auto');
+    expect(started.get('threads')).toBe('foreground:true:false:auto');
+    expect(started.has('instagram')).toBe(false);
+
+    release.resolve();
+    const results = await resultPromise;
+    expect(results).toHaveLength(platforms.length);
+    expect(started.get('instagram')).toBe('foreground:true:false:auto');
+  });
+
   it('serializes video previews in the foreground lane', async () => {
     const seen = new Map<PlatformId, string>();
     let activeForeground = 0;

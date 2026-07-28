@@ -1,9 +1,10 @@
 // @vitest-environment happy-dom
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   findReplyButton,
   isPlatformPostDetailUrl,
+  openReplyComposerIfOnPostPage,
   parseMastodonStatusIdFromUrl,
 } from './reply-compose';
 
@@ -15,6 +16,12 @@ function markVisible(el: HTMLElement): void {
 }
 
 describe('reply compose helpers', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    document.body.innerHTML = '';
+    history.replaceState({}, '', '/');
+  });
+
   it('detects Mastodon and Threads post detail URLs', () => {
     expect(isPlatformPostDetailUrl('mastodon', 'https://mastodon.social/@alice/1234567890')).toBe(true);
     expect(isPlatformPostDetailUrl('mastodon', 'https://mastodon.social/share?text=hello')).toBe(false);
@@ -46,5 +53,24 @@ describe('reply compose helpers', () => {
     document.querySelectorAll<HTMLElement>('button').forEach(markVisible);
 
     expect(findReplyButton('mastodon')?.getAttribute('aria-label')).toBe('返信');
+  });
+
+  it('next waits directly for the reply editor without the legacy fixed delay', async () => {
+    vi.useFakeTimers();
+    history.replaceState({}, '', '/@alice/1234567890');
+    document.body.innerHTML = '<button aria-label="Reply"></button>';
+    const button = document.querySelector<HTMLButtonElement>('button')!;
+    markVisible(button);
+    button.addEventListener('click', () => {
+      const textarea = document.createElement('textarea');
+      textarea.className = 'reply-editor';
+      document.body.appendChild(textarea);
+    });
+
+    await expect(openReplyComposerIfOnPostPage(
+      'mastodon',
+      '.reply-editor',
+      { implementationPath: 'next' },
+    )).resolves.toBe(true);
   });
 });

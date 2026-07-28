@@ -73,6 +73,82 @@ describe('executeMultiStepFlow', () => {
     expect(log).toContain('finalize.click');
   });
 
+  it('next は固定 settle の代わりに明示された完了条件を順番に待つ', async () => {
+    const log: string[] = [];
+    const steps: Step[] = [
+      {
+        name: 'event-driven',
+        action: async () => { log.push('action'); },
+        settleMs: 60_000,
+        waitAfterAction: async () => { log.push('action.ready'); },
+        advance: { finder: () => makeMockButton('advance', log) },
+        waitAfterAdvance: async () => { log.push('next.ready'); },
+      },
+    ];
+
+    await executeMultiStepFlow({
+      steps,
+      finalize: {
+        finder: () => makeMockButton('finalize', log),
+        afterClickDelayMs: 60_000,
+      },
+      implementationPath: 'next',
+    });
+
+    expect(log).toEqual([
+      'action',
+      'action.ready',
+      'advance.click',
+      'next.ready',
+      'finalize.click',
+    ]);
+  });
+
+  it('legacy は next 用完了条件を呼ばず従来の settle 経路を維持する', async () => {
+    const log: string[] = [];
+    const steps: Step[] = [
+      {
+        name: 'legacy',
+        action: async () => { log.push('action'); },
+        settleMs: 0,
+        waitAfterAction: async () => { log.push('action.ready'); },
+        advance: { finder: () => makeMockButton('advance', log) },
+        waitAfterAdvance: async () => { log.push('next.ready'); },
+      },
+    ];
+
+    await executeMultiStepFlow({
+      steps,
+      finalize: {
+        finder: () => makeMockButton('finalize', log),
+        afterClickDelayMs: 0,
+      },
+    });
+
+    expect(log).toEqual([
+      'action',
+      'advance.click',
+      'finalize.click',
+    ]);
+  });
+
+  it('next の完了条件エラーは step.name を含めて throw', async () => {
+    await expect(
+      executeMultiStepFlow({
+        steps: [
+          {
+            name: 'await-editor',
+            action: async () => {},
+            settleMs: 0,
+            waitAfterAction: async () => { throw new Error('editor unstable'); },
+          },
+        ],
+        finalize: { finder: () => null },
+        implementationPath: 'next',
+      }),
+    ).rejects.toThrow(/await-editor/);
+  });
+
   it('step.action のエラーは step.name を含めて throw', async () => {
     await expect(
       executeMultiStepFlow({

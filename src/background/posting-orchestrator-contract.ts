@@ -5,11 +5,14 @@ import type {
 } from '../messages';
 import type { PostingAlgorithm } from '../types/posting';
 import type { OpenedTabRegistry } from './opened-tab-registry';
+import type { PostTransportPolicy } from './post-concurrency';
 
 export type PostingVisibility = 'public' | 'unlisted' | 'private' | 'direct';
 
 export interface PostExecutionOptions {
   forceForeground?: boolean;
+  forceBackground?: boolean;
+  transportPolicy?: PostTransportPolicy;
 }
 
 export interface PostAlgorithmSelectionOptions extends PostExecutionOptions {
