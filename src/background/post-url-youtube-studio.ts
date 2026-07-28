@@ -7,6 +7,11 @@ export interface YouTubeStudioCaptureResult {
   trace: string[];
 }
 
+export interface YouTubeStudioPostIdBaselineState {
+  ids: string[];
+  settled: boolean;
+}
+
 export async function captureYouTubeStudioPostIdsFromTab(
   tabId: number,
   debug: (message: string) => void,
@@ -30,19 +35,32 @@ export async function captureYouTubeStudioPostIdsFromTab(
 
   try {
     await waitForTabComplete(snapshotTab.id);
-    await sleep(1500);
-
-    const results = await browser.scripting.executeScript({
-      target: { tabId: snapshotTab.id },
-      func: captureYouTubeStudioPostIdsInPage,
-      world: 'MAIN',
-    });
-    const ids = results?.[0]?.result as string[] | null | undefined;
-    if (!Array.isArray(ids)) {
-      throw new Error('YouTube Studio baseline did not return video IDs');
+    for (let attempt = 0; attempt < 60; attempt += 1) {
+      const results = await browser.scripting.executeScript({
+        target: { tabId: snapshotTab.id },
+        func: captureYouTubeStudioPostIdBaselineStateInPage,
+        world: 'MAIN',
+      });
+      const state = results?.[0]?.result as
+        | YouTubeStudioPostIdBaselineState
+        | null
+        | undefined;
+      if (
+        state?.settled === true &&
+        Array.isArray(state.ids)
+      ) {
+        debug(
+          `captured pre-submit video ID baseline: count=${state.ids.length}, ` +
+          `attempt=${attempt}`,
+        );
+        return state.ids;
+      }
+      if (attempt === 0) {
+        debug('waiting for Studio content rows to settle before baseline capture');
+      }
+      await sleep(500);
     }
-    debug(`captured pre-submit video ID baseline: count=${ids.length}`);
-    return ids;
+    throw new Error('YouTube Studio baseline list did not settle');
   } finally {
     await closeTabSafely(snapshotTab.id);
   }
@@ -102,6 +120,12 @@ export function buildYouTubeStudioContentUrl(rawUrl: string): string | undefined
 export function captureYouTubeStudioPostIdsInPage(
   root: ParentNode = document,
 ): string[] {
+  return captureYouTubeStudioPostIdBaselineStateInPage(root).ids;
+}
+
+export function captureYouTubeStudioPostIdBaselineStateInPage(
+  root: ParentNode = document,
+): YouTubeStudioPostIdBaselineState {
   const ids = new Set<string>();
   for (const link of Array.from(
     root.querySelectorAll<HTMLAnchorElement>('a[href*="/video/"]'),
@@ -109,7 +133,26 @@ export function captureYouTubeStudioPostIdsInPage(
     const id = link.href.match(/\/video\/([\w-]+)(?:\/|$)/)?.[1];
     if (id) ids.add(id);
   }
-  return [...ids];
+  const emptyState = root.querySelector(
+    'ytcp-video-list-empty-state, ytcp-empty-state, ' +
+    '[id*="empty-state"], [class*="empty-state"]',
+  );
+  const documentRoot = root as ParentNode & {
+    body?: HTMLElement;
+    documentElement?: HTMLElement;
+  };
+  const rootText = documentRoot.body?.innerText ??
+    documentRoot.documentElement?.textContent ??
+    root.textContent ??
+    '';
+  const explicitEmptyText = (
+    /\bno (?:videos|content)(?: available| found)?\b/i.test(rootText) ||
+    /(?:動画|コンテンツ)(?:は|が)?ありません/.test(rootText)
+  );
+  return {
+    ids: [...ids],
+    settled: ids.size > 0 || emptyState !== null || explicitEmptyText,
+  };
 }
 
 export async function captureYouTubeStudioPostUrlInPage(

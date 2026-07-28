@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildYouTubeStudioCaptureTarget,
   buildYouTubeStudioContentUrl,
+  captureYouTubeStudioPostIdBaselineStateInPage,
   captureYouTubeStudioPostIdsFromTab,
   captureYouTubeStudioPostIdsInPage,
   captureYouTubeStudioPostUrlInPage,
@@ -40,6 +41,21 @@ describe('YouTube Studio post URL capture', () => {
     )).toEqual(['first', 'second']);
   });
 
+  it('waits for real rows but accepts an explicit empty-channel state', () => {
+    const loadingWindow = new Window();
+    loadingWindow.document.body.innerHTML = '<ytcp-video-section>Video</ytcp-video-section>';
+    expect(captureYouTubeStudioPostIdBaselineStateInPage(
+      loadingWindow.document as unknown as ParentNode,
+    )).toEqual({ ids: [], settled: false });
+
+    const emptyWindow = new Window();
+    emptyWindow.document.body.innerHTML =
+      '<ytcp-video-list-empty-state>No videos available</ytcp-video-list-empty-state>';
+    expect(captureYouTubeStudioPostIdBaselineStateInPage(
+      emptyWindow.document as unknown as ParentNode,
+    )).toEqual({ ids: [], settled: true });
+  });
+
   it('captures the baseline in an isolated tab without navigating the compose tab', async () => {
     vi.useFakeTimers();
     const create = vi.fn(async () => ({ id: 8, windowId: 3 }));
@@ -56,7 +72,13 @@ describe('YouTube Studio post URL capture', () => {
     const remove = vi.fn(async () => undefined);
     const update = vi.fn();
     const listeners = new Set<(tabId: number, info: { status?: string }) => void>();
-    const executeScript = vi.fn(async () => [{ result: ['older-id'] }]);
+    const executeScript = vi.fn(async (
+      options: { func: (...args: never[]) => unknown },
+    ) => [{
+      result: options.func === captureYouTubeStudioPostIdBaselineStateInPage
+        ? { ids: ['older-id'], settled: true }
+        : true,
+    }]);
     vi.stubGlobal('browser', {
       tabs: {
         create,
