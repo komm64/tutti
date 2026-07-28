@@ -7,6 +7,7 @@ export const xAdapter: PlatformAdapter = {
   popupOrder: 1,
   defaultSelected: true,
   previewLane: 'foreground',
+  realPostLane: 'background',
   matchUrl: (url) => /^https:\/\/(x|twitter)\.com\//.test(url),
   /**
    * X は `/compose/post` の modal compose を使う。ホームの inline compose は

@@ -6,6 +6,7 @@ export const blueskyAdapter: PlatformAdapter = {
   charLimit: 300,
   popupOrder: 2,
   defaultSelected: true,
+  realPostLane: 'background',
   matchUrl: (url) => /^https:\/\/bsky\.app\//.test(url),
   // /intent/compose?text= で compose dialog が開いて text が入る
   getComposeUrl: (text) =>

@@ -100,6 +100,7 @@ export function createNextPostOrchestrator(options: PostOrchestratorOptions) {
         images,
         autoPost,
         text,
+        postOptions,
       );
     }
 
@@ -213,14 +214,15 @@ export function createNextPostOrchestrator(options: PostOrchestratorOptions) {
     images?: ImageAttachment[],
     autoPost = true,
     fullText = chunks.join(''),
+    postOptions: PostExecutionOptions = {},
   ): Promise<PostResultMessage> {
-    if (autoPost) {
+    if (autoPost && postOptions.transportPolicy !== 'dom-only') {
       const apiResult = await tryApiThreadPath(adapter.id, chunks, images);
       const apiOutcome = resolveApiPostOutcome(adapter.id, apiResult, {
         mode: 'post',
         submitReached: false,
         lastCompletedStep: 'preflight',
-      });
+      }, postOptions.transportPolicy === 'api-only');
       if (apiOutcome) {
         let finalOutcome = apiOutcome;
         if (apiOutcome.success && apiOutcome.url) {
@@ -254,6 +256,8 @@ export function createNextPostOrchestrator(options: PostOrchestratorOptions) {
       undefined,
       undefined,
       autoPost,
+      undefined,
+      postOptions,
     );
   }
 

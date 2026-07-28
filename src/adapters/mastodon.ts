@@ -13,6 +13,7 @@ export const mastodonAdapter: PlatformAdapter = {
   charLimit: 500,
   popupOrder: 5,
   defaultSelected: true,
+  realPostLane: 'background',
   preSubmitLoad: {
     retryCount: 1,
     urlReady: 'same-origin-path',

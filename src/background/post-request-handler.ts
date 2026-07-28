@@ -15,6 +15,7 @@ import {
   withPostTiming,
 } from './post-result-policy';
 import { runPostScheduler } from './post-scheduler';
+import { resolveCredentialBackedApiPlatforms } from './platform-strategies';
 import { clearBadge, notifyResults } from './post-status-ui';
 import type { createPostingStateManager } from './posting-state';
 import { executeGuardedSubmission } from './submission-execution';
@@ -116,11 +117,18 @@ export function createPostRequestHandler(options: PostRequestHandlerOptions) {
         );
         const hasVideo = adjustedImages?.some((image) => image.type.startsWith('video/')) === true;
         const requestPoster = platformPoster.forAlgorithm(postingAlgorithm);
+        const apiPlatforms = postingAlgorithm === 'next' && autoPost
+          ? await resolveCredentialBackedApiPlatforms(platforms)
+          : [];
         const schedulerStartedAt = Date.now();
         const executionResults = await runPostScheduler({
           platforms,
           autoPost,
-          planOptions: { hasVideo },
+          planOptions: {
+            hasVideo,
+            postingAlgorithm,
+            apiPlatforms,
+          },
           post: async (platform, execution) => {
             const platformStartedAt = Date.now();
             let result = annotateImplementation(
@@ -134,6 +142,8 @@ export function createPostRequestHandler(options: PostRequestHandlerOptions) {
                   autoPost,
                   {
                     forceForeground: execution.forceForeground,
+                    forceBackground: execution.forceBackground,
+                    transportPolicy: execution.transportPolicy,
                   },
                 ),
               ),

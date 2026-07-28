@@ -48,8 +48,21 @@ export function buildDomPostAttempts(
   adapter: PlatformAdapter,
   autoPost: boolean,
   forceForeground = false,
+  forceBackground = false,
 ): DomPostAttempt[] {
   const dryRun = !autoPost;
+  if (forceBackground) {
+    return [
+      { label: 'background' },
+      {
+        label: 'fresh background compose',
+        skipApi: true,
+        reuseExistingTab: false,
+        loadRetries: 1,
+        delayBeforeMs: dryRun ? 250 : 750,
+      },
+    ];
+  }
   const attempts: DomPostAttempt[] = [
     forceForeground ? { label: 'default', forceActive: true } : { label: 'default' },
     {

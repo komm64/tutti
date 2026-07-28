@@ -84,6 +84,19 @@ describe('DOM posting attempt policy', () => {
     });
   });
 
+  it('keeps background-real retries inactive instead of promoting them into the foreground lane', () => {
+    expect(buildDomPostAttempts(adapter(), true, false, true)).toEqual([
+      { label: 'background' },
+      {
+        label: 'fresh background compose',
+        skipApi: true,
+        reuseExistingTab: false,
+        loadRetries: 1,
+        delayBeforeMs: 750,
+      },
+    ]);
+  });
+
   it('derives foreground policy from post mode and platform requirements', () => {
     expect(shouldOpenActive(adapter(), false, undefined, true)).toBe(true);
     expect(shouldOpenActive(adapter(), true, undefined, false)).toBe(false);

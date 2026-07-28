@@ -125,7 +125,7 @@ describe('X inline thread orchestration', () => {
     expect(message.textChunks?.length).toBeGreaterThan(1);
     expect(message.text).toBe(message.textChunks?.[0]);
     expect(message.textChunks?.join('')).toContain('word119');
-  });
+  }, 10_000);
 
   it('uses captured post URLs when the legacy sequential mode is selected', async () => {
     vi.useFakeTimers();

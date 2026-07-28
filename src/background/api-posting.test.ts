@@ -9,6 +9,7 @@ import { postViaApi as postMastodonApi } from '../api/mastodon';
 import { getApiCredentials } from '../utils/api-credentials';
 import {
   backgroundPlatformStrategies,
+  resolveCredentialBackedApiPlatforms,
   tryApiPath,
   tryApiThreadPath,
 } from './platform-strategies';
@@ -63,6 +64,15 @@ describe('tryApiPath', () => {
   it('returns no-credentials without credential lookup when no API strategy is registered', async () => {
     expect(await tryApiPath('x', 'hello')).toBe('no-credentials');
     expect(getCreds).not.toHaveBeenCalled();
+  });
+
+  it('classifies only platforms with saved credentials into the API scheduler lane', async () => {
+    expect(await resolveCredentialBackedApiPlatforms([
+      'x',
+      'bluesky',
+      'mastodon',
+      'misskey',
+    ])).toEqual(['bluesky']);
   });
 
   it('uses the Bluesky API path for video attachments', async () => {
