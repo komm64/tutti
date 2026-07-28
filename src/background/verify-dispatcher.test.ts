@@ -99,6 +99,7 @@ describe('verification strategy routing', () => {
 
   it.each([
     ['x', { ...expected }, true],
+    ['pixiv', { ...expected }, true],
     ['tiktok', { ...expected }, true],
     ['threads', { ...expected, hasImages: true }, false],
   ] as const)('preserves forced DOM fallback policy for %s', async (platform, expectation, withWarning) => {

@@ -89,7 +89,17 @@ export const verifyThreadsPost: VerificationStrategy = (postUrl, expected) => ve
 );
 
 export const verifyTumblrPost: VerificationStrategy = createGenericOgStrategy('tumblr');
-export const verifyPixivPost: VerificationStrategy = createGenericOgStrategy('pixiv');
+export const verifyPixivPost: VerificationStrategy = (postUrl, expected) => verifyOgPost(
+  'pixiv',
+  postUrl,
+  expected,
+  {
+    cleanDescription: cleanGenericDescription,
+    // Pixiv truncates long artwork descriptions in OG metadata. Re-read the
+    // hydrated page when the OG-only comparison reports any discrepancy.
+    forceDomFallback: (initial) => initial.issues.length > 0,
+  },
+);
 export const verifyDeviantArtPost: VerificationStrategy = createGenericOgStrategy('deviantart');
 
 export const verifyTikTokPost: VerificationStrategy = (postUrl, expected) => verifyOgPost(
