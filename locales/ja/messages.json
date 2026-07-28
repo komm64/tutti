@@ -98,6 +98,7 @@
   "runtimeYouTubeTitleMissing": { "message": "YouTube: title 入力欄が出現しませんでした (upload 失敗またはチャンネル未作成の可能性)" },
   "runtimeYouTubeKidsRadioMissing": { "message": "YouTube: Made for Kids の No radio が見つかりません" },
   "runtimeYouTubePublicRadioMissing": { "message": "YouTube: Public visibility radio が見つかりません" },
+  "runtimeYouTubeDailyUploadLimitReached": { "message": "YouTube: Daily Upload Limit Reached（日次アップロード上限に到達しました）。24時間待つか、YouTubeの一回限りの確認を完了してください。" },
   "runtimeYouTubePostUrlMissing": { "message": "YouTube: 投稿後に listing または video URL へ移動しませんでした" },
   "runtimePixivImageRequired": { "message": "Pixiv は画像が必須です。本文のみの投稿には対応していません。" },
   "runtimePixivVisibilityMissing": { "message": "Pixiv: Visible to option が見つかりません (x_restrict=$VALUE$)", "placeholders": { "VALUE": { "content": "$1" } } },

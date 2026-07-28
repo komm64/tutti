@@ -98,6 +98,7 @@
   "runtimeYouTubeTitleMissing": { "message": "YouTube: title input did not appear (upload failed or the channel is missing)" },
   "runtimeYouTubeKidsRadioMissing": { "message": "YouTube: No, it's not made for kids option not found" },
   "runtimeYouTubePublicRadioMissing": { "message": "YouTube: Public visibility option not found" },
+  "runtimeYouTubeDailyUploadLimitReached": { "message": "YouTube: Daily Upload Limit Reached. Wait 24 hours or complete YouTube's one-time verification." },
   "runtimeYouTubePostUrlMissing": { "message": "YouTube: did not navigate to a listing or video URL after publishing" },
   "runtimePixivImageRequired": { "message": "Pixiv requires an image. Text-only posts are not supported." },
   "runtimePixivVisibilityMissing": { "message": "Pixiv: Visible to option not found (x_restrict=$VALUE$)", "placeholders": { "VALUE": { "content": "$1" } } },
