@@ -85,6 +85,7 @@ describe('page-world media commands', () => {
     expect(runtime.waitForUploadComplete).toHaveBeenCalledWith(1234, {
       requireMediaAccepted: false,
       requirePreviewAccepted: false,
+      requireUploadComplete: false,
       isMediaPreviewVisible: undefined,
       getMediaRejectionMessage: undefined,
     });
@@ -147,8 +148,29 @@ describe('page-world media commands', () => {
     expect(runtime.waitForUploadComplete).toHaveBeenCalledWith(30000, expect.objectContaining({
       requireMediaAccepted: true,
       requirePreviewAccepted: true,
+      requireUploadComplete: false,
       isMediaPreviewVisible: expect.any(Function),
       getMediaRejectionMessage: expect.any(Function),
+    }));
+  });
+
+  it('forwards strict upload completion separately from preview acceptance', async () => {
+    document.body.innerHTML = '<input type="file">';
+    const runtime = createRuntime();
+    const handlers = createMediaCommandHandlers(SOURCE, runtime);
+
+    await handlers.input({
+      id: 'strict-video-upload',
+      selector: 'input',
+      files: [video],
+      requireMediaPreview: true,
+      requireUploadComplete: true,
+    });
+
+    expect(runtime.waitForUploadComplete).toHaveBeenCalledWith(30000, expect.objectContaining({
+      requireMediaAccepted: true,
+      requirePreviewAccepted: true,
+      requireUploadComplete: true,
     }));
   });
 
@@ -225,6 +247,21 @@ describe('page-world media commands', () => {
       id: 'timed-out',
       selector: 'input',
       files: [video],
+    })).resolves.toMatchObject({
+      ok: false,
+      error: 'Timed out while waiting for the media upload or preview',
+    });
+
+    const strict = createMediaCommandHandlers(SOURCE, createRuntime({
+      uploadCount: 0,
+      timedOut: true,
+      acceptedByPreview: true,
+    }));
+    await expect(strict.input({
+      id: 'strict-timeout',
+      selector: 'input',
+      files: [video],
+      requireUploadComplete: true,
     })).resolves.toMatchObject({
       ok: false,
       error: 'Timed out while waiting for the media upload or preview',

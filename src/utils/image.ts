@@ -20,6 +20,7 @@ interface InjectRequest {
   requireVideoAccepted?: boolean;
   requireMediaAccepted?: boolean;
   requireMediaPreview?: boolean;
+  requireUploadComplete?: boolean;
 }
 
 interface InjectResponse {
@@ -86,6 +87,7 @@ export async function injectImages(
     requireVideoAccepted?: boolean;
     requireMediaAccepted?: boolean;
     requireMediaPreview?: boolean;
+    requireUploadComplete?: boolean;
     implementationPath?: PostImplementationPath;
   } = {},
 ): Promise<void> {
@@ -107,6 +109,7 @@ export async function injectImages(
     requireVideoAccepted: options.requireVideoAccepted,
     requireMediaAccepted: options.requireMediaAccepted,
     requireMediaPreview: options.requireMediaPreview,
+    requireUploadComplete: options.requireUploadComplete,
     files: images.map((img, i) => {
       if (!img.data) {
         throw new Error(
@@ -234,6 +237,7 @@ export async function dropImages(
     requireVideoAccepted?: boolean;
     requireMediaAccepted?: boolean;
     requireMediaPreview?: boolean;
+    requireUploadComplete?: boolean;
     beforeDropDelayMs?: number;
     implementationPath?: PostImplementationPath;
   } = {},
@@ -268,6 +272,7 @@ export async function dropImages(
     requireVideoAccepted: options.requireVideoAccepted,
     requireMediaAccepted: options.requireMediaAccepted,
     requireMediaPreview: options.requireMediaPreview,
+    requireUploadComplete: options.requireUploadComplete,
     files: images.map((img, i) => {
       if (!img.data) {
         throw new Error(

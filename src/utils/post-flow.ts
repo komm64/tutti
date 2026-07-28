@@ -79,6 +79,8 @@ export interface PostFlowOptions {
   requireMediaAccepted?: boolean;
   /** compose preview が出るまで media 注入成功扱いにしない */
   requireMediaPreview?: boolean;
+  /** compose previewだけで進まず、実際のupload request完了を必須にする */
+  requireUploadComplete?: boolean;
   /** drag/drop 型の添付で、drop target 出現後に待つ時間(ms) */
   beforeDropDelayMs?: number;
   /**
@@ -122,6 +124,7 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
     clickPostButton,
     requireMediaAccepted,
     requireMediaPreview,
+    requireUploadComplete,
     beforeDropDelayMs,
     allowDisabledPostButtonInPreview,
     mediaAttachOrder,
@@ -178,6 +181,7 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
       dropTargetSelector,
       requireMediaAccepted,
       requireMediaPreview,
+      requireUploadComplete,
       beforeDropDelayMs,
       mediaAttachOrder,
       implementationPath,
@@ -294,6 +298,7 @@ async function attachMedia(
     'dropTargetSelector' |
     'requireMediaAccepted' |
     'requireMediaPreview' |
+    'requireUploadComplete' |
     'beforeDropDelayMs' |
     'mediaAttachOrder' |
     'implementationPath'
@@ -311,6 +316,7 @@ async function attachMedia(
         await injectImages(images, options.fileInputSelector, {
           requireMediaAccepted: options.requireMediaAccepted,
           requireMediaPreview: options.requireMediaPreview,
+          requireUploadComplete: options.requireUploadComplete,
           implementationPath: options.implementationPath,
         });
         return;
@@ -319,6 +325,7 @@ async function attachMedia(
         await dropImages(images, options.dropTargetSelector, {
           requireMediaAccepted: options.requireMediaAccepted,
           requireMediaPreview: options.requireMediaPreview,
+          requireUploadComplete: options.requireUploadComplete,
           beforeDropDelayMs: options.beforeDropDelayMs,
           implementationPath: options.implementationPath,
         });

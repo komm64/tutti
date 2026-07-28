@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { executePostFlow, maybeConfirmDialog, resolvePostButtonTimeoutMs } from './post-flow';
+import * as imageUtils from './image';
 
 describe('maybeConfirmDialog', () => {
   afterEach(() => {
@@ -186,6 +187,47 @@ describe('executePostFlow', () => {
       composeInputTimeoutMs: 10,
       postButtonTimeoutMs: 10,
     })).rejects.toThrow('投稿入力欄が見つかりません');
+  });
+
+  it('forwards strict upload completion to the media injector', async () => {
+    const editor = { tagName: 'DIV' } as HTMLElement;
+    const button = {
+      style: {},
+      getAttribute: vi.fn(() => null),
+      disabled: false,
+    } as unknown as HTMLElement;
+    const injectImages = vi.spyOn(imageUtils, 'injectImages').mockResolvedValue();
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.stubGlobal('document', {
+      body: {},
+      querySelector: vi.fn((selector: string) => selector === 'textarea' ? editor : button),
+      querySelectorAll: vi.fn(() => []),
+    });
+
+    await expect(executePostFlow({
+      prefillsViaUrl: true,
+      textareaSelector: 'textarea',
+      postButtonSelector: '.post',
+      fileInputSelector: 'input[type="file"]',
+      text: '',
+      images: [{ name: 'video.mp4', type: 'video/mp4', data: 'AAAA' }],
+      requireMediaAccepted: true,
+      requireMediaPreview: true,
+      requireUploadComplete: true,
+      dryRun: true,
+      composeInputTimeoutMs: 10,
+      postButtonTimeoutMs: 10,
+    })).resolves.toBeUndefined();
+
+    expect(injectImages).toHaveBeenCalledWith(
+      expect.any(Array),
+      'input[type="file"]',
+      expect.objectContaining({
+        requireMediaAccepted: true,
+        requireMediaPreview: true,
+        requireUploadComplete: true,
+      }),
+    );
   });
 
   it('allows a disabled post button only for explicit media preview dry-runs', async () => {

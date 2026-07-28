@@ -371,6 +371,7 @@ async function runPost(
     textInjector: injectTumblrTextIntoElement,
     requireMediaAccepted: hasVideo || undefined,
     requireMediaPreview: hasVideo || undefined,
+    requireUploadComplete: hasVideo || undefined,
     allowDisabledPostButtonInPreview: dryRun && hasVideo && !tumblrText.trim(),
     beforeDropDelayMs: hasVideo ? 500 : undefined,
     mediaAttachOrder: hasVideo ? ['input', 'drop'] : undefined,
