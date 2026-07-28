@@ -1,6 +1,6 @@
 import { buildYouTubeTitle } from '../adapters/youtube';
 import { retryTransientTabAction } from './tab-action-retry';
-import { waitForTabComplete } from './tab-management';
+import { closeTabSafely, waitForTabComplete } from './tab-management';
 
 export interface YouTubeStudioCaptureResult {
   url?: string;
@@ -12,24 +12,40 @@ export async function captureYouTubeStudioPostIdsFromTab(
   debug: (message: string) => void,
 ): Promise<string[]> {
   const contentUrl = await resolveYouTubeStudioContentUrlFromTab(tabId);
-  debug(`open Studio content list before posting: ${contentUrl}`);
-  await retryTransientTabAction('open YouTube Studio content list before posting', () => (
-    browser.tabs.update(tabId, { url: contentUrl })
-  ));
-  await waitForTabComplete(tabId);
-  await sleep(1500);
-
-  const results = await browser.scripting.executeScript({
-    target: { tabId },
-    func: captureYouTubeStudioPostIdsInPage,
-    world: 'MAIN',
-  });
-  const ids = results?.[0]?.result as string[] | null | undefined;
-  if (!Array.isArray(ids)) {
-    throw new Error('YouTube Studio baseline did not return video IDs');
+  const sourceTab = await browser.tabs.get(tabId);
+  debug(`open isolated Studio content snapshot before posting: ${contentUrl}`);
+  const snapshotTab = await retryTransientTabAction(
+    'open YouTube Studio content snapshot before posting',
+    () => browser.tabs.create({
+      url: contentUrl,
+      active: false,
+      ...(typeof sourceTab.windowId === 'number'
+        ? { windowId: sourceTab.windowId }
+        : {}),
+    }),
+  );
+  if (typeof snapshotTab.id !== 'number') {
+    throw new Error('YouTube Studio baseline snapshot tab was not created');
   }
-  debug(`captured pre-submit video ID baseline: count=${ids.length}`);
-  return ids;
+
+  try {
+    await waitForTabComplete(snapshotTab.id);
+    await sleep(1500);
+
+    const results = await browser.scripting.executeScript({
+      target: { tabId: snapshotTab.id },
+      func: captureYouTubeStudioPostIdsInPage,
+      world: 'MAIN',
+    });
+    const ids = results?.[0]?.result as string[] | null | undefined;
+    if (!Array.isArray(ids)) {
+      throw new Error('YouTube Studio baseline did not return video IDs');
+    }
+    debug(`captured pre-submit video ID baseline: count=${ids.length}`);
+    return ids;
+  } finally {
+    await closeTabSafely(snapshotTab.id);
+  }
 }
 
 export async function captureYouTubeStudioPostUrlFromTab(

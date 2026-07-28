@@ -1,13 +1,19 @@
 import { Window } from 'happy-dom';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildYouTubeStudioCaptureTarget,
   buildYouTubeStudioContentUrl,
+  captureYouTubeStudioPostIdsFromTab,
   captureYouTubeStudioPostIdsInPage,
   captureYouTubeStudioPostUrlInPage,
 } from './post-url-youtube-studio';
 
 describe('YouTube Studio post URL capture', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
   it('uses the same Untitled fallback as the upload form for an empty caption', () => {
     expect(buildYouTubeStudioCaptureTarget('')).toBe('Untitled');
   });
@@ -32,6 +38,58 @@ describe('YouTube Studio post URL capture', () => {
     expect(captureYouTubeStudioPostIdsInPage(
       window.document as unknown as ParentNode,
     )).toEqual(['first', 'second']);
+  });
+
+  it('captures the baseline in an isolated tab without navigating the compose tab', async () => {
+    vi.useFakeTimers();
+    const create = vi.fn(async () => ({ id: 8, windowId: 3 }));
+    const get = vi.fn(async (tabId: number) => {
+      if (tabId === 7) {
+        return {
+          id: 7,
+          windowId: 3,
+          url: 'https://studio.youtube.com/channel/UC123',
+        };
+      }
+      return { id: 8, windowId: 3, status: 'complete' };
+    });
+    const remove = vi.fn(async () => undefined);
+    const update = vi.fn();
+    const listeners = new Set<(tabId: number, info: { status?: string }) => void>();
+    const executeScript = vi.fn(async () => [{ result: ['older-id'] }]);
+    vi.stubGlobal('browser', {
+      tabs: {
+        create,
+        get,
+        remove,
+        update,
+        onUpdated: {
+          addListener: (listener: (tabId: number, info: { status?: string }) => void) => {
+            listeners.add(listener);
+          },
+          removeListener: (listener: (tabId: number, info: { status?: string }) => void) => {
+            listeners.delete(listener);
+          },
+        },
+      },
+      scripting: { executeScript },
+    });
+
+    const pending = captureYouTubeStudioPostIdsFromTab(7, vi.fn());
+    await vi.advanceTimersByTimeAsync(250);
+    await vi.advanceTimersByTimeAsync(1500);
+
+    await expect(pending).resolves.toEqual(['older-id']);
+    expect(create).toHaveBeenCalledWith({
+      url: expect.stringContaining('/channel/UC123/videos/upload?'),
+      active: false,
+      windowId: 3,
+    });
+    expect(update).not.toHaveBeenCalled();
+    expect(executeScript).toHaveBeenCalledWith(expect.objectContaining({
+      target: { tabId: 8 },
+    }));
+    expect(remove).toHaveBeenCalledWith(8);
   });
 
   it('finds the matching video card without depending on the localized dashboard heading', async () => {
