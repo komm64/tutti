@@ -23,17 +23,20 @@ export function validateSurfaceResultContract({
   caseName,
   platform,
   result,
+  expectedImplementationPath = 'next',
 }) {
   const prefix = `${caseName}/${platform}`;
   const failures = [];
 
   if (!result) return [`${prefix}: missing result`];
   if (
-    result.implementation?.path !== 'next'
+    result.implementation?.path !== expectedImplementationPath
     || !Number.isInteger(result.implementation?.revision)
     || result.implementation.revision < 1
   ) {
-    failures.push(`${prefix}: missing or invalid next implementation diagnostics`);
+    failures.push(
+      `${prefix}: missing or invalid ${expectedImplementationPath} implementation diagnostics`,
+    );
   }
   if (!result.flow) {
     failures.push(`${prefix}: result missing flow trace`);

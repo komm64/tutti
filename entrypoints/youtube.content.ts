@@ -1,9 +1,21 @@
 import { log } from '../src/utils/logger';
-import type { ImageAttachment, PostResultMessage } from '../src/messages';
-import { YOUTUBE_SELECTORS, buildYouTubeTitle } from '../src/adapters/youtube';
+import type {
+  ImageAttachment,
+  PostImplementationPath,
+  PostResultMessage,
+} from '../src/messages';
+import {
+  YOUTUBE_SELECTORS,
+  buildYouTubeTitle,
+  hasYouTubeDailyUploadLimit,
+} from '../src/adapters/youtube';
 import { executeMultiStepFlow, type Step } from '../src/utils/step-runner';
 import { injectImages, injectTagList, injectTextIntoElement } from '../src/utils/image';
-import { waitForCondition, waitForElement } from '../src/utils/dom';
+import {
+  waitForCondition,
+  waitForElement,
+  waitForStableEditableText,
+} from '../src/utils/dom';
 import { extractHashtags } from '../src/utils/hashtags';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
@@ -89,6 +101,8 @@ async function runPost(
   text: string,
   images?: ImageAttachment[],
   dryRun?: boolean,
+  _textChunks?: string[],
+  implementationPath?: PostImplementationPath,
 ): Promise<PostResultMessage> {
   log.info(`YouTube runPost: dryRun=${dryRun} media=${images?.length ?? 0}`);
   const video = images?.find((m) => m.type.startsWith('video/'));
@@ -104,6 +118,7 @@ async function runPost(
       // aria-label="Upload videos") を直接 click。Create メニュー経由は不要。
       name: 'open-upload-modal',
       action: async () => {
+        assertNoYouTubeDailyUploadLimit();
         if (document.querySelector(sel.fileInput)) return;
         await waitForElement<HTMLElement>(
           '#upload-button, #upload-icon, [aria-label="Upload videos"], [aria-label="動画をアップロード"]',
@@ -124,13 +139,15 @@ async function runPost(
         await waitForElement<HTMLElement>(sel.fileInput, 10000);
       },
       settleMs: 1500,
+      waitAfterAction: async () => {},
     },
     {
       name: 'inject-video',
       action: async () => {
-        await injectImages([video], sel.fileInput);
+        await injectImages([video], sel.fileInput, { implementationPath });
       },
       settleMs: 200,
+      waitAfterAction: async () => {},
     },
     {
       // metadata form 出現待ち + title 入力。
@@ -142,6 +159,7 @@ async function runPost(
         // 60s 待機 (動画 upload + metadata mount 込み)
         let textboxes: HTMLElement[] = [];
         await waitForCondition<boolean>(() => {
+          assertNoYouTubeDailyUploadLimit();
           textboxes = Array.from(document.querySelectorAll<HTMLElement>(
             'div[id="textbox"][contenteditable="true"]',
           ));
@@ -162,6 +180,13 @@ async function runPost(
         await injectTextIntoElement(title, `[data-tutti-marker="${marker}"]`);
       },
       settleMs: 300,
+      waitAfterAction: async () => {
+        await waitForStableEditableText(sel.titleInput, title, {
+          timeoutMs: 300,
+          quietMs: 75,
+          intervalMs: 25,
+        });
+      },
     },
     {
       name: 'fill-description',
@@ -180,6 +205,13 @@ async function runPost(
         await injectTextIntoElement(text, `[data-tutti-marker="${marker}"]`);
       },
       settleMs: 300,
+      waitAfterAction: async () => {
+        await waitForStableEditableText(sel.descriptionEditor, text, {
+          timeoutMs: 300,
+          quietMs: 75,
+          intervalMs: 25,
+        });
+      },
     },
     // v0.4.72: tags chip 入力。 YouTube Studio Details ページの "Show more" 下に
     // 隠れている tags field を展開して、 本文の #hashtag を抽出して commit。
@@ -212,13 +244,14 @@ async function runPost(
           return;
         }
         try {
-          await injectTagList(tags, sel.tagInput);
+            await injectTagList(tags, sel.tagInput, { implementationPath });
           log.info(`YouTube: ${tags.length} 個の tag を chip 化`);
         } catch (e) {
           log.warn(`YouTube: tag commit 失敗: ${e instanceof Error ? e.message : String(e)}`);
         }
       },
       settleMs: 300,
+      waitAfterAction: async () => {},
     },
     {
       // Made for Kids 必須選択。Tutti default は "No, it's not 'Made for Kids'"
@@ -235,13 +268,12 @@ async function runPost(
         radio.click();
       },
       settleMs: 500,
+      waitAfterAction: async () => {
+        await waitForSelectedYouTubeRadio(sel.notMadeForKidsRadio, 500);
+      },
       // Next ボタンを click して次の wizard step (Video elements) へ
       advance: {
-        finder: () => {
-          const btns = Array.from(document.querySelectorAll<HTMLElement>('button, ytcp-button'))
-            .filter((b) => /^Next$|^次へ$/i.test((b.textContent ?? '').trim()));
-          return btns.find((b) => !(b as HTMLButtonElement).disabled) ?? null;
-        },
+        finder: findEnabledYouTubeNextButton,
         timeoutMs: 10000,
       },
       awaitNextDom: { selector: 'ytcp-button-shape', timeoutMs: 10000 },
@@ -254,11 +286,7 @@ async function runPost(
       action: async () => { /* no-op */ },
       settleMs: 200,
       advance: {
-        finder: () => {
-          const btns = Array.from(document.querySelectorAll<HTMLElement>('button, ytcp-button'))
-            .filter((b) => /^Next$|^次へ$/i.test((b.textContent ?? '').trim()));
-          return btns.find((b) => !(b as HTMLButtonElement).disabled) ?? null;
-        },
+        finder: findEnabledYouTubeNextButton,
         timeoutMs: 20000,
       },
       awaitNextDom: { selector: 'ytcp-button-shape', timeoutMs: 15000 },
@@ -268,11 +296,7 @@ async function runPost(
       action: async () => { /* no-op */ },
       settleMs: 200,
       advance: {
-        finder: () => {
-          const btns = Array.from(document.querySelectorAll<HTMLElement>('button, ytcp-button'))
-            .filter((b) => /^Next$|^次へ$/i.test((b.textContent ?? '').trim()));
-          return btns.find((b) => !(b as HTMLButtonElement).disabled) ?? null;
-        },
+        finder: findEnabledYouTubeNextButton,
         timeoutMs: 20000,
       },
       awaitNextDom: { selector: 'tp-yt-paper-radio-button[name="PUBLIC"], tp-yt-paper-radio-button', timeoutMs: 15000 },
@@ -285,6 +309,7 @@ async function runPost(
       action: async () => {
         // Public radio を待つ (Visibility step の DOM mount 待ち)
         const publicRadio = await waitForCondition<HTMLElement>(() => {
+          assertNoYouTubeDailyUploadLimit();
           const direct = document.querySelector<HTMLElement>(sel.publicVisibilityRadio);
           if (direct) return direct;
           // text fallback: aria-label / textContent で "Public" / "公開" を探す
@@ -297,6 +322,9 @@ async function runPost(
         publicRadio.click();
       },
       settleMs: 500,
+      waitAfterAction: async () => {
+        await waitForSelectedYouTubeRadio(sel.publicVisibilityRadio, 500);
+      },
     },
   ];
 
@@ -323,6 +351,7 @@ async function runPost(
       allowDisabledInPreview: true,
     },
     dryRun,
+    implementationPath,
   });
 
   // dryRun でなければ Studio が channel content listing もしくは個別 video
@@ -344,6 +373,7 @@ async function runPost(
 }
 
 function findYouTubePublishButton(): HTMLElement | null {
+  assertNoYouTubeDailyUploadLimit();
   const selectors = [
     '#done-button',
     '#done-button button',
@@ -363,6 +393,34 @@ function findYouTubePublishButton(): HTMLElement | null {
     });
   const buttons = uniqueElements([...selectorMatches, ...textMatches]);
   return buttons.find((button) => !isDisabledButton(button)) ?? buttons[0] ?? null;
+}
+
+async function waitForSelectedYouTubeRadio(
+  selector: string,
+  timeoutMs: number,
+): Promise<void> {
+  await waitForCondition<HTMLElement>(() => {
+    const radio = document.querySelector<HTMLElement>(selector);
+    if (!radio) return null;
+    return radio.getAttribute('aria-checked') === 'true' ||
+      radio.hasAttribute('checked')
+      ? radio
+      : null;
+  }, { timeoutMs, intervalMs: 25 });
+}
+
+function findEnabledYouTubeNextButton(): HTMLElement | null {
+  assertNoYouTubeDailyUploadLimit();
+  const buttons = Array.from(document.querySelectorAll<HTMLElement>('button, ytcp-button'))
+    .filter((button) => /^Next$|^次へ$/i.test((button.textContent ?? '').trim()));
+  return buttons.find((button) => !isDisabledButton(button)) ?? null;
+}
+
+function assertNoYouTubeDailyUploadLimit(): void {
+  const pageText = document.body?.innerText ?? document.documentElement?.textContent ?? '';
+  if (hasYouTubeDailyUploadLimit(pageText)) {
+    throw new Error(t('runtimeYouTubeDailyUploadLimitReached'));
+  }
 }
 
 function getButtonLabel(el: HTMLElement): string {
@@ -395,6 +453,7 @@ function uniqueElements<T extends Element>(elements: T[]): T[] {
  */
 async function waitForYouTubePostUrlOrCompletion(timeoutMs = 30_000): Promise<string | null> {
   const captured = await waitForCondition<string | true>(() => {
+    assertNoYouTubeDailyUploadLimit();
     const href = location.href;
     if (/^https:\/\/(?:www\.)?youtube\.com\/(?:watch\?v=|shorts\/)[\w-]+/.test(href)) {
       return href;

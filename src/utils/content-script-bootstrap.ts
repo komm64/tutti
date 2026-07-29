@@ -28,7 +28,13 @@
  * 集約済 (v0.4.77〜)。 ここでは扱わない。
  */
 
-import type { ImageAttachment, Message, PlatformId, PostResultMessage } from '../messages';
+import type {
+  ImageAttachment,
+  Message,
+  PlatformId,
+  PostImplementationPath,
+  PostResultMessage,
+} from '../messages';
 import { initLogLevelFromSettings, log } from './logger';
 import { buildDiagnosis } from './diagnose';
 import { detectAndReportUser } from './user-detect';
@@ -60,6 +66,7 @@ export interface BootstrapOptions<S extends Record<string, string>> {
     images: ImageAttachment[] | undefined,
     dryRun: boolean | undefined,
     textChunks: string[] | undefined,
+    implementationPath: PostImplementationPath | undefined,
   ) => Promise<PostResultMessage>;
   /**
    * 当 SNS 固有の追加 message handler (例: bluesky の GET_BLUESKY_SESSION)。
@@ -146,7 +153,13 @@ export function bootstrapContentScript<S extends Record<string, string>>(
           `${platform}: POST_TO_PLATFORM received ` +
           `dryRun=${msg.dryRun === true} media=${msg.images?.length ?? 0} chunks=${msg.textChunks?.length ?? 1}`,
         );
-        const result = await runPost(msg.text, msg.images, msg.dryRun, msg.textChunks);
+        const result = await runPost(
+          msg.text,
+          msg.images,
+          msg.dryRun,
+          msg.textChunks,
+          msg.implementationPath,
+        );
         sendResponse({
           ...result,
           flow: {

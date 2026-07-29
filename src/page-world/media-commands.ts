@@ -12,6 +12,7 @@ export interface MediaCommandRequest {
   requireVideoAccepted?: boolean;
   requireMediaAccepted?: boolean;
   requireMediaPreview?: boolean;
+  requireUploadComplete?: boolean;
 }
 
 export interface MediaCommandResponse<Source extends string> {
@@ -29,6 +30,7 @@ export interface MediaCommandResponse<Source extends string> {
 export interface MediaUploadWaitOptions {
   requireMediaAccepted?: boolean;
   requirePreviewAccepted?: boolean;
+  requireUploadComplete?: boolean;
   isMediaPreviewVisible?: () => boolean;
   getMediaRejectionMessage?: () => string | undefined;
 }
@@ -106,7 +108,7 @@ async function handleInputCommand<Source extends string>(
     request.uploadTimeoutMs ?? 30000,
     buildWaitOptions(request, input, beforePreviewCount, requireMediaAccepted, runtime),
   );
-  const ok = waitSucceeded(wait);
+  const ok = waitSucceeded(wait, request.requireUploadComplete === true);
   return {
     source,
     id: request.id,
@@ -155,7 +157,7 @@ async function handleDropCommand<Source extends string>(
     request.uploadTimeoutMs ?? 30000,
     buildWaitOptions(request, target, beforePreviewCount, requireMediaAccepted, runtime),
   );
-  const ok = waitSucceeded(wait);
+  const ok = waitSucceeded(wait, request.requireUploadComplete === true);
   return {
     source,
     id: request.id,
@@ -187,6 +189,7 @@ function buildWaitOptions(
   return {
     requireMediaAccepted,
     requirePreviewAccepted: request.requireMediaPreview === true,
+    requireUploadComplete: request.requireUploadComplete === true,
     isMediaPreviewVisible: requireMediaAccepted
       ? runtime.mediaAcceptedPredicate(target, beforePreviewCount)
       : undefined,
@@ -196,8 +199,15 @@ function buildWaitOptions(
   };
 }
 
-function waitSucceeded(result: MediaUploadWaitResult): boolean {
-  return !result.error && (!result.timedOut || result.acceptedByPreview);
+function waitSucceeded(
+  result: MediaUploadWaitResult,
+  requireUploadComplete: boolean,
+): boolean {
+  return !result.error &&
+    (
+      !result.timedOut ||
+      (result.acceptedByPreview && !requireUploadComplete)
+    );
 }
 
 function waitError(result: MediaUploadWaitResult, ok: boolean): string | undefined {

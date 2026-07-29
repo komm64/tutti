@@ -1,5 +1,9 @@
-import type { PostRequestMessage, PostResultMessage } from '../messages';
+import type {
+  PostRequestMessage,
+  PostResultMessage,
+} from '../messages';
 import { getSettings } from '../storage';
+import type { PostingAlgorithm } from '../types/posting';
 import { releasePostAttachments, recordHistoryEntry } from './history-recorder';
 import { maybeCompressVideoForBudget } from './media-preprocess';
 import type { OpenedTabRegistry } from './opened-tab-registry';
@@ -8,8 +12,10 @@ import {
   normalizePostEvidence,
   shouldRunPostCompletionSideEffects,
   withPostImplementationDiagnostics,
+  withPostTiming,
 } from './post-result-policy';
 import { runPostScheduler } from './post-scheduler';
+import { resolveCredentialBackedApiPlatforms } from './platform-strategies';
 import { clearBadge, notifyResults } from './post-status-ui';
 import type { createPostingStateManager } from './posting-state';
 import { executeGuardedSubmission } from './submission-execution';
@@ -54,10 +60,14 @@ export function createPostRequestHandler(options: PostRequestHandlerOptions) {
     let adjustedImages: PostRequestMessage['images'];
     let postingStateStarted = false;
     let autoPost = false;
+    let postingAlgorithm: PostingAlgorithm = 'next';
+    const annotateImplementation = (result: PostResultMessage): PostResultMessage =>
+      withPostImplementationDiagnostics(result, postingAlgorithm);
     return await executeGuardedSubmission<SubmissionGuardReservation, PostResultMessage[]>({
       reserve: async () => {
         const settings = await getSettings();
         autoPost = request.autoPost ?? settings.autoPost;
+        postingAlgorithm = settings.postingAlgorithm;
         return await submissionGuard.reserve({
           requestId: request.requestId,
           intent: request.intent,
@@ -70,9 +80,7 @@ export function createPostRequestHandler(options: PostRequestHandlerOptions) {
       run: async (reservation) => {
         const platforms = reservation.allowedPlatforms;
         const requestedPlatforms = reservation.decisions.map(({ platform }) => platform);
-        const rejectedResults = reservation.rejectedResults.map(
-          withPostImplementationDiagnostics,
-        );
+        const rejectedResults = reservation.rejectedResults.map(annotateImplementation);
 
         // Guard reservation が確定するまで tab / posting side effect を開始しない。
         // POST_REQUEST ごとに cleanup 所有権を切り、前回 state を完全上書きする。
@@ -108,23 +116,53 @@ export function createPostRequestHandler(options: PostRequestHandlerOptions) {
           },
         );
         const hasVideo = adjustedImages?.some((image) => image.type.startsWith('video/')) === true;
+        const requestPoster = platformPoster.forAlgorithm(postingAlgorithm);
+        const apiPlatforms = postingAlgorithm === 'next' && autoPost
+          ? await resolveCredentialBackedApiPlatforms(platforms)
+          : [];
+        const schedulerStartedAt = Date.now();
         const executionResults = await runPostScheduler({
           platforms,
           autoPost,
-          planOptions: { hasVideo },
-          post: async (platform, execution) => withPostImplementationDiagnostics(
-            normalizePostEvidence(
-              await platformPoster.postToPlatform(
-                platform,
-                request.text,
-                adjustedImages,
-                request.cw,
-                request.visibility,
-                autoPost,
-                { forceForeground: execution.forceForeground },
+          planOptions: {
+            hasVideo,
+            postingAlgorithm,
+            apiPlatforms,
+          },
+          post: async (platform, execution) => {
+            const platformStartedAt = Date.now();
+            let result = annotateImplementation(
+              normalizePostEvidence(
+                await requestPoster.postToPlatform(
+                  platform,
+                  request.text,
+                  adjustedImages,
+                  request.cw,
+                  request.visibility,
+                  autoPost,
+                  {
+                    forceForeground: execution.forceForeground,
+                    forceBackground: execution.forceBackground,
+                    transportPolicy: execution.transportPolicy,
+                  },
+                ),
               ),
-            ),
-          ),
+            );
+            if (postingAlgorithm === 'next') {
+              const completedAt = Date.now();
+              result = withPostTiming(result, {
+                step: `scheduler-queue:${execution.lane}`,
+                durationMs: Math.max(0, platformStartedAt - schedulerStartedAt),
+                outcome: 'completed',
+              });
+              result = withPostTiming(result, {
+                step: 'platform-total',
+                durationMs: Math.max(0, completedAt - platformStartedAt),
+                outcome: result.success ? 'completed' : 'failed',
+              }, Math.max(0, completedAt - schedulerStartedAt));
+            }
+            return result;
+          },
           onResult: recordPlatformProgress,
         });
         const results = [...rejectedResults, ...executionResults];

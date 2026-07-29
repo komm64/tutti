@@ -1,6 +1,7 @@
 import type {
   PlatformId,
   PostFlowTrace,
+  PostImplementationPath,
   PostResultMessage,
 } from '../messages';
 import { t } from '../utils/i18n';
@@ -12,10 +13,14 @@ export const CURRENT_POST_IMPLEMENTATION = {
 
 export function withPostImplementationDiagnostics(
   result: PostResultMessage,
+  path: PostImplementationPath = 'next',
 ): PostResultMessage {
   return {
     ...result,
-    implementation: CURRENT_POST_IMPLEMENTATION,
+    implementation: {
+      revision: CURRENT_POST_IMPLEMENTATION.revision,
+      path,
+    },
   };
 }
 
@@ -128,6 +133,10 @@ export function withFlow(
   result: PostResultMessage,
   flow: Partial<PostFlowTrace>,
 ): PostResultMessage {
+  const stageTimings = [
+    ...(flow.stageTimings ?? []),
+    ...(result.flow?.stageTimings ?? []),
+  ];
   return {
     ...result,
     flow: {
@@ -138,6 +147,24 @@ export function withFlow(
       submissionStartedAt: result.flow?.submissionStartedAt ?? flow.submissionStartedAt,
       tabUrlBefore: result.flow?.tabUrlBefore ?? flow.tabUrlBefore,
       tabUrlAfter: result.flow?.tabUrlAfter ?? flow.tabUrlAfter,
+      totalDurationMs: result.flow?.totalDurationMs ?? flow.totalDurationMs,
+      stageTimings: stageTimings.length > 0 ? stageTimings : undefined,
+    },
+  };
+}
+
+export function withPostTiming(
+  result: PostResultMessage,
+  timing: NonNullable<PostFlowTrace['stageTimings']>[number],
+  totalDurationMs?: number,
+): PostResultMessage {
+  return {
+    ...result,
+    flow: {
+      submitReached: result.flow?.submitReached ?? false,
+      ...result.flow,
+      totalDurationMs: totalDurationMs ?? result.flow?.totalDurationMs,
+      stageTimings: [...(result.flow?.stageTimings ?? []), timing],
     },
   };
 }

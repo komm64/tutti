@@ -1,4 +1,5 @@
 import type { PlatformId } from '../types/platform';
+import type { PostImplementationPath } from '../messages';
 import {
   elementTextMatches,
   isElementDisabled,
@@ -32,6 +33,7 @@ export async function openReplyComposerIfOnPostPage(
   options: {
     timeoutMs?: number;
     clickInMainWorld?: boolean;
+    implementationPath?: PostImplementationPath;
   } = {},
 ): Promise<boolean> {
   if (!isPlatformPostDetailUrl(platform, location.href)) return false;
@@ -57,7 +59,9 @@ export async function openReplyComposerIfOnPostPage(
     button.click();
   }
 
-  await sleep(300);
+  if (options.implementationPath !== 'next') {
+    await sleep(300);
+  }
   const composeInput = await waitForCondition<HTMLElement>(
     () => document.querySelector<HTMLElement>(textareaSelector),
     { timeoutMs, intervalMs: 250 },

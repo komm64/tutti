@@ -6,7 +6,14 @@ import {
 import { captureStoredApiPostUrl } from './post-url-stored-api';
 import { captureMastodonPostViaPublicApi } from './post-url-mastodon-api';
 import { capturePostUrlInPage } from './post-url-in-page';
-import { captureYouTubeStudioPostUrlFromTab } from './post-url-youtube-studio';
+import {
+  captureYouTubeStudioPostIdsFromTab,
+  captureYouTubeStudioPostUrlFromTab,
+} from './post-url-youtube-studio';
+
+export interface PostUrlCaptureBaseline {
+  excludePostIds: string[];
+}
 
 export interface CapturePostUrlOptions {
   platform: PlatformId;
@@ -16,6 +23,7 @@ export interface CapturePostUrlOptions {
   minCapturedAt?: number;
   onDebug?: (message: string) => void;
   frameRetry?: number;
+  baseline?: PostUrlCaptureBaseline;
 }
 
 export interface CapturePostUrlRetryStep {
@@ -85,6 +93,20 @@ export function buildPostUrlCaptureScriptArgs(
   ];
 }
 
+export async function preparePostUrlCaptureBaseline(
+  platform: PlatformId,
+  tabId: number,
+  onDebug?: (message: string) => void,
+): Promise<PostUrlCaptureBaseline | undefined> {
+  if (platform !== 'youtube') return undefined;
+  const debug = (message: string): void => {
+    onDebug?.(`[capturePostUrl ${platform}] ${message}`);
+  };
+  return {
+    excludePostIds: await captureYouTubeStudioPostIdsFromTab(tabId, debug),
+  };
+}
+
 export async function capturePostUrlFromTabWithRetry(
   options: CapturePostUrlOptions,
 ): Promise<string | undefined> {
@@ -114,6 +136,7 @@ export async function capturePostUrlFromTab(options: CapturePostUrlOptions): Pro
     minCapturedAt,
     onDebug,
     frameRetry = 0,
+    baseline,
   } = options;
   const dbg = (message: string): void => {
     onDebug?.(`[capturePostUrl ${platform}] ${message}`);
@@ -140,11 +163,16 @@ export async function capturePostUrlFromTab(options: CapturePostUrlOptions): Pro
     if (platform === 'tumblr') {
       await sleep(1000);
     }
-    const target = text.replace(/\s+/g, ' ').trim().slice(0, 60);
     if (platform === 'youtube') {
-      return await captureYouTubeStudioPostUrlFromTab(tabId, target, dbg);
+      return await captureYouTubeStudioPostUrlFromTab(
+        tabId,
+        text,
+        baseline?.excludePostIds,
+        dbg,
+      );
     }
 
+    const target = text.replace(/\s+/g, ' ').trim().slice(0, 60);
     const scriptArgs = buildPostUrlCaptureScriptArgs(
       platform,
       target,
@@ -187,6 +215,7 @@ export async function capturePostUrlFromTab(options: CapturePostUrlOptions): Pro
         minCapturedAt,
         onDebug,
         frameRetry: frameRetry + 1,
+        baseline,
       });
     }
   }

@@ -3,12 +3,15 @@ import {
   buildPostExecutionPlan,
   type PostExecutionLane,
   type PostExecutionPlanOptions,
+  type PostTransportPolicy,
 } from './post-concurrency';
 import { runPostWorkerPool } from './post-worker-pool';
 
 export interface PostExecutionOptions {
   forceForeground: boolean;
+  forceBackground: boolean;
   lane: PostExecutionLane['id'];
+  transportPolicy: PostTransportPolicy;
 }
 
 export interface PostSchedulerOptions {
@@ -43,7 +46,9 @@ async function runLane(
     concurrency: lane.concurrency,
     post: (platform) => options.post(platform, {
       forceForeground: lane.forceForeground,
+      forceBackground: lane.forceBackground === true,
       lane: lane.id,
+      transportPolicy: lane.transportPolicy ?? 'auto',
     }),
     onResult,
   });

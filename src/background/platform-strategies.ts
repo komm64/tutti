@@ -1,6 +1,7 @@
 import type { ImageAttachment } from '../messages';
 import type { ApiPostResult } from '../api/types';
 import type { PlatformId } from '../types/platform';
+import type { PostingAlgorithm } from '../types/posting';
 import {
   verifyError,
   type VerifyExpectation,
@@ -8,9 +9,11 @@ import {
 } from '../utils/post-verify';
 import {
   tryBlueskyApiPost,
+  tryBlueskyApiThreadPost,
   tryMastodonApiPost,
   tryMisskeyApiPost,
   type ApiPostingStrategy,
+  type ApiThreadPostingStrategy,
   type ApiPostingVisibility,
 } from './api-posting';
 import {
@@ -32,6 +35,10 @@ import {
   type CapturePostUrlOptions,
 } from './post-url-capture';
 import { extractHttpUrls } from '../utils/text-urls';
+import {
+  getApiCredentials,
+  type ApiCredentials,
+} from '../utils/api-credentials';
 
 export type PostUrlCaptureStrategy = (
   options: CapturePostUrlOptions,
@@ -42,11 +49,18 @@ export interface BackgroundPlatformStrategy {
   parsePostId: (url: URL) => string | null;
   /** credentials / borrowed session がある場合だけ使う API posting 手続き。 */
   apiPost?: ApiPostingStrategy;
+  /** schedulerが副作用なしでAPI laneを確定するための保存credential key。 */
+  apiCredentialKey?: keyof ApiCredentials;
+  /** 複数chunkを1 sessionでreply chainにするAPI posting手続き。 */
+  apiThreadPost?: ApiThreadPostingStrategy;
   /** API posting strategyがreply URLをthread continuationとして処理できる。 */
   apiReplyContinuation?: true;
   /** 複数chunkを1つのcompose surfaceへまとめるplatform固有policy。 */
   inlineThread?: {
-    shouldUse: (autoPost: boolean) => boolean;
+    shouldUse: (
+      autoPost: boolean,
+      postingAlgorithm: PostingAlgorithm,
+    ) => boolean;
     forceForegroundPreview?: true;
   };
   /** 2 chunk 目以降を captured parent URL へ接続する compose URL 手続き。 */
@@ -73,9 +87,16 @@ export const backgroundPlatformStrategies: Record<PlatformId, BackgroundPlatform
     parsePostId: ({ pathname }) => pathname.match(/\/status(?:es)?\/(\d+)/)?.[1] ?? null,
     inlineThread: {
       // X の複数投稿は preview / 本投稿とも compose 上で全件を組み立て、
-      // 最後に "Post all" を 1 回だけ実行する。
-      shouldUse: () => true,
+      // 最後に "Post all" を 1 回だけ実行する。旧方式を明示選択した
+      // 本投稿だけ、URL capture を挟む逐次 reply 経路へ戻す。
+      shouldUse: (autoPost, algorithm) => !autoPost || algorithm === 'next',
       forceForegroundPreview: true,
+    },
+    continuationUrl: (previousPostUrl) => {
+      const statusId = previousPostUrl.match(/\/status\/(\d+)/)?.[1];
+      return statusId
+        ? `https://x.com/intent/post?in_reply_to=${statusId}`
+        : undefined;
     },
     verifyPost: verifyXPost,
     capturePostUrl: capturePostUrlWithGenericFlow,
@@ -83,6 +104,8 @@ export const backgroundPlatformStrategies: Record<PlatformId, BackgroundPlatform
   bluesky: {
     parsePostId: ({ pathname }) => pathname.match(/\/post\/([a-zA-Z0-9]+)/)?.[1] ?? null,
     apiPost: tryBlueskyApiPost,
+    apiCredentialKey: 'bluesky',
+    apiThreadPost: tryBlueskyApiThreadPost,
     inlineThread: {
       shouldUse: () => true,
     },
@@ -102,6 +125,7 @@ export const backgroundPlatformStrategies: Record<PlatformId, BackgroundPlatform
       ?? null
     ),
     apiPost: tryMastodonApiPost,
+    apiCredentialKey: 'mastodon',
     apiReplyContinuation: true,
     continuationUrl: (previousPostUrl) => previousPostUrl,
     verifyPost: verifyMastodonPost,
@@ -110,6 +134,7 @@ export const backgroundPlatformStrategies: Record<PlatformId, BackgroundPlatform
   misskey: {
     parsePostId: ({ pathname }) => pathname.match(/\/notes\/([a-zA-Z0-9]+)/)?.[1] ?? null,
     apiPost: tryMisskeyApiPost,
+    apiCredentialKey: 'misskey',
     verifyPost: verifyMisskeyPost,
     capturePostUrl: capturePostUrlWithGenericFlow,
   },
@@ -198,12 +223,39 @@ export async function tryApiPath(
   return await strategy({ text, images, cw, visibility, replyToUrl });
 }
 
+export async function tryApiThreadPath(
+  platform: PlatformId,
+  chunks: string[],
+  images?: ImageAttachment[],
+): Promise<ApiPostResult | 'no-credentials'> {
+  const strategy = getBackgroundPlatformStrategy(platform).apiThreadPost;
+  if (!strategy) return 'no-credentials';
+  return await strategy({ chunks, images });
+}
+
+export async function resolveCredentialBackedApiPlatforms(
+  platforms: readonly PlatformId[],
+): Promise<PlatformId[]> {
+  const credentials = await getApiCredentials();
+  return platforms.filter((platform) => {
+    const strategy = getBackgroundPlatformStrategy(platform);
+    return !!strategy.apiPost &&
+      !!strategy.apiCredentialKey &&
+      credentials[strategy.apiCredentialKey] !== undefined;
+  });
+}
+
 export function continuationNeedsReplyUrl(platform: PlatformId): boolean {
   return getBackgroundPlatformStrategy(platform).continuationUrl !== undefined;
 }
 
-export function shouldUseInlineThread(platform: PlatformId, autoPost: boolean): boolean {
-  return getBackgroundPlatformStrategy(platform).inlineThread?.shouldUse(autoPost) === true;
+export function shouldUseInlineThread(
+  platform: PlatformId,
+  autoPost: boolean,
+  postingAlgorithm: PostingAlgorithm = 'next',
+): boolean {
+  return getBackgroundPlatformStrategy(platform).inlineThread
+    ?.shouldUse(autoPost, postingAlgorithm) === true;
 }
 
 export function canUseApiWithReplyUrl(

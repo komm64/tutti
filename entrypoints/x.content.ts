@@ -1,10 +1,19 @@
 import { log } from '../src/utils/logger';
-import type { ImageAttachment, PostResultMessage } from '../src/messages';
+import type {
+  ImageAttachment,
+  PostImplementationPath,
+  PostResultMessage,
+} from '../src/messages';
 import { X_SELECTORS } from '../src/adapters/x';
 import { resolvePostButtonTimeoutMs } from '../src/utils/post-flow';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
-import { sleep, waitForCondition } from '../src/utils/dom';
+import {
+  sleep,
+  waitForCondition,
+  waitForStableCondition,
+  waitForStableEditableText,
+} from '../src/utils/dom';
 import {
   clickElementInMainWorld,
   getLatestXPostUrlInMainWorld,
@@ -92,6 +101,7 @@ async function runPost(
   images?: ImageAttachment[],
   dryRun?: boolean,
   textChunks?: string[],
+  implementationPath?: PostImplementationPath,
 ): Promise<PostResultMessage> {
   const sel = await resolveSelectors('x', X_SELECTORS);
 
@@ -111,9 +121,20 @@ async function runPost(
   // preview mode は post button を click せずに highlight、 user が確認後に押す。
   let submittedAt: number | undefined;
   if (textChunks && textChunks.length > 1) {
-    submittedAt = await executeXInlineThread(sel, textChunks, images, dryRun);
+    submittedAt = await executeXInlineThread(
+      sel,
+      textChunks,
+      images,
+      dryRun,
+      implementationPath,
+    );
   } else {
-    submittedAt = await executeXSinglePost(text, images, dryRun);
+    submittedAt = await executeXSinglePost(
+      text,
+      images,
+      dryRun,
+      implementationPath,
+    );
   }
 
   // dryRun でなければ post URL を capture (= 本当の完了)。 reply chain の連結
@@ -144,6 +165,7 @@ async function executeXSinglePost(
   text: string,
   images: ImageAttachment[] | undefined,
   dryRun: boolean | undefined,
+  implementationPath: PostImplementationPath | undefined,
 ): Promise<number | undefined> {
   const composeRoot = await waitForXComposeDialog(X_SINGLE_COMPOSE_READY_TIMEOUT_MS);
   if (!composeRoot) {
@@ -178,12 +200,24 @@ async function executeXSinglePost(
       await injectImages(images, scopedXComposeSelector(rootMarker, X_COMPOSE_FILE_INPUT_SELECTOR), {
         requireMediaAccepted: true,
         requireMediaPreview: true,
+        implementationPath,
       });
-      await sleep(X_SINGLE_MEDIA_SETTLE_MS);
+      await settleXEditorAfterMedia(
+        composeRoot,
+        0,
+        implementationPath,
+        X_SINGLE_MEDIA_SETTLE_MS,
+      );
     }
 
     if (text) {
-      await injectTextWithRetry(text, textareaSelector, text, images && images.length > 0 ? 4 : 3);
+      await injectTextWithRetry(
+        text,
+        textareaSelector,
+        text,
+        images && images.length > 0 ? 4 : 3,
+        implementationPath,
+      );
     }
 
     const hasVideo = (images ?? []).some((image) => image.type.startsWith('video/'));
@@ -238,6 +272,7 @@ async function executeXInlineThread(
   chunks: string[],
   images: ImageAttachment[] | undefined,
   dryRun: boolean | undefined,
+  implementationPath: PostImplementationPath | undefined,
 ): Promise<number | undefined> {
   // Thread compose は /compose/post modal 専用。home の inline composer には
   // Add post UI が安定して存在しないため、fallback selector で拾わない。
@@ -269,12 +304,24 @@ async function executeXInlineThread(
       await injectImages(images, scopedXComposeSelector(rootMarker, X_COMPOSE_FILE_INPUT_SELECTOR), {
         requireMediaAccepted: true,
         requireMediaPreview: true,
+        implementationPath,
       });
-      await sleep(2500);
+      await settleXEditorAfterMedia(
+        composeRoot,
+        0,
+        implementationPath,
+        X_SINGLE_MEDIA_SETTLE_MS,
+      );
     }
 
     // chunk 0 を retry 付きで inject
-    await injectTextIntoXThreadTextarea(composeRoot, 0, chunks[0]!);
+    await injectTextIntoXThreadTextarea(
+      composeRoot,
+      0,
+      chunks[0]!,
+      4,
+      implementationPath,
+    );
 
     // 各 chunk を「+」 click → wait → inject の繰り返し。
     for (let i = 1; i < chunks.length; i++) {
@@ -297,7 +344,13 @@ async function executeXInlineThread(
           describeXComposeState(composeRoot),
         ));
       }
-      await injectTextIntoXThreadTextarea(composeRoot, i, chunks[i]!);
+      await injectTextIntoXThreadTextarea(
+        composeRoot,
+        i,
+        chunks[i]!,
+        4,
+        implementationPath,
+      );
     }
 
     // 全 inject 完了後の最終 verify (上記 retry でも残った orphan を救う)。
@@ -313,7 +366,13 @@ async function executeXInlineThread(
       const lenOk = currentText.length >= Math.min(20, expected.length * 0.6);
       if (!prefixOk || !lenOk) {
         log.warn(`X: chunk ${i + 1} final verify failed (got "${currentText.slice(0, 30)}"), re-injecting`);
-        await injectTextIntoXThreadTextarea(composeRoot, i, chunks[i]!, 2);
+        await injectTextIntoXThreadTextarea(
+          composeRoot,
+          i,
+          chunks[i]!,
+          2,
+          implementationPath,
+        );
       }
     }
 
@@ -352,11 +411,20 @@ async function injectTextWithRetry(
   selector: string,
   expectedSnippet: string,
   maxAttempts = 3,
+  implementationPath?: PostImplementationPath,
 ): Promise<void> {
   const expectedPrefix = expectedSnippet.slice(0, 20).trim();
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     await injectTextIntoElement(text, selector);
-    await sleep(500 + attempt * 200); // 700 / 900 / 1100ms verify wait
+    if (implementationPath === 'next') {
+      await waitForStableEditableText(selector, expectedSnippet, {
+        timeoutMs: 500 + attempt * 200,
+        quietMs: 125,
+        intervalMs: 25,
+      });
+    } else {
+      await sleep(500 + attempt * 200); // 700 / 900 / 1100ms verify wait
+    }
     const el = document.querySelector(selector);
     const got = (el?.textContent ?? '').trim();
     // prefix 一致 + 一定長 で OK 判定
@@ -376,6 +444,7 @@ async function injectTextIntoXThreadTextarea(
   index: number,
   text: string,
   maxAttempts = 4,
+  implementationPath?: PostImplementationPath,
 ): Promise<void> {
   let lastError: unknown;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -388,7 +457,13 @@ async function injectTextIntoXThreadTextarea(
     const marker = `tutti-x-chunk-${index}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     target.setAttribute('data-tutti-marker', marker);
     try {
-      await injectTextWithRetry(text, `[data-tutti-marker="${marker}"]`, text, 2);
+      await injectTextWithRetry(
+        text,
+        `[data-tutti-marker="${marker}"]`,
+        text,
+        2,
+        implementationPath,
+      );
       return;
     } catch (e) {
       lastError = e;
@@ -397,6 +472,27 @@ async function injectTextIntoXThreadTextarea(
     }
   }
   throw lastError instanceof Error ? lastError : new Error(t('runtimeTextInjectFailed'));
+}
+
+async function settleXEditorAfterMedia(
+  scope: ParentNode,
+  index: number,
+  implementationPath: PostImplementationPath | undefined,
+  timeoutMs: number,
+): Promise<void> {
+  if (implementationPath !== 'next') {
+    await sleep(timeoutMs);
+    return;
+  }
+  await waitForStableCondition<HTMLElement>(
+    () => getXThreadTextareas(scope)[index] ?? null,
+    {
+      timeoutMs,
+      quietMs: 350,
+      intervalMs: 50,
+      root: scope,
+    },
+  );
 }
 
 function isVisible(el: HTMLElement): boolean {

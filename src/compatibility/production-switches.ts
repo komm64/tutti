@@ -11,10 +11,13 @@ export interface ProductionCompatibilitySwitch {
   defaultPath: 'next';
 }
 
-/**
- * Production compatibility switches are exceptional and temporary. Phase 6
- * rejected switches for both currently planned scopes, so this registry is
- * intentionally empty. Development-only comparison paths do not belong here.
- */
 export const PRODUCTION_COMPATIBILITY_SWITCHES = [
+  {
+    id: 'legacy-post-orchestrator',
+    scope: 'post-orchestrator',
+    owner: 'Issue #152',
+    introducedVersion: '0.5.50',
+    removalVersion: '0.5.52',
+    defaultPath: 'next',
+  },
 ] as const satisfies readonly ProductionCompatibilitySwitch[];

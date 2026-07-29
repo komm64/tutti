@@ -9,6 +9,7 @@ import {
   cleanXDescription,
   cleanYouTubeDescription,
   judgeInstagramImage,
+  judgeTikTokVideo,
   judgeXImage,
   verifyViaOg,
 } from '../utils/post-verify-og';
@@ -74,23 +75,24 @@ describe('verification strategy routing', () => {
       PlatformId,
       typeof cleanGenericDescription,
       typeof judgeXImage | undefined,
+      typeof judgeTikTokVideo | undefined,
     ]> = [
-      ['x', cleanXDescription, judgeXImage],
-      ['instagram', cleanInstagramDescription, judgeInstagramImage],
-      ['threads', cleanThreadsDescription, undefined],
-      ['tumblr', cleanGenericDescription, undefined],
-      ['pixiv', cleanGenericDescription, undefined],
-      ['deviantart', cleanGenericDescription, undefined],
-      ['tiktok', cleanGenericDescription, undefined],
-      ['youtube', cleanYouTubeDescription, undefined],
+      ['x', cleanXDescription, judgeXImage, undefined],
+      ['instagram', cleanInstagramDescription, judgeInstagramImage, undefined],
+      ['threads', cleanThreadsDescription, undefined, undefined],
+      ['tumblr', cleanGenericDescription, undefined, undefined],
+      ['pixiv', cleanGenericDescription, undefined, undefined],
+      ['deviantart', cleanGenericDescription, undefined, undefined],
+      ['tiktok', cleanGenericDescription, undefined, judgeTikTokVideo],
+      ['youtube', cleanYouTubeDescription, undefined, undefined],
     ];
 
-    for (const [platform, cleanDescription, judgeImage] of cases) {
+    for (const [platform, cleanDescription, judgeImage, judgeVideo] of cases) {
       await runVerify(platform, `https://example.test/${platform}`, expected);
       expect(vi.mocked(verifyViaOg)).toHaveBeenLastCalledWith(
         `https://example.test/${platform}`,
         expected,
-        { cleanDescription, judgeImage },
+        { cleanDescription, judgeImage, judgeVideo },
       );
     }
 
@@ -99,6 +101,7 @@ describe('verification strategy routing', () => {
 
   it.each([
     ['x', { ...expected }, true],
+    ['pixiv', { ...expected }, true],
     ['tiktok', { ...expected }, true],
     ['threads', { ...expected, hasImages: true }, false],
   ] as const)('preserves forced DOM fallback policy for %s', async (platform, expectation, withWarning) => {
@@ -126,5 +129,31 @@ describe('verification strategy routing', () => {
     expect(create).toHaveBeenCalledOnce();
     expect(sendMessage).toHaveBeenCalledOnce();
     expect(remove).toHaveBeenCalledWith(42);
+  });
+
+  it('passes TikTok hydrated JSON video evidence to the OG verifier', async () => {
+    vi.mocked(verifyViaOg).mockImplementationOnce(async (url, expectation, options) => {
+      const hasVideo = options?.judgeVideo?.(
+        '<script>{"playAddr":"https://cdn.example/video.mp4"}</script>',
+        url,
+      );
+      return {
+        verified: true,
+        issues: hasVideo || !expectation.hasVideo
+          ? []
+          : [{ kind: 'video-missing', message: 'missing', severity: 'error' }],
+      };
+    });
+
+    await expect(runVerify(
+      'tiktok',
+      'https://www.tiktok.com/@tester/video/1234567890',
+      { ...expected, hasVideo: true },
+    )).resolves.toMatchObject({ verified: true, issues: [] });
+    expect(vi.mocked(verifyViaOg)).toHaveBeenCalledWith(
+      'https://www.tiktok.com/@tester/video/1234567890',
+      { ...expected, hasVideo: true },
+      expect.objectContaining({ judgeVideo: judgeTikTokVideo }),
+    );
   });
 });

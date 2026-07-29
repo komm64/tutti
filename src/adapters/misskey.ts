@@ -14,6 +14,7 @@ export const misskeyAdapter: PlatformAdapter = {
   charLimit: 3000, // misskey.io は 3000 文字、インスタンス依存
   popupOrder: 6,
   defaultSelected: true,
+  realPostLane: 'background',
   matchUrl: (url) => url.startsWith(`${MISSKEY_DEFAULT_INSTANCE}/`),
   // Misskey の Web Intent: /share?text=...
   getComposeUrl: (text) =>

@@ -13,6 +13,7 @@ export function validateSurfaceResultContract(input: {
   mode: 'preview' | 'post';
   caseName: string;
   platform: string;
+  expectedImplementationPath?: 'next' | 'legacy';
   result?: {
     success?: boolean;
     preview?: boolean;

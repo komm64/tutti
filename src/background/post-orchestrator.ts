@@ -8,7 +8,6 @@ import { t } from '../utils/i18n';
 import { log } from '../utils/logger';
 import { splitTextForPlatform } from '../utils/platform-text';
 import { resolveAdapter } from './adapter-resolver';
-import type { OpenedTabRegistry } from './opened-tab-registry';
 import {
   attachVerifyResult,
   createPostConfirmation,
@@ -19,6 +18,7 @@ import {
   continuationNeedsReplyUrl,
   isVerifySupported,
   shouldUseInlineThread,
+  tryApiThreadPath,
 } from './platform-strategies';
 import { prepareMediaForPlatform } from './platform-media';
 import {
@@ -30,18 +30,20 @@ import {
 import {
   createPostingTransport,
   PostFlowError,
-  type PostToPlatformOptions,
-  type Visibility,
+  resolveApiPostOutcome,
 } from './posting-transport';
+import type {
+  PostExecutionOptions,
+  PostingOrchestratorDependencies,
+  PostingVisibility,
+} from './posting-orchestrator-contract';
 
 const CHUNK_INTERVAL_MS = 2000;
 
-export interface PostOrchestratorOptions {
-  openedTabs: Pick<OpenedTabRegistry, 'record' | 'forget'>;
-  appendBackgroundLog?: (message: string) => void;
-}
+export type PostOrchestratorOptions = PostingOrchestratorDependencies;
 
-export function createPostOrchestrator(options: PostOrchestratorOptions) {
+/** Decomposed v0.5.50 posting controller. */
+export function createNextPostOrchestrator(options: PostOrchestratorOptions) {
   const confirmation = createPostConfirmation({
     appendBackgroundLog: options.appendBackgroundLog,
   });
@@ -55,9 +57,9 @@ export function createPostOrchestrator(options: PostOrchestratorOptions) {
     text: string,
     images?: ImageAttachment[],
     cw?: string,
-    visibility?: Visibility,
+    visibility?: PostingVisibility,
     autoPost = true,
-    postOptions: PostToPlatformOptions = {},
+    postOptions: PostExecutionOptions = {},
   ): Promise<PostResultMessage> {
     const adapter = await resolveAdapter(platform);
     if (!adapter) {
@@ -84,8 +86,22 @@ export function createPostOrchestrator(options: PostOrchestratorOptions) {
     images = media.images;
 
     const chunks = splitTextForPlatform(adapter.id, text, adapter.charLimit);
-    if (shouldUseInlineThread(adapter.id, autoPost) && chunks.length > 1) {
-      return await postSingleChunkInlineThread(adapter, chunks, images, autoPost);
+    if (
+      shouldUseInlineThread(
+        adapter.id,
+        autoPost,
+        'next',
+      )
+      && chunks.length > 1
+    ) {
+      return await postSingleChunkInlineThread(
+        adapter,
+        chunks,
+        images,
+        autoPost,
+        text,
+        postOptions,
+      );
     }
 
     let previousPostUrl: string | undefined;
@@ -197,7 +213,36 @@ export function createPostOrchestrator(options: PostOrchestratorOptions) {
     chunks: string[],
     images?: ImageAttachment[],
     autoPost = true,
+    fullText = chunks.join(''),
+    postOptions: PostExecutionOptions = {},
   ): Promise<PostResultMessage> {
+    if (autoPost && postOptions.transportPolicy !== 'dom-only') {
+      const apiResult = await tryApiThreadPath(adapter.id, chunks, images);
+      const apiOutcome = resolveApiPostOutcome(adapter.id, apiResult, {
+        mode: 'post',
+        submitReached: false,
+        lastCompletedStep: 'preflight',
+      }, postOptions.transportPolicy === 'api-only');
+      if (apiOutcome) {
+        let finalOutcome = apiOutcome;
+        if (apiOutcome.success && apiOutcome.url) {
+          if (isVerifySupported(adapter.id)) {
+            await attachVerifyResult(
+              apiOutcome,
+              adapter.id,
+              apiOutcome.url,
+              chunks,
+              fullText,
+              images,
+            );
+            finalOutcome = downgradeHardVerifyFailures(apiOutcome);
+          }
+          void maybeAutoOpenPostUrl(apiOutcome.url, finalOutcome.verify);
+        }
+        return finalOutcome;
+      }
+    }
+
     log.info(
       `${adapter.id}: inline thread compose で ` +
       `${chunks.length} chunks を 1 つの compose に並べる`,
@@ -211,6 +256,8 @@ export function createPostOrchestrator(options: PostOrchestratorOptions) {
       undefined,
       undefined,
       autoPost,
+      undefined,
+      postOptions,
     );
   }
 

@@ -43,7 +43,9 @@ async function fail(message, detail) {
     console.error(JSON.stringify(detail, null, 2));
   }
   if (!cdpEndpoint && ctx) await ctx.close().catch(() => {});
-  if (browser) await disconnectCdp(browser).catch(() => {});
+  if (browser) {
+    await disconnectCdp(browser, { preserveRemoteBrowser: Boolean(cdpEndpoint) }).catch(() => {});
+  }
   process.exit(1);
 }
 
@@ -339,7 +341,9 @@ if (postMode) {
   console.log('[verify-x-thread] PASS');
   await popup.close().catch(() => {});
   if (!cdpEndpoint) await ctx.close();
-  if (browser) await disconnectCdp(browser).catch(() => {});
+  if (browser) {
+    await disconnectCdp(browser, { preserveRemoteBrowser: Boolean(cdpEndpoint) }).catch(() => {});
+  }
   process.exit(0);
 }
 
@@ -408,5 +412,7 @@ console.log('[verify-x-thread] PASS');
 
 await popup.close().catch(() => {});
 if (!cdpEndpoint) await ctx.close();
-if (browser) await disconnectCdp(browser).catch(() => {});
+if (browser) {
+  await disconnectCdp(browser, { preserveRemoteBrowser: Boolean(cdpEndpoint) }).catch(() => {});
+}
 process.exit(0);

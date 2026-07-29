@@ -3,6 +3,7 @@
  */
 
 import type { PlatformId } from '../types/platform';
+import type { PostingAlgorithm } from '../types/posting';
 import type { ImageAttachment } from './media';
 
 export type UserActionCategory =
@@ -18,6 +19,12 @@ export type UserActionCategory =
 
 export type PostFlowStep = string;
 
+export interface PostStageTiming {
+  step: PostFlowStep;
+  durationMs: number;
+  outcome?: 'completed' | 'failed';
+}
+
 export interface PostFlowTrace {
   mode?: 'preview' | 'post';
   attempt?: string;
@@ -28,6 +35,9 @@ export interface PostFlowTrace {
   tabUrlBefore?: string;
   tabUrlAfter?: string;
   urlCaptureTrace?: string[];
+  /** ローカル診断用。投稿内容・URL・account情報を含めない。 */
+  totalDurationMs?: number;
+  stageTimings?: PostStageTiming[];
 }
 
 export type PostRequestIntent = 'new' | 'retry' | 'history-repost';
@@ -45,7 +55,7 @@ export interface SubmissionGuardTrace {
   requestId: string;
 }
 
-export type PostImplementationPath = 'next' | 'legacy';
+export type PostImplementationPath = PostingAlgorithm;
 
 export interface PostImplementationDiagnostics {
   revision: number;
@@ -69,6 +79,8 @@ export interface PostRequestMessage {
 export interface PostToPlatformMessage {
   type: 'POST_TO_PLATFORM';
   platform: PlatformId;
+  /** request rootで固定済みの実装。欠落は配布済みlegacy callerとして扱う。 */
+  implementationPath?: PostImplementationPath;
   text: string;
   textChunks?: string[];
   images?: ImageAttachment[];

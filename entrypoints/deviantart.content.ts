@@ -1,9 +1,17 @@
 import { log } from '../src/utils/logger';
-import type { ImageAttachment, PostResultMessage } from '../src/messages';
+import type {
+  ImageAttachment,
+  PostImplementationPath,
+  PostResultMessage,
+} from '../src/messages';
 import { DEVIANTART_SELECTORS, buildDeviantArtTitle } from '../src/adapters/deviantart';
 import { executeMultiStepFlow, type Step } from '../src/utils/step-runner';
 import { injectImages, injectTagList, injectTextIntoElement } from '../src/utils/image';
-import { sleep, waitForElement } from '../src/utils/dom';
+import {
+  sleep,
+  waitForElement,
+  waitForStableEditableText,
+} from '../src/utils/dom';
 import { extractHashtags } from '../src/utils/hashtags';
 import { waitForPostUrl } from '../src/utils/url-capture';
 import { resolveSelectors } from '../src/utils/selector-overrides';
@@ -58,6 +66,8 @@ async function runPost(
   text: string,
   images?: ImageAttachment[],
   dryRun?: boolean,
+  _textChunks?: string[],
+  implementationPath?: PostImplementationPath,
 ): Promise<PostResultMessage> {
   if (!images || images.length === 0) {
     throw new Error(t('runtimeDeviantArtImageRequired'));
@@ -82,9 +92,14 @@ async function runPost(
           log.info('DA: metadata form already visible, skipping image inject');
           return;
         }
-        await injectImages([images[0]!], sel.fileInput);
+        await injectImages([images[0]!], sel.fileInput, {
+          requireMediaAccepted: implementationPath === 'next',
+          requireMediaPreview: implementationPath === 'next',
+          implementationPath,
+        });
       },
       settleMs: 200,
+      waitAfterAction: async () => {},
     },
     // Step 2: title 入力。inject 後の modal mount + upload 完了まで最大 30s 待つ。
     {
@@ -97,6 +112,13 @@ async function runPost(
         await injectTextIntoElement(title, sel.titleInput);
       },
       settleMs: 300,
+      waitAfterAction: async () => {
+        await waitForStableEditableText(sel.titleInput, title, {
+          timeoutMs: 300,
+          quietMs: 75,
+          intervalMs: 25,
+        });
+      },
     },
     // Step 3: description 入力 (TipTap / ProseMirror)。**best-effort**。
     // v0.4.74 で DA の description は **完全 lazy-mount** だと確定 (probe 2026-05-22):
@@ -150,6 +172,7 @@ async function runPost(
         }
       },
       settleMs: 500,
+      waitAfterAction: async () => {},
     },
     // Step 4: tags chip 入力 (v0.4.72〜)。 本文 #hashtag を抽出して DA tags
     // field に commit。 DA は tags 必須ではないので best-effort で。
@@ -168,13 +191,14 @@ async function runPost(
           return;
         }
         try {
-          await injectTagList(tags, sel.tagInput);
+          await injectTagList(tags, sel.tagInput, { implementationPath });
           log.info(`DA: ${tags.length} 個の tag を chip 化`);
         } catch (e) {
           log.warn(`DA: tag commit 失敗: ${e instanceof Error ? e.message : String(e)}`);
         }
       },
       settleMs: 300,
+      waitAfterAction: async () => {},
     },
   ];
 
@@ -191,6 +215,7 @@ async function runPost(
       afterClickDelayMs: 250,
     },
     dryRun,
+    implementationPath,
   });
 
   // dryRun でなければ DA が /<user>/art/<title>-<id> へ redirect するのを待つ

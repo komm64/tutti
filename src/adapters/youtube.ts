@@ -92,6 +92,17 @@ export const YOUTUBE_SELECTORS = {
     'input[aria-label*="tags" i]:not([type="checkbox"]):not([type="search"])',
 } as const;
 
+const YOUTUBE_DAILY_UPLOAD_LIMIT_PATTERNS = [
+  /\bdaily upload limit (?:has been )?reached\b/i,
+  /\byou(?:'ve| have) reached (?:your|the) daily upload limit\b/i,
+  /1\s*日(?:あたり)?のアップロード(?:上限|制限)に達しました/,
+];
+
+export function hasYouTubeDailyUploadLimit(text: string): boolean {
+  const normalized = text.normalize('NFKC').replace(/\s+/g, ' ').trim();
+  return YOUTUBE_DAILY_UPLOAD_LIMIT_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
 /**
  * YouTube title は 100 char 上限。本文の 1 行目から切る。
  */

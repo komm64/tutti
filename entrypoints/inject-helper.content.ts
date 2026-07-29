@@ -19,9 +19,11 @@
 
 import {
   installNetworkObserver,
+  type NetworkCaptureRule,
   type NetworkObserverDiagnostic,
   type NetworkObserverTag,
 } from '../src/page-world/network-observer';
+import { extractMediaUploadFailure } from '../src/page-world/media-upload-result';
 import {
   createPagePostCaptureRules,
   type PostCapturePendingState,
@@ -112,6 +114,8 @@ interface InjectRequest {
   requireMediaAccepted?: boolean;
   /** upload 完了だけでなく compose preview evidence を必須にする */
   requireMediaPreview?: boolean;
+  /** previewだけでは受理せず、upload resourceの完了通知を必須にする */
+  requireUploadComplete?: boolean;
 }
 
 interface InjectResponse {
@@ -134,6 +138,9 @@ interface InjectResponse {
 interface UploadTracker {
   successCount: number;
   lastSuccessAt: number;
+  failureCount: number;
+  lastFailureAt: number;
+  lastError?: string;
 }
 
 declare global {
@@ -276,13 +283,27 @@ export default defineContentScript({
     }
 
     function installPostCaptureObserver(): void {
-      const rules = createPagePostCaptureRules({
-        host: location.host,
-        origin: location.origin,
-        readPending: readPostCapturePending,
-        onCaptured: persistPostCapture,
-      });
-      if (rules.length === 0) return;
+      const uploadFailureRule: NetworkCaptureRule = {
+        id: 'media-upload-failure',
+        prepare: (request) => (
+          UPLOAD_URL_RE.test(request.url)
+            ? {}
+            : null
+        ),
+        capture: (payload) => {
+          const failure = extractMediaUploadFailure(payload);
+          if (failure) recordUploadFailure(failure);
+        },
+      };
+      const rules = [
+        ...createPagePostCaptureRules({
+          host: location.host,
+          origin: location.origin,
+          readPending: readPostCapturePending,
+          onCaptured: persistPostCapture,
+        }),
+        uploadFailureRule,
+      ];
       installNetworkObserver(window, {
         owner: NETWORK_OBSERVER_OWNER,
         revision: NETWORK_OBSERVER_REVISION,
@@ -294,7 +315,12 @@ export default defineContentScript({
     function installUploadHook() {
       if (window.__tuttiUploadHookInstalled) return;
       window.__tuttiUploadHookInstalled = true;
-      window.__tuttiUpload = { successCount: 0, lastSuccessAt: 0 };
+      window.__tuttiUpload = {
+        successCount: 0,
+        lastSuccessAt: 0,
+        failureCount: 0,
+        lastFailureAt: 0,
+      };
       const tracker = window.__tuttiUpload;
 
       // PerformanceObserver は fetch / XHR / img src など出処を問わず全リクエストの
@@ -307,6 +333,13 @@ export default defineContentScript({
           for (const entry of list.getEntries()) {
             const e = entry as PerformanceResourceTiming;
             if (UPLOAD_URL_RE.test(e.name)) {
+              const responseStatus = 'responseStatus' in e
+                ? Number(e.responseStatus)
+                : 0;
+              if (responseStatus >= 400) {
+                recordUploadFailure(`Media upload failed (HTTP ${responseStatus}).`);
+                continue;
+              }
               tracker.successCount++;
               tracker.lastSuccessAt = Date.now();
             }
@@ -316,6 +349,19 @@ export default defineContentScript({
       } catch (e) {
         console.warn('[Tutti inject-helper] PerformanceObserver unavailable:', e);
       }
+    }
+
+    function recordUploadFailure(message: string): void {
+      const tracker = window.__tuttiUpload ?? {
+        successCount: 0,
+        lastSuccessAt: 0,
+        failureCount: 0,
+        lastFailureAt: 0,
+      };
+      tracker.failureCount += 1;
+      tracker.lastFailureAt = Date.now();
+      tracker.lastError = message.slice(0, 300);
+      window.__tuttiUpload = tracker;
     }
 
     function sleep(ms: number): Promise<void> {
@@ -336,16 +382,23 @@ export default defineContentScript({
       options: {
         requireMediaAccepted?: boolean;
         requirePreviewAccepted?: boolean;
+        requireUploadComplete?: boolean;
         isMediaPreviewVisible?: () => boolean;
         getMediaRejectionMessage?: () => string | undefined;
       } = {},
     ): Promise<{ uploadCount: number; timedOut: boolean; acceptedByPreview: boolean; error?: string }> {
       if (!window.__tuttiUpload) {
         console.warn('[Tutti inject-helper] upload tracker was missing; recreating');
-        window.__tuttiUpload = { successCount: 0, lastSuccessAt: 0 };
+        window.__tuttiUpload = {
+          successCount: 0,
+          lastSuccessAt: 0,
+          failureCount: 0,
+          lastFailureAt: 0,
+        };
       }
       const tracker = window.__tuttiUpload;
       const startCount = tracker.successCount;
+      const startFailureCount = tracker.failureCount;
       const start = Date.now();
       const deadline = start + timeoutMs;
       const QUIET_MS = 800;
@@ -355,7 +408,16 @@ export default defineContentScript({
 
       while (Date.now() < deadline) {
         const newSuccess = tracker.successCount - startCount;
+        const newFailure = tracker.failureCount - startFailureCount;
         const elapsed = Date.now() - start;
+        if (newFailure > 0) {
+          return {
+            uploadCount: newSuccess,
+            timedOut: false,
+            acceptedByPreview: false,
+            error: tracker.lastError ?? 'Media upload failed.',
+          };
+        }
         const rejection = options.getMediaRejectionMessage?.();
         if (rejection) {
           return {
@@ -376,7 +438,11 @@ export default defineContentScript({
             }
             return { uploadCount: newSuccess, timedOut: false, acceptedByPreview };
           }
-        } else if (acceptedByPreview && options.requireMediaAccepted) {
+        } else if (
+          acceptedByPreview &&
+          options.requireMediaAccepted &&
+          !options.requireUploadComplete
+        ) {
           return { uploadCount: 0, timedOut: false, acceptedByPreview: true };
         } else if (!options.requireMediaAccepted && elapsed >= NO_UPLOAD_GIVE_UP_MS) {
           return { uploadCount: 0, timedOut: false, acceptedByPreview: false };
@@ -981,6 +1047,7 @@ export default defineContentScript({
         requireVideoAccepted: typeof data.requireVideoAccepted === 'boolean' ? data.requireVideoAccepted : undefined,
         requireMediaAccepted: typeof data.requireMediaAccepted === 'boolean' ? data.requireMediaAccepted : undefined,
         requireMediaPreview: typeof data.requireMediaPreview === 'boolean' ? data.requireMediaPreview : undefined,
+        requireUploadComplete: typeof data.requireUploadComplete === 'boolean' ? data.requireUploadComplete : undefined,
       };
       void handle(req)
         .then((res) => {

@@ -157,7 +157,11 @@ export function installNetworkObserver(
       });
       if (prepared.captures.length > 0) {
         this.addEventListener('load', () => {
-          captureXhrResponse(options, this.responseText, prepared);
+          captureXhrResponse(
+            options,
+            this.responseType === 'json' ? this.response : this.responseText,
+            prepared,
+          );
         }, { once: true });
       }
       Reflect.apply(
@@ -229,11 +233,14 @@ function captureFetchResponse(
 
 function captureXhrResponse(
   options: InstallNetworkObserverOptions,
-  responseText: string,
+  response: unknown,
   prepared: PreparedRules,
 ): void {
   try {
-    capturePayload(options, JSON.parse(responseText) as unknown, prepared);
+    const payload = typeof response === 'string'
+      ? JSON.parse(response) as unknown
+      : response;
+    capturePayload(options, payload, prepared);
   } catch (error) {
     reportParseFailure(options, prepared.request.transport, error);
   }

@@ -134,6 +134,66 @@ describe('platform poster transport boundaries', () => {
     expect(mocks.sendPostMessageWhenReady).not.toHaveBeenCalled();
   });
 
+  it('does not fall back to DOM when an API-only lane loses its credentials', async () => {
+    mocks.tryApiPath.mockResolvedValue('no-credentials');
+
+    const result = await createPoster().postToPlatform(
+      'mastodon',
+      'hello',
+      undefined,
+      undefined,
+      undefined,
+      true,
+      {
+        postingAlgorithm: 'next',
+        transportPolicy: 'api-only',
+      },
+    );
+
+    expect(result).toMatchObject({
+      success: false,
+      flow: {
+        attempt: 'api',
+        submitReached: false,
+        failedStep: 'preflight:api-credentials',
+      },
+    });
+    expect(mocks.openOrFocusTab).not.toHaveBeenCalled();
+    expect(mocks.sendPostMessageWhenReady).not.toHaveBeenCalled();
+  });
+
+  it('opens certified background real-post flows as inactive tabs', async () => {
+    mocks.tryApiPath.mockResolvedValue('no-credentials');
+    mocks.sendPostMessageWhenReady.mockResolvedValue({
+      type: 'POST_RESULT',
+      platform: 'mastodon',
+      success: true,
+      confirmed: true,
+      url: 'https://social.example/@alice/123',
+    } satisfies PostResultMessage);
+
+    const result = await createPoster().postToPlatform(
+      'mastodon',
+      'hello',
+      undefined,
+      undefined,
+      undefined,
+      true,
+      {
+        postingAlgorithm: 'next',
+        forceBackground: true,
+        transportPolicy: 'dom-only',
+      },
+    );
+
+    expect(result.success).toBe(true);
+    expect(mocks.openOrFocusTab).toHaveBeenCalledOnce();
+    const openCalls = mocks.openOrFocusTab.mock.calls as unknown as Array<
+      [string, (url: string) => boolean, boolean]
+    >;
+    expect(openCalls[0]?.[2]).toBe(false);
+  });
+
   it('stops after one real-post dispatch when the content response times out', async () => {
     mocks.tryApiPath.mockResolvedValue('no-credentials');
     mocks.sendPostMessageWhenReady.mockRejectedValue(
