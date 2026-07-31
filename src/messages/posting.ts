@@ -103,6 +103,8 @@ export interface PostResultMessage {
   flow?: PostFlowTrace;
   error?: string;
   url?: string;
+  /** URL of the chunk that owns the attachment when a thread ends elsewhere. */
+  mediaUrl?: string;
   verify?: {
     verified: boolean;
     issues: { kind: string; message: string; severity: 'warn' | 'error' }[];

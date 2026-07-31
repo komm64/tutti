@@ -134,6 +134,18 @@ const CASES = {
     ),
     media: 'image',
   },
+  'long-text-video': {
+    requires: ['shortVideo'],
+    text: (stamp) => (
+      `tutti surface matrix X foreground thread ${stamp} ` +
+      'This draft verifies that a multi-chunk X video post runs as the active tab inside a dedicated unfocused posting window. '.repeat(2) +
+      '#tutti'
+    ),
+    media: 'video',
+    verifyPublishedMedia: true,
+    verifyPostingWindowPlatform: 'x',
+    simulateUserBrowsing: true,
+  },
 };
 
 const UNSUPPORTED_CASES = {
@@ -279,11 +291,22 @@ for (const caseName of requestedCases) {
     const startedAt = Date.now();
     const publishedTextEvidence = {};
     const publishedMediaEvidence = {};
+    let postingWindowEvidence;
+    let postingWindowProbe;
+    let browsingTabId;
     console.log(`[matrix] run case=${caseName} iteration=${i}/${repeat} platforms=${platforms.join(',')}`);
 
     let response;
     try {
-      response = await withTimeout(sendPostRequest(popup, {
+      const postingWindowPlatform = autoPost &&
+        platforms.includes(caseDef.verifyPostingWindowPlatform)
+        ? caseDef.verifyPostingWindowPlatform
+        : undefined;
+      const initialWindowIds = postingWindowPlatform
+        ? await readBrowserWindowIds(popup)
+        : undefined;
+      let requestSettled = false;
+      const requestPromise = sendPostRequest(popup, {
         type: 'POST_REQUEST',
         requestId: crypto.randomUUID(),
         intent: 'new',
@@ -291,8 +314,36 @@ for (const caseName of requestedCases) {
         platforms,
         images,
         autoPost,
-      }), caseTimeoutMs, `${caseName}/${platforms.join(',')}`);
+      }).finally(() => {
+        requestSettled = true;
+      });
+      if (postingWindowPlatform) {
+        postingWindowProbe = observePostingWindow(
+          popup,
+          initialWindowIds ?? [],
+          postingWindowPlatform,
+          () => requestSettled,
+          {
+            simulateUserBrowsing: caseDef.simulateUserBrowsing === true,
+            timeoutMs: caseTimeoutMs,
+          },
+        );
+      }
+      response = await withTimeout(
+        requestPromise,
+        caseTimeoutMs,
+        `${caseName}/${platforms.join(',')}`,
+      );
+      postingWindowEvidence = await postingWindowProbe;
+      browsingTabId = postingWindowEvidence?.browsingTabId;
+      await closeBrowserTab(popup, browsingTabId);
     } catch (err) {
+      postingWindowEvidence = await postingWindowProbe?.catch((probeErr) => ({
+        ok: false,
+        error: probeErr instanceof Error ? probeErr.message : String(probeErr),
+      }));
+      browsingTabId = postingWindowEvidence?.browsingTabId;
+      await closeBrowserTab(popup, browsingTabId);
       const message = err instanceof Error ? err.message : String(err);
       const backgroundState = await readBackgroundState(popup)
         .then(compactBackgroundState)
@@ -313,13 +364,17 @@ for (const caseName of requestedCases) {
         }));
       }
       failures.push(`${caseName}: ${message}`);
-      summary.push(createTimedOutSurfaceSummary({
+      const timedOutSummary = createTimedOutSurfaceSummary({
         caseName,
         iteration: i,
         platforms,
         error: message,
         backgroundState,
-      }));
+      });
+      summary.push({
+        ...timedOutSummary,
+        ...(postingWindowEvidence ? { postingWindowEvidence } : {}),
+      });
       await persistSummary();
       await reloadExtension(ctx, extensionId).catch(() => {});
       await closeNonExtensionPages(ctx, extensionId).catch(() => {});
@@ -332,9 +387,19 @@ for (const caseName of requestedCases) {
     if (response?.lastError) {
       failures.push(`${caseName}: runtime lastError: ${response.lastError}`);
     }
+    if (response?.response?.error) {
+      failures.push(`${caseName}: background error: ${response.response.error}`);
+    }
     if (!Array.isArray(results)) {
       failures.push(`${caseName}: response did not contain results`);
       continue;
+    }
+    if (postingWindowEvidence && !postingWindowEvidence.ok) {
+      failures.push(
+        `${caseName}/${caseDef.verifyPostingWindowPlatform}: ` +
+        'active visible compose tab was not observed in a new posting window ' +
+        `(${postingWindowEvidence.error ?? JSON.stringify(postingWindowEvidence.candidates ?? [])})`,
+      );
     }
 
     const byPlatform = new Map(results.map((result) => [result.platform, result]));
@@ -380,13 +445,21 @@ for (const caseName of requestedCases) {
           }
         }
         if (result.url && caseDef.verifyPublishedMedia) {
-          const mediaCheck = await checkPublishedMediaEvidence(ctx, result.url, text);
+          const mediaUrl = result.mediaUrl ?? result.url;
+          const mediaExpectedText = result.mediaUrl && result.mediaUrl !== result.url
+            ? text.slice(0, 120)
+            : text;
+          const mediaCheck = await checkPublishedMediaEvidence(
+            ctx,
+            mediaUrl,
+            mediaExpectedText,
+          );
           publishedMediaEvidence[platform] = mediaCheck;
           if (!mediaCheck.ok) {
             failures.push(
               `${caseName}/${platform}: published video evidence missing ` +
               `(textFound=${mediaCheck.textFound ?? false}, visibleVideoCount=${mediaCheck.visibleVideoCount ?? 0}, ` +
-              `error=${mediaCheck.error ?? 'none'}, url=${result.url})`,
+              `error=${mediaCheck.error ?? 'none'}, url=${mediaUrl})`,
             );
           }
         }
@@ -413,6 +486,7 @@ for (const caseName of requestedCases) {
       results: results.map(compactResult),
       ...(Object.keys(publishedTextEvidence).length > 0 ? { publishedTextEvidence } : {}),
       ...(Object.keys(publishedMediaEvidence).length > 0 ? { publishedMediaEvidence } : {}),
+      ...(postingWindowEvidence ? { postingWindowEvidence } : {}),
     });
     await persistSummary();
     await closeNonExtensionPages(ctx, extensionId);
@@ -604,12 +678,10 @@ function buildMedia(kind, imageFixture, videoFixture, stamp) {
     }];
   }
   if (kind === 'video') {
-    const marker = Buffer.from(stamp);
-    const freeBox = Buffer.alloc(8 + marker.byteLength);
-    freeBox.writeUInt32BE(freeBox.byteLength, 0);
-    freeBox.write('free', 4, 'ascii');
-    marker.copy(freeBox, 8);
-    const data = Buffer.concat([videoFixture.data, freeBox]);
+    // The filename is already unique per run. Keep the validated MP4 bytes
+    // unchanged; appending a technically valid custom `free` box made X leave
+    // video processing at 0% and could produce a text-only post.
+    const data = videoFixture.data;
     return [{
       name: uniqueName(videoFixture.name, stamp),
       type: videoFixture.type,
@@ -725,6 +797,288 @@ async function readBackgroundState(popup) {
   });
 }
 
+async function readBrowserWindowIds(popup) {
+  return await popup.evaluate(async () => {
+    const windows = await chrome.windows.getAll({ windowTypes: ['normal'] });
+    return windows
+      .map((window) => window.id)
+      .filter((id) => typeof id === 'number');
+  });
+}
+
+async function observePostingWindow(
+  popup,
+  initialWindowIds,
+  platform,
+  isRequestSettled,
+  {
+    simulateUserBrowsing = false,
+    timeoutMs = 60_000,
+  } = {},
+) {
+  const deadline = Date.now() + timeoutMs;
+  const browsingStartedAt = Date.now();
+  const requiredBrowsingSamples = 12;
+  let browsingTab;
+  let browsingNavigationDone = false;
+  let browsingSamples = 0;
+  let invalidBrowsingSample;
+  let last = {
+    ok: false,
+    platform,
+    initialWindowIds,
+    candidates: [],
+  };
+  do {
+    if (isRequestSettled()) {
+      if (!simulateUserBrowsing) return last;
+      return {
+        ...last,
+        ok: Boolean(
+          browsingTab &&
+          browsingSamples >= requiredBrowsingSamples &&
+          !invalidBrowsingSample
+        ),
+        simulatedUserBrowsing: true,
+        browsingTabId: browsingTab?.tabId,
+        browsingWindowId: browsingTab?.windowId,
+        browsingSamples,
+        browsingDurationMs: browsingTab
+          ? Date.now() - browsingStartedAt
+          : 0,
+        ...(invalidBrowsingSample ? { invalidBrowsingSample } : {}),
+      };
+    }
+
+    last = await inspectPostingWindow(
+      popup,
+      initialWindowIds,
+      platform,
+      browsingTab,
+    );
+    if (!simulateUserBrowsing && last.ok) return last;
+
+    if (simulateUserBrowsing && !browsingTab && last.ok) {
+      browsingTab = await openBrowsingTab(
+        popup,
+        last.focusedOriginalWindowId,
+      );
+      browsingSamples = 0;
+      continue;
+    }
+    if (simulateUserBrowsing && browsingTab) {
+      const browsingOk = last.ok &&
+        last.browsingTabActive === true &&
+        last.focusedOriginalWindowId === browsingTab.windowId;
+      if (browsingOk) {
+        browsingSamples += 1;
+      } else if (last.candidates.length > 0 && !invalidBrowsingSample) {
+        invalidBrowsingSample = {
+          originalWindowStillFocused: last.originalWindowStillFocused,
+          focusedOriginalWindowId: last.focusedOriginalWindowId,
+          browsingTabActive: last.browsingTabActive,
+          candidates: last.candidates,
+        };
+      }
+      if (
+        !browsingNavigationDone &&
+        Date.now() - browsingStartedAt >= 1_500
+      ) {
+        await navigateBrowsingTab(popup, browsingTab.tabId);
+        browsingNavigationDone = true;
+      }
+    }
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 250));
+  } while (Date.now() < deadline);
+  return {
+    ...last,
+    ok: false,
+    simulatedUserBrowsing: simulateUserBrowsing,
+    browsingTabId: browsingTab?.tabId,
+    browsingWindowId: browsingTab?.windowId,
+    browsingSamples,
+    ...(invalidBrowsingSample ? { invalidBrowsingSample } : {}),
+    error: `posting window observation timed out after ${timeoutMs}ms`,
+  };
+}
+
+async function inspectPostingWindow(
+  popup,
+  initialWindowIds,
+  platform,
+  browsingTab,
+) {
+  return await popup.evaluate(async ({ baseline, targetPlatform, browsing }) => {
+    const initial = new Set(baseline);
+    const windows = await chrome.windows.getAll({
+      populate: true,
+      windowTypes: ['normal'],
+    });
+    const matchesPlatform = (value) => {
+      try {
+        const url = new URL(value);
+        if (targetPlatform === 'x') {
+          return ['x.com', 'twitter.com'].includes(url.hostname);
+        }
+        return false;
+      } catch {
+        return false;
+      }
+    };
+    const candidates = [];
+    for (const window of windows) {
+      for (const tab of window.tabs ?? []) {
+        const tabUrl = tab.url ?? tab.pendingUrl ?? '';
+        if (typeof tab.id !== 'number' || !matchesPlatform(tabUrl)) continue;
+        let visibilityState;
+        let hidden;
+        let inspectError;
+        let composeState;
+        try {
+          const injected = await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+           func: () => ({
+              visibilityState: document.visibilityState,
+              hidden: document.hidden,
+              textareas: Array.from(
+                document.querySelectorAll('[data-testid^="tweetTextarea_"]'),
+              ).filter((element) => (
+                /^tweetTextarea_\d+$/.test(element.getAttribute('data-testid') ?? '')
+              )).map((element) => ({
+                testId: element.getAttribute('data-testid'),
+                textLength: (element.textContent ?? '').trim().length,
+                contentEditable: element.getAttribute('contenteditable'),
+              })),
+              postButtons: Array.from(document.querySelectorAll(
+                '[data-testid="tweetButton"], [data-testid="tweetButtonInline"]',
+              )).map((element) => ({
+                testId: element.getAttribute('data-testid'),
+                ariaDisabled: element.getAttribute('aria-disabled'),
+                disabled: element.disabled === true,
+                rect: {
+                  width: Math.round(element.getBoundingClientRect().width),
+                  height: Math.round(element.getBoundingClientRect().height),
+                },
+              })),
+              mediaState: {
+                documentHasFocus: document.hasFocus(),
+                videoCount: document.querySelectorAll('video').length,
+                progress: Array.from(document.querySelectorAll(
+                  '[role="progressbar"], progress',
+                )).slice(0, 10).map((element) => ({
+                  ariaValueNow: element.getAttribute('aria-valuenow'),
+                  ariaValueText: element.getAttribute('aria-valuetext'),
+                  text: (element.textContent ?? '').trim().slice(0, 120),
+                })),
+                alerts: Array.from(document.querySelectorAll(
+                  '[role="alert"], [aria-live="assertive"]',
+                )).slice(0, 10).map((element) => (
+                  (element.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 200)
+                )).filter(Boolean),
+              },
+            }),
+          });
+          visibilityState = injected[0]?.result?.visibilityState;
+          hidden = injected[0]?.result?.hidden;
+          composeState = {
+            textareas: injected[0]?.result?.textareas,
+            postButtons: injected[0]?.result?.postButtons,
+            mediaState: injected[0]?.result?.mediaState,
+          };
+        } catch (err) {
+          inspectError = err instanceof Error ? err.message : String(err);
+        }
+        candidates.push({
+          windowId: window.id,
+          newWindow: typeof window.id === 'number' && !initial.has(window.id),
+          windowFocused: window.focused,
+          tabId: tab.id,
+          tabActive: tab.active,
+          visibilityState,
+          hidden,
+          inspectError,
+          composeState,
+          composeRoute: /\/compose\/post(?:[/?#]|$)/.test(tabUrl),
+        });
+      }
+    }
+    const focusedOriginalWindow = windows.find((window) => (
+      typeof window.id === 'number' &&
+      initial.has(window.id) &&
+      window.focused === true
+    ));
+    const browsingChromeTab = typeof browsing?.tabId === 'number'
+      ? windows
+        .flatMap((window) => window.tabs ?? [])
+        .find((tab) => tab.id === browsing.tabId)
+      : undefined;
+    return {
+      ok: candidates.some((candidate) => (
+        candidate.newWindow &&
+        candidate.windowFocused === false &&
+        candidate.tabActive === true &&
+        candidate.visibilityState === 'visible' &&
+        candidate.hidden === false
+      )) && windows.some((window) => (
+        typeof window.id === 'number' &&
+        initial.has(window.id) &&
+        window.focused === true
+      )),
+      platform: targetPlatform,
+      initialWindowIds: baseline,
+      originalWindowStillFocused: windows.some((window) => (
+        typeof window.id === 'number' &&
+        initial.has(window.id) &&
+        window.focused === true
+      )),
+      focusedOriginalWindowId: focusedOriginalWindow?.id,
+      browsingTabActive: browsingChromeTab?.active,
+      candidates,
+    };
+  }, {
+    baseline: initialWindowIds,
+    targetPlatform: platform,
+    browsing: browsingTab,
+  });
+}
+
+async function openBrowsingTab(popup, windowId) {
+  if (typeof windowId !== 'number') {
+    throw new Error('focused original window was not found for browsing simulation');
+  }
+  return await popup.evaluate(async (targetWindowId) => {
+    const tab = await chrome.tabs.create({
+      windowId: targetWindowId,
+      url: 'about:blank#tutti-surface-browsing-1',
+      active: true,
+    });
+    await chrome.windows.update(targetWindowId, { focused: true });
+    if (typeof tab.id !== 'number') {
+      throw new Error('browsing simulation tab did not receive an id');
+    }
+    return {
+      tabId: tab.id,
+      windowId: targetWindowId,
+    };
+  }, windowId);
+}
+
+async function navigateBrowsingTab(popup, tabId) {
+  await popup.evaluate(async (targetTabId) => {
+    await chrome.tabs.update(targetTabId, {
+      url: 'about:blank#tutti-surface-browsing-2',
+      active: true,
+    });
+  }, tabId);
+}
+
+async function closeBrowserTab(popup, tabId) {
+  if (typeof tabId !== 'number') return;
+  await popup.evaluate(async (targetTabId) => {
+    await chrome.tabs.remove(targetTabId).catch(() => {});
+  }, tabId).catch(() => {});
+}
+
 function compactBackgroundState(state) {
   const postingState = state?.postingState;
   if (!postingState) {
@@ -771,6 +1125,7 @@ function compactResult(result) {
     userAction: result.userAction,
     flow: result.flow,
     url: result.url,
+    mediaUrl: result.mediaUrl,
     error: result.error,
     verify: result.verify,
   };

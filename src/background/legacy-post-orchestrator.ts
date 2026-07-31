@@ -315,6 +315,9 @@ export function createLegacyPostOrchestrator(
         // Foreground-only upload wizards are stateful enough that preview also needs
         // a clean compose surface between repeated runs.
         reuseExistingTab,
+        targetWindowId: postOptions.postWindowId,
+        focusWindow: typeof postOptions.postWindowId !== 'number',
+        restoreFocusWindowId: postOptions.postWindowFocusReturnId,
       },
     );
     if (typeof tab.id !== 'number') {

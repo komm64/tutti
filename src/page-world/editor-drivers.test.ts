@@ -18,6 +18,7 @@ describe('page-world editor drivers', () => {
       <input id="input">
       <textarea id="textarea"></textarea>
       <div data-lexical-editor><div id="lexical" contenteditable="true"></div></div>
+      <div id="x-editor" data-testid="tweetTextarea_1" contenteditable="true"></div>
       <div class="DraftEditor-root"><div id="draft" contenteditable="true"></div></div>
       <div id="generic" contenteditable="true"></div>
     `;
@@ -25,6 +26,7 @@ describe('page-world editor drivers', () => {
     expect(resolveTextEditorDriver(document.querySelector('#input')!)).toBe('native');
     expect(resolveTextEditorDriver(document.querySelector('#textarea')!)).toBe('native');
     expect(resolveTextEditorDriver(document.querySelector('#lexical')!)).toBe('lexical');
+    expect(resolveTextEditorDriver(document.querySelector('#x-editor')!)).toBe('lexical');
     expect(resolveTextEditorDriver(document.querySelector('#draft')!)).toBe('draft');
     expect(resolveTextEditorDriver(document.querySelector('#generic')!)).toBe('contenteditable');
   });

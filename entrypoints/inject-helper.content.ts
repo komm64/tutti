@@ -681,12 +681,19 @@ export default defineContentScript({
           // Threads の intent URL text prefill は非BMP文字を U+FFFD に壊す。
           // Lexical state を直接置換すれば emoji / ZWJ sequence を保持でき、
           // synthetic beforeinput + input の二重処理も避けられる。
+          const isThreadsHost = /threads\.(?:com|net)$/.test(location.host);
+          const isXHost = /(?:^|\.)x\.com$/.test(location.hostname);
           const shouldUseDirectLexicalState =
             /instagram\.com/.test(location.host) ||
-            /threads\.(?:com|net)$/.test(location.host);
-          requiresStableFrameworkText = /threads\.(?:com|net)$/.test(location.host);
+            isThreadsHost ||
+            isXHost;
+          const shouldRequireStableFrameworkText = isThreadsHost || isXHost;
           if (shouldUseDirectLexicalState && editor && typeof editor.parseEditorState === 'function' && typeof editor.setEditorState === 'function') {
             try {
+              // Threads hydration and X's unfocused-window compose can both
+              // replace the editor after input. Require direct Lexical state
+              // to remain present before reporting success.
+              requiresStableFrameworkText = shouldRequireStableFrameworkText;
               console.log('[Tutti inject-helper] Lexical: using editor.setEditorState path');
               // Lexical の標準 state JSON 構造で新 state を組み立て
               const stateJson = {
@@ -774,7 +781,7 @@ export default defineContentScript({
                       : undefined;
                     const exactTextPresent =
                       currentTarget?.isConnected === true &&
-                      readLexicalStateText(finalStateRoot).includes(text);
+                      readLexicalStateText(finalStateRoot) === text;
                     if (exactTextPresent) {
                       if (stableTarget !== currentTarget) {
                         stableTarget = currentTarget;
@@ -798,7 +805,7 @@ export default defineContentScript({
                         editor = currentEditor;
                         applyLexicalState(currentEditor, currentTarget);
                         console.warn(
-                          `[Tutti inject-helper] Threads Lexical editor reset during hydration; ` +
+                          `[Tutti inject-helper] Lexical editor reset after direct state update; ` +
                           `reapplied (${reapplyCount}/2)`,
                         );
                       }
@@ -806,7 +813,7 @@ export default defineContentScript({
                     await new Promise((r) => setTimeout(r, 100));
                   }
                   console.log(
-                    '[Tutti inject-helper] Threads stable Lexical state:',
+                    '[Tutti inject-helper] stable Lexical state:',
                     JSON.stringify(finalStateJson).slice(0, 200),
                     'textVerified=',
                     frameworkTextVerified,
@@ -815,14 +822,16 @@ export default defineContentScript({
                   );
                 } catch (e) {
                   frameworkTextVerified = false;
-                  console.warn('[Tutti inject-helper] final Threads Lexical state read failed:', e);
+                  console.warn('[Tutti inject-helper] final Lexical state read failed:', e);
                 }
               }
             } catch (e) {
               console.warn('[Tutti inject-helper] Lexical setEditorState failed, falling back to events:', e);
+              requiresStableFrameworkText = false;
               editor = null; // event-based fallback に流す
             }
           } else {
+            requiresStableFrameworkText = false;
             editor = null; // X 等は framework event path の方が composer state と同期しやすい
           }
 
@@ -838,10 +847,26 @@ export default defineContentScript({
                 sel0.addRange(range);
               } catch { /* ignore */ }
             }
+            // Keep the deletion scoped to this editor. document-level
+            // selectAll is unreliable when the editor lives in an active tab
+            // inside an unfocused browser window and can leave Lexical's old
+            // state in place, causing retries to append duplicate text.
+            el.dispatchEvent(new InputEvent('beforeinput', {
+              bubbles: true,
+              cancelable: true,
+              inputType: 'deleteContentBackward',
+              data: null,
+            }));
             try {
-              document.execCommand('selectAll', false);
               document.execCommand('delete', false);
             } catch { /* ignore */ }
+            el.dispatchEvent(new InputEvent('input', {
+              bubbles: true,
+              inputType: 'deleteContentBackward',
+              data: null,
+            }));
+            await new Promise((r) => setTimeout(r, 50));
+            el.focus();
             const beforeEv = new InputEvent('beforeinput', {
               bubbles: true, cancelable: true, inputType: 'insertText', data: text,
             });

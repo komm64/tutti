@@ -31,6 +31,12 @@ export interface OpenOrFocusTabOptions {
    * URL prefill に依存しない DOM injection 系のSNSだけで使う。
    */
   relaxedComposeUrlReady?: boolean;
+  /** Create/reuse the compose tab inside this request-scoped posting window. */
+  targetWindowId?: number;
+  /** Whether activating a compose tab should also focus its browser window. */
+  focusWindow?: boolean;
+  /** Restore OS focus here after Chromium implicitly focuses targetWindowId. */
+  restoreFocusWindowId?: number;
 }
 
 class PageLoadTimeoutError extends Error {
@@ -58,8 +64,12 @@ export async function openOrFocusTab(
   options: OpenOrFocusTabOptions = {},
 ): Promise<OpenTabResult> {
   const reuseExistingTab = options.reuseExistingTab !== false;
+  const focusWindow = options.focusWindow ?? active;
+  const targetWindowId = options.targetWindowId;
   const existing = reuseExistingTab
-    ? (await browser.tabs.query({})).find(
+    ? (await browser.tabs.query(
+      typeof targetWindowId === 'number' ? { windowId: targetWindowId } : {},
+    )).find(
       (t) => typeof t.url === 'string' && matchUrl(t.url),
     )
     : undefined;
@@ -71,11 +81,12 @@ export async function openOrFocusTab(
         await retryTransientTabAction('activate existing SNS tab', () => (
           browser.tabs.update(existingTabId, { active: true })
         ));
-        if (typeof existing.windowId === 'number') {
+        if (focusWindow && typeof existing.windowId === 'number') {
           await retryTransientTabAction('focus existing SNS window', () => (
             browser.windows.update(existing.windowId, { focused: true })
           ));
         }
+        await restoreRequestedWindowFocus(options, existing.windowId);
       }
       await sleep(READY_DELAY_MS);
       return { tab: existing, wasCreated: false };
@@ -95,10 +106,13 @@ export async function openOrFocusTab(
     if (!updated) {
       throw new Error(t('runtimeExistingSnsTabUnavailable'));
     }
-    if (active && typeof existing.windowId === 'number') {
+    if (active && focusWindow && typeof existing.windowId === 'number') {
       await retryTransientTabAction('focus existing SNS window', () => (
         browser.windows.update(existing.windowId, { focused: true })
       ));
+    }
+    if (active) {
+      await restoreRequestedWindowFocus(options, existing.windowId);
     }
     await retryPreSubmitLoadWait(
       () => waitForTabUrlReady(existingTabId, composeUrl, options.relaxedComposeUrlReady === true),
@@ -115,17 +129,24 @@ export async function openOrFocusTab(
   // 新規タブ作成は create + waitForTabComplete の順で OK
   // (create 時点では tab は loading state 確定で event が必ず来る)
   const created = await retryTransientTabAction('create SNS tab', () => (
-    browser.tabs.create({ url: composeUrl, active })
+    browser.tabs.create({
+      url: composeUrl,
+      active,
+      ...(typeof targetWindowId === 'number' ? { windowId: targetWindowId } : {}),
+    })
   ));
   if (typeof created.id !== 'number') {
     throw new Error(t('runtimeSnsTabOpenFailed'));
   }
   const createdTabId = created.id;
   const createdWindowId = created.windowId;
-  if (active && typeof createdWindowId === 'number') {
+  if (active && focusWindow && typeof createdWindowId === 'number') {
     await retryTransientTabAction('focus new SNS window', () => (
       browser.windows.update(createdWindowId, { focused: true })
     ));
+  }
+  if (active) {
+    await restoreRequestedWindowFocus(options, createdWindowId);
   }
   await retryPreSubmitLoadWait(
     () => waitForTabComplete(createdTabId),
@@ -278,6 +299,22 @@ export function isTabAtExpectedComposeUrl(
 
 function normalizePath(pathname: string): string {
   return pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
+}
+
+async function restoreRequestedWindowFocus(
+  options: OpenOrFocusTabOptions,
+  activatedWindowId?: number,
+): Promise<void> {
+  const restoreWindowId = options.restoreFocusWindowId;
+  if (
+    typeof restoreWindowId !== 'number' ||
+    restoreWindowId === activatedWindowId
+  ) {
+    return;
+  }
+  await retryTransientTabAction('restore original browser window focus', () => (
+    browser.windows.update(restoreWindowId, { focused: true })
+  ));
 }
 
 function sleep(ms: number): Promise<void> {

@@ -124,6 +124,17 @@ export function createPostingTransport(options: PostingTransportOptions) {
             error: message,
           };
         }
+        if (
+          autoPost &&
+          rawImages?.length &&
+          adapter.mediaRetryPolicy === 'single-attempt'
+        ) {
+          log.warn(
+            `${adapter.id}: real-post media attempt "${attempt.label}" failed ` +
+            'before submit; skipping a fresh upload attempt',
+          );
+          throw error;
+        }
         if (index >= attempts.length - 1) throw error;
         const next = attempts[index + 1]!;
         log.warn(
@@ -232,6 +243,9 @@ export function createPostingTransport(options: PostingTransportOptions) {
           attempt.loadRetries ?? 0,
         ),
         reuseExistingTab,
+        targetWindowId: postOptions.postWindowId,
+        focusWindow: typeof postOptions.postWindowId !== 'number',
+        restoreFocusWindowId: postOptions.postWindowFocusReturnId,
       },
     );
     if (typeof tab.id !== 'number') {
@@ -352,9 +366,14 @@ export function createPostingTransport(options: PostingTransportOptions) {
         submitReached: withUrl.flow?.submitReached ?? true,
       });
     } catch (error) {
+      const preserveFailedMediaCompose =
+        autoPost &&
+        rawImages?.length &&
+        adapter.mediaRetryPolicy === 'single-attempt';
       if (
         typeof ownedTabId === 'number' &&
-        response?.flow?.submitReached !== true
+        response?.flow?.submitReached !== true &&
+        !preserveFailedMediaCompose
       ) {
         await closeOwnedAttemptTab(adapter.id, ownedTabId, attempt.label);
       }

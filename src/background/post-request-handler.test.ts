@@ -136,4 +136,121 @@ describe('post request settings boundary', () => {
       ],
     });
   });
+
+  it('returns an uncertain result immediately when the posting window is closed', async () => {
+    let removedListener: ((windowId: number) => void) | undefined;
+    const createWindow = vi.fn(async () => ({
+      id: 41,
+      tabs: [{ id: 410, windowId: 41, url: 'about:blank' }],
+    }));
+    vi.stubGlobal('browser', {
+      storage: {
+        sync: {
+          get: vi.fn(async () => ({
+            settings: {
+              autoPost: true,
+              postingAlgorithm: 'next',
+            },
+          })),
+        },
+        local: {
+          get: vi.fn(async () => ({})),
+          set: vi.fn(async () => undefined),
+        },
+      },
+      windows: {
+        getAll: vi.fn(async () => [{
+          id: 7,
+          type: 'normal',
+          focused: true,
+          left: 0,
+          top: 0,
+          width: 1200,
+          height: 800,
+        }]),
+        create: createWindow,
+        update: vi.fn(async () => undefined),
+        get: vi.fn(async () => undefined),
+        remove: vi.fn(async () => undefined),
+        onRemoved: {
+          addListener: vi.fn((listener: (windowId: number) => void) => {
+            removedListener = listener;
+          }),
+          removeListener: vi.fn(),
+        },
+        onFocusChanged: {
+          addListener: vi.fn(),
+          removeListener: vi.fn(),
+        },
+      },
+      tabs: {
+        query: vi.fn(async () => []),
+        remove: vi.fn(async () => undefined),
+      },
+      action: {
+        setBadgeText: vi.fn(async () => undefined),
+        setBadgeBackgroundColor: vi.fn(async () => undefined),
+      },
+      notifications: {
+        create: vi.fn(async () => undefined),
+      },
+      runtime: {
+        getURL: vi.fn((path: string) => `chrome-extension://test/${path}`),
+      },
+      i18n: {
+        getMessage: vi.fn((key: string) => key),
+      },
+    });
+    const postToPlatform = vi.fn(() => new Promise<PostResultMessage>(() => {}));
+    const handler = createPostRequestHandler({
+      submissionGuard: createSubmissionGuard(),
+      openedTabs: {
+        clear: vi.fn(),
+        record: vi.fn(),
+        forget: vi.fn(),
+        cleanup: vi.fn(async () => undefined),
+      },
+      postingState: createPostingStateManager(),
+      platformPoster: {
+        forAlgorithm: vi.fn(() => ({ postToPlatform })),
+        postToPlatform,
+      },
+      appendBackgroundLog: vi.fn(),
+      sendRuntimeMessage: vi.fn(async () => undefined),
+    });
+
+    const resultPromise = handler({
+      type: 'POST_REQUEST',
+      requestId: 'request-window-closed',
+      intent: 'new',
+      text: 'posting window closure test',
+      platforms: ['x'],
+    });
+    await vi.waitFor(() => expect(createWindow).toHaveBeenCalledTimes(1));
+    removedListener?.(41);
+    const [result] = await resultPromise;
+
+    expect(result).toMatchObject({
+      platform: 'x',
+      success: false,
+      uncertain: true,
+      userAction: 'check-post-before-retry',
+      flow: {
+        submitReached: true,
+        failedStep: 'posting-window-closed',
+      },
+    });
+    expect(postToPlatform).toHaveBeenCalledWith(
+      'x',
+      'posting window closure test',
+      undefined,
+      undefined,
+      undefined,
+      true,
+      expect.objectContaining({
+        forceForeground: true,
+        postWindowId: 41,
+      }),
+    );
+  });
 });
