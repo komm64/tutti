@@ -6,6 +6,7 @@ import {
 
 describe('posting window session', () => {
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
@@ -382,6 +383,7 @@ describe('posting window session', () => {
   });
 
   it('does not reclaim focus after the user selects another window during the lease', async () => {
+    vi.useFakeTimers();
     let focusListener: ((windowId: number) => void) | undefined;
     const update = vi.fn(async () => undefined);
     vi.stubGlobal('browser', {
@@ -427,12 +429,68 @@ describe('posting window session', () => {
     focusListener?.(9);
     update.mockClear();
 
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(update).not.toHaveBeenCalled();
+
     await expect(handlePostingMediaFocus(46, 'release')).resolves.toEqual({
       ok: true,
       active: false,
     });
     expect(update).not.toHaveBeenCalled();
     expect(session.getFocusReturnWindowId()).toBe(9);
+
+    await session.releaseBootstrapTab();
+  });
+
+  it('restores the user window when the content-side media release is delayed', async () => {
+    vi.useFakeTimers();
+    let focusListener: ((windowId: number) => void) | undefined;
+    let focusedWindowId = 7;
+    const update = vi.fn(async (windowId: number) => {
+      focusedWindowId = windowId;
+      focusListener?.(windowId);
+      return {};
+    });
+    vi.stubGlobal('browser', {
+      windows: {
+        getAll: vi.fn(async () => [{ id: 7, type: 'normal', focused: true }]),
+        create: vi.fn(async () => ({
+          id: 49,
+          tabs: [{ id: 490, windowId: 49, url: 'about:blank' }],
+        })),
+        get: vi.fn(async (windowId: number) => ({
+          id: windowId,
+          focused: focusedWindowId === windowId,
+          tabs: [{ id: 490, windowId: 49, url: 'about:blank' }],
+        })),
+        remove: vi.fn(async () => undefined),
+        update,
+        onRemoved: {
+          addListener: vi.fn(),
+          removeListener: vi.fn(),
+        },
+        onFocusChanged: {
+          addListener: vi.fn((listener: (windowId: number) => void) => {
+            focusListener = listener;
+          }),
+          removeListener: vi.fn(),
+        },
+      },
+      tabs: {
+        query: vi.fn(async () => []),
+        remove: vi.fn(async () => undefined),
+      },
+    });
+
+    const session = createPostingWindowSession();
+    await session.getOrCreateWindowId();
+    update.mockClear();
+
+    await handlePostingMediaFocus(49, 'acquire');
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect(update).toHaveBeenNthCalledWith(1, 49, { focused: true });
+    expect(update).toHaveBeenNthCalledWith(2, 7, { focused: true });
 
     await session.releaseBootstrapTab();
   });

@@ -14,17 +14,24 @@
  *   node scripts/e2e/surface-posting-matrix.mjs --mode post --cases image-only,text-image --platforms x,bluesky,threads
  *   node scripts/e2e/surface-posting-matrix.mjs --mode preview --repeat 2
  *   node scripts/e2e/surface-posting-matrix.mjs --mode preview --case-timeout-ms 360000
+ *
+ * Video cases require ffmpeg and ffprobe on the runner so each upload gets a
+ * valid, visually unique fixture instead of repeatedly sending identical bytes.
  */
 
 import { chromium } from 'playwright';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, dirname, resolve } from 'node:path';
+import { promisify } from 'node:util';
 import {
   connectPlaywrightCdp,
   disconnectCdp,
   loadE2eFixture,
   resolveCdpEndpoint,
   resolveExtensionId,
+  withTemporaryDirectory,
   withTimeout,
 } from './cdp-harness.mjs';
 import {
@@ -32,6 +39,8 @@ import {
   formatSurfaceMatrixOutcome,
   validateSurfaceResultContract,
 } from './surface-posting-matrix-contract.mjs';
+
+const execFileAsync = promisify(execFile);
 
 const ALL_PLATFORMS = [
   'x',
@@ -278,7 +287,7 @@ for (const caseName of requestedCases) {
   for (let i = 1; i <= repeat; i += 1) {
     const stamp = `${new Date().toISOString().replace(/[:.]/g, '-')}-${caseName}-${i}`;
     const text = caseDef.text(stamp);
-    const images = buildMedia(caseDef.media, imageFixture, videoFixture, stamp);
+    const images = await buildMedia(caseDef.media, imageFixture, videoFixture, stamp);
     popup = await ensurePopupPage(ctx, extensionId, popup);
     await closeNonExtensionPages(ctx, extensionId);
     let beforeHistory;
@@ -662,14 +671,28 @@ async function readVideoFixture(path) {
     root: dirname(path),
     required: true,
   });
+  const { stdout } = await execFileAsync('ffprobe', [
+    '-v', 'error',
+    '-show_entries', 'format=duration',
+    '-of', 'default=noprint_wrappers=1:nokey=1',
+    path,
+  ], {
+    timeout: 30_000,
+    windowsHide: true,
+  });
+  const durationS = Number.parseFloat(stdout.trim());
+  if (!Number.isFinite(durationS) || durationS <= 0) {
+    throw new Error(`ffprobe returned an invalid duration for ${path}: ${stdout.trim()}`);
+  }
   return {
     ...fixture,
     data: Buffer.from(fixture.data, 'base64'),
-    durationS: 2,
+    durationS,
+    path,
   };
 }
 
-function buildMedia(kind, imageFixture, videoFixture, stamp) {
+async function buildMedia(kind, imageFixture, videoFixture, stamp) {
   if (kind === 'none') return undefined;
   if (kind === 'image') {
     return [{
@@ -678,10 +701,10 @@ function buildMedia(kind, imageFixture, videoFixture, stamp) {
     }];
   }
   if (kind === 'video') {
-    // The filename is already unique per run. Keep the validated MP4 bytes
-    // unchanged; appending a technically valid custom `free` box made X leave
-    // video processing at 0% and could produce a text-only post.
-    const data = videoFixture.data;
+    // X can strand repeated byte-identical test media in processing even when
+    // the filename changes. Re-encode a standards-compliant, visibly unique,
+    // audio-free MP4 instead of mutating the container with an appended box.
+    const data = await createUniqueVideoVariant(videoFixture.path, stamp);
     return [{
       name: uniqueName(videoFixture.name, stamp),
       type: videoFixture.type,
@@ -691,15 +714,51 @@ function buildMedia(kind, imageFixture, videoFixture, stamp) {
     }];
   }
   if (kind === 'mixed') {
+    const video = await buildMedia('video', imageFixture, videoFixture, stamp);
     return [
       {
         ...imageFixture,
         name: uniqueName(imageFixture.name, stamp),
       },
-      ...buildMedia('video', imageFixture, videoFixture, stamp),
+      ...video,
     ];
   }
   throw new Error(`unknown media kind: ${kind}`);
+}
+
+async function createUniqueVideoVariant(sourcePath, stamp) {
+  const digest = createHash('sha256').update(stamp).digest();
+  const color = digest.subarray(0, 3).toString('hex');
+  const x = 12 + digest[3];
+  const y = 12 + digest[4] % 120;
+  return await withTemporaryDirectory(async (tempDir) => {
+    const outputPath = resolve(tempDir, 'tutti-surface-variant.mp4');
+    await execFileAsync('ffmpeg', [
+      '-y',
+      '-hide_banner',
+      '-loglevel', 'error',
+      '-i', sourcePath,
+      '-map', '0:v:0',
+      '-vf', `drawbox=x=${x}:y=${y}:w=16:h=16:color=0x${color}:t=fill`,
+      '-c:v', 'libx264',
+      '-preset', 'veryfast',
+      '-profile:v', 'high',
+      '-level:v', '3.1',
+      '-pix_fmt', 'yuv420p',
+      '-r', '30',
+      '-g', '60',
+      '-keyint_min', '60',
+      '-sc_threshold', '0',
+      '-an',
+      '-movflags', '+faststart',
+      '-metadata', `comment=tutti-surface-${stamp}`,
+      outputPath,
+    ], {
+      timeout: 60_000,
+      windowsHide: true,
+    });
+    return await readFile(outputPath);
+  }, { prefix: 'tutti-surface-video-' });
 }
 
 function uniqueName(name, stamp) {

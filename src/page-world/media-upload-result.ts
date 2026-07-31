@@ -19,6 +19,17 @@ export function extractMediaUploadFailure(payload: unknown): string | undefined 
   const body = record(payload);
   if (!body) return undefined;
 
+  const data = record(body.data);
+  const processing = record(body.processing_info) ?? record(data?.processing_info);
+  if (text(processing?.state)?.toLowerCase() === 'failed') {
+    const processingError = record(processing?.error);
+    return (
+      text(processingError?.message) ??
+      text(processingError?.name) ??
+      'Media processing failed.'
+    ).slice(0, 300);
+  }
+
   const meta = record(body.meta);
   const status = typeof meta?.status === 'number'
     ? meta.status

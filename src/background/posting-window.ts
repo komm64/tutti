@@ -21,6 +21,7 @@ interface RegisteredPostingWindow {
 const POSTING_WINDOW_WIDTH = 560;
 const POSTING_WINDOW_HEIGHT = 680;
 const POSTING_WINDOW_MARGIN = 16;
+const MEDIA_FOCUS_LEASE_MAX_MS = 1_000;
 const activePostingWindows = new Map<number, RegisteredPostingWindow>();
 
 export async function handlePostingMediaFocus(
@@ -54,11 +55,18 @@ export function createPostingWindowSession(): PostingWindowSession {
   const closeWaiters = new Map<number, Set<() => void>>();
   let focusRestoreInFlight = false;
   let mediaFocusLeaseActive = false;
+  let mediaFocusLeaseTimer: ReturnType<typeof setTimeout> | undefined;
+  const cancelMediaFocusLeaseTimer = (): void => {
+    if (mediaFocusLeaseTimer) clearTimeout(mediaFocusLeaseTimer);
+    mediaFocusLeaseTimer = undefined;
+  };
   const onWindowRemoved = (windowId: number): void => {
     activePostingWindows.delete(windowId);
     if (expectedWindowCloses.delete(windowId)) return;
     unexpectedlyClosedWindows.add(windowId);
     if (currentState?.windowId === windowId) {
+      cancelMediaFocusLeaseTimer();
+      mediaFocusLeaseActive = false;
       currentState = undefined;
       statePromise = undefined;
     }
@@ -72,6 +80,7 @@ export function createPostingWindowSession(): PostingWindowSession {
       state.focusReturnWindowId = windowId;
       // The user chose another window during the short media focus lease.
       // Keep their choice and never pull focus back from it.
+      cancelMediaFocusLeaseTimer();
       mediaFocusLeaseActive = false;
       return;
     }
@@ -137,14 +146,22 @@ export function createPostingWindowSession(): PostingWindowSession {
     mediaFocusLeaseActive = true;
     try {
       await browser.windows.update(state.windowId, { focused: true });
+      if (mediaFocusLeaseActive) {
+        cancelMediaFocusLeaseTimer();
+        mediaFocusLeaseTimer = setTimeout(() => {
+          void releaseMediaFocus();
+        }, MEDIA_FOCUS_LEASE_MAX_MS);
+      }
       return mediaFocusLeaseActive;
     } catch {
+      cancelMediaFocusLeaseTimer();
       mediaFocusLeaseActive = false;
       return false;
     }
   }
 
   async function releaseMediaFocus(): Promise<boolean> {
+    cancelMediaFocusLeaseTimer();
     if (!mediaFocusLeaseActive) return false;
     mediaFocusLeaseActive = false;
     const state = currentState;
@@ -167,6 +184,7 @@ export function createPostingWindowSession(): PostingWindowSession {
     statePromise = undefined;
     if (currentState) activePostingWindows.delete(currentState.windowId);
     currentState = undefined;
+    cancelMediaFocusLeaseTimer();
     mediaFocusLeaseActive = false;
     try {
       if (!pending) return;

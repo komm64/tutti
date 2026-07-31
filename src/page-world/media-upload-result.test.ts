@@ -28,4 +28,26 @@ describe('extractMediaUploadFailure', () => {
       error: 'Upload quota exceeded',
     })).toBe('Upload quota exceeded');
   });
+
+  it('extracts asynchronous X video processing failures', () => {
+    expect(extractMediaUploadFailure({
+      processing_info: {
+        state: 'failed',
+        error: {
+          code: 3,
+          name: 'InvalidMedia',
+          message: 'Unsupported video format',
+        },
+      },
+    })).toBe('Unsupported video format');
+
+    expect(extractMediaUploadFailure({
+      data: {
+        processing_info: {
+          state: 'failed',
+          error: { name: 'TranscodeFailed' },
+        },
+      },
+    })).toBe('TranscodeFailed');
+  });
 });
