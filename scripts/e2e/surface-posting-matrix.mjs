@@ -884,7 +884,7 @@ async function observePostingWindow(
         !browsingNavigationDone &&
         Date.now() - browsingStartedAt >= 1_500
       ) {
-        await navigateBrowsingTab(popup, browsingTab.tabId);
+        browsingTab = await navigateBrowsingTab(popup, browsingTab);
         browsingNavigationDone = true;
       }
     }
@@ -1063,13 +1063,26 @@ async function openBrowsingTab(popup, windowId) {
   }, windowId);
 }
 
-async function navigateBrowsingTab(popup, tabId) {
-  await popup.evaluate(async (targetTabId) => {
-    await chrome.tabs.update(targetTabId, {
+async function navigateBrowsingTab(popup, browsingTab) {
+  return await popup.evaluate(async ({ tabId, windowId }) => {
+    // Brave 151 on Surface CHECK-crashes in the browser main thread when
+    // chrome.tabs.update performs an about:blank same-document hash change.
+    // Replacing the tab exercises continued browsing/focus without that
+    // browser bug or an external site such as example.org.
+    const replacement = await chrome.tabs.create({
+      windowId,
       url: 'about:blank#tutti-surface-browsing-2',
       active: true,
     });
-  }, tabId);
+    if (typeof replacement.id !== 'number') {
+      throw new Error('replacement browsing tab did not receive an id');
+    }
+    await chrome.tabs.remove(tabId);
+    return {
+      tabId: replacement.id,
+      windowId,
+    };
+  }, browsingTab);
 }
 
 async function closeBrowserTab(popup, tabId) {
