@@ -27,6 +27,7 @@ import {
   getXComposeRoot,
   getXThreadTextarea,
   getXThreadTextareas as getExactXThreadTextareas,
+  hasXVideoAttachment,
 } from '../src/adapters/x-compose-dom';
 import { t } from '../src/utils/i18n';
 import { markPostSubmissionStarted } from '../src/utils/post-submission-state';
@@ -221,7 +222,7 @@ async function executeXSinglePost(
         // Switching browser windows can make X replace the entire compose
         // subtree. Observe readiness from document, then bind the remaining
         // work to the current root instead of the detached pre-upload node.
-        await waitForXMediaReady(document, X_VIDEO_MEDIA_READY_TIMEOUT_MS);
+        await waitForXMediaReady(X_VIDEO_MEDIA_READY_TIMEOUT_MS);
       }
       ({ root: composeRoot, marker: rootMarker } = await reacquireXComposeRoot(
         composeRoot,
@@ -254,11 +255,21 @@ async function executeXSinglePost(
     }
 
     const hasVideo = (images ?? []).some((image) => image.type.startsWith('video/'));
-    const postBtn = await waitForXSinglePostButton(
-      composeRoot,
-      resolvePostButtonTimeoutMs(X_SINGLE_POST_BUTTON_TIMEOUT_MS, hasVideo),
+    const postButtonTimeoutMs = resolvePostButtonTimeoutMs(
+      X_SINGLE_POST_BUTTON_TIMEOUT_MS,
+      hasVideo,
     );
+    const postBtn = hasVideo
+      ? await waitForXStableVideoPostButton(
+          composeRoot,
+          postButtonTimeoutMs,
+          () => findXSinglePostButton(composeRoot),
+        )
+      : await waitForXSinglePostButton(composeRoot, postButtonTimeoutMs);
     if (!postBtn) {
+      if (hasVideo && !hasXVideoAttachment(composeRoot, isVisible)) {
+        throw new Error(t('runtimeXVideoAttachmentLost'));
+      }
       throw new Error(t('runtimePostButtonDisabled'));
     }
 
@@ -344,7 +355,7 @@ async function executeXInlineThread(
         requestPostingWindowMediaFocus: dryRun !== true,
       });
       if (images.some((image) => image.type.startsWith('video/'))) {
-        await waitForXMediaReady(document, X_VIDEO_MEDIA_READY_TIMEOUT_MS);
+        await waitForXMediaReady(X_VIDEO_MEDIA_READY_TIMEOUT_MS);
       }
       ({ root: composeRoot, marker: rootMarker } = await reacquireXComposeRoot(
         composeRoot,
@@ -423,12 +434,23 @@ async function executeXInlineThread(
 
     // Post button (preview なら highlight だけ、 autoPost なら click)
     const hasVideo = (images ?? []).some((image) => image.type.startsWith('video/'));
-    const postBtn = await waitForXPostAllButton(
-      sel,
-      composeRoot,
-      resolvePostButtonTimeoutMs(X_THREAD_POST_BUTTON_TIMEOUT_MS, hasVideo),
+    const postButtonTimeoutMs = resolvePostButtonTimeoutMs(
+      X_THREAD_POST_BUTTON_TIMEOUT_MS,
+      hasVideo,
     );
-    if (!postBtn) throw new Error(t('runtimeXPostAllButtonMissing'));
+    const postBtn = hasVideo
+      ? await waitForXStableVideoPostButton(
+          composeRoot,
+          postButtonTimeoutMs,
+          () => findXPostAllButton(sel, composeRoot),
+        )
+      : await waitForXPostAllButton(sel, composeRoot, postButtonTimeoutMs);
+    if (!postBtn) {
+      if (hasVideo && !hasXVideoAttachment(composeRoot, isVisible)) {
+        throw new Error(t('runtimeXVideoAttachmentLost'));
+      }
+      throw new Error(t('runtimeXPostAllButtonMissing'));
+    }
     if (dryRun) {
       const orig = postBtn.style.outline;
       postBtn.style.outline = '3px dashed #f59e0b';
@@ -730,14 +752,7 @@ function waitForXInitialTextarea(
   timeoutMs: number,
 ): Promise<HTMLElement | undefined> {
   return waitForCondition<HTMLElement>(
-    () => {
-      const dialogTextarea = Array
-        .from(document.querySelectorAll<HTMLElement>(X_THREAD_DIALOG_TEXTAREA_SELECTOR))
-        .find(isVisible);
-      if (dialogTextarea) return dialogTextarea;
-      if (!/^\/(?:compose\/post|intent\/post)(?:\/|$)/.test(location.pathname)) return null;
-      return getXThreadTextareas(document)[0] ?? null;
-    },
+    findXInitialTextarea,
     {
       timeoutMs,
       intervalMs: 150,
@@ -752,16 +767,30 @@ function waitForXInitialTextarea(
   ).then((element) => element ?? undefined);
 }
 
+function findXInitialTextarea(): HTMLElement | null {
+  const dialogTextarea = Array
+    .from(document.querySelectorAll<HTMLElement>(X_THREAD_DIALOG_TEXTAREA_SELECTOR))
+    .find(isVisible);
+  if (dialogTextarea) return dialogTextarea;
+  if (!/^\/(?:compose\/post|intent\/post)(?:\/|$)/.test(location.pathname)) return null;
+  return getXThreadTextareas(document)[0] ?? null;
+}
+
 async function waitForXMediaReady(
-  scope: ParentNode,
   timeoutMs: number,
 ): Promise<void> {
   const enabled = await waitForCondition<HTMLElement>(
-    () => findXSinglePostButton(scope),
+    () => {
+      const currentTextarea = findXInitialTextarea();
+      if (!currentTextarea) return null;
+      const currentRoot = getXComposeRoot(currentTextarea);
+      if (!hasXVideoAttachment(currentRoot, isVisible)) return null;
+      return findXSinglePostButton(currentRoot);
+    },
     {
       timeoutMs,
       intervalMs: 300,
-      root: scope instanceof Document ? scope.body : scope,
+      root: document.body,
       observerInit: {
         childList: true,
         subtree: true,
@@ -778,6 +807,29 @@ async function waitForXMediaReady(
   if (!enabled) {
     throw new Error(t('runtimePostButtonDisabled'));
   }
+}
+
+async function waitForXStableVideoPostButton(
+  scope: ParentNode,
+  timeoutMs: number,
+  findButton: () => HTMLElement | null,
+): Promise<HTMLElement | null> {
+  return await waitForStableCondition<HTMLElement>(
+    () => hasXVideoAttachment(scope, isVisible) ? findButton() : null,
+    {
+      timeoutMs,
+      quietMs: 750,
+      intervalMs: 100,
+      root: scope instanceof Document ? scope.body : scope,
+      observerInit: {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['aria-disabled', 'disabled', 'data-testid', 'style', 'class'],
+      },
+      pauseTimeoutWhile: () => !document.hasFocus(),
+    },
+  );
 }
 
 async function clickElementMarkedInMainWorld(el: HTMLElement, prefix: string): Promise<void> {

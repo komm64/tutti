@@ -29,3 +29,10 @@ export function getXComposeRoot(textarea: HTMLElement): HTMLElement {
     textarea.closest<HTMLElement>('main') ??
     document.body;
 }
+
+export function hasXVideoAttachment(
+  scope: ParentNode,
+  isVisible: (element: HTMLElement) => boolean,
+): boolean {
+  return Array.from(scope.querySelectorAll<HTMLElement>('video')).some(isVisible);
+}

@@ -53,6 +53,7 @@
   "errorPrefix": { "message": "エラー: " },
   "runtimeXOwnHandleMissing": { "message": "X: own handle 未検出のため post URL を capture できません" },
   "runtimeXPostUrlTimeout": { "message": "X: 投稿後の tweet URL を 30s 以内に取得できませんでした (timeline 更新失敗?)" },
+  "runtimeXVideoAttachmentLost": { "message": "X: 送信前に動画の添付が消えました。投稿は行っていません。動画を添付し直して再実行してください。" },
   "runtimeXFirstTextareaMissing": { "message": "X: 最初の textarea が見つかりません" },
   "runtimeXAddButtonMissing": {
     "message": "X: chunk $CURRENT$/$TOTAL$ の「ポストを追加 (+)」 button が見つかりません (chunk $PREVIOUS$ の text が反映されてない可能性)",

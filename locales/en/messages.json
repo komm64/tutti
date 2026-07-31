@@ -53,6 +53,7 @@
   "errorPrefix": { "message": "Error: " },
   "runtimeXOwnHandleMissing": { "message": "X: cannot capture the post URL because your account handle could not be detected" },
   "runtimeXPostUrlTimeout": { "message": "X: could not capture the post URL within 30 seconds (timeline refresh failed?)" },
+  "runtimeXVideoAttachmentLost": { "message": "X: The video attachment disappeared before submission. Nothing was posted. Attach the video again and retry." },
   "runtimeXFirstTextareaMissing": { "message": "X: initial text area not found" },
   "runtimeXAddButtonMissing": {
     "message": "X: Add post (+) button not found for chunk $CURRENT$/$TOTAL$ (chunk $PREVIOUS$ text may not have been applied)",

@@ -5,6 +5,7 @@ import {
   getXComposeRoot,
   getXThreadTextarea,
   getXThreadTextareas,
+  hasXVideoAttachment,
 } from './x-compose-dom';
 
 describe('X thread compose DOM selection', () => {
@@ -50,5 +51,18 @@ describe('X thread compose DOM selection', () => {
     expect(firstRoot.id).toBe('first');
     expect(firstRoot.isConnected).toBe(false);
     expect(getXComposeRoot(secondTextarea).id).toBe('second');
+  });
+
+  it('requires a visible video inside the current compose root', () => {
+    document.body.innerHTML = `
+      <div role="dialog" id="current"><video id="attached"></video></div>
+      <div role="dialog" id="other"><video id="unrelated"></video></div>
+    `;
+    const current = document.querySelector<HTMLElement>('#current')!;
+
+    expect(hasXVideoAttachment(current, (element) => element.id === 'attached')).toBe(true);
+    expect(hasXVideoAttachment(current, () => false)).toBe(false);
+    document.querySelector('#attached')?.remove();
+    expect(hasXVideoAttachment(current, () => true)).toBe(false);
   });
 });
