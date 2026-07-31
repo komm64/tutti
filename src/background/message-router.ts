@@ -22,6 +22,7 @@ export const BACKGROUND_MESSAGE_TYPES = [
   'CONVERSION_COMPLETE',
   'CONVERSION_ERROR',
   'CLEAR_POSTING_STATE',
+  'POSTING_MEDIA_FOCUS',
   'GET_BG_STATE',
   'GET_EXTENSION_UPDATE_STATE',
   'APPLY_EXTENSION_UPDATE',
@@ -40,6 +41,7 @@ type MessageOf<T extends BackgroundMessageType> = Extract<BackgroundMessage, { t
 export interface RuntimeMessageSender {
   tab?: {
     id?: number;
+    windowId?: number;
   };
 }
 
@@ -91,6 +93,10 @@ export interface BackgroundMessageRouterOptions {
   buildDiagnosticsReport(
     platforms: MessageOf<'DIAGNOSE_REQUEST'>['platforms'],
   ): Promise<DiagnosticsReport>;
+  handlePostingMediaFocus(
+    message: MessageOf<'POSTING_MEDIA_FOCUS'>,
+    sender: RuntimeMessageSender,
+  ): Promise<unknown>;
   handlePostRequest(message: PostRequestMessage): Promise<PostResultMessage[]>;
 }
 
@@ -127,6 +133,15 @@ export function createBackgroundMessageRouter(
       options.clearBadge();
       sendResponse({ ok: true });
       return false;
+    },
+    POSTING_MEDIA_FOCUS: (message, { sender, sendResponse }) => {
+      void options.handlePostingMediaFocus(message, sender)
+        .then((result) => sendResponse(result))
+        .catch((error: unknown) => sendResponse({
+          ok: false,
+          error: errorMessage(error),
+        }));
+      return true;
     },
     GET_BG_STATE: (_message, { sendResponse }) => {
       if (options.postingState.shouldClearBadgeOnRead()) {

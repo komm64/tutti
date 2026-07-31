@@ -24,6 +24,7 @@ import { createExtensionUpdateManager } from '../src/background/extension-update
 import { createSubmissionGuard } from '../src/background/submission-guard';
 import { createPostRequestHandler } from '../src/background/post-request-handler';
 import { createBackgroundMessageRouter } from '../src/background/message-router';
+import { handlePostingMediaFocus } from '../src/background/posting-window';
 
 const logBuffer = createPersistentLogBuffer();
 const userActionNotifier = createUserActionNotifier();
@@ -63,6 +64,8 @@ const handleRuntimeMessage = createBackgroundMessageRouter({
   clearBadge,
   handleBinaryChunkRequest,
   buildDiagnosticsReport: (platforms) => buildDiagnosticsReport({ platforms }),
+  handlePostingMediaFocus: (message, sender) =>
+    handlePostingMediaFocus(sender.tab?.windowId, message.phase),
   handlePostRequest,
 });
 

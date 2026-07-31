@@ -61,6 +61,7 @@ export interface MediaCommandRuntime {
     timeoutMs: number,
     options: MediaUploadWaitOptions,
   ) => Promise<MediaUploadWaitResult>;
+  onMediaDispatched?: (requestId: string) => void;
 }
 
 export function createMediaCommandHandlers<Source extends string>(
@@ -103,6 +104,7 @@ async function handleInputCommand<Source extends string>(
   else input.files = built.dt.files;
   input.dispatchEvent(new Event('change', { bubbles: true }));
   input.dispatchEvent(new Event('input', { bubbles: true }));
+  runtime.onMediaDispatched?.(request.id);
 
   const wait = await runtime.waitForUploadComplete(
     request.uploadTimeoutMs ?? 30000,
@@ -152,6 +154,7 @@ async function handleDropCommand<Source extends string>(
       clientY,
     }));
   }
+  runtime.onMediaDispatched?.(request.id);
 
   const wait = await runtime.waitForUploadComplete(
     request.uploadTimeoutMs ?? 30000,

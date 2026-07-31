@@ -120,6 +120,11 @@ export interface ClearPostingStateMessage {
   type: 'CLEAR_POSTING_STATE';
 }
 
+export interface PostingMediaFocusMessage {
+  type: 'POSTING_MEDIA_FOCUS';
+  phase: 'acquire' | 'release';
+}
+
 export interface VerifyPostDomMessage {
   type: 'VERIFY_POST_DOM';
 }
@@ -139,5 +144,6 @@ export type PostingMessage =
   | PostResultMessage
   | PlatformProgressMessage
   | ClearPostingStateMessage
+  | PostingMediaFocusMessage
   | VerifyPostDomMessage
   | VerifyPostDomResult;

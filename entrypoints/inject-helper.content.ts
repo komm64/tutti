@@ -122,6 +122,7 @@ interface InjectResponse {
   source: typeof RES_TAG;
   id: string;
   ok: boolean;
+  phase?: 'media-dispatched';
   error?: string;
   fileCount?: number;
   /** drop モードで使った target tag */
@@ -1024,6 +1025,14 @@ export default defineContentScript({
       mediaAcceptedPredicate,
       mediaRejectionMessage,
       waitForUploadComplete,
+      onMediaDispatched: (id) => {
+        window.postMessage({
+          source: RES_TAG,
+          id,
+          ok: true,
+          phase: 'media-dispatched',
+        } satisfies InjectResponse, '*');
+      },
     });
     const requestHandlers: InjectRequestHandlerMap<InjectRequest, InjectResponse> = {
       input: mediaCommandHandlers.input,

@@ -13,6 +13,29 @@ interface PostingWindowState {
   focusReturnWindowId?: number;
 }
 
+interface RegisteredPostingWindow {
+  acquireMediaFocus(): Promise<boolean>;
+  releaseMediaFocus(): Promise<boolean>;
+}
+
+const POSTING_WINDOW_WIDTH = 560;
+const POSTING_WINDOW_HEIGHT = 680;
+const POSTING_WINDOW_MARGIN = 16;
+const activePostingWindows = new Map<number, RegisteredPostingWindow>();
+
+export async function handlePostingMediaFocus(
+  windowId: number | undefined,
+  phase: 'acquire' | 'release',
+): Promise<{ ok: boolean; active: boolean }> {
+  if (typeof windowId !== 'number') return { ok: false, active: false };
+  const postingWindow = activePostingWindows.get(windowId);
+  if (!postingWindow) return { ok: true, active: false };
+  const active = phase === 'acquire'
+    ? await postingWindow.acquireMediaFocus()
+    : await postingWindow.releaseMediaFocus();
+  return { ok: true, active };
+}
+
 /**
  * One unfocused browser window per real posting request.
  *
@@ -28,9 +51,10 @@ export function createPostingWindowSession(): PostingWindowSession {
   const expectedWindowCloses = new Set<number>();
   const unexpectedlyClosedWindows = new Set<number>();
   const closeWaiters = new Map<number, Set<() => void>>();
-  const focusFollowupTimers = new Set<ReturnType<typeof setTimeout>>();
   let focusRestoreInFlight = false;
+  let mediaFocusLeaseActive = false;
   const onWindowRemoved = (windowId: number): void => {
+    activePostingWindows.delete(windowId);
     if (expectedWindowCloses.delete(windowId)) return;
     unexpectedlyClosedWindows.add(windowId);
     if (currentState?.windowId === windowId) {
@@ -45,8 +69,12 @@ export function createPostingWindowSession(): PostingWindowSession {
     if (!state || windowId < 0) return;
     if (windowId !== state.windowId) {
       state.focusReturnWindowId = windowId;
+      // The user chose another window during the short media focus lease.
+      // Keep their choice and never pull focus back from it.
+      mediaFocusLeaseActive = false;
       return;
     }
+    if (mediaFocusLeaseActive) return;
     const focusReturnWindowId = state.focusReturnWindowId;
     if (
       typeof focusReturnWindowId !== 'number' ||
@@ -56,21 +84,6 @@ export function createPostingWindowSession(): PostingWindowSession {
       return;
     }
     restoreUserWindowFocus(focusReturnWindowId);
-    for (const delayMs of [50, 150]) {
-      const timer = setTimeout(() => {
-        focusFollowupTimers.delete(timer);
-        const latestState = currentState;
-        if (!latestState || latestState.windowId !== windowId) return;
-        void browser.windows.get(windowId)
-          .then((window) => {
-            if (window.focused && typeof latestState.focusReturnWindowId === 'number') {
-              restoreUserWindowFocus(latestState.focusReturnWindowId);
-            }
-          })
-          .catch(() => {});
-      }, delayMs);
-      focusFollowupTimers.add(timer);
-    }
   };
   let listenerInstalled = false;
 
@@ -92,6 +105,10 @@ export function createPostingWindowSession(): PostingWindowSession {
     }
     statePromise ??= createPostingWindow().then((state) => {
       currentState = state;
+      activePostingWindows.set(state.windowId, {
+        acquireMediaFocus,
+        releaseMediaFocus,
+      });
       return state;
     });
     return (await statePromise).windowId;
@@ -113,10 +130,43 @@ export function createPostingWindowSession(): PostingWindowSession {
     return currentState?.focusReturnWindowId;
   }
 
+  async function acquireMediaFocus(): Promise<boolean> {
+    const state = currentState;
+    if (!state) return false;
+    mediaFocusLeaseActive = true;
+    try {
+      await browser.windows.update(state.windowId, { focused: true });
+      return mediaFocusLeaseActive;
+    } catch {
+      mediaFocusLeaseActive = false;
+      return false;
+    }
+  }
+
+  async function releaseMediaFocus(): Promise<boolean> {
+    if (!mediaFocusLeaseActive) return false;
+    mediaFocusLeaseActive = false;
+    const state = currentState;
+    const focusReturnWindowId = state?.focusReturnWindowId;
+    if (
+      !state ||
+      typeof focusReturnWindowId !== 'number' ||
+      focusReturnWindowId === state.windowId
+    ) {
+      return false;
+    }
+    const postingWindow = await browser.windows.get(state.windowId).catch(() => undefined);
+    if (postingWindow?.focused !== true) return false;
+    await browser.windows.update(focusReturnWindowId, { focused: true }).catch(() => undefined);
+    return true;
+  }
+
   async function releaseBootstrapTab(): Promise<void> {
     const pending = statePromise;
     statePromise = undefined;
+    if (currentState) activePostingWindows.delete(currentState.windowId);
     currentState = undefined;
+    mediaFocusLeaseActive = false;
     try {
       if (!pending) return;
       const state = await pending.catch(() => undefined);
@@ -144,8 +194,6 @@ export function createPostingWindowSession(): PostingWindowSession {
         listenerInstalled = false;
       }
       closeWaiters.clear();
-      for (const timer of focusFollowupTimers) clearTimeout(timer);
-      focusFollowupTimers.clear();
     }
   }
 
@@ -171,10 +219,7 @@ async function createPostingWindow(): Promise<PostingWindowState> {
     url: 'about:blank',
     type: 'normal',
     focused: false,
-    ...(typeof coveringWindow?.left === 'number' ? { left: coveringWindow.left } : {}),
-    ...(typeof coveringWindow?.top === 'number' ? { top: coveringWindow.top } : {}),
-    ...(typeof coveringWindow?.width === 'number' ? { width: coveringWindow.width } : {}),
-    ...(typeof coveringWindow?.height === 'number' ? { height: coveringWindow.height } : {}),
+    ...postingWindowBounds(coveringWindow),
   });
   if (!created || typeof created.id !== 'number') {
     throw new Error('Tutti could not create a dedicated posting window');
@@ -206,4 +251,34 @@ async function createPostingWindow(): Promise<PostingWindowState> {
 
 function windowArea(window: Browser.windows.Window): number {
   return Math.max(0, window.width ?? 0) * Math.max(0, window.height ?? 0);
+}
+
+function postingWindowBounds(
+  coveringWindow: Browser.windows.Window | undefined,
+): {
+  left?: number;
+  top?: number;
+  width: number;
+  height: number;
+} {
+  const availableWidth = coveringWindow?.width;
+  const availableHeight = coveringWindow?.height;
+  const width = typeof availableWidth === 'number'
+    ? Math.min(POSTING_WINDOW_WIDTH, availableWidth)
+    : POSTING_WINDOW_WIDTH;
+  const height = typeof availableHeight === 'number'
+    ? Math.min(POSTING_WINDOW_HEIGHT, availableHeight)
+    : POSTING_WINDOW_HEIGHT;
+  const left = typeof coveringWindow?.left === 'number' && typeof availableWidth === 'number'
+    ? coveringWindow.left + Math.max(0, availableWidth - width - POSTING_WINDOW_MARGIN)
+    : undefined;
+  const top = typeof coveringWindow?.top === 'number' && typeof availableHeight === 'number'
+    ? coveringWindow.top + Math.max(0, availableHeight - height - POSTING_WINDOW_MARGIN)
+    : undefined;
+  return {
+    ...(typeof left === 'number' ? { left } : {}),
+    ...(typeof top === 'number' ? { top } : {}),
+    width,
+    height,
+  };
 }

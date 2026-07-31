@@ -211,6 +211,7 @@ async function executeXSinglePost(
         requireMediaPreview: true,
         requireUploadComplete: true,
         implementationPath,
+        requestPostingWindowMediaFocus: dryRun !== true,
       });
       if (images.some((image) => image.type.startsWith('video/'))) {
         await waitForXMediaReady(composeRoot);
@@ -328,6 +329,7 @@ async function executeXInlineThread(
         // video progress at 0% in an unfocused posting window.
         requireUploadComplete: true,
         implementationPath,
+        requestPostingWindowMediaFocus: dryRun !== true,
       });
       if (images.some((image) => image.type.startsWith('video/'))) {
         await waitForXMediaReady(composeRoot);

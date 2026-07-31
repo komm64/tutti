@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createPostingWindowSession } from './posting-window';
+import {
+  createPostingWindowSession,
+  handlePostingMediaFocus,
+} from './posting-window';
 
 describe('posting window session', () => {
   afterEach(() => {
@@ -60,10 +63,10 @@ describe('posting window session', () => {
       url: 'about:blank',
       type: 'normal',
       focused: false,
-      left: 10,
-      top: 20,
-      width: 1200,
-      height: 800,
+      left: 634,
+      top: 124,
+      width: 560,
+      height: 680,
     });
     expect(update).toHaveBeenCalledWith(7, { focused: true });
 
@@ -207,5 +210,129 @@ describe('posting window session', () => {
 
     await session.releaseBootstrapTab();
     expect(removeFocusListener).toHaveBeenCalledWith(focusListener);
+  });
+
+  it('leases focus only for media dispatch and then restores the user window once', async () => {
+    let focusListener: ((windowId: number) => void) | undefined;
+    let focusedWindowId = 7;
+    const update = vi.fn(async (windowId: number) => {
+      focusedWindowId = windowId;
+      focusListener?.(windowId);
+      return {};
+    });
+    vi.stubGlobal('browser', {
+      windows: {
+        getAll: vi.fn(async () => [{
+          id: 7,
+          type: 'normal',
+          focused: true,
+          left: 0,
+          top: 0,
+          width: 1200,
+          height: 800,
+        }]),
+        create: vi.fn(async () => ({
+          id: 45,
+          tabs: [{ id: 450, windowId: 45, url: 'about:blank' }],
+        })),
+        get: vi.fn(async (windowId: number) => ({
+          id: windowId,
+          focused: focusedWindowId === windowId,
+          tabs: [{ id: 450, windowId: 45, url: 'about:blank' }],
+        })),
+        remove: vi.fn(async () => undefined),
+        update,
+        onRemoved: {
+          addListener: vi.fn(),
+          removeListener: vi.fn(),
+        },
+        onFocusChanged: {
+          addListener: vi.fn((listener: (windowId: number) => void) => {
+            focusListener = listener;
+          }),
+          removeListener: vi.fn(),
+        },
+      },
+      tabs: {
+        query: vi.fn(async () => []),
+        remove: vi.fn(async () => undefined),
+      },
+    });
+
+    const session = createPostingWindowSession();
+    await session.getOrCreateWindowId();
+    update.mockClear();
+
+    await expect(handlePostingMediaFocus(45, 'acquire')).resolves.toEqual({
+      ok: true,
+      active: true,
+    });
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(update).toHaveBeenNthCalledWith(1, 45, { focused: true });
+
+    await expect(handlePostingMediaFocus(45, 'release')).resolves.toEqual({
+      ok: true,
+      active: true,
+    });
+    expect(update).toHaveBeenCalledTimes(2);
+    expect(update).toHaveBeenNthCalledWith(2, 7, { focused: true });
+
+    await session.releaseBootstrapTab();
+  });
+
+  it('does not reclaim focus after the user selects another window during the lease', async () => {
+    let focusListener: ((windowId: number) => void) | undefined;
+    const update = vi.fn(async () => undefined);
+    vi.stubGlobal('browser', {
+      windows: {
+        getAll: vi.fn(async () => [{
+          id: 7,
+          type: 'normal',
+          focused: true,
+        }]),
+        create: vi.fn(async () => ({
+          id: 46,
+          tabs: [{ id: 460, windowId: 46, url: 'about:blank' }],
+        })),
+        get: vi.fn(async () => ({
+          id: 46,
+          focused: false,
+          tabs: [{ id: 460, windowId: 46, url: 'about:blank' }],
+        })),
+        remove: vi.fn(async () => undefined),
+        update,
+        onRemoved: {
+          addListener: vi.fn(),
+          removeListener: vi.fn(),
+        },
+        onFocusChanged: {
+          addListener: vi.fn((listener: (windowId: number) => void) => {
+            focusListener = listener;
+          }),
+          removeListener: vi.fn(),
+        },
+      },
+      tabs: {
+        query: vi.fn(async () => []),
+        remove: vi.fn(async () => undefined),
+      },
+    });
+
+    const session = createPostingWindowSession();
+    await session.getOrCreateWindowId();
+    update.mockClear();
+
+    await handlePostingMediaFocus(46, 'acquire');
+    focusListener?.(9);
+    update.mockClear();
+
+    await expect(handlePostingMediaFocus(46, 'release')).resolves.toEqual({
+      ok: true,
+      active: false,
+    });
+    expect(update).not.toHaveBeenCalled();
+    expect(session.getFocusReturnWindowId()).toBe(9);
+
+    await session.releaseBootstrapTab();
   });
 });
