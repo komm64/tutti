@@ -24,6 +24,7 @@ import {
   injectTextIntoElement,
 } from '../src/utils/image';
 import {
+  getXComposeRoot,
   getXThreadTextarea,
   getXThreadTextareas as getExactXThreadTextareas,
 } from '../src/adapters/x-compose-dom';
@@ -189,13 +190,11 @@ async function executeXSinglePost(
       describeXComposeState(document),
     ));
   }
-  const composeRoot = initialTextarea.closest<HTMLElement>('[role="dialog"]') ??
-    initialTextarea.closest<HTMLElement>('main') ??
-    document.body;
+  let composeRoot = getXComposeRoot(initialTextarea);
 
-  const rootMarker = markXComposeRoot(composeRoot, 'single');
+  let rootMarker = markXComposeRoot(composeRoot, 'single');
   try {
-    const textareaSelector = scopedXComposeSelector(rootMarker, X_COMPOSE_TEXTAREA_SELECTOR);
+    let textareaSelector = scopedXComposeSelector(rootMarker, X_COMPOSE_TEXTAREA_SELECTOR);
     const textarea0 = await waitForXScopedElement(composeRoot, X_COMPOSE_TEXTAREA_SELECTOR, X_SINGLE_COMPOSE_READY_TIMEOUT_MS);
     if (!textarea0) {
       throw new Error(t(
@@ -219,8 +218,18 @@ async function executeXSinglePost(
         requestPostingWindowMediaFocus: dryRun !== true,
       });
       if (images.some((image) => image.type.startsWith('video/'))) {
-        await waitForXMediaReady(composeRoot, X_VIDEO_MEDIA_READY_TIMEOUT_MS);
+        // Switching browser windows can make X replace the entire compose
+        // subtree. Observe readiness from document, then bind the remaining
+        // work to the current root instead of the detached pre-upload node.
+        await waitForXMediaReady(document, X_VIDEO_MEDIA_READY_TIMEOUT_MS);
       }
+      ({ root: composeRoot, marker: rootMarker } = await reacquireXComposeRoot(
+        composeRoot,
+        rootMarker,
+        'single',
+        X_SINGLE_COMPOSE_READY_TIMEOUT_MS,
+      ));
+      textareaSelector = scopedXComposeSelector(rootMarker, X_COMPOSE_TEXTAREA_SELECTOR);
       await settleXEditorAfterMedia(
         composeRoot,
         0,
@@ -314,10 +323,8 @@ async function executeXInlineThread(
       describeXComposeState(document),
     ));
   }
-  const composeRoot = textarea0.closest<HTMLElement>('[role="dialog"]') ??
-    textarea0.closest<HTMLElement>('main') ??
-    document.body;
-  const rootMarker = markXComposeRoot(composeRoot, 'thread');
+  let composeRoot = getXComposeRoot(textarea0);
+  let rootMarker = markXComposeRoot(composeRoot, 'thread');
 
   try {
     // v0.4.97: 画像 → text の順序が重要。 旧 (text→image) は X の Lexical が
@@ -337,8 +344,14 @@ async function executeXInlineThread(
         requestPostingWindowMediaFocus: dryRun !== true,
       });
       if (images.some((image) => image.type.startsWith('video/'))) {
-        await waitForXMediaReady(composeRoot, X_VIDEO_MEDIA_READY_TIMEOUT_MS);
+        await waitForXMediaReady(document, X_VIDEO_MEDIA_READY_TIMEOUT_MS);
       }
+      ({ root: composeRoot, marker: rootMarker } = await reacquireXComposeRoot(
+        composeRoot,
+        rootMarker,
+        'thread',
+        X_THREAD_COMPOSE_READY_TIMEOUT_MS,
+      ));
       await settleXEditorAfterMedia(
         composeRoot,
         0,
@@ -609,6 +622,34 @@ function markXComposeRoot(root: HTMLElement, label: string): string {
   const marker = `tutti-x-${label}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   root.setAttribute('data-tutti-x-compose-root', marker);
   return marker;
+}
+
+async function reacquireXComposeRoot(
+  previousRoot: HTMLElement,
+  previousMarker: string,
+  label: string,
+  timeoutMs: number,
+): Promise<{ root: HTMLElement; marker: string }> {
+  const currentTextarea = await waitForXInitialTextarea(timeoutMs);
+  if (!currentTextarea) {
+    throw new Error(t(
+      'runtimeXTextareaTimeout',
+      1,
+      1,
+      1,
+      getXThreadTextareas(document).length,
+      describeXComposeState(document),
+    ));
+  }
+  const currentRoot = getXComposeRoot(currentTextarea);
+  if (currentRoot === previousRoot) {
+    return { root: previousRoot, marker: previousMarker };
+  }
+  unmarkXComposeRoot(previousRoot, previousMarker);
+  return {
+    root: currentRoot,
+    marker: markXComposeRoot(currentRoot, label),
+  };
 }
 
 function unmarkXComposeRoot(root: HTMLElement, marker: string): void {

@@ -1102,6 +1102,10 @@ async function observePostingWindow(
         postingTabActiveAndVisible &&
         last.browsingTabActive === true &&
         last.candidates.some((candidate) => candidate.windowFocused === true);
+      const ownedPostingTabClosedDuringInspection = last.candidates.some((candidate) => (
+        candidate.newWindow &&
+        /No tab with id|tab (?:was|is) closed/i.test(candidate.inspectError ?? '')
+      ));
       if (postingTabActiveAndVisible && originalWindowFocused) {
         if (typeof mediaFocusLeaseStartedAt === 'number') {
           maxMediaFocusLeaseMs = Math.max(
@@ -1126,7 +1130,11 @@ async function observePostingWindow(
             candidates: last.candidates,
           };
         }
-      } else if (last.candidates.length > 0 && !invalidBrowsingSample) {
+      } else if (
+        last.candidates.length > 0 &&
+        !ownedPostingTabClosedDuringInspection &&
+        !invalidBrowsingSample
+      ) {
         invalidBrowsingSample = {
           reason: 'browsing-or-posting-tab-lost',
           originalWindowStillFocused: last.originalWindowStillFocused,

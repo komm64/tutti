@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+  getXComposeRoot,
   getXThreadTextarea,
   getXThreadTextareas,
 } from './x-compose-dom';
@@ -25,5 +26,29 @@ describe('X thread compose DOM selection', () => {
 
     expect(getXThreadTextarea(document, 0, () => true)).toBeUndefined();
     expect(getXThreadTextarea(document, 1, () => true)?.textContent).toBe('second');
+  });
+
+  it('resolves the current dialog again after X remounts the composer', () => {
+    document.body.innerHTML = `
+      <main>
+        <div role="dialog" id="first">
+          <div data-testid="tweetTextarea_0" role="textbox"></div>
+        </div>
+      </main>
+    `;
+    const firstTextarea = document.querySelector<HTMLElement>('[data-testid="tweetTextarea_0"]')!;
+    const firstRoot = getXComposeRoot(firstTextarea);
+
+    document.querySelector('#first')?.remove();
+    document.querySelector('main')!.innerHTML = `
+      <div role="dialog" id="second">
+        <div data-testid="tweetTextarea_0" role="textbox"></div>
+      </div>
+    `;
+    const secondTextarea = document.querySelector<HTMLElement>('[data-testid="tweetTextarea_0"]')!;
+
+    expect(firstRoot.id).toBe('first');
+    expect(firstRoot.isConnected).toBe(false);
+    expect(getXComposeRoot(secondTextarea).id).toBe('second');
   });
 });

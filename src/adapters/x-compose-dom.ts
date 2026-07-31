@@ -23,3 +23,9 @@ export function getXThreadTextarea(
     (element) => element.getAttribute('data-testid') === `tweetTextarea_${index}`,
   );
 }
+
+export function getXComposeRoot(textarea: HTMLElement): HTMLElement {
+  return textarea.closest<HTMLElement>('[role="dialog"]') ??
+    textarea.closest<HTMLElement>('main') ??
+    document.body;
+}
