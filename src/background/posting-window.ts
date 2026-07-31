@@ -27,6 +27,8 @@ interface RegisteredPostingWindow {
 
 const POSTING_WINDOW_WIDTH = 560;
 const POSTING_WINDOW_HEIGHT = 680;
+const VIDEO_POSTING_WINDOW_WIDTH = 900;
+const VIDEO_POSTING_WINDOW_HEIGHT = 760;
 const POSTING_WINDOW_MARGIN = 16;
 const MEDIA_FOCUS_LEASE_MAX_MS = 1_000;
 const activePostingWindows = new Map<number, RegisteredPostingWindow>();
@@ -141,6 +143,7 @@ export function createPostingWindowSession(
     statePromise ??= createPostingWindow({
       initialUrl: options.initialUrl,
       restoreOriginalFocus: focusMode === 'background',
+      focusMode,
     }).then((state) => {
       currentState = state;
       activePostingWindows.set(state.windowId, {
@@ -269,6 +272,7 @@ export function createPostingWindowSession(
 async function createPostingWindow(options: {
   initialUrl?: string;
   restoreOriginalFocus: boolean;
+  focusMode: 'background' | 'foreground-video';
 }): Promise<PostingWindowState> {
   const windows = await browser.windows.getAll();
   const originalWindow = windows.find(
@@ -289,7 +293,10 @@ async function createPostingWindow(options: {
   }
   const createdWindowId = created.id;
   try {
-    await browser.windows.update(created.id, postingWindowBounds(coveringWindow));
+    await browser.windows.update(
+      created.id,
+      postingWindowBounds(coveringWindow, options.focusMode),
+    );
   } catch (error) {
     await browser.windows.remove(created.id).catch(() => {});
     throw new Error('Tutti could not size the dedicated posting window', {
@@ -336,6 +343,7 @@ function windowArea(window: Browser.windows.Window): number {
 
 function postingWindowBounds(
   coveringWindow: Browser.windows.Window | undefined,
+  focusMode: 'background' | 'foreground-video',
 ): {
   left?: number;
   top?: number;
@@ -346,8 +354,20 @@ function postingWindowBounds(
   const availableHeight = finiteWindowNumber(coveringWindow?.height);
   const coveringLeft = finiteWindowNumber(coveringWindow?.left);
   const coveringTop = finiteWindowNumber(coveringWindow?.top);
-  const width = POSTING_WINDOW_WIDTH;
-  const height = POSTING_WINDOW_HEIGHT;
+  const width = focusMode === 'foreground-video'
+    ? fitPostingWindowSize(
+        VIDEO_POSTING_WINDOW_WIDTH,
+        POSTING_WINDOW_WIDTH,
+        availableWidth,
+      )
+    : POSTING_WINDOW_WIDTH;
+  const height = focusMode === 'foreground-video'
+    ? fitPostingWindowSize(
+        VIDEO_POSTING_WINDOW_HEIGHT,
+        POSTING_WINDOW_HEIGHT,
+        availableHeight,
+      )
+    : POSTING_WINDOW_HEIGHT;
   const left = typeof coveringLeft === 'number' && typeof availableWidth === 'number'
     ? Math.floor(coveringLeft + Math.max(0, availableWidth - width - POSTING_WINDOW_MARGIN))
     : undefined;
@@ -360,6 +380,15 @@ function postingWindowBounds(
     width,
     height,
   };
+}
+
+function fitPostingWindowSize(
+  preferred: number,
+  minimum: number,
+  available: number | undefined,
+): number {
+  if (typeof available !== 'number' || available <= 0) return preferred;
+  return Math.min(preferred, Math.max(minimum, available - POSTING_WINDOW_MARGIN * 2));
 }
 
 function finiteWindowNumber(value: number | undefined): number | undefined {

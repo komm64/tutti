@@ -444,6 +444,12 @@ describe('posting window session', () => {
       focused: true,
     });
     expect(update).toHaveBeenCalledTimes(1);
+    expect(update).toHaveBeenCalledWith(50, {
+      left: 284,
+      top: 24,
+      width: 900,
+      height: 760,
+    });
     expect(update).not.toHaveBeenCalledWith(7, { focused: true });
     expect(session.getFocusReturnWindowId()).toBeUndefined();
 
