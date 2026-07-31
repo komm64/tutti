@@ -86,6 +86,8 @@ const CASES = {
     requires: ['text'],
     text: (stamp) => `tutti surface matrix text ${stamp}`,
     media: 'none',
+    verifyPostingWindowPlatform: 'x',
+    simulateUserBrowsing: true,
   },
   'text-emoji': {
     requires: ['text'],
@@ -112,6 +114,8 @@ const CASES = {
     requires: ['image'],
     text: (stamp) => `tutti surface matrix image ${stamp} #tutti`,
     media: 'image',
+    verifyPostingWindowPlatform: 'x',
+    simulateUserBrowsing: true,
   },
   'hashtags-image': {
     requires: ['image'],
@@ -147,13 +151,13 @@ const CASES = {
     requires: ['shortVideo'],
     text: (stamp) => (
       `tutti surface matrix X foreground thread ${stamp} ` +
-      'This draft verifies that a multi-chunk X video post runs as the active tab inside a dedicated posting window while browsing continues elsewhere. '.repeat(2) +
+      'This draft verifies that a multi-chunk X video post starts in a foreground posting window and resumes after one focus interruption. '.repeat(2) +
       '#tutti'
     ),
     media: 'video',
     verifyPublishedMedia: true,
     verifyPostingWindowPlatform: 'x',
-    simulateUserBrowsing: true,
+    postingWindowFocusPolicy: 'foreground-video',
   },
 };
 
@@ -314,6 +318,9 @@ for (const caseName of requestedCases) {
       const initialWindowIds = postingWindowPlatform
         ? await readBrowserWindowIds(popup)
         : undefined;
+      const initialFocusedWindowId = postingWindowPlatform
+        ? await readFocusedBrowserWindowId(popup)
+        : undefined;
       let requestSettled = false;
       const requestPromise = sendPostRequest(popup, {
         type: 'POST_REQUEST',
@@ -327,16 +334,25 @@ for (const caseName of requestedCases) {
         requestSettled = true;
       });
       if (postingWindowPlatform) {
-        postingWindowProbe = observePostingWindow(
-          popup,
-          initialWindowIds ?? [],
-          postingWindowPlatform,
-          () => requestSettled,
-          {
-            simulateUserBrowsing: caseDef.simulateUserBrowsing === true,
-            timeoutMs: caseTimeoutMs,
-          },
-        );
+        postingWindowProbe = caseDef.postingWindowFocusPolicy === 'foreground-video'
+          ? observeForegroundVideoPostingWindow(
+              popup,
+              initialWindowIds ?? [],
+              initialFocusedWindowId,
+              postingWindowPlatform,
+              () => requestSettled,
+              { timeoutMs: caseTimeoutMs },
+            )
+          : observePostingWindow(
+              popup,
+              initialWindowIds ?? [],
+              postingWindowPlatform,
+              () => requestSettled,
+              {
+                simulateUserBrowsing: caseDef.simulateUserBrowsing === true,
+                timeoutMs: caseTimeoutMs,
+              },
+            );
       }
       response = await withTimeout(
         requestPromise,
@@ -863,6 +879,138 @@ async function readBrowserWindowIds(popup) {
       .map((window) => window.id)
       .filter((id) => typeof id === 'number');
   });
+}
+
+async function readFocusedBrowserWindowId(popup) {
+  return await popup.evaluate(async () => {
+    const windows = await chrome.windows.getAll({ windowTypes: ['normal'] });
+    return windows.find((window) => window.focused === true)?.id;
+  });
+}
+
+async function observeForegroundVideoPostingWindow(
+  popup,
+  initialWindowIds,
+  initialFocusedWindowId,
+  platform,
+  isRequestSettled,
+  { timeoutMs = 360_000 } = {},
+) {
+  const deadline = Date.now() + timeoutMs;
+  const focusLossHoldMs = 5_000;
+  let last;
+  let postingWindowId;
+  let browsingTab;
+  let foregroundObservedAt;
+  let focusLostAt;
+  let focusRestoredAt;
+  let browsingNavigationDone = false;
+
+  do {
+    last = await inspectPostingWindow(
+      popup,
+      initialWindowIds,
+      platform,
+      browsingTab,
+    );
+    const candidate = last.candidates.find((item) => item.newWindow) ?? last.candidates[0];
+    if (candidate && typeof candidate.windowId === 'number') {
+      postingWindowId ??= candidate.windowId;
+    }
+
+    const mediaState = candidate?.composeState?.mediaState;
+    const mediaStarted = (mediaState?.videoCount ?? 0) > 0 ||
+      (mediaState?.progress?.length ?? 0) > 0;
+    if (
+      !foregroundObservedAt &&
+      candidate?.windowFocused === true &&
+      candidate.tabActive === true &&
+      candidate.visibilityState === 'visible' &&
+      candidate.hidden === false &&
+      mediaState?.documentHasFocus === true &&
+      mediaStarted
+    ) {
+      foregroundObservedAt = Date.now();
+      browsingTab = await openBrowsingTab(popup, initialFocusedWindowId);
+      continue;
+    }
+
+    if (
+      foregroundObservedAt &&
+      !focusRestoredAt &&
+      candidate?.windowFocused === false &&
+      candidate.tabActive === true &&
+      candidate.visibilityState === 'visible' &&
+      candidate.hidden === false &&
+      mediaState?.documentHasFocus === false &&
+      last.focusedOriginalWindowId === browsingTab?.windowId &&
+      last.browsingTabActive === true
+    ) {
+      focusLostAt ??= Date.now();
+      const focusLossDurationMs = Date.now() - focusLostAt;
+      if (!browsingNavigationDone && focusLossDurationMs >= 1_500) {
+        browsingTab = await navigateBrowsingTab(popup, browsingTab);
+        browsingNavigationDone = true;
+      }
+      if (focusLossDurationMs >= focusLossHoldMs && typeof postingWindowId === 'number') {
+        await focusBrowserWindow(popup, postingWindowId);
+      }
+    }
+
+    if (
+      focusLostAt &&
+      !focusRestoredAt &&
+      candidate?.windowFocused === true &&
+      candidate.tabActive === true &&
+      mediaState?.documentHasFocus === true
+    ) {
+      focusRestoredAt = Date.now();
+    }
+
+    if (isRequestSettled()) {
+      return {
+        ...last,
+        ok: Boolean(foregroundObservedAt && focusLostAt && focusRestoredAt),
+        focusPolicy: 'foreground-video',
+        postingWindowId,
+        initialFocusedWindowId,
+        foregroundObservedAt,
+        focusLostAt,
+        focusRestoredAt,
+        focusLossDurationMs: focusLostAt
+          ? (focusRestoredAt ?? Date.now()) - focusLostAt
+          : 0,
+        browsingTabId: browsingTab?.tabId,
+        browsingWindowId: browsingTab?.windowId,
+        mediaState: candidate?.composeState?.mediaState,
+      };
+    }
+
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 250));
+  } while (Date.now() < deadline);
+
+  return {
+    ...last,
+    ok: false,
+    focusPolicy: 'foreground-video',
+    postingWindowId,
+    initialFocusedWindowId,
+    foregroundObservedAt,
+    focusLostAt,
+    focusRestoredAt,
+    focusLossDurationMs: focusLostAt
+      ? (focusRestoredAt ?? Date.now()) - focusLostAt
+      : 0,
+    browsingTabId: browsingTab?.tabId,
+    browsingWindowId: browsingTab?.windowId,
+    error: `foreground video posting observation timed out after ${timeoutMs}ms`,
+  };
+}
+
+async function focusBrowserWindow(popup, windowId) {
+  await popup.evaluate(async (targetWindowId) => {
+    await chrome.windows.update(targetWindowId, { focused: true });
+  }, windowId);
 }
 
 async function observePostingWindow(
