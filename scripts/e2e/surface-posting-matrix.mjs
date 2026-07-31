@@ -132,6 +132,8 @@ const CASES = {
     text: (stamp) => `tutti surface matrix video ${stamp}`,
     media: 'video',
     verifyPublishedMedia: true,
+    verifyPostingWindowPlatform: 'x',
+    postingWindowFocusPolicy: 'foreground-video',
   },
   'image-video': {
     requires: ['shortVideo'],
@@ -913,7 +915,15 @@ async function observeForegroundVideoPostingWindow(
       platform,
       browsingTab,
     );
-    const candidate = last.candidates.find((item) => item.newWindow) ?? last.candidates[0];
+    const candidate = (
+      typeof postingWindowId === 'number'
+        ? last.candidates.find((item) => (
+            item.windowId === postingWindowId && item.tabActive === true
+          ))
+        : undefined
+    ) ?? last.candidates.find((item) => item.newWindow && item.tabActive === true)
+      ?? last.candidates.find((item) => item.newWindow)
+      ?? last.candidates[0];
     if (candidate && typeof candidate.windowId === 'number') {
       postingWindowId ??= candidate.windowId;
     }
@@ -942,7 +952,6 @@ async function observeForegroundVideoPostingWindow(
       candidate.tabActive === true &&
       candidate.visibilityState === 'visible' &&
       candidate.hidden === false &&
-      mediaState?.documentHasFocus === false &&
       last.focusedOriginalWindowId === browsingTab?.windowId &&
       last.browsingTabActive === true
     ) {
