@@ -819,9 +819,13 @@ async function observePostingWindow(
   const deadline = Date.now() + timeoutMs;
   const browsingStartedAt = Date.now();
   const requiredBrowsingSamples = 12;
+  const allowedMediaFocusLeaseMs = 1_500;
   let browsingTab;
   let browsingNavigationDone = false;
   let browsingSamples = 0;
+  let mediaFocusLeaseStartedAt;
+  let mediaFocusLeaseSamples = 0;
+  let maxMediaFocusLeaseMs = 0;
   let invalidBrowsingSample;
   let last = {
     ok: false,
@@ -832,11 +836,19 @@ async function observePostingWindow(
   do {
     if (isRequestSettled()) {
       if (!simulateUserBrowsing) return last;
+      if (typeof mediaFocusLeaseStartedAt === 'number') {
+        maxMediaFocusLeaseMs = Math.max(
+          maxMediaFocusLeaseMs,
+          Date.now() - mediaFocusLeaseStartedAt,
+        );
+      }
       return {
         ...last,
         ok: Boolean(
           browsingTab &&
           browsingSamples >= requiredBrowsingSamples &&
+          last.originalWindowStillFocused === true &&
+          maxMediaFocusLeaseMs <= allowedMediaFocusLeaseMs &&
           !invalidBrowsingSample
         ),
         simulatedUserBrowsing: true,
@@ -846,6 +858,9 @@ async function observePostingWindow(
         browsingDurationMs: browsingTab
           ? Date.now() - browsingStartedAt
           : 0,
+        allowedMediaFocusLeaseMs,
+        mediaFocusLeaseSamples,
+        maxMediaFocusLeaseMs,
         ...(invalidBrowsingSample ? { invalidBrowsingSample } : {}),
       };
     }
@@ -867,13 +882,46 @@ async function observePostingWindow(
       continue;
     }
     if (simulateUserBrowsing && browsingTab) {
-      const browsingOk = last.ok &&
+      const postingTabActiveAndVisible = last.candidates.some((candidate) => (
+        candidate.newWindow &&
+        candidate.tabActive === true &&
+        candidate.visibilityState === 'visible' &&
+        candidate.hidden === false
+      ));
+      const originalWindowFocused =
         last.browsingTabActive === true &&
         last.focusedOriginalWindowId === browsingTab.windowId;
-      if (browsingOk) {
+      const mediaFocusLeaseObserved =
+        postingTabActiveAndVisible &&
+        last.browsingTabActive === true &&
+        last.candidates.some((candidate) => candidate.windowFocused === true);
+      if (postingTabActiveAndVisible && originalWindowFocused) {
+        if (typeof mediaFocusLeaseStartedAt === 'number') {
+          maxMediaFocusLeaseMs = Math.max(
+            maxMediaFocusLeaseMs,
+            Date.now() - mediaFocusLeaseStartedAt,
+          );
+          mediaFocusLeaseStartedAt = undefined;
+        }
         browsingSamples += 1;
+      } else if (mediaFocusLeaseObserved) {
+        mediaFocusLeaseStartedAt ??= Date.now();
+        mediaFocusLeaseSamples += 1;
+        const leaseDurationMs = Date.now() - mediaFocusLeaseStartedAt;
+        maxMediaFocusLeaseMs = Math.max(maxMediaFocusLeaseMs, leaseDurationMs);
+        if (leaseDurationMs > allowedMediaFocusLeaseMs && !invalidBrowsingSample) {
+          invalidBrowsingSample = {
+            reason: 'posting-window-focus-lease-exceeded',
+            leaseDurationMs,
+            originalWindowStillFocused: last.originalWindowStillFocused,
+            focusedOriginalWindowId: last.focusedOriginalWindowId,
+            browsingTabActive: last.browsingTabActive,
+            candidates: last.candidates,
+          };
+        }
       } else if (last.candidates.length > 0 && !invalidBrowsingSample) {
         invalidBrowsingSample = {
+          reason: 'browsing-or-posting-tab-lost',
           originalWindowStillFocused: last.originalWindowStillFocused,
           focusedOriginalWindowId: last.focusedOriginalWindowId,
           browsingTabActive: last.browsingTabActive,
@@ -897,6 +945,9 @@ async function observePostingWindow(
     browsingTabId: browsingTab?.tabId,
     browsingWindowId: browsingTab?.windowId,
     browsingSamples,
+    allowedMediaFocusLeaseMs,
+    mediaFocusLeaseSamples,
+    maxMediaFocusLeaseMs,
     ...(invalidBrowsingSample ? { invalidBrowsingSample } : {}),
     error: `posting window observation timed out after ${timeoutMs}ms`,
   };
