@@ -87,6 +87,7 @@ describe('additive message wire fixtures', () => {
       true,
       undefined,
       undefined,
+      undefined,
     );
     expect(response).toMatchObject({
       type: 'POST_RESULT',
@@ -121,6 +122,28 @@ describe('additive message wire fixtures', () => {
       true,
       undefined,
       'next',
+      undefined,
+    );
+  });
+
+  it('forwards the pre-dispatch account to compact posting windows', async () => {
+    const runPost = vi.fn(async () => postResultFixture as unknown as PostResultMessage);
+    const listener = installContentBootstrap(runPost);
+
+    await new Promise<unknown>((resolve) => {
+      expect(listener({
+        ...postToPlatformFixture,
+        expectedUser: '@alice',
+      }, {}, resolve)).toBe(true);
+    });
+
+    expect(runPost).toHaveBeenCalledWith(
+      'additive contract',
+      expect.any(Array),
+      true,
+      undefined,
+      undefined,
+      '@alice',
     );
   });
 

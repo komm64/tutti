@@ -15,6 +15,7 @@ const READY_DELAY_MS = 100;
 /** waitForTabComplete の上限 */
 const TAB_LOAD_TIMEOUT_MS = 15000;
 const DEFAULT_LOAD_RETRY_DELAY_MS = 1000;
+const TAB_CLOSE_TIMEOUT_MS = 2000;
 
 export interface OpenOrFocusTabOptions {
   /**
@@ -168,11 +169,37 @@ export async function openOrFocusTab(
  * 判断後にこの関数を呼ぶ。
  */
 export async function closeTabSafely(tabId: number): Promise<void> {
-  try {
-    await browser.tabs.remove(tabId);
-  } catch (e) {
-    log.warn(`close tab ${tabId} failed: ${e instanceof Error ? e.message : String(e)}`);
-  }
+  await new Promise<void>((resolve) => {
+    let settled = false;
+    const finish = (): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve();
+    };
+    const timer = setTimeout(() => {
+      log.warn(`close tab ${tabId} timed out after ${TAB_CLOSE_TIMEOUT_MS}ms`);
+      finish();
+    }, TAB_CLOSE_TIMEOUT_MS);
+    try {
+      void browser.tabs.remove(tabId).then(
+        finish,
+        (error: unknown) => {
+          log.warn(
+            `close tab ${tabId} failed: ` +
+            `${error instanceof Error ? error.message : String(error)}`,
+          );
+          finish();
+        },
+      );
+    } catch (error) {
+      log.warn(
+        `close tab ${tabId} failed: ` +
+        `${error instanceof Error ? error.message : String(error)}`,
+      );
+      finish();
+    }
+  });
 }
 
 /**

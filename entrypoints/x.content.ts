@@ -29,6 +29,7 @@ import {
 } from '../src/adapters/x-compose-dom';
 import { t } from '../src/utils/i18n';
 import { markPostSubmissionStarted } from '../src/utils/post-submission-state';
+import { resolveXOwnHandle } from '../src/adapters/x-user';
 
 const X_THREAD_TEXTAREA_TIMEOUT_MS = 15000;
 const X_THREAD_COMPOSE_READY_TIMEOUT_MS = 30000;
@@ -109,12 +110,13 @@ async function runPost(
   dryRun?: boolean,
   textChunks?: string[],
   implementationPath?: PostImplementationPath,
+  expectedUser?: string,
 ): Promise<PostResultMessage> {
   const sel = await resolveSelectors('x', X_SELECTORS);
 
   // post 前に own user の既存 status link を記録 (post 後の new status を識別する用)
   const handle = detectXUser();
-  let cleanHandle = handle?.startsWith('@') ? handle.slice(1) : handle;
+  let cleanHandle = resolveXOwnHandle(handle, expectedUser);
   const beforeIds = new Set<string>();
   if (cleanHandle) {
     for (const link of document.querySelectorAll<HTMLAnchorElement>(`a[href*="/${cleanHandle}/status/"]`)) {
@@ -149,7 +151,7 @@ async function runPost(
   let url: string | undefined;
   if (!dryRun) {
     const detectedAfterSubmit = detectXUser();
-    cleanHandle ??= detectedAfterSubmit?.startsWith('@') ? detectedAfterSubmit.slice(1) : detectedAfterSubmit;
+    cleanHandle ??= resolveXOwnHandle(detectedAfterSubmit, expectedUser);
     if (!cleanHandle) {
       throw new Error(t('runtimeXOwnHandleMissing'));
     }
