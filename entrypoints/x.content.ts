@@ -4,7 +4,10 @@ import type {
   PostImplementationPath,
   PostResultMessage,
 } from '../src/messages';
-import { X_SELECTORS } from '../src/adapters/x';
+import {
+  X_SELECTORS,
+  X_VIDEO_MEDIA_READY_TIMEOUT_MS,
+} from '../src/adapters/x';
 import { resolvePostButtonTimeoutMs } from '../src/utils/post-flow';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
@@ -214,7 +217,7 @@ async function executeXSinglePost(
         requestPostingWindowMediaFocus: dryRun !== true,
       });
       if (images.some((image) => image.type.startsWith('video/'))) {
-        await waitForXMediaReady(composeRoot);
+        await waitForXMediaReady(composeRoot, X_VIDEO_MEDIA_READY_TIMEOUT_MS);
       }
       await settleXEditorAfterMedia(
         composeRoot,
@@ -332,7 +335,7 @@ async function executeXInlineThread(
         requestPostingWindowMediaFocus: dryRun !== true,
       });
       if (images.some((image) => image.type.startsWith('video/'))) {
-        await waitForXMediaReady(composeRoot);
+        await waitForXMediaReady(composeRoot, X_VIDEO_MEDIA_READY_TIMEOUT_MS);
       }
       await settleXEditorAfterMedia(
         composeRoot,
@@ -708,7 +711,7 @@ function waitForXInitialTextarea(
 
 async function waitForXMediaReady(
   scope: ParentNode,
-  timeoutMs = 120_000,
+  timeoutMs: number,
 ): Promise<void> {
   const enabled = await waitForCondition<HTMLElement>(
     () => findXSinglePostButton(scope),

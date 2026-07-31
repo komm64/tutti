@@ -4,9 +4,10 @@ import { t } from '../utils/i18n';
 import { waitForTabComplete } from './tab-management';
 import { retryTransientTabAction } from './tab-action-retry';
 
-// Keep this above the longest content-script media wait (120s video upload /
-// post-button waits) so the background guard does not preempt a valid flow.
-export const POST_MESSAGE_RESPONSE_TIMEOUT_MS = 240_000;
+// X may spend up to 120s accepting a video, another 300s processing it, then
+// capture the resulting URL. Keep this guard above that complete content flow
+// so the background does not abandon a valid composer and invite a retry.
+export const POST_MESSAGE_RESPONSE_TIMEOUT_MS = 600_000;
 
 /**
  * tab complete の直後は content script の listener 登録が数百 ms 遅れる場合がある。
