@@ -2,10 +2,19 @@ import { describe, expect, it } from 'vitest';
 import {
   createTimedOutSurfaceSummary,
   formatSurfaceMatrixOutcome,
+  hasSurfaceVideoPreview,
   validateSurfaceResultContract,
 } from '../scripts/e2e/surface-posting-matrix-contract.mjs';
 
 describe('Surface posting matrix CLI contract', () => {
+  it('does not mistake the X character counter for video upload evidence', () => {
+    expect(hasSurfaceVideoPreview({
+      videoCount: 0,
+      progress: [{ ariaValueNow: '23' }],
+    })).toBe(false);
+    expect(hasSurfaceVideoPreview({ videoCount: 1, progress: [] })).toBe(true);
+  });
+
   it('keeps the successful release-gate output and exit code stable', () => {
     expect(formatSurfaceMatrixOutcome([])).toEqual({
       passed: true,

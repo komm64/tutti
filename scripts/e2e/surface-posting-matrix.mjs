@@ -37,6 +37,7 @@ import {
 import {
   createTimedOutSurfaceSummary,
   formatSurfaceMatrixOutcome,
+  hasSurfaceVideoPreview,
   validateSurfaceResultContract,
 } from './surface-posting-matrix-contract.mjs';
 
@@ -929,8 +930,10 @@ async function observeForegroundVideoPostingWindow(
     }
 
     const mediaState = candidate?.composeState?.mediaState;
-    const mediaStarted = (mediaState?.videoCount ?? 0) > 0 ||
-      (mediaState?.progress?.length ?? 0) > 0;
+    // X always renders a character-count progress ring in the composer. It is
+    // not upload evidence and caused the focus probe to switch away before the
+    // file input had even received the video. Wait for the actual preview.
+    const mediaStarted = hasSurfaceVideoPreview(mediaState);
     if (
       !foregroundObservedAt &&
       candidate?.windowFocused === true &&

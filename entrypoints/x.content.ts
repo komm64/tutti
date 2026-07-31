@@ -39,6 +39,7 @@ const X_THREAD_POST_BUTTON_TIMEOUT_MS = 10000;
 const X_SINGLE_COMPOSE_READY_TIMEOUT_MS = 30000;
 const X_SINGLE_POST_BUTTON_TIMEOUT_MS = 30000;
 const X_SINGLE_MEDIA_SETTLE_MS = 2500;
+const X_VIDEO_ATTACHMENT_LOST_GRACE_MS = 5000;
 const X_COMPOSE_TEXTAREA_SELECTOR = [
   '[data-testid="tweetTextarea_0"][role="textbox"]',
   '[data-testid="tweetTextarea_0"][contenteditable="true"]',
@@ -222,7 +223,13 @@ async function executeXSinglePost(
         // Switching browser windows can make X replace the entire compose
         // subtree. Observe readiness from document, then bind the remaining
         // work to the current root instead of the detached pre-upload node.
-        await waitForXMediaReady(X_VIDEO_MEDIA_READY_TIMEOUT_MS);
+        const mediaReady = await waitForXMediaReady(X_VIDEO_MEDIA_READY_TIMEOUT_MS);
+        if (mediaReady === 'lost') {
+          throw new Error(t('runtimeXVideoAttachmentLost'));
+        }
+        if (mediaReady === 'timeout') {
+          throw new Error(t('runtimePostButtonDisabled'));
+        }
       }
       ({ root: composeRoot, marker: rootMarker } = await reacquireXComposeRoot(
         composeRoot,
@@ -355,7 +362,13 @@ async function executeXInlineThread(
         requestPostingWindowMediaFocus: dryRun !== true,
       });
       if (images.some((image) => image.type.startsWith('video/'))) {
-        await waitForXMediaReady(X_VIDEO_MEDIA_READY_TIMEOUT_MS);
+        const mediaReady = await waitForXMediaReady(X_VIDEO_MEDIA_READY_TIMEOUT_MS);
+        if (mediaReady === 'lost') {
+          throw new Error(t('runtimeXVideoAttachmentLost'));
+        }
+        if (mediaReady === 'timeout') {
+          throw new Error(t('runtimePostButtonDisabled'));
+        }
       }
       ({ root: composeRoot, marker: rootMarker } = await reacquireXComposeRoot(
         composeRoot,
@@ -778,14 +791,32 @@ function findXInitialTextarea(): HTMLElement | null {
 
 async function waitForXMediaReady(
   timeoutMs: number,
-): Promise<void> {
-  const enabled = await waitForCondition<HTMLElement>(
+): Promise<'ready' | 'lost' | 'timeout'> {
+  // injectImages has already observed a real media preview. If X later
+  // replaces the compose subtree and the preview does not return after focus
+  // is restored, stop before submit instead of waiting five minutes and
+  // reporting an unrelated disabled-button error.
+  let missingSince: number | undefined;
+  const result = await waitForCondition<'ready' | 'lost'>(
     () => {
       const currentTextarea = findXInitialTextarea();
-      if (!currentTextarea) return null;
+      if (!currentTextarea) {
+        missingSince = undefined;
+        return null;
+      }
       const currentRoot = getXComposeRoot(currentTextarea);
-      if (!hasXVideoAttachment(currentRoot, isVisible)) return null;
-      return findXSinglePostButton(currentRoot);
+      if (hasXVideoAttachment(currentRoot, isVisible)) {
+        missingSince = undefined;
+        return findXSinglePostButton(currentRoot) ? 'ready' : null;
+      }
+      if (!document.hasFocus()) {
+        missingSince = undefined;
+        return null;
+      }
+      missingSince ??= Date.now();
+      return Date.now() - missingSince >= X_VIDEO_ATTACHMENT_LOST_GRACE_MS
+        ? 'lost'
+        : null;
     },
     {
       timeoutMs,
@@ -804,9 +835,7 @@ async function waitForXMediaReady(
       pauseTimeoutWhile: () => !document.hasFocus(),
     },
   );
-  if (!enabled) {
-    throw new Error(t('runtimePostButtonDisabled'));
-  }
+  return result ?? 'timeout';
 }
 
 async function waitForXStableVideoPostButton(

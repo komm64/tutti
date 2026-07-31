@@ -9,6 +9,11 @@ export function formatSurfaceMatrixOutcome(
   failures: readonly string[],
 ): SurfaceMatrixOutcome;
 
+export function hasSurfaceVideoPreview(mediaState?: {
+  videoCount?: number;
+  progress?: Array<{ ariaValueNow?: string | null }>;
+}): boolean;
+
 export function validateSurfaceResultContract(input: {
   mode: 'preview' | 'post';
   caseName: string;
