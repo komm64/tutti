@@ -14,6 +14,7 @@
  *   node scripts/e2e/surface-posting-matrix.mjs --mode post --cases image-only,text-image --platforms x,bluesky,threads
  *   node scripts/e2e/surface-posting-matrix.mjs --mode preview --repeat 2
  *   node scripts/e2e/surface-posting-matrix.mjs --mode preview --case-timeout-ms 360000
+ *   node scripts/e2e/surface-posting-matrix.mjs --mode post --cases text-video --platforms x --no-video-focus-interruption
  *
  * Video cases require ffmpeg and ffprobe on the runner so each upload gets a
  * valid, visually unique fixture instead of repeatedly sending identical bytes.
@@ -197,6 +198,7 @@ if (!Number.isInteger(caseTimeoutMs) || caseTimeoutMs < 10_000) {
 }
 const skipExtensionReload = args.includes('--skip-extension-reload');
 const debugBgStateOnTimeout = args.includes('--debug-bg-state-on-timeout');
+const simulateVideoFocusInterruption = !args.includes('--no-video-focus-interruption');
 
 const cdp = resolveCdpEndpoint({ fallback: 'http://127.0.0.1:9223' });
 const imagePath = resolve(process.env.IMAGE_PATH ?? 'scripts/e2e/fixtures/test-image.png');
@@ -210,6 +212,7 @@ console.log(`[matrix] cases=${requestedCases.join(',')}`);
 console.log(`[matrix] caseTimeoutMs=${caseTimeoutMs}`);
 console.log(`[matrix] summaryJson=${summaryPath}`);
 if (debugBgStateOnTimeout) console.log('[matrix] debugBgStateOnTimeout=true');
+console.log(`[matrix] simulateVideoFocusInterruption=${simulateVideoFocusInterruption}`);
 
 for (const platform of requestedPlatforms) {
   if (!ALL_PLATFORMS.includes(platform)) {
@@ -344,7 +347,10 @@ for (const caseName of requestedCases) {
               initialFocusedWindowId,
               postingWindowPlatform,
               () => requestSettled,
-              { timeoutMs: caseTimeoutMs },
+              {
+                timeoutMs: caseTimeoutMs,
+                simulateFocusInterruption: simulateVideoFocusInterruption,
+              },
             )
           : observePostingWindow(
               popup,
@@ -897,7 +903,7 @@ async function observeForegroundVideoPostingWindow(
   initialFocusedWindowId,
   platform,
   isRequestSettled,
-  { timeoutMs = 360_000 } = {},
+  { timeoutMs = 360_000, simulateFocusInterruption = true } = {},
 ) {
   const deadline = Date.now() + timeoutMs;
   const focusLossHoldMs = 5_000;
@@ -944,8 +950,10 @@ async function observeForegroundVideoPostingWindow(
       mediaStarted
     ) {
       foregroundObservedAt = Date.now();
-      browsingTab = await openBrowsingTab(popup, initialFocusedWindowId);
-      continue;
+      if (simulateFocusInterruption) {
+        browsingTab = await openBrowsingTab(popup, initialFocusedWindowId);
+        continue;
+      }
     }
 
     if (
@@ -980,10 +988,13 @@ async function observeForegroundVideoPostingWindow(
     }
 
     if (isRequestSettled()) {
+      const focusEvidenceOk = !simulateFocusInterruption ||
+        Boolean(focusLostAt && focusRestoredAt);
       return {
         ...last,
-        ok: Boolean(foregroundObservedAt && focusLostAt && focusRestoredAt),
+        ok: Boolean(foregroundObservedAt && focusEvidenceOk),
         focusPolicy: 'foreground-video',
+        focusInterruptionSimulated: simulateFocusInterruption,
         postingWindowId,
         initialFocusedWindowId,
         foregroundObservedAt,
@@ -1005,6 +1016,7 @@ async function observeForegroundVideoPostingWindow(
     ...last,
     ok: false,
     focusPolicy: 'foreground-video',
+    focusInterruptionSimulated: simulateFocusInterruption,
     postingWindowId,
     initialFocusedWindowId,
     foregroundObservedAt,
