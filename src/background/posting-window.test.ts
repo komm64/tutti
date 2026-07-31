@@ -9,7 +9,7 @@ describe('posting window session', () => {
     vi.unstubAllGlobals();
   });
 
-  it('shares one unfocused window across concurrent DOM posting lanes', async () => {
+  it('shares one small window across concurrent DOM posting lanes', async () => {
     const create = vi.fn(async () => ({
       id: 41,
       tabs: [{ id: 410, windowId: 41, url: 'about:blank' }],
@@ -62,13 +62,15 @@ describe('posting window session', () => {
     expect(create).toHaveBeenCalledWith({
       url: 'about:blank',
       type: 'normal',
-      focused: false,
+      focused: true,
+    });
+    expect(update).toHaveBeenNthCalledWith(1, 41, {
       left: 634,
       top: 124,
       width: 560,
       height: 680,
     });
-    expect(update).toHaveBeenCalledWith(7, { focused: true });
+    expect(update).toHaveBeenNthCalledWith(2, 7, { focused: true });
 
     await session.releaseBootstrapTab();
     expect(remove).toHaveBeenCalledWith(41);
@@ -116,6 +118,105 @@ describe('posting window session', () => {
 
     expect(removeTab).toHaveBeenCalledWith(420);
     expect(removeWindow).not.toHaveBeenCalled();
+  });
+
+  it('closes the dedicated window and aborts before posting if sizing fails', async () => {
+    const remove = vi.fn(async () => undefined);
+    const update = vi.fn(async (windowId: number) => {
+      if (windowId === 47) throw new Error('invalid bounds');
+      return undefined;
+    });
+    vi.stubGlobal('browser', {
+      windows: {
+        getAll: vi.fn(async () => [{
+          id: 7,
+          type: 'normal',
+          focused: true,
+          left: 0,
+          top: 0,
+          width: 900,
+          height: 700,
+        }]),
+        create: vi.fn(async () => ({
+          id: 47,
+          tabs: [{ id: 470, windowId: 47, url: 'about:blank' }],
+        })),
+        get: vi.fn(async () => undefined),
+        remove,
+        update,
+        onRemoved: {
+          addListener: vi.fn(),
+          removeListener: vi.fn(),
+        },
+        onFocusChanged: {
+          addListener: vi.fn(),
+          removeListener: vi.fn(),
+        },
+      },
+      tabs: {
+        query: vi.fn(async () => []),
+        remove: vi.fn(async () => undefined),
+      },
+    });
+
+    const session = createPostingWindowSession();
+
+    await expect(session.getOrCreateWindowId()).rejects.toThrow(
+      'Tutti could not size the dedicated posting window',
+    );
+    expect(remove).toHaveBeenCalledWith(47);
+    expect(update).toHaveBeenLastCalledWith(7, { focused: true });
+
+    await session.releaseBootstrapTab();
+  });
+
+  it('uses safe default bounds when the covering window reports invalid geometry', async () => {
+    const update = vi.fn(async () => undefined);
+    vi.stubGlobal('browser', {
+      windows: {
+        getAll: vi.fn(async () => [{
+          id: 7,
+          type: 'normal',
+          focused: true,
+          left: Number.NaN,
+          top: Number.POSITIVE_INFINITY,
+          width: 0,
+          height: -1,
+        }]),
+        create: vi.fn(async () => ({
+          id: 48,
+          tabs: [{ id: 480, windowId: 48, url: 'about:blank' }],
+        })),
+        get: vi.fn(async () => ({
+          id: 48,
+          tabs: [{ id: 480, windowId: 48, url: 'about:blank' }],
+        })),
+        remove: vi.fn(async () => undefined),
+        update,
+        onRemoved: {
+          addListener: vi.fn(),
+          removeListener: vi.fn(),
+        },
+        onFocusChanged: {
+          addListener: vi.fn(),
+          removeListener: vi.fn(),
+        },
+      },
+      tabs: {
+        query: vi.fn(async () => []),
+        remove: vi.fn(async () => undefined),
+      },
+    });
+
+    const session = createPostingWindowSession();
+    await session.getOrCreateWindowId();
+
+    expect(update).toHaveBeenNthCalledWith(1, 48, {
+      width: 560,
+      height: 680,
+    });
+
+    await session.releaseBootstrapTab();
   });
 
   it('detects when the user closes the posting window', async () => {

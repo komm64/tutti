@@ -138,7 +138,7 @@ const CASES = {
     requires: ['shortVideo'],
     text: (stamp) => (
       `tutti surface matrix X foreground thread ${stamp} ` +
-      'This draft verifies that a multi-chunk X video post runs as the active tab inside a dedicated unfocused posting window. '.repeat(2) +
+      'This draft verifies that a multi-chunk X video post runs as the active tab inside a dedicated posting window while browsing continues elsewhere. '.repeat(2) +
       '#tutti'
     ),
     media: 'video',

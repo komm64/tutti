@@ -37,13 +37,14 @@ export async function handlePostingMediaFocus(
 }
 
 /**
- * One unfocused browser window per real posting request.
+ * One dedicated browser window per real posting request.
  *
- * DOM posting tabs can be active inside this window without replacing the
- * user's active tab in their main browser window. A bootstrap tab keeps the
- * window alive while concurrent posting lanes start; releasing it leaves only
- * failed/user-action tabs behind, or closes the window after successful tabs
- * have been cleaned up.
+ * Chromium creates the window through its normal focused path, then Tutti
+ * immediately sizes it and returns focus to the user's window. DOM posting
+ * tabs can remain active/visible inside the dedicated window while the user
+ * continues browsing elsewhere. A bootstrap tab keeps the window alive while
+ * concurrent posting lanes start; releasing it leaves only failed/user-action
+ * tabs behind, or closes the window after successful tabs have been cleaned up.
  */
 export function createPostingWindowSession(): PostingWindowSession {
   let statePromise: Promise<PostingWindowState> | undefined;
@@ -218,20 +219,28 @@ async function createPostingWindow(): Promise<PostingWindowState> {
   const created = await browser.windows.create({
     url: 'about:blank',
     type: 'normal',
-    focused: false,
-    ...postingWindowBounds(coveringWindow),
+    focused: true,
   });
   if (!created || typeof created.id !== 'number') {
     throw new Error('Tutti could not create a dedicated posting window');
   }
-  if (
-    typeof coveringWindow?.id === 'number' &&
-    coveringWindow.id !== originalWindow?.id
-  ) {
-    await browser.windows.update(coveringWindow.id, { focused: true }).catch(() => {});
-  }
-  if (typeof originalWindow?.id === 'number') {
-    await browser.windows.update(originalWindow.id, { focused: true }).catch(() => {});
+  try {
+    await browser.windows.update(created.id, postingWindowBounds(coveringWindow));
+  } catch (error) {
+    await browser.windows.remove(created.id).catch(() => {});
+    throw new Error('Tutti could not size the dedicated posting window', {
+      cause: error,
+    });
+  } finally {
+    if (
+      typeof coveringWindow?.id === 'number' &&
+      coveringWindow.id !== originalWindow?.id
+    ) {
+      await browser.windows.update(coveringWindow.id, { focused: true }).catch(() => {});
+    }
+    if (typeof originalWindow?.id === 'number') {
+      await browser.windows.update(originalWindow.id, { focused: true }).catch(() => {});
+    }
   }
 
   const bootstrapTab = created.tabs?.find((tab) => typeof tab.id === 'number')
@@ -250,7 +259,8 @@ async function createPostingWindow(): Promise<PostingWindowState> {
 }
 
 function windowArea(window: Browser.windows.Window): number {
-  return Math.max(0, window.width ?? 0) * Math.max(0, window.height ?? 0);
+  return Math.max(0, finiteWindowNumber(window.width) ?? 0) *
+    Math.max(0, finiteWindowNumber(window.height) ?? 0);
 }
 
 function postingWindowBounds(
@@ -261,19 +271,17 @@ function postingWindowBounds(
   width: number;
   height: number;
 } {
-  const availableWidth = coveringWindow?.width;
-  const availableHeight = coveringWindow?.height;
-  const width = typeof availableWidth === 'number'
-    ? Math.min(POSTING_WINDOW_WIDTH, availableWidth)
-    : POSTING_WINDOW_WIDTH;
-  const height = typeof availableHeight === 'number'
-    ? Math.min(POSTING_WINDOW_HEIGHT, availableHeight)
-    : POSTING_WINDOW_HEIGHT;
-  const left = typeof coveringWindow?.left === 'number' && typeof availableWidth === 'number'
-    ? coveringWindow.left + Math.max(0, availableWidth - width - POSTING_WINDOW_MARGIN)
+  const availableWidth = finiteWindowNumber(coveringWindow?.width);
+  const availableHeight = finiteWindowNumber(coveringWindow?.height);
+  const coveringLeft = finiteWindowNumber(coveringWindow?.left);
+  const coveringTop = finiteWindowNumber(coveringWindow?.top);
+  const width = POSTING_WINDOW_WIDTH;
+  const height = POSTING_WINDOW_HEIGHT;
+  const left = typeof coveringLeft === 'number' && typeof availableWidth === 'number'
+    ? Math.floor(coveringLeft + Math.max(0, availableWidth - width - POSTING_WINDOW_MARGIN))
     : undefined;
-  const top = typeof coveringWindow?.top === 'number' && typeof availableHeight === 'number'
-    ? coveringWindow.top + Math.max(0, availableHeight - height - POSTING_WINDOW_MARGIN)
+  const top = typeof coveringTop === 'number' && typeof availableHeight === 'number'
+    ? Math.floor(coveringTop + Math.max(0, availableHeight - height - POSTING_WINDOW_MARGIN))
     : undefined;
   return {
     ...(typeof left === 'number' ? { left } : {}),
@@ -281,4 +289,8 @@ function postingWindowBounds(
     width,
     height,
   };
+}
+
+function finiteWindowNumber(value: number | undefined): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
