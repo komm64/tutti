@@ -7,6 +7,13 @@ export interface PostingWindowSession {
   releaseBootstrapTab(): Promise<void>;
 }
 
+export interface PostingWindowSessionOptions {
+  focusMode?: 'background' | 'foreground-video';
+  initialUrl?: string;
+  onFocusLost?: (windowId: number) => void;
+  onFocusRestored?: (windowId: number) => void;
+}
+
 interface PostingWindowState {
   windowId: number;
   bootstrapTabId: number;
@@ -40,20 +47,25 @@ export async function handlePostingMediaFocus(
 /**
  * One dedicated browser window per real posting request.
  *
- * Chromium creates the window through its normal focused path, then Tutti
- * immediately sizes it and returns focus to the user's window. DOM posting
- * tabs can remain active/visible inside the dedicated window while the user
- * continues browsing elsewhere. A bootstrap tab keeps the window alive while
- * concurrent posting lanes start; releasing it leaves only failed/user-action
- * tabs behind, or closes the window after successful tabs have been cleaned up.
+ * Chromium creates the window through its normal focused path. Text/image
+ * requests immediately return focus to the user's window. Real video requests
+ * keep the new window focused from the beginning because X suspends video
+ * processing in an unfocused browser window. A bootstrap tab keeps the window
+ * alive while concurrent posting lanes start; releasing it leaves only
+ * failed/user-action tabs behind, or closes the window after successful tabs
+ * have been cleaned up.
  */
-export function createPostingWindowSession(): PostingWindowSession {
+export function createPostingWindowSession(
+  options: PostingWindowSessionOptions = {},
+): PostingWindowSession {
+  const focusMode = options.focusMode ?? 'background';
   let statePromise: Promise<PostingWindowState> | undefined;
   let currentState: PostingWindowState | undefined;
   const expectedWindowCloses = new Set<number>();
   const unexpectedlyClosedWindows = new Set<number>();
   const closeWaiters = new Map<number, Set<() => void>>();
   let focusRestoreInFlight = false;
+  let videoFocusLost = false;
   let mediaFocusLeaseActive = false;
   let mediaFocusLeaseTimer: ReturnType<typeof setTimeout> | undefined;
   const cancelMediaFocusLeaseTimer = (): void => {
@@ -65,6 +77,8 @@ export function createPostingWindowSession(): PostingWindowSession {
     if (expectedWindowCloses.delete(windowId)) return;
     unexpectedlyClosedWindows.add(windowId);
     if (currentState?.windowId === windowId) {
+      if (videoFocusLost) options.onFocusRestored?.(windowId);
+      videoFocusLost = false;
       cancelMediaFocusLeaseTimer();
       mediaFocusLeaseActive = false;
       currentState = undefined;
@@ -75,13 +89,24 @@ export function createPostingWindowSession(): PostingWindowSession {
   };
   const onWindowFocusChanged = (windowId: number): void => {
     const state = currentState;
-    if (!state || windowId < 0) return;
+    if (!state) return;
     if (windowId !== state.windowId) {
-      state.focusReturnWindowId = windowId;
+      if (windowId >= 0) state.focusReturnWindowId = windowId;
       // The user chose another window during the short media focus lease.
       // Keep their choice and never pull focus back from it.
       cancelMediaFocusLeaseTimer();
       mediaFocusLeaseActive = false;
+      if (focusMode === 'foreground-video' && !videoFocusLost) {
+        videoFocusLost = true;
+        options.onFocusLost?.(state.windowId);
+      }
+      return;
+    }
+    if (focusMode === 'foreground-video') {
+      if (videoFocusLost) {
+        videoFocusLost = false;
+        options.onFocusRestored?.(state.windowId);
+      }
       return;
     }
     if (mediaFocusLeaseActive) return;
@@ -113,7 +138,10 @@ export function createPostingWindowSession(): PostingWindowSession {
       browser.windows.onFocusChanged.addListener(onWindowFocusChanged);
       listenerInstalled = true;
     }
-    statePromise ??= createPostingWindow().then((state) => {
+    statePromise ??= createPostingWindow({
+      initialUrl: options.initialUrl,
+      restoreOriginalFocus: focusMode === 'background',
+    }).then((state) => {
       currentState = state;
       activePostingWindows.set(state.windowId, {
         acquireMediaFocus,
@@ -137,12 +165,20 @@ export function createPostingWindowSession(): PostingWindowSession {
   }
 
   function getFocusReturnWindowId(): number | undefined {
-    return currentState?.focusReturnWindowId;
+    return focusMode === 'background'
+      ? currentState?.focusReturnWindowId
+      : undefined;
   }
 
   async function acquireMediaFocus(): Promise<boolean> {
     const state = currentState;
     if (!state) return false;
+    // Foreground video mode takes focus once, before any posting work begins.
+    // Never steal it back later if the user chooses another window.
+    if (focusMode === 'foreground-video') {
+      const postingWindow = await browser.windows.get(state.windowId).catch(() => undefined);
+      return postingWindow?.focused === true;
+    }
     mediaFocusLeaseActive = true;
     try {
       await browser.windows.update(state.windowId, { focused: true });
@@ -161,6 +197,7 @@ export function createPostingWindowSession(): PostingWindowSession {
   }
 
   async function releaseMediaFocus(): Promise<boolean> {
+    if (focusMode === 'foreground-video') return false;
     cancelMediaFocusLeaseTimer();
     if (!mediaFocusLeaseActive) return false;
     mediaFocusLeaseActive = false;
@@ -181,11 +218,16 @@ export function createPostingWindowSession(): PostingWindowSession {
 
   async function releaseBootstrapTab(): Promise<void> {
     const pending = statePromise;
+    const endingState = currentState;
     statePromise = undefined;
-    if (currentState) activePostingWindows.delete(currentState.windowId);
+    if (endingState) activePostingWindows.delete(endingState.windowId);
     currentState = undefined;
     cancelMediaFocusLeaseTimer();
     mediaFocusLeaseActive = false;
+    if (videoFocusLost) {
+      videoFocusLost = false;
+      if (endingState) options.onFocusRestored?.(endingState.windowId);
+    }
     try {
       if (!pending) return;
       const state = await pending.catch(() => undefined);
@@ -224,7 +266,10 @@ export function createPostingWindowSession(): PostingWindowSession {
   };
 }
 
-async function createPostingWindow(): Promise<PostingWindowState> {
+async function createPostingWindow(options: {
+  initialUrl?: string;
+  restoreOriginalFocus: boolean;
+}): Promise<PostingWindowState> {
   const windows = await browser.windows.getAll();
   const originalWindow = windows.find(
     (window) => window.focused === true,
@@ -235,13 +280,14 @@ async function createPostingWindow(): Promise<PostingWindowState> {
       .filter((window) => window.type === 'normal')
       .sort((a, b) => windowArea(b) - windowArea(a))[0] ?? originalWindow;
   const created = await browser.windows.create({
-    url: 'about:blank',
+    url: options.initialUrl ?? 'about:blank',
     type: 'normal',
     focused: true,
   });
   if (!created || typeof created.id !== 'number') {
     throw new Error('Tutti could not create a dedicated posting window');
   }
+  const createdWindowId = created.id;
   try {
     await browser.windows.update(created.id, postingWindowBounds(coveringWindow));
   } catch (error) {
@@ -250,27 +296,34 @@ async function createPostingWindow(): Promise<PostingWindowState> {
       cause: error,
     });
   } finally {
-    if (
+    if (options.restoreOriginalFocus &&
       typeof coveringWindow?.id === 'number' &&
       coveringWindow.id !== originalWindow?.id
     ) {
       await browser.windows.update(coveringWindow.id, { focused: true }).catch(() => {});
     }
-    if (typeof originalWindow?.id === 'number') {
+    if (options.restoreOriginalFocus && typeof originalWindow?.id === 'number') {
       await browser.windows.update(originalWindow.id, { focused: true }).catch(() => {});
     }
   }
+  return await finishCreatedPostingWindow(created, createdWindowId, originalWindow);
+}
 
+async function finishCreatedPostingWindow(
+  created: Browser.windows.Window,
+  createdWindowId: number,
+  originalWindow: Browser.windows.Window | undefined,
+): Promise<PostingWindowState> {
   const bootstrapTab = created.tabs?.find((tab) => typeof tab.id === 'number')
-    ?? (await browser.tabs.query({ windowId: created.id }))
+    ?? (await browser.tabs.query({ windowId: createdWindowId }))
       .find((tab) => typeof tab.id === 'number');
   if (typeof bootstrapTab?.id !== 'number') {
-    await browser.windows.remove(created.id).catch(() => {});
+    await browser.windows.remove(createdWindowId).catch(() => {});
     throw new Error('Tutti could not initialize the dedicated posting window');
   }
 
   return {
-    windowId: created.id,
+    windowId: createdWindowId,
     bootstrapTabId: bootstrapTab.id,
     focusReturnWindowId: originalWindow?.id,
   };

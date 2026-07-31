@@ -725,6 +725,11 @@ async function waitForXMediaReady(
         attributes: true,
         attributeFilter: ['aria-disabled', 'disabled', 'data-testid', 'style', 'class'],
       },
+      // X pauses server-side video processing when its browser window loses
+      // OS focus. Keep the bounded timeout, but count only focused time so a
+      // user who switches away can return and resume without an automatic
+      // retry or duplicate upload.
+      pauseTimeoutWhile: () => !document.hasFocus(),
     },
   );
   if (!enabled) {

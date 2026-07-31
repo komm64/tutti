@@ -382,6 +382,95 @@ describe('posting window session', () => {
     await session.releaseBootstrapTab();
   });
 
+  it('focuses a video window once at startup and never reclaims focus later', async () => {
+    let focusListener: ((windowId: number) => void) | undefined;
+    let focusedWindowId = 50;
+    const update = vi.fn(async (windowId: number) => {
+      focusedWindowId = windowId;
+      return {};
+    });
+    const onFocusLost = vi.fn();
+    const onFocusRestored = vi.fn();
+    vi.stubGlobal('browser', {
+      windows: {
+        getAll: vi.fn(async () => [{
+          id: 7,
+          type: 'normal',
+          focused: true,
+          left: 0,
+          top: 0,
+          width: 1200,
+          height: 800,
+        }]),
+        create: vi.fn(async () => ({
+          id: 50,
+          tabs: [{ id: 500, windowId: 50, url: 'chrome-extension://test/posting-wait.html' }],
+        })),
+        get: vi.fn(async (windowId: number) => ({
+          id: windowId,
+          focused: focusedWindowId === windowId,
+          tabs: [{ id: 500, windowId: 50, url: 'chrome-extension://test/posting-wait.html' }],
+        })),
+        remove: vi.fn(async () => undefined),
+        update,
+        onRemoved: {
+          addListener: vi.fn(),
+          removeListener: vi.fn(),
+        },
+        onFocusChanged: {
+          addListener: vi.fn((listener: (windowId: number) => void) => {
+            focusListener = listener;
+          }),
+          removeListener: vi.fn(),
+        },
+      },
+      tabs: {
+        query: vi.fn(async () => []),
+        remove: vi.fn(async () => undefined),
+      },
+    });
+
+    const session = createPostingWindowSession({
+      focusMode: 'foreground-video',
+      initialUrl: 'chrome-extension://test/posting-wait.html',
+      onFocusLost,
+      onFocusRestored,
+    });
+    await session.getOrCreateWindowId();
+
+    expect(browser.windows.create).toHaveBeenCalledWith({
+      url: 'chrome-extension://test/posting-wait.html',
+      type: 'normal',
+      focused: true,
+    });
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(update).not.toHaveBeenCalledWith(7, { focused: true });
+    expect(session.getFocusReturnWindowId()).toBeUndefined();
+
+    update.mockClear();
+    focusedWindowId = 7;
+    focusListener?.(-1);
+    focusListener?.(7);
+    expect(onFocusLost).toHaveBeenCalledTimes(1);
+
+    await expect(handlePostingMediaFocus(50, 'acquire')).resolves.toEqual({
+      ok: true,
+      active: false,
+    });
+    await expect(handlePostingMediaFocus(50, 'release')).resolves.toEqual({
+      ok: true,
+      active: false,
+    });
+    expect(update).not.toHaveBeenCalled();
+
+    focusedWindowId = 50;
+    focusListener?.(50);
+    expect(onFocusRestored).toHaveBeenCalledTimes(1);
+    expect(update).not.toHaveBeenCalled();
+
+    await session.releaseBootstrapTab();
+  });
+
   it('does not reclaim focus after the user selects another window during the lease', async () => {
     vi.useFakeTimers();
     let focusListener: ((windowId: number) => void) | undefined;

@@ -4,6 +4,7 @@ import {
   failedRetryPlatforms,
   isDurablePostedResult,
   mergePostResults,
+  needsVideoPostingConfirmation,
   normalizeRetryGuardResults,
   sendPostRequest,
   shouldClearDraftAfterSubmit,
@@ -11,6 +12,20 @@ import {
 } from './post-submit';
 
 describe('popup post submit policy', () => {
+  it('requires the foreground warning only for real video posts', () => {
+    const video = {
+      name: 'clip.mp4',
+      type: 'video/mp4',
+      data: 'AA==',
+      durationS: 5,
+      previewUrl: 'blob:clip',
+    };
+
+    expect(needsVideoPostingConfirmation({ autoPost: true, video })).toBe(true);
+    expect(needsVideoPostingConfirmation({ autoPost: false, video })).toBe(false);
+    expect(needsVideoPostingConfirmation({ autoPost: true, video: null })).toBe(false);
+  });
+
   it('builds and sends a POST_REQUEST through the provided runtime sender', async () => {
     const sent: unknown[] = [];
     const response = await sendPostRequest({

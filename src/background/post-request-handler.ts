@@ -16,7 +16,12 @@ import {
 } from './post-result-policy';
 import { runPostScheduler } from './post-scheduler';
 import { resolveCredentialBackedApiPlatforms } from './platform-strategies';
-import { clearBadge, notifyResults } from './post-status-ui';
+import {
+  clearBadge,
+  clearVideoPostingFocusLost,
+  notifyResults,
+  notifyVideoPostingFocusLost,
+} from './post-status-ui';
 import { createPostingWindowSession } from './posting-window';
 import type { createPostingStateManager } from './posting-state';
 import { executeGuardedSubmission } from './submission-execution';
@@ -104,26 +109,54 @@ export function createPostRequestHandler(options: PostRequestHandlerOptions) {
           return rejectedResults;
         }
 
-        // 投稿前に動画を安全な MP4/H.264/AAC へ正規化し、必要に応じて
-        // size/trim/letterbox も同じ経路で処理する。
-        adjustedImages = await maybeCompressVideoForBudget(
-          platforms,
-          request.images,
-          request.trimVideoToSeconds,
-          {
-            onConversionFinished: () => {
-              postingState.setCompression(null);
-            },
-          },
-        );
-        const hasVideo = adjustedImages?.some((image) => image.type.startsWith('video/')) === true;
+        const requestHasVideo = request.images?.some(
+          (image) => image.type.startsWith('video/'),
+        ) === true;
         const requestPoster = platformPoster.forAlgorithm(postingAlgorithm);
         const apiPlatforms = postingAlgorithm === 'next' && autoPost
           ? await resolveCredentialBackedApiPlatforms(platforms)
           : [];
-        const schedulerStartedAt = Date.now();
-        const postingWindow = createPostingWindowSession();
+        const apiPlatformSet = new Set(apiPlatforms);
+        const foregroundVideoWindow = autoPost && requestHasVideo &&
+          platforms.some((platform) => !apiPlatformSet.has(platform));
+        const postingWindow = createPostingWindowSession({
+          focusMode: foregroundVideoWindow ? 'foreground-video' : 'background',
+          initialUrl: foregroundVideoWindow
+            ? browser.runtime.getURL('/posting-wait.html')
+            : undefined,
+          onFocusLost: foregroundVideoWindow
+            ? notifyVideoPostingFocusLost
+            : undefined,
+          onFocusRestored: foregroundVideoWindow
+            ? clearVideoPostingFocusLost
+            : undefined,
+        });
         try {
+          // The foreground transition is deliberately the first visible side
+          // effect. Video conversion and every DOM posting step happen after
+          // this window is already in front, so Tutti never surprises the user
+          // by stealing focus midway through the request.
+          if (foregroundVideoWindow) {
+            clearVideoPostingFocusLost();
+            await postingWindow.getOrCreateWindowId();
+          }
+
+          // 投稿前に動画を安全な MP4/H.264/AAC へ正規化し、必要に応じて
+          // size/trim/letterbox も同じ経路で処理する。
+          adjustedImages = await maybeCompressVideoForBudget(
+            platforms,
+            request.images,
+            request.trimVideoToSeconds,
+            {
+              onConversionFinished: () => {
+                postingState.setCompression(null);
+              },
+            },
+          );
+          const hasVideo = adjustedImages?.some(
+            (image) => image.type.startsWith('video/'),
+          ) === true;
+          const schedulerStartedAt = Date.now();
           const executionResults = await runPostScheduler({
             platforms,
             autoPost,

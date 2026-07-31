@@ -4,6 +4,7 @@ import {
   findClickableByText,
   isElementDisabled,
   normalizeElementText,
+  waitForCondition,
   waitForStableCondition,
 } from './dom';
 
@@ -83,5 +84,35 @@ describe('DOM text helpers', () => {
 
     await vi.advanceTimersByTimeAsync(20);
     await expect(waiting).resolves.toBe(second);
+  });
+
+  it('does not consume timeout budget while the caller is paused', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    let paused = true;
+    let ready = false;
+    const waiting = waitForCondition(
+      () => ready ? 'ready' : null,
+      {
+        timeoutMs: 100,
+        intervalMs: 10,
+        root: null,
+        observerInit: false,
+        pauseTimeoutWhile: () => paused,
+      },
+    );
+
+    await vi.advanceTimersByTimeAsync(500);
+    let settled = false;
+    void waiting.then(() => { settled = true; });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    paused = false;
+    await vi.advanceTimersByTimeAsync(80);
+    expect(settled).toBe(false);
+    ready = true;
+    await vi.advanceTimersByTimeAsync(10);
+    await expect(waiting).resolves.toBe('ready');
   });
 });
