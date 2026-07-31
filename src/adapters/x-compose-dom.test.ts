@@ -65,4 +65,12 @@ describe('X thread compose DOM selection', () => {
     document.querySelector('#attached')?.remove();
     expect(hasXVideoAttachment(current, () => true)).toBe(false);
   });
+
+  it('accepts the compact attachment container after X replaces the video player', () => {
+    const scope = document.createElement('div');
+    scope.innerHTML = '<div id="attached" data-testid="attachments"></div>';
+
+    expect(hasXVideoAttachment(scope, (element) => element.id === 'attached')).toBe(true);
+    expect(hasXVideoAttachment(scope, () => false)).toBe(false);
+  });
 });

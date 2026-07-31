@@ -1255,6 +1255,12 @@ async function inspectPostingWindow(
               mediaState: {
                 documentHasFocus: document.hasFocus(),
                 videoCount: document.querySelectorAll('video').length,
+                attachmentContainerCount: document.querySelectorAll(
+                  '[data-testid="attachments"]',
+                ).length,
+                removeMediaControlCount: document.querySelectorAll(
+                  '[aria-label*="Remove media" i], [aria-label*="メディアを削除" i]',
+                ).length,
                 progress: Array.from(document.querySelectorAll(
                   '[role="progressbar"], progress',
                 )).slice(0, 10).map((element) => ({

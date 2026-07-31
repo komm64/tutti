@@ -11,6 +11,7 @@ export function formatSurfaceMatrixOutcome(
 
 export function hasSurfaceVideoPreview(mediaState?: {
   videoCount?: number;
+  attachmentContainerCount?: number;
   progress?: Array<{ ariaValueNow?: string | null }>;
 }): boolean;
 

@@ -19,7 +19,11 @@ export function formatSurfaceMatrixOutcome(failures) {
 }
 
 export function hasSurfaceVideoPreview(mediaState) {
-  return Number.isInteger(mediaState?.videoCount) && mediaState.videoCount > 0;
+  return (Number.isInteger(mediaState?.videoCount) && mediaState.videoCount > 0) ||
+    (
+      Number.isInteger(mediaState?.attachmentContainerCount) &&
+      mediaState.attachmentContainerCount > 0
+    );
 }
 
 export function validateSurfaceResultContract({

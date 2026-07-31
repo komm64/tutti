@@ -34,5 +34,14 @@ export function hasXVideoAttachment(
   scope: ParentNode,
   isVisible: (element: HTMLElement) => boolean,
 ): boolean {
-  return Array.from(scope.querySelectorAll<HTMLElement>('video')).some(isVisible);
+  if (Array.from(scope.querySelectorAll<HTMLElement>('video')).some(isVisible)) {
+    return true;
+  }
+  // X can replace the <video> preview while finalizing media in its compact
+  // composer. The attachments container remains present only while the media
+  // is still part of this draft, so it is stronger evidence than the transient
+  // player element and still excludes a text-only composer.
+  return Array.from(
+    scope.querySelectorAll<HTMLElement>('[data-testid="attachments"]'),
+  ).some(isVisible);
 }

@@ -13,6 +13,11 @@ describe('Surface posting matrix CLI contract', () => {
       progress: [{ ariaValueNow: '23' }],
     })).toBe(false);
     expect(hasSurfaceVideoPreview({ videoCount: 1, progress: [] })).toBe(true);
+    expect(hasSurfaceVideoPreview({
+      videoCount: 0,
+      attachmentContainerCount: 1,
+      progress: [{ ariaValueNow: '23' }],
+    })).toBe(true);
   });
 
   it('keeps the successful release-gate output and exit code stable', () => {
