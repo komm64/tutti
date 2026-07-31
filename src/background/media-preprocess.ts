@@ -42,7 +42,17 @@ export function shouldTranscodeVideoForBudget(
 }
 
 export function shouldNormalizeVideoForSafePosting(video: ImageAttachment): boolean {
-  return video.type.startsWith('video/');
+  const mimeType = video.type.toLowerCase().split(';', 1)[0]?.trim();
+  const codec = (video.videoCodec ?? '').toLowerCase();
+  const codecParameters = (video.videoCodecParameters ?? '').toLowerCase();
+  const isH264 = codec === 'avc' ||
+    codec === 'h264' ||
+    codecParameters.startsWith('avc1.');
+  // Re-muxing an already compatible MP4 through the WebCodecs fast path can
+  // produce a file that plays locally but is discarded by X after upload.
+  // Preserve standards-compliant MP4/H.264 input; unknown or incompatible
+  // formats still take the normalization path.
+  return mimeType !== 'video/mp4' || !isH264;
 }
 
 export function needsVerticalLetterboxForPlatforms(

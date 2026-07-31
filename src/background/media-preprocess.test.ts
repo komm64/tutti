@@ -63,7 +63,7 @@ describe('video preprocessing budget', () => {
     })).toBe(false);
   });
 
-  it('normalizes every posting video to a safe mp4/h264/aac path', () => {
+  it('preserves compatible MP4/H.264 and normalizes unknown or incompatible video', () => {
     const fortyMiB = 40 * 1024 * 1024;
     const small = 2 * 1024 * 1024;
     const video = {
@@ -73,7 +73,21 @@ describe('video preprocessing budget', () => {
       videoCodec: 'avc',
     };
 
-    expect(shouldNormalizeVideoForSafePosting(video)).toBe(true);
+    expect(shouldNormalizeVideoForSafePosting(video)).toBe(false);
+    expect(shouldNormalizeVideoForSafePosting({
+      ...video,
+      videoCodec: undefined,
+      videoCodecParameters: undefined,
+    })).toBe(true);
+    expect(shouldNormalizeVideoForSafePosting({
+      ...video,
+      type: 'video/webm',
+    })).toBe(true);
+    expect(shouldNormalizeVideoForSafePosting({
+      ...video,
+      videoCodec: 'hevc',
+      videoCodecParameters: 'hvc1.1.6.L93.90',
+    })).toBe(true);
     expect(shouldTranscodeVideoForBudget(small, fortyMiB, false, false, false, true)).toBe(true);
   });
 });

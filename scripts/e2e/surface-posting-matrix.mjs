@@ -736,6 +736,8 @@ async function buildMedia(kind, imageFixture, videoFixture, stamp) {
       data: data.toString('base64'),
       bytes: data.byteLength,
       durationS: videoFixture.durationS,
+      videoCodec: 'avc',
+      videoCodecParameters: 'avc1.64001f',
     }];
   }
   if (kind === 'mixed') {
