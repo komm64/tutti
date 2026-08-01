@@ -46,6 +46,8 @@ import {
   injectContentEditableText,
   injectNativeText,
   resolveTextEditorDriver,
+  shouldUseDirectLexicalState,
+  shouldUseXThreadPaste,
 } from '../src/page-world/editor-drivers';
 import { handleTumblrTextCommand } from '../src/page-world/tumblr-editor-driver';
 
@@ -684,12 +686,19 @@ export default defineContentScript({
           // synthetic beforeinput + input の二重処理も避けられる。
           const isThreadsHost = /threads\.(?:com|net)$/.test(location.host);
           const isXHost = /(?:^|\.)x\.com$/.test(location.hostname);
-          const shouldUseDirectLexicalState =
-            /instagram\.com/.test(location.host) ||
-            isThreadsHost ||
-            isXHost;
+          const useDirectLexicalState = shouldUseDirectLexicalState(
+            location.hostname,
+            el,
+          );
           const shouldRequireStableFrameworkText = isThreadsHost || isXHost;
-          if (shouldUseDirectLexicalState && editor && typeof editor.parseEditorState === 'function' && typeof editor.setEditorState === 'function') {
+          const useXThreadPaste = shouldUseXThreadPaste(location.hostname, el);
+          if (useXThreadPaste) {
+            // X's follow-up thread editors need the framework paste handler.
+            // Direct Lexical state leaves Post all disabled, while execCommand
+            // inserts the text twice in the current composer implementation.
+            await injectContentEditableText(el, text, { waitFor });
+            editor = null;
+          } else if (useDirectLexicalState && editor && typeof editor.parseEditorState === 'function' && typeof editor.setEditorState === 'function') {
             try {
               // Threads hydration and X's unfocused-window compose can both
               // replace the editor after input. Require direct Lexical state
@@ -836,7 +845,7 @@ export default defineContentScript({
             editor = null; // X 等は framework event path の方が composer state と同期しやすい
           }
 
-          if (!editor) {
+          if (!editor && !useXThreadPaste) {
             // editor instance が取れない or setEditorState 失敗 → event-based fallback
             el.focus();
             const sel0 = window.getSelection();
