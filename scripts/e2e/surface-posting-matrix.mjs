@@ -37,8 +37,10 @@ import {
 } from './cdp-harness.mjs';
 import {
   createTimedOutSurfaceSummary,
+  findExactPreviewDraftCandidate,
   formatSurfaceMatrixOutcome,
   hasSurfaceVideoPreview,
+  normalizePreviewDraftText,
   validateSurfaceResultContract,
 } from './surface-posting-matrix-contract.mjs';
 
@@ -78,7 +80,6 @@ const PREVIEW_DRAFT_READERS = {
     selector:
       '[data-testid="tweetTextarea_0"][role="textbox"],' +
       '[data-testid="tweetTextarea_0"][contenteditable="true"]',
-    requireVideoAttachment: true,
   },
   threads: {
     pageUrl: /^https:\/\/(?:www\.)?threads\.(?:com|net)\//,
@@ -144,6 +145,7 @@ const CASES = {
     verifyPostingWindowPlatform: 'x',
     postingWindowFocusPolicy: 'foreground-video',
     verifyPreviewDraftText: true,
+    requirePreviewVideoAttachment: true,
   },
   'image-video': {
     requires: ['shortVideo'],
@@ -457,10 +459,12 @@ for (const caseName of requestedCases) {
       if (!result?.success) continue;
       if (mode === 'preview') {
         if (caseDef.verifyPreviewDraftText && PREVIEW_DRAFT_READERS[platform]) {
-          const draft = await waitForPreviewDraftText(ctx, platform, text);
+          const draft = await waitForPreviewDraftText(ctx, platform, text, {
+            requireVideoAttachment: caseDef.requirePreviewVideoAttachment === true,
+          });
           if (!draft.found) {
             failures.push(`${caseName}/${platform}: preview draft editor was not found`);
-          } else if (draft.text !== text) {
+          } else if (draft.text !== normalizePreviewDraftText(text)) {
             failures.push(
               `${caseName}/${platform}: preview draft text mismatch ` +
               `(expected=${JSON.stringify(text)}, actual=${JSON.stringify(draft.text)}, ` +
@@ -613,7 +617,18 @@ async function readPreviewDraftText(ctx, platform) {
         return readText(state.root ?? state);
       }).catch(() => '');
       const hasVideoAttachment = await draft.evaluate((element) => {
-        const root = element.closest('[role="dialog"]') ?? element.closest('main') ?? document.body;
+        let root = element.closest('[role="dialog"]');
+        let current = element.parentElement;
+        while (!root && current && current !== document.body) {
+          if (current.querySelector(
+            '[data-testid="tweetButton"], [data-testid="tweetButtonInline"]',
+          )) {
+            root = current;
+            break;
+          }
+          current = current.parentElement;
+        }
+        root ??= element.parentElement ?? element;
         return root.querySelector('video, [data-testid="attachments"]') !== null;
       }).catch(() => false);
       candidates.push({
@@ -640,26 +655,32 @@ async function readPreviewDraftText(ctx, platform) {
   };
 }
 
-async function waitForPreviewDraftText(ctx, platform, expectedText, timeoutMs = 5000) {
+async function waitForPreviewDraftText(
+  ctx,
+  platform,
+  expectedText,
+  { requireVideoAttachment = false, timeoutMs = 5000 } = {},
+) {
   const deadline = Date.now() + timeoutMs;
   let last = { found: false };
   do {
     last = await readPreviewDraftText(ctx, platform);
-    const reader = PREVIEW_DRAFT_READERS[platform];
-    const exact = last.candidates?.find((candidate) => (
-      candidate.text === expectedText &&
-      (reader?.requireVideoAttachment !== true || candidate.hasVideoAttachment === true)
-    ));
+    const exact = findExactPreviewDraftCandidate(last.candidates ?? [], expectedText, {
+      requireVideoAttachment,
+    });
     if (exact) {
       return {
         ...last,
-        text: exact.text,
+        text: normalizePreviewDraftText(exact.text),
         url: exact.pageUrl,
       };
     }
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 200));
   } while (Date.now() < deadline);
-  return last;
+  return {
+    ...last,
+    text: normalizePreviewDraftText(last.text),
+  };
 }
 
 function supportsCase(platform, caseDef) {

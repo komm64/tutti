@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   createTimedOutSurfaceSummary,
+  findExactPreviewDraftCandidate,
   formatSurfaceMatrixOutcome,
   hasSurfaceVideoPreview,
+  normalizePreviewDraftText,
   validateSurfaceResultContract,
 } from '../scripts/e2e/surface-posting-matrix-contract.mjs';
 
@@ -18,6 +20,31 @@ describe('Surface posting matrix CLI contract', () => {
       attachmentContainerCount: 1,
       progress: [{ ariaValueNow: '23' }],
     })).toBe(true);
+  });
+
+  it('matches X draft text after trimming platform-added edge whitespace', () => {
+    const expected = 'matrix emoji 😀 🧑‍💻 ❤️‍🔥 日本語';
+    const candidates = [
+      { text: '\n', hasVideoAttachment: true, source: 'feed video' },
+      { text: `${expected} `, hasVideoAttachment: false, source: 'composer' },
+    ];
+
+    expect(normalizePreviewDraftText(`${expected} `)).toBe(expected);
+    expect(findExactPreviewDraftCandidate(candidates, expected)).toEqual(candidates[1]);
+  });
+
+  it('requires same-composer video evidence only for media draft cases', () => {
+    const candidates = [
+      { text: 'video caption', hasVideoAttachment: false },
+      { text: 'video caption\n', hasVideoAttachment: true },
+    ];
+
+    expect(findExactPreviewDraftCandidate(candidates, 'video caption', {
+      requireVideoAttachment: true,
+    })).toEqual(candidates[1]);
+    expect(findExactPreviewDraftCandidate(candidates.slice(0, 1), 'video caption', {
+      requireVideoAttachment: true,
+    })).toBeUndefined();
   });
 
   it('keeps the successful release-gate output and exit code stable', () => {

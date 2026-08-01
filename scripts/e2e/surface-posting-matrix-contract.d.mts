@@ -15,6 +15,20 @@ export function hasSurfaceVideoPreview(mediaState?: {
   progress?: Array<{ ariaValueNow?: string | null }>;
 }): boolean;
 
+export interface SurfacePreviewDraftCandidate {
+  text?: string;
+  hasVideoAttachment?: boolean;
+  [key: string]: unknown;
+}
+
+export function normalizePreviewDraftText(text: unknown): string;
+
+export function findExactPreviewDraftCandidate<T extends SurfacePreviewDraftCandidate>(
+  candidates: readonly T[],
+  expectedText: string,
+  options?: { requireVideoAttachment?: boolean },
+): T | undefined;
+
 export function validateSurfaceResultContract(input: {
   mode: 'preview' | 'post';
   caseName: string;
