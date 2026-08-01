@@ -26,6 +26,22 @@ export function hasSurfaceVideoPreview(mediaState) {
     );
 }
 
+export function normalizePreviewDraftText(text) {
+  return typeof text === 'string' ? text.trim() : '';
+}
+
+export function findExactPreviewDraftCandidate(
+  candidates,
+  expectedText,
+  { requireVideoAttachment = false } = {},
+) {
+  const normalizedExpected = normalizePreviewDraftText(expectedText);
+  return candidates.find((candidate) => (
+    normalizePreviewDraftText(candidate?.text) === normalizedExpected &&
+    (!requireVideoAttachment || candidate?.hasVideoAttachment === true)
+  ));
+}
+
 export function validateSurfaceResultContract({
   mode,
   caseName,
