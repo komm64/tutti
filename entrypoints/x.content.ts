@@ -33,6 +33,7 @@ import {
 } from '../src/adapters/x-compose-dom';
 import { t } from '../src/utils/i18n';
 import { markPostSubmissionStarted } from '../src/utils/post-submission-state';
+import { waitForPreSubmitPacing } from '../src/utils/submission-pacing';
 import { resolveXOwnHandle } from '../src/adapters/x-user';
 
 const X_THREAD_TEXTAREA_TIMEOUT_MS = 15000;
@@ -290,9 +291,26 @@ async function executeXSinglePost(
       return;
     }
 
+    const pacedSubmit = await resolveXSubmitAfterPacing({
+      root: composeRoot,
+      marker: rootMarker,
+      label: 'single',
+      reacquireTimeoutMs: X_SINGLE_COMPOSE_READY_TIMEOUT_MS,
+      buttonTimeoutMs: postButtonTimeoutMs,
+      hasVideo,
+      findButton: findXSinglePostButton,
+      waitForButton: waitForXSinglePostButton,
+    });
+    composeRoot = pacedSubmit.root;
+    rootMarker = pacedSubmit.marker;
+    const livePostBtn = pacedSubmit.button;
+    if (!livePostBtn) {
+      throw new Error(t('runtimePostButtonDisabled'));
+    }
+
     const submittedAt = Date.now();
     markPostSubmissionStarted(submittedAt);
-    await clickElementMarkedInMainWorld(postBtn, 'tutti-x-post');
+    await clickElementMarkedInMainWorld(livePostBtn, 'tutti-x-post');
     return submittedAt;
   } finally {
     unmarkXComposeRoot(composeRoot, rootMarker);
@@ -497,9 +515,27 @@ async function executeXInlineThread(
       setTimeout(() => { postBtn.style.outline = orig; }, 5000);
       return;
     }
+    const pacedSubmit = await resolveXSubmitAfterPacing({
+      root: composeRoot,
+      marker: rootMarker,
+      label: 'thread',
+      reacquireTimeoutMs: X_THREAD_TEXTAREA_TIMEOUT_MS,
+      buttonTimeoutMs: postButtonTimeoutMs,
+      hasVideo,
+      findButton: (root) => findXPostAllButton(sel, root),
+      waitForButton: (root, timeoutMs) => waitForXPostAllButton(sel, root, timeoutMs),
+    });
+    composeRoot = pacedSubmit.root;
+    rootMarker = pacedSubmit.marker;
+    const livePostBtn = pacedSubmit.button;
+    if (!livePostBtn) {
+      throw new Error(
+        `${t('runtimeXPostAllButtonMissing')}; ${describeXComposeState(composeRoot)}`,
+      );
+    }
     const submittedAt = Date.now();
     markPostSubmissionStarted(submittedAt);
-    await clickElementMarkedInMainWorld(postBtn, 'tutti-x-post-all');
+    await clickElementMarkedInMainWorld(livePostBtn, 'tutti-x-post-all');
     return submittedAt;
   } finally {
     unmarkXComposeRoot(composeRoot, rootMarker);
@@ -736,6 +772,35 @@ function unmarkXComposeRoot(root: HTMLElement, marker: string): void {
   if (root.getAttribute('data-tutti-x-compose-root') === marker) {
     root.removeAttribute('data-tutti-x-compose-root');
   }
+}
+
+async function resolveXSubmitAfterPacing(options: {
+  root: HTMLElement;
+  marker: string;
+  label: string;
+  reacquireTimeoutMs: number;
+  buttonTimeoutMs: number;
+  hasVideo: boolean;
+  findButton: (root: HTMLElement) => HTMLElement | null;
+  waitForButton: (root: HTMLElement, timeoutMs: number) => Promise<HTMLElement | null>;
+}): Promise<{ root: HTMLElement; marker: string; button: HTMLElement | null }> {
+  await waitForPreSubmitPacing();
+  const { root, marker } = await reacquireXComposeRoot(
+    options.root,
+    options.marker,
+    options.label,
+    options.reacquireTimeoutMs,
+    options.hasVideo,
+  );
+  const timeoutMs = Math.min(options.buttonTimeoutMs, 5000);
+  const button = options.hasVideo
+    ? await waitForXStableVideoPostButton(
+        root,
+        timeoutMs,
+        () => options.findButton(root),
+      )
+    : await options.waitForButton(root, timeoutMs);
+  return { root, marker, button };
 }
 
 function scopedXComposeSelector(rootMarker: string, selector: string): string {

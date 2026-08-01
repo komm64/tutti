@@ -43,6 +43,7 @@ import {
   markPostStepFailed,
   markPostStepStarted,
 } from './post-submission-state';
+import { waitForPreSubmitPacing } from './submission-pacing';
 
 /**
  * wizard の 1 ページ分。`action` で input を埋め、`advance` で次へ進む。
@@ -114,6 +115,8 @@ export interface MultiStepFlowOptions {
   dryRun?: boolean;
   /** 欠落時は配布済みlegacyの固定待機を維持する。 */
   implementationPath?: PostImplementationPath;
+  /** 実投稿の final submit 直前に入れる pacing。テストでは no-op を注入できる。 */
+  preSubmitPacing?: () => Promise<unknown>;
 }
 
 /**
@@ -139,6 +142,7 @@ export async function executeMultiStepFlow(options: MultiStepFlowOptions): Promi
     finalize,
     dryRun = false,
     implementationPath,
+    preSubmitPacing = waitForPreSubmitPacing,
   } = options;
   if (steps.length === 0) {
     throw new Error('executeMultiStepFlow: steps must not be empty');
@@ -231,8 +235,17 @@ export async function executeMultiStepFlow(options: MultiStepFlowOptions): Promi
     return;
   }
 
+  await preSubmitPacing();
+  const { button: liveFinalizeBtn } = await waitForSubmitButton(
+    finalize,
+    Math.min(finalize.timeoutMs ?? 8000, 5000),
+  );
+  if (!liveFinalizeBtn) {
+    throw new Error(t('runtimeFinalPostButtonMissing'));
+  }
+
   await finalizeFlow({
-    button: finalizeBtn,
+    button: liveFinalizeBtn,
     confirmDialogButtonTexts: finalize.confirmDialogButtonTexts,
     confirmDialogGraceMs: finalize.confirmDialogGraceMs,
     afterClickDelayMs: implementationPath === 'next'

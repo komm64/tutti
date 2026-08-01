@@ -257,6 +257,7 @@ describe('executePostFlow', () => {
   });
 
   it('uses an enabled selector match instead of getting stuck on an earlier disabled button', async () => {
+    const order: string[] = [];
     const editor = { tagName: 'DIV' } as HTMLElement;
     const disabledButton = {
       getAttribute: vi.fn((name: string) => name === 'aria-disabled' ? 'true' : null),
@@ -266,7 +267,7 @@ describe('executePostFlow', () => {
     const enabledButton = {
       getAttribute: vi.fn(() => null),
       disabled: false,
-      click: vi.fn(),
+      click: vi.fn(() => order.push('click')),
     } as unknown as HTMLElement;
     vi.stubGlobal('document', {
       body: {},
@@ -287,7 +288,9 @@ describe('executePostFlow', () => {
       composeInputTimeoutMs: 10,
       postButtonTimeoutMs: 10,
       afterClickDelayMs: 0,
+      preSubmitPacing: async () => { order.push('pacing'); },
     })).resolves.toBeUndefined();
+    expect(order).toEqual(['pacing', 'click']);
     expect(enabledButton.click).toHaveBeenCalledOnce();
     expect(disabledButton.click).not.toHaveBeenCalled();
   });

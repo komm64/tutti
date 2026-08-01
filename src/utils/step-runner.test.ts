@@ -68,9 +68,11 @@ describe('executeMultiStepFlow', () => {
         finder: () => makeMockButton('finalize', log),
         afterClickDelayMs: 0,
       },
+      preSubmitPacing: async () => { log.push('pacing'); },
     });
 
     expect(log).toContain('finalize.click');
+    expect(log.indexOf('pacing')).toBeLessThan(log.indexOf('finalize.click'));
   });
 
   it('next は固定 settle の代わりに明示された完了条件を順番に待つ', async () => {
@@ -93,6 +95,7 @@ describe('executeMultiStepFlow', () => {
         afterClickDelayMs: 60_000,
       },
       implementationPath: 'next',
+      preSubmitPacing: async () => undefined,
     });
 
     expect(log).toEqual([
@@ -123,6 +126,7 @@ describe('executeMultiStepFlow', () => {
         finder: () => makeMockButton('finalize', log),
         afterClickDelayMs: 0,
       },
+      preSubmitPacing: async () => undefined,
     });
 
     expect(log).toEqual([
@@ -271,6 +275,7 @@ describe('executeMultiStepFlow', () => {
         finder: () => makeMockButton('finalize', log),
         afterClickDelayMs: 0,
       },
+      preSubmitPacing: async () => undefined,
     });
     expect(log).toEqual(['only-step.action', 'finalize.click']);
   });
