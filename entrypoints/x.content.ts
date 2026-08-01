@@ -29,6 +29,7 @@ import {
   getXThreadTextareas as getExactXThreadTextareas,
   getXVideoComposeRoot,
   hasXVideoAttachment,
+  readXEditableText,
 } from '../src/adapters/x-compose-dom';
 import { t } from '../src/utils/i18n';
 import { markPostSubmissionStarted } from '../src/utils/post-submission-state';
@@ -252,7 +253,7 @@ async function executeXSinglePost(
     const currentTextarea = getXThreadTextarea(composeRoot, 0, isVisible);
     if (
       text &&
-      normalizeXEditableText(currentTextarea?.textContent) !==
+      normalizeXEditableText(readXEditableText(currentTextarea)) !==
         normalizeXEditableText(text)
     ) {
       await injectTextWithRetry(
@@ -532,7 +533,7 @@ async function injectTextWithRetry(
       await sleep(500 + attempt * 200); // 700 / 900 / 1100ms verify wait
     }
     const el = document.querySelector(selector);
-    const got = (el?.textContent ?? '').trim();
+    const got = readXEditableText(el instanceof HTMLElement ? el : undefined).trim();
     // prefix 一致 + 一定長 で OK 判定
     if (got.length > 0 && got.startsWith(expectedPrefix.slice(0, Math.min(10, expectedPrefix.length)))) {
       if (attempt > 1) log.info(`X: text inject attempt ${attempt}/${maxAttempts} 成功 ("${got.slice(0, 20)}")`);
@@ -561,7 +562,7 @@ async function injectTextIntoXThreadTextarea(
       await sleep(250 + attempt * 150);
       continue;
     }
-    if (normalizeXEditableText(target.textContent) === expected) return;
+    if (normalizeXEditableText(readXEditableText(target)) === expected) return;
     const marker = `tutti-x-chunk-${index}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     target.setAttribute('data-tutti-marker', marker);
     try {
@@ -579,7 +580,7 @@ async function injectTextIntoXThreadTextarea(
       const stable = await waitForStableCondition<HTMLElement>(
         () => {
           const current = getXThreadTextarea(scope, index, isVisible);
-          return current && normalizeXEditableText(current.textContent) === expected
+          return current && normalizeXEditableText(readXEditableText(current)) === expected
             ? current
             : null;
         },
@@ -600,13 +601,13 @@ async function injectTextIntoXThreadTextarea(
       // X can replace the Lexical element repeatedly while preserving its
       // editor state. Element-identity stability is useful, but exact text on
       // the latest editor is sufficient and must not trigger an append retry.
-      if (current && normalizeXEditableText(current.textContent) === expected) {
+      if (current && normalizeXEditableText(readXEditableText(current)) === expected) {
         return;
       }
     } else {
       await sleep(500 + attempt * 200);
       const current = getXThreadTextarea(scope, index, isVisible);
-      if (current && normalizeXEditableText(current.textContent) === expected) return;
+      if (current && normalizeXEditableText(readXEditableText(current)) === expected) return;
     }
 
     lastError = new Error(`X: chunk ${index + 1} editor remounted or lost injected text`);

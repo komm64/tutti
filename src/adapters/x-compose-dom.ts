@@ -30,6 +30,16 @@ export function getXComposeRoot(textarea: HTMLElement): HTMLElement {
     document.body;
 }
 
+/**
+ * Draft.js renders each paragraph in a separate block. textContent joins
+ * those blocks without separators, which makes a correct URL-prefilled draft
+ * look different from the original text. innerText preserves the rendered
+ * line boundaries used by X's composer.
+ */
+export function readXEditableText(element: HTMLElement | undefined): string {
+  return element?.innerText ?? element?.textContent ?? '';
+}
+
 export function getXVideoComposeRoot(
   scope: ParentNode,
   isVisible: (element: HTMLElement) => boolean,

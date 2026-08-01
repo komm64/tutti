@@ -6,7 +6,7 @@ import {
   injectNativeText,
   resolveTextEditorDriver,
   shouldUseDirectLexicalState,
-  shouldUseXThreadPaste,
+  shouldUseXEditorPaste,
 } from './editor-drivers';
 
 beforeEach(() => {
@@ -21,6 +21,9 @@ describe('page-world editor drivers', () => {
       <textarea id="textarea"></textarea>
       <div data-lexical-editor><div id="lexical" contenteditable="true"></div></div>
       <div id="x-editor" data-testid="tweetTextarea_1" contenteditable="true"></div>
+      <div class="DraftEditor-root">
+        <div id="x-draft" class="public-DraftEditor-content" data-testid="tweetTextarea_0" contenteditable="true"></div>
+      </div>
       <div class="DraftEditor-root"><div id="draft" contenteditable="true"></div></div>
       <div id="generic" contenteditable="true"></div>
     `;
@@ -29,11 +32,12 @@ describe('page-world editor drivers', () => {
     expect(resolveTextEditorDriver(document.querySelector('#textarea')!)).toBe('native');
     expect(resolveTextEditorDriver(document.querySelector('#lexical')!)).toBe('lexical');
     expect(resolveTextEditorDriver(document.querySelector('#x-editor')!)).toBe('lexical');
+    expect(resolveTextEditorDriver(document.querySelector('#x-draft')!)).toBe('draft');
     expect(resolveTextEditorDriver(document.querySelector('#draft')!)).toBe('draft');
     expect(resolveTextEditorDriver(document.querySelector('#generic')!)).toBe('contenteditable');
   });
 
-  it('uses paste instead of direct Lexical state for X follow-up thread editors', () => {
+  it('uses X paste handling for every exact tweet editor', () => {
     document.body.innerHTML = `
       <div id="first" data-testid="tweetTextarea_0" contenteditable="true"></div>
       <div id="follow-up" data-testid="tweetTextarea_1" contenteditable="true"></div>
@@ -43,7 +47,7 @@ describe('page-world editor drivers', () => {
     expect(shouldUseDirectLexicalState(
       'x.com',
       document.querySelector<HTMLElement>('#first')!,
-    )).toBe(true);
+    )).toBe(false);
     expect(shouldUseDirectLexicalState(
       'x.com',
       document.querySelector<HTMLElement>('#follow-up')!,
@@ -52,11 +56,15 @@ describe('page-world editor drivers', () => {
       'x.com',
       document.querySelector<HTMLElement>('#later')!,
     )).toBe(false);
-    expect(shouldUseXThreadPaste(
+    expect(shouldUseXEditorPaste(
+      'x.com',
+      document.querySelector<HTMLElement>('#first')!,
+    )).toBe(true);
+    expect(shouldUseXEditorPaste(
       'x.com',
       document.querySelector<HTMLElement>('#follow-up')!,
     )).toBe(true);
-    expect(shouldUseXThreadPaste(
+    expect(shouldUseXEditorPaste(
       'twitter.com',
       document.querySelector<HTMLElement>('#follow-up')!,
     )).toBe(false);
