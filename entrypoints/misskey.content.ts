@@ -13,6 +13,7 @@ import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
 import { getPostSubmissionStartedAt } from '../src/utils/post-submission-state';
 import { isMisskeyComposePresent, isMisskeySignInRequiredPage } from '../src/utils/misskey-page-state';
 import { t } from '../src/utils/i18n';
+import { fetchMisskeyRecentNoteUrl } from '../src/utils/misskey-recent-note-url';
 
 function detectMisskeyUser(): string | null {
   type Strategy = { name: string; fn: () => string | null };
@@ -116,7 +117,7 @@ async function runPost(
   }
 
   // v0.5.8〜 DOM 経路でも post URL を取得する。 Misskey は localStorage の
-  // accounts に i (access token) を持つので、 そこから token を取って /api/i/notes で
+  // account に id と i (access token) を持つので、そこから /api/users/notes で
   // my account の latest を引く。
   let url: string | undefined;
   if (!dryRun) {
@@ -144,64 +145,6 @@ function buildMisskeySignInRequiredResult(dryRun?: boolean): PostResultMessage {
     },
     error: `${t('failureReasonLogin')} (Misskey)`,
   };
-}
-
-/**
- * v0.5.8〜 Misskey の note URL を REST API で取得。
- * - localStorage の `account` (現在ログイン中のアカウント情報、 `i` フィールドが access token)
- * - /api/i/notes で my account の latest 5 件を取得
- * - text 一致するものを探す
- */
-async function fetchMisskeyRecentNoteUrl(text: string, minCreatedAt?: number): Promise<string | undefined> {
-  try {
-    // Misskey は localStorage の 'account' key に { id, i, ... } を保存
-    let token: string | null = null;
-    for (let i = 0; i < 5; i += 1) {
-      const raw = localStorage.getItem('account');
-      if (raw) {
-        try {
-          const data = JSON.parse(raw) as { token?: string; i?: string };
-          if (data.token || data.i) {
-            token = data.token ?? data.i ?? null;
-            break;
-          }
-        } catch { /* ignore */ }
-      }
-      await new Promise((r) => setTimeout(r, 300));
-    }
-    if (!token) {
-      log.warn('misskey: account token not in localStorage, skip URL capture');
-      return undefined;
-    }
-    const target = text.replace(/\s+/g, ' ').trim().slice(0, 60);
-
-    for (let attempt = 0; attempt < 5; attempt += 1) {
-      if (attempt > 0) await new Promise((r) => setTimeout(r, 1000));
-      const res = await fetch('/api/i/notes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ i: token, limit: 10 }),
-      });
-      if (!res.ok) continue;
-      const notes = (await res.json()) as Array<{ id?: string; text?: string; createdAt?: string }>;
-      for (const n of notes) {
-        const noteText = (n.text ?? '').replace(/\s+/g, ' ').trim();
-        const createdAt = Date.parse(n.createdAt ?? '');
-        const afterStart = !minCreatedAt ||
-          (Number.isFinite(createdAt) && createdAt >= minCreatedAt - 5000);
-        if (!n.id || !afterStart) continue;
-        if ((target ? noteText.startsWith(target) : true)) {
-          const url = `${location.origin}/notes/${n.id}`;
-          log.info(`misskey: URL captured via API: ${url}`);
-          return url;
-        }
-      }
-    }
-    log.warn('misskey: post URL not found in recent 5 notes');
-  } catch (e) {
-    log.warn(`misskey URL capture failed: ${e instanceof Error ? e.message : String(e)}`);
-  }
-  return undefined;
 }
 
 function isMisskeyDraftOpen(text: string): boolean {
