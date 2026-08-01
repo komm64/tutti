@@ -86,6 +86,14 @@ export interface BackgroundPlatformStrategy {
 export const backgroundPlatformStrategies: Record<PlatformId, BackgroundPlatformStrategy> = {
   x: {
     parsePostId: ({ pathname }) => pathname.match(/\/status(?:es)?\/(\d+)/)?.[1] ?? null,
+    resolveComposeUrl: (defaultUrl, attachments) => (
+      attachments?.some((attachment) => attachment.type.startsWith('video/'))
+        // In X's maximized desktop layout, intent text and media can land in
+        // different simultaneously-rendered composers. Start video posts from
+        // an empty official composer and inject text into the attached root.
+        ? 'https://x.com/compose/post'
+        : defaultUrl
+    ),
     inlineThread: {
       // X の複数投稿は preview / 本投稿とも compose 上で全件を組み立て、
       // 最後に "Post all" を 1 回だけ実行する。旧方式を明示選択した

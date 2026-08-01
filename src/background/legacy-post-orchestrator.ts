@@ -28,6 +28,7 @@ import { extractHttpUrls } from '../utils/text-urls';
 import {
   continuationNeedsReplyUrl,
   isVerifySupported,
+  resolveComposeUrlForMedia,
   runVerify,
   tryApiPath,
 } from './platform-strategies';
@@ -525,9 +526,11 @@ export function getComposeUrlForMedia(
   text: string,
   images?: readonly ImageAttachment[],
 ): string {
-  const hasVideo = images?.some((image) => image.type.startsWith('video/')) === true;
-  if (adapter.id === 'tumblr' && hasVideo) return 'https://www.tumblr.com/new/video';
-  return adapter.getComposeUrl(text);
+  return resolveComposeUrlForMedia(
+    adapter.id,
+    adapter.getComposeUrl(text),
+    images,
+  );
 }
 
 export function shouldOpenActive(

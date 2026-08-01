@@ -73,6 +73,13 @@ const PLATFORM_KINDS = {
 };
 
 const PREVIEW_DRAFT_READERS = {
+  x: {
+    pageUrl: /^https:\/\/(?:www\.)?(?:x|twitter)\.com\//,
+    selector:
+      '[data-testid="tweetTextarea_0"][role="textbox"],' +
+      '[data-testid="tweetTextarea_0"][contenteditable="true"]',
+    requireVideoAttachment: true,
+  },
   threads: {
     pageUrl: /^https:\/\/(?:www\.)?threads\.(?:com|net)\//,
     selector:
@@ -136,6 +143,7 @@ const CASES = {
     verifyPublishedMedia: true,
     verifyPostingWindowPlatform: 'x',
     postingWindowFocusPolicy: 'foreground-video',
+    verifyPreviewDraftText: true,
   },
   'image-video': {
     requires: ['shortVideo'],
@@ -604,17 +612,26 @@ async function readPreviewDraftText(ctx, platform) {
         const state = editor.getEditorState().toJSON();
         return readText(state.root ?? state);
       }).catch(() => '');
+      const hasVideoAttachment = await draft.evaluate((element) => {
+        const root = element.closest('[role="dialog"]') ?? element.closest('main') ?? document.body;
+        return root.querySelector('video, [data-testid="attachments"]') !== null;
+      }).catch(() => false);
       candidates.push({
         text: lexicalText || domText,
         domText,
         lexicalText,
+        hasVideoAttachment,
         visible: await draft.isVisible(),
         pageUrl: page.url(),
       });
     }
   }
   if (candidates.length === 0) return { found: false };
-  candidates.sort((a, b) => Number(b.visible) - Number(a.visible) || b.text.length - a.text.length);
+  candidates.sort((a, b) => (
+    Number(b.hasVideoAttachment) - Number(a.hasVideoAttachment) ||
+    Number(b.visible) - Number(a.visible) ||
+    b.text.length - a.text.length
+  ));
   return {
     found: true,
     text: candidates[0]?.text ?? '',
@@ -628,7 +645,11 @@ async function waitForPreviewDraftText(ctx, platform, expectedText, timeoutMs = 
   let last = { found: false };
   do {
     last = await readPreviewDraftText(ctx, platform);
-    const exact = last.candidates?.find((candidate) => candidate.text === expectedText);
+    const reader = PREVIEW_DRAFT_READERS[platform];
+    const exact = last.candidates?.find((candidate) => (
+      candidate.text === expectedText &&
+      (reader?.requireVideoAttachment !== true || candidate.hasVideoAttachment === true)
+    ));
     if (exact) {
       return {
         ...last,
