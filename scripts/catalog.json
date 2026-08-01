@@ -485,6 +485,11 @@
       "entryCommand": "node scripts/e2e/inspect-x-now.mjs"
     },
     {
+      "path": "scripts/e2e/misskey-preview-cleanup.mjs",
+      "class": "supported-cli",
+      "usage": "Shared Misskey preview-upload cleanup used by the Surface posting release gate."
+    },
+    {
       "path": "scripts/e2e/mock-browser-smoke.mjs",
       "class": "e2e",
       "usage": "Invoked by npm run e2e:smoke, npm run e2e:smoke:no-build.",

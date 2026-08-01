@@ -43,6 +43,7 @@ import {
   normalizePreviewDraftText,
   validateSurfaceResultContract,
 } from './surface-posting-matrix-contract.mjs';
+import { createMisskeyPreviewUploadTracker } from './misskey-preview-cleanup.mjs';
 
 const execFileAsync = promisify(execFile);
 
@@ -247,6 +248,9 @@ const ctx = browser.contexts()[0];
 if (!ctx) throw new Error('no browser context');
 attachDialogHandlers(ctx);
 if (process.env.E2E_TRACE_CONSOLE === '1') attachConsoleHandlers(ctx);
+const misskeyPreviewUploadTracker = autoPost
+  ? null
+  : createMisskeyPreviewUploadTracker(ctx);
 
 const extensionId = await resolveExtensionId(ctx);
 if (!skipExtensionReload) {
@@ -284,6 +288,21 @@ const persistSummary = async () => {
     summary,
     generatedAt: new Date().toISOString(),
   });
+};
+const cleanupMisskeyPreviewUploads = async (checkpoint, caseName, platforms) => {
+  if (!misskeyPreviewUploadTracker || !platforms.includes('misskey')) return undefined;
+  const evidence = await misskeyPreviewUploadTracker.cleanupSince(checkpoint);
+  console.log(
+    `[matrix] Misskey preview cleanup case=${caseName}: ` +
+    `uploaded=${evidence.uploaded} deleted=${evidence.deleted} failures=${evidence.failures.length}`,
+  );
+  for (const failure of evidence.failures) {
+    failures.push(
+      `${caseName}/misskey: preview Drive cleanup failed ` +
+      `(fileId=${failure.fileId}, error=${failure.error})`,
+    );
+  }
+  return evidence;
 };
 
 for (const caseName of requestedCases) {
@@ -323,6 +342,8 @@ for (const caseName of requestedCases) {
     let postingWindowEvidence;
     let postingWindowProbe;
     let browsingTabId;
+    let misskeyPreviewCleanup;
+    const misskeyUploadCheckpoint = misskeyPreviewUploadTracker?.checkpoint() ?? 0;
     console.log(`[matrix] run case=${caseName} iteration=${i}/${repeat} platforms=${platforms.join(',')}`);
 
     let response;
@@ -415,9 +436,15 @@ for (const caseName of requestedCases) {
         error: message,
         backgroundState,
       });
+      misskeyPreviewCleanup = await cleanupMisskeyPreviewUploads(
+        misskeyUploadCheckpoint,
+        caseName,
+        platforms,
+      );
       summary.push({
         ...timedOutSummary,
         ...(postingWindowEvidence ? { postingWindowEvidence } : {}),
+        ...(misskeyPreviewCleanup ? { misskeyPreviewCleanup } : {}),
       });
       await persistSummary();
       await reloadExtension(ctx, extensionId).catch(() => {});
@@ -436,6 +463,11 @@ for (const caseName of requestedCases) {
     }
     if (!Array.isArray(results)) {
       failures.push(`${caseName}: response did not contain results`);
+      misskeyPreviewCleanup = await cleanupMisskeyPreviewUploads(
+        misskeyUploadCheckpoint,
+        caseName,
+        platforms,
+      );
       continue;
     }
     if (postingWindowEvidence && !postingWindowEvidence.ok) {
@@ -525,6 +557,12 @@ for (const caseName of requestedCases) {
       }
     }
 
+    misskeyPreviewCleanup = await cleanupMisskeyPreviewUploads(
+      misskeyUploadCheckpoint,
+      caseName,
+      platforms,
+    );
+
     summary.push({
       caseName,
       iteration: i,
@@ -533,6 +571,7 @@ for (const caseName of requestedCases) {
       ...(Object.keys(publishedTextEvidence).length > 0 ? { publishedTextEvidence } : {}),
       ...(Object.keys(publishedMediaEvidence).length > 0 ? { publishedMediaEvidence } : {}),
       ...(postingWindowEvidence ? { postingWindowEvidence } : {}),
+      ...(misskeyPreviewCleanup ? { misskeyPreviewCleanup } : {}),
     });
     await persistSummary();
     await closeNonExtensionPages(ctx, extensionId);
@@ -549,6 +588,7 @@ await persistSummary();
 const keepalivePage = await ctx.newPage();
 await keepalivePage.goto('about:blank', { waitUntil: 'domcontentloaded' });
 await popup.close().catch(() => {});
+misskeyPreviewUploadTracker?.dispose();
 await disconnectCdp(browser, { preserveRemoteBrowser: true });
 
 const outcome = formatSurfaceMatrixOutcome(failures);
