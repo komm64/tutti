@@ -17,7 +17,7 @@ import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
 import { clickElementInMainWorld, dropImages, injectImages, injectTextIntoElement } from '../src/utils/image';
 import { t } from '../src/utils/i18n';
 import { markPostSubmissionStarted } from '../src/utils/post-submission-state';
-import { waitForPreSubmitPacing } from '../src/utils/submission-pacing';
+import { clickElementWithPacing, waitForWebActionPacing } from '../src/utils/web-action-pacing';
 
 function detectBlueskyUser(): string | null {
   // 戦略 1: localStorage を総当たりで探索(キー名はバージョン依存)
@@ -162,7 +162,7 @@ async function executeBlueskyInlineThread(
     if (!addBtn) {
       throw new Error(t('runtimeBlueskyAddButtonMissing', i + 1, chunks.length, i));
     }
-    addBtn.click();
+    await clickElementWithPacing(addBtn);
 
     const target = await waitForBlueskyThreadTextarea(i, 5000);
     if (!target) {
@@ -213,7 +213,7 @@ async function executeBlueskyInlineThread(
     setTimeout(() => { postBtn!.style.outline = orig; }, 5000);
     return;
   }
-  await waitForPreSubmitPacing();
+  await waitForWebActionPacing('submit');
   const livePostBtn = await waitForCondition<HTMLElement>(findButton, {
     timeoutMs: 5000,
     intervalMs: 150,

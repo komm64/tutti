@@ -20,6 +20,7 @@ import { extractHashtags } from '../src/utils/hashtags';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
 import { t } from '../src/utils/i18n';
+import { clickElementWithPacing } from '../src/utils/web-action-pacing';
 
 /**
  * YouTube logged-in user 検出 (v0.4.98 改善)。
@@ -135,7 +136,7 @@ async function runPost(
         if (!uploadBtn) {
           throw new Error(t('runtimeYouTubeUploadButtonMissing'));
         }
-        uploadBtn.click();
+        await clickElementWithPacing(uploadBtn);
         await waitForElement<HTMLElement>(sel.fileInput, 10000);
       },
       settleMs: 1500,
@@ -232,7 +233,7 @@ async function runPost(
             // "Show more" や "Show less" 両方マッチするので、 textContent で
             // "more" 系のときだけ click (展開済の "less" 状態だと click しない)
             if (/more|もっと/i.test(txt)) {
-              showMore.click();
+              await clickElementWithPacing(showMore);
             }
           }
         } catch (e) {
@@ -265,7 +266,7 @@ async function runPost(
         if (!radio) {
           throw new Error(t('runtimeYouTubeKidsRadioMissing'));
         }
-        radio.click();
+        await clickElementWithPacing(radio);
       },
       settleMs: 500,
       waitAfterAction: async () => {
@@ -319,7 +320,7 @@ async function runPost(
         if (!publicRadio) {
           throw new Error(t('runtimeYouTubePublicRadioMissing'));
         }
-        publicRadio.click();
+        await clickElementWithPacing(publicRadio);
       },
       settleMs: 500,
       waitAfterAction: async () => {

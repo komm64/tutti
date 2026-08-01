@@ -1,6 +1,7 @@
 import type { PlatformId, PostResultMessage, PostToPlatformMessage } from '../messages';
 import { log } from '../utils/logger';
 import { t } from '../utils/i18n';
+import { waitForWebActionPacing } from '../utils/web-action-pacing';
 import { waitForTabComplete } from './tab-management';
 import { retryTransientTabAction } from './tab-action-retry';
 
@@ -52,7 +53,8 @@ export async function sendPostMessageWhenReady(
         }
         reloaded = true;
         await retryTransientTabAction('reload SNS tab after missing receiver', () => (
-          browser.tabs.reload(tabId)
+          waitForWebActionPacing('navigation')
+            .then(() => browser.tabs.reload(tabId))
         ));
         await waitForTabComplete(tabId);
         await sleep(100);

@@ -33,7 +33,7 @@ import {
 } from '../src/adapters/x-compose-dom';
 import { t } from '../src/utils/i18n';
 import { markPostSubmissionStarted } from '../src/utils/post-submission-state';
-import { waitForPreSubmitPacing } from '../src/utils/submission-pacing';
+import { waitForWebActionPacing } from '../src/utils/web-action-pacing';
 import { resolveXOwnHandle } from '../src/adapters/x-user';
 
 const X_THREAD_TEXTAREA_TIMEOUT_MS = 15000;
@@ -784,7 +784,7 @@ async function resolveXSubmitAfterPacing(options: {
   findButton: (root: HTMLElement) => HTMLElement | null;
   waitForButton: (root: HTMLElement, timeoutMs: number) => Promise<HTMLElement | null>;
 }): Promise<{ root: HTMLElement; marker: string; button: HTMLElement | null }> {
-  await waitForPreSubmitPacing();
+  await waitForWebActionPacing('submit');
   const { root, marker } = await reacquireXComposeRoot(
     options.root,
     options.marker,

@@ -7,6 +7,10 @@ import {
   sendPostMessageWhenReady,
 } from './content-dispatch';
 
+vi.mock('../utils/web-action-pacing', () => ({
+  waitForWebActionPacing: vi.fn(async () => 0),
+}));
+
 const originalBrowser = (globalThis as { browser?: unknown }).browser;
 
 function stubBrowserTab(tab: { url?: string; pendingUrl?: string } | string): void {

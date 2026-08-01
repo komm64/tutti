@@ -43,7 +43,10 @@ import {
   markPostStepFailed,
   markPostStepStarted,
 } from './post-submission-state';
-import { waitForPreSubmitPacing } from './submission-pacing';
+import {
+  clickElementWithPacing,
+  waitForWebActionPacing,
+} from './web-action-pacing';
 
 /**
  * wizard の 1 ページ分。`action` で input を埋め、`advance` で次へ進む。
@@ -142,7 +145,7 @@ export async function executeMultiStepFlow(options: MultiStepFlowOptions): Promi
     finalize,
     dryRun = false,
     implementationPath,
-    preSubmitPacing = waitForPreSubmitPacing,
+    preSubmitPacing = () => waitForWebActionPacing('submit'),
   } = options;
   if (steps.length === 0) {
     throw new Error('executeMultiStepFlow: steps must not be empty');
@@ -185,7 +188,7 @@ export async function executeMultiStepFlow(options: MultiStepFlowOptions): Promi
         t('runtimeStepAdvanceMissing', step.name, seenHint),
       );
     }
-    advanceBtn.click();
+    await clickElementWithPacing(advanceBtn);
     markPostStepCompleted(`${step.name}:advance`);
 
     if (implementationPath === 'next' && step.waitAfterAdvance) {

@@ -1,5 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { executeMultiStepFlow, type Step } from './step-runner';
+
+vi.mock('./web-action-pacing', () => ({
+  waitForWebActionPacing: vi.fn(async () => 0),
+  clickElementWithPacing: vi.fn(async (element: HTMLElement) => { element.click(); }),
+}));
 
 // 最小 HTMLElement 風 mock。`finder` に渡せるので DOM 環境 (jsdom) を立てずに済む。
 function makeMockButton(label: string, log: string[]): HTMLElement {

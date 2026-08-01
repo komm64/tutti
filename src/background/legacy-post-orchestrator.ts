@@ -10,6 +10,7 @@ import { getLastSeenUsers, getSettings } from '../storage';
 import { splitTextForPlatform } from '../utils/platform-text';
 import { log } from '../utils/logger';
 import { t } from '../utils/i18n';
+import { waitForWebActionPacing } from '../utils/web-action-pacing';
 import { closeTabSafely, openOrFocusTab } from './tab-management';
 import { capturePostUrlFromTabWithRetry } from './post-url-capture';
 import {
@@ -676,9 +677,10 @@ async function maybeAutoOpenPostUrl(
     const hasError =
       verify && verify.issues.some((issue) => issue.severity === 'error' || issue.kind === 'verify-error');
     if (autoOpenPostUrl === 'on-issue' && !hasError) return;
-    await retryTransientTabAction('auto-open post URL tab', () => (
-      browser.tabs.create({ url, active: false })
-    ));
+    await retryTransientTabAction('auto-open post URL tab', async () => {
+      await waitForWebActionPacing('navigation');
+      return await browser.tabs.create({ url, active: false });
+    });
     log.info(`auto-open post URL: ${url} (autoOpenPostUrl=${autoOpenPostUrl}, hasError=${!!hasError})`);
   } catch (e) {
     log.warn(`auto-open failed: ${e instanceof Error ? e.message : String(e)}`);

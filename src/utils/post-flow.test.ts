@@ -2,6 +2,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { executePostFlow, maybeConfirmDialog, resolvePostButtonTimeoutMs } from './post-flow';
 import * as imageUtils from './image';
 
+vi.mock('./web-action-pacing', () => ({
+  waitForWebActionPacing: vi.fn(async () => 0),
+  clickElementWithPacing: vi.fn(async (element: HTMLElement) => { element.click(); }),
+}));
+
 describe('maybeConfirmDialog', () => {
   afterEach(() => {
     vi.useRealTimers();

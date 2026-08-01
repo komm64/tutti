@@ -17,6 +17,7 @@ import { waitForPostUrl } from '../src/utils/url-capture';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
 import { t } from '../src/utils/i18n';
+import { clickElementWithPacing } from '../src/utils/web-action-pacing';
 
 /**
  * DeviantArt のログイン中ユーザー検出。
@@ -149,7 +150,7 @@ async function runPost(
             if (forTarget) triggerEls.push(forTarget);
             for (const el of triggerEls) {
               try {
-                el.click();
+                await clickElementWithPacing(el);
                 if (typeof el.focus === 'function') el.focus();
               } catch { /* ignore */ }
             }

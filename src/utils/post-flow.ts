@@ -20,7 +20,7 @@ import {
   markPostStepCompleted,
   markPostStepStarted,
 } from './post-submission-state';
-import { waitForPreSubmitPacing } from './submission-pacing';
+import { waitForWebActionPacing } from './web-action-pacing';
 
 const VIDEO_POST_BUTTON_TIMEOUT_MS = 120_000;
 
@@ -125,7 +125,7 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
     dryRun = false,
     textInjector = injectTextIntoElement,
     clickPostButton,
-    preSubmitPacing = waitForPreSubmitPacing,
+    preSubmitPacing = () => waitForWebActionPacing('submit'),
     requireMediaAccepted,
     requireMediaPreview,
     requireUploadComplete,

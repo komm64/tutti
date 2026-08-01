@@ -15,6 +15,7 @@ import { hashCaptureText, readFreshCapturedPost } from '../src/utils/post-captur
 import { openReplyComposerIfOnPostPage } from '../src/utils/reply-compose';
 import { detectThreadsUserFromDocument } from '../src/utils/threads-user-detect';
 import { findThreadsMediaRejection, hasThreadsMediaPreview } from '../src/utils/threads-media-preview';
+import { waitForWebActionPacing } from '../src/utils/web-action-pacing';
 
 function detectThreadsUser(): string | null {
   return detectThreadsUserFromDocument(document);
@@ -238,6 +239,7 @@ async function captureThreadsPostUrlByLatestDiff(
   const profilePath = `/@${username}`;
   const profileUrl = `https://www.threads.com${profilePath}`;
   if (location.href !== profileUrl) {
+    await waitForWebActionPacing('navigation');
     location.assign(profileUrl);
   }
   const loaded = await waitForCondition<boolean>(
@@ -273,6 +275,7 @@ async function captureThreadsPostUrlFromProfile(
   if (!username) return null;
   const profileUrl = `https://www.threads.com/@${encodeURIComponent(username)}`;
   if (location.href !== profileUrl) {
+    await waitForWebActionPacing('navigation');
     location.assign(profileUrl);
   }
   const loaded = await waitForCondition<boolean>(

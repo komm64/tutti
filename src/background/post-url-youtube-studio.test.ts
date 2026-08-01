@@ -1,5 +1,9 @@
 import { Window } from 'happy-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('../utils/web-action-pacing', () => ({
+  waitForWebActionPacing: vi.fn(async () => 0),
+}));
 import {
   buildYouTubeStudioCaptureTarget,
   buildYouTubeStudioContentUrl,

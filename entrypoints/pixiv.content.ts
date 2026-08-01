@@ -21,6 +21,7 @@ import { waitForPostUrl } from '../src/utils/url-capture';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
 import { t } from '../src/utils/i18n';
+import { clickElementWithPacing } from '../src/utils/web-action-pacing';
 
 /**
  * Pixiv の logged-in user を header の自分の作品リンクから検出する。
@@ -188,7 +189,7 @@ async function runPost(
           sel.visibilityAllAges;
         const r = document.querySelector<HTMLInputElement>(sel2);
         if (!r) throw new Error(t('runtimePixivVisibilityMissing', pixivVisibility));
-        r.click();
+        await clickElementWithPacing(r);
       },
       settleMs: 200,
       waitAfterAction: async () => {
@@ -204,7 +205,7 @@ async function runPost(
         const sel2 = pixivAiType === 'aiGenerated' ? sel.aiTypeYes : sel.aiTypeNo;
         const r = document.querySelector<HTMLInputElement>(sel2);
         if (!r) throw new Error(t('runtimePixivAiTypeMissing', pixivAiType));
-        r.click();
+        await clickElementWithPacing(r);
       },
       settleMs: 200,
       waitAfterAction: async () => {
@@ -218,7 +219,7 @@ async function runPost(
       action: async () => {
         const r = document.querySelector<HTMLInputElement>(sel.sexualNo);
         if (!r) throw new Error(t('runtimePixivAdultRadioMissing'));
-        r.click();
+        await clickElementWithPacing(r);
       },
       settleMs: 200,
       waitAfterAction: async () => {
