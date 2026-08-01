@@ -27,8 +27,6 @@ interface RegisteredPostingWindow {
 
 const POSTING_WINDOW_WIDTH = 560;
 const POSTING_WINDOW_HEIGHT = 680;
-const VIDEO_POSTING_WINDOW_WIDTH = 900;
-const VIDEO_POSTING_WINDOW_HEIGHT = 760;
 const POSTING_WINDOW_MARGIN = 16;
 const MEDIA_FOCUS_LEASE_MAX_MS = 1_000;
 const activePostingWindows = new Map<number, RegisteredPostingWindow>();
@@ -51,11 +49,12 @@ export async function handlePostingMediaFocus(
  *
  * Chromium creates the window through its normal focused path. Text/image
  * requests immediately return focus to the user's window. Real video requests
- * keep the new window focused from the beginning because X suspends video
- * processing in an unfocused browser window. A bootstrap tab keeps the window
- * alive while concurrent posting lanes start; releasing it leaves only
- * failed/user-action tabs behind, or closes the window after successful tabs
- * have been cleaned up.
+ * keep the new window focused and maximized from the beginning because X
+ * suspends video processing in an unfocused window and can strand or discard
+ * video while using its compact composer. A bootstrap tab keeps the window
+ * alive while concurrent posting lanes start; releasing it leaves only failed/
+ * user-action tabs behind, or closes the window after successful tabs have
+ * been cleaned up.
  */
 export function createPostingWindowSession(
   options: PostingWindowSessionOptions = {},
@@ -287,6 +286,9 @@ async function createPostingWindow(options: {
     url: options.initialUrl ?? 'about:blank',
     type: 'normal',
     focused: true,
+    ...(options.focusMode === 'foreground-video'
+      ? { state: 'maximized' as const }
+      : {}),
   });
   if (!created || typeof created.id !== 'number') {
     throw new Error('Tutti could not create a dedicated posting window');
@@ -295,7 +297,9 @@ async function createPostingWindow(options: {
   try {
     await browser.windows.update(
       created.id,
-      postingWindowBounds(coveringWindow, options.focusMode),
+      options.focusMode === 'foreground-video'
+        ? { state: 'maximized' }
+        : postingWindowBounds(coveringWindow),
     );
   } catch (error) {
     await browser.windows.remove(created.id).catch(() => {});
@@ -343,7 +347,6 @@ function windowArea(window: Browser.windows.Window): number {
 
 function postingWindowBounds(
   coveringWindow: Browser.windows.Window | undefined,
-  focusMode: 'background' | 'foreground-video',
 ): {
   left?: number;
   top?: number;
@@ -354,20 +357,8 @@ function postingWindowBounds(
   const availableHeight = finiteWindowNumber(coveringWindow?.height);
   const coveringLeft = finiteWindowNumber(coveringWindow?.left);
   const coveringTop = finiteWindowNumber(coveringWindow?.top);
-  const width = focusMode === 'foreground-video'
-    ? fitPostingWindowSize(
-        VIDEO_POSTING_WINDOW_WIDTH,
-        POSTING_WINDOW_WIDTH,
-        availableWidth,
-      )
-    : POSTING_WINDOW_WIDTH;
-  const height = focusMode === 'foreground-video'
-    ? fitPostingWindowSize(
-        VIDEO_POSTING_WINDOW_HEIGHT,
-        POSTING_WINDOW_HEIGHT,
-        availableHeight,
-      )
-    : POSTING_WINDOW_HEIGHT;
+  const width = POSTING_WINDOW_WIDTH;
+  const height = POSTING_WINDOW_HEIGHT;
   const left = typeof coveringLeft === 'number' && typeof availableWidth === 'number'
     ? Math.floor(coveringLeft + Math.max(0, availableWidth - width - POSTING_WINDOW_MARGIN))
     : undefined;
@@ -380,15 +371,6 @@ function postingWindowBounds(
     width,
     height,
   };
-}
-
-function fitPostingWindowSize(
-  preferred: number,
-  minimum: number,
-  available: number | undefined,
-): number {
-  if (typeof available !== 'number' || available <= 0) return preferred;
-  return Math.min(preferred, Math.max(minimum, available - POSTING_WINDOW_MARGIN * 2));
 }
 
 function finiteWindowNumber(value: number | undefined): number | undefined {

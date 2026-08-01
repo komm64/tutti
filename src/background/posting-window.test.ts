@@ -442,13 +442,11 @@ describe('posting window session', () => {
       url: 'chrome-extension://test/posting-wait.html',
       type: 'normal',
       focused: true,
+      state: 'maximized',
     });
     expect(update).toHaveBeenCalledTimes(1);
     expect(update).toHaveBeenCalledWith(50, {
-      left: 284,
-      top: 24,
-      width: 900,
-      height: 760,
+      state: 'maximized',
     });
     expect(update).not.toHaveBeenCalledWith(7, { focused: true });
     expect(session.getFocusReturnWindowId()).toBeUndefined();

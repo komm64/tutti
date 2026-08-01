@@ -389,7 +389,9 @@ describe('post request settings boundary', () => {
       url: 'chrome-extension://test/posting-wait.html',
       type: 'normal',
       focused: true,
+      state: 'maximized',
     });
+    expect(updateWindow).toHaveBeenCalledWith(51, { state: 'maximized' });
     expect(updateWindow).not.toHaveBeenCalledWith(7, { focused: true });
     expect(clearNotification).toHaveBeenCalled();
     expect(postToPlatform).toHaveBeenCalledWith(
