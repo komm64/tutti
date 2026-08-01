@@ -91,6 +91,7 @@ export function createNextPostOrchestrator(options: PostOrchestratorOptions) {
         adapter.id,
         autoPost,
         'next',
+        images,
       )
       && chunks.length > 1
     ) {
@@ -105,6 +106,7 @@ export function createNextPostOrchestrator(options: PostOrchestratorOptions) {
     }
 
     let previousPostUrl: string | undefined;
+    let mediaPostUrl: string | undefined;
     let allConfirmed = true;
     let finalChunkFlow: PostResultMessage['flow'];
     for (let index = 0; index < chunks.length; index++) {
@@ -157,6 +159,9 @@ export function createNextPostOrchestrator(options: PostOrchestratorOptions) {
           };
         }
         if (result.url) previousPostUrl = result.url;
+        if (index === 0 && chunkImages?.length && result.url) {
+          mediaPostUrl = result.url;
+        }
         if (!result.confirmed && !result.url) allConfirmed = false;
         finalChunkFlow = result.flow;
       } catch (error) {
@@ -189,14 +194,18 @@ export function createNextPostOrchestrator(options: PostOrchestratorOptions) {
     let finalResult = autoPost
       ? finalResultBase
       : toPreviewResult(finalResultBase);
+    if (mediaPostUrl) finalResult.mediaUrl = mediaPostUrl;
 
     if (autoPost && previousPostUrl && isVerifySupported(platform)) {
+      const verifyUrl = mediaPostUrl ?? previousPostUrl;
+      const verifyChunks = mediaPostUrl ? [chunks[0]!] : chunks;
+      const verifyText = mediaPostUrl ? chunks[0]! : text;
       await attachVerifyResult(
         finalResult,
         platform,
-        previousPostUrl,
-        chunks,
-        text,
+        verifyUrl,
+        verifyChunks,
+        verifyText,
         images,
       );
       finalResult = downgradeHardVerifyFailures(finalResult);

@@ -29,6 +29,8 @@ export interface WaitForConditionOptions {
   intervalMs?: number;
   root?: ParentNode | null;
   observerInit?: MutationObserverInit | false;
+  /** Do not consume the timeout budget while this predicate is true. */
+  pauseTimeoutWhile?: () => boolean;
 }
 
 export interface WaitForStableConditionOptions extends WaitForConditionOptions {
@@ -53,6 +55,7 @@ export function waitForCondition<T>(
       attributes: true,
       characterData: true,
     },
+    pauseTimeoutWhile,
   }: WaitForConditionOptions,
 ): Promise<T | null> {
   const existing = predicate();
@@ -101,7 +104,29 @@ export function waitForCondition<T>(
     }
 
     interval = setInterval(check, intervalMs);
-    timer = setTimeout(() => finish(null), timeoutMs);
+    if (pauseTimeoutWhile) {
+      let elapsedMs = 0;
+      let lastTickAt = Date.now();
+      const tickTimeout = (): void => {
+        if (done) return;
+        const now = Date.now();
+        try {
+          if (!pauseTimeoutWhile()) elapsedMs += Math.max(0, now - lastTickAt);
+        } catch (err) {
+          fail(err);
+          return;
+        }
+        lastTickAt = now;
+        if (elapsedMs >= timeoutMs) {
+          finish(null);
+          return;
+        }
+        timer = setTimeout(tickTimeout, Math.min(250, timeoutMs - elapsedMs));
+      };
+      timer = setTimeout(tickTimeout, Math.min(250, timeoutMs));
+    } else {
+      timer = setTimeout(() => finish(null), timeoutMs);
+    }
     check();
   });
 }

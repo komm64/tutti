@@ -42,6 +42,7 @@ function createOptions(
     clearBadge: vi.fn(),
     handleBinaryChunkRequest: vi.fn(async () => {}),
     buildDiagnosticsReport: vi.fn(async () => ({} as never)),
+    handlePostingMediaFocus: vi.fn(async () => ({ ok: true, active: false })),
     handlePostRequest: vi.fn(async () => []),
     ...overrides,
   };
@@ -57,6 +58,7 @@ describe('background message router', () => {
       'CONVERSION_COMPLETE',
       'CONVERSION_ERROR',
       'CLEAR_POSTING_STATE',
+      'POSTING_MEDIA_FOCUS',
       'GET_BG_STATE',
       'GET_EXTENSION_UPDATE_STATE',
       'APPLY_EXTENSION_UPDATE',
@@ -101,6 +103,22 @@ describe('background message router', () => {
       vi.fn(),
     )).toBeUndefined();
     expect(options.userActionNotifier.notify).toHaveBeenCalledWith('threads', 'captcha', 42);
+  });
+
+  it('routes posting media focus with the sender window and keeps the response alive', async () => {
+    const handlePostingMediaFocus = vi.fn(async () => ({ ok: true, active: true }));
+    const options = createOptions({ handlePostingMediaFocus });
+    const router = createBackgroundMessageRouter(options);
+    const sendResponse = vi.fn();
+    const message = { type: 'POSTING_MEDIA_FOCUS', phase: 'acquire' } as const;
+    const sender = { tab: { id: 42, windowId: 9 } };
+
+    expect(router(message, sender, sendResponse)).toBe(true);
+
+    await vi.waitFor(() => {
+      expect(handlePostingMediaFocus).toHaveBeenCalledWith(message, sender);
+      expect(sendResponse).toHaveBeenCalledWith({ ok: true, active: true });
+    });
   });
 
   it('routes storage, progress, refresh, and log commands without responses', () => {

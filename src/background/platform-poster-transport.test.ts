@@ -244,4 +244,49 @@ describe('platform poster transport boundaries', () => {
     expect(mocks.openOrFocusTab).toHaveBeenCalledOnce();
     expect(mocks.sendPostMessageWhenReady).toHaveBeenCalledOnce();
   });
+
+  it('does not repeat a failed real X media upload before submit', async () => {
+    const x = adapter('x');
+    x.mediaRetryPolicy = 'single-attempt';
+    mocks.resolveAdapter.mockResolvedValue(x);
+    mocks.tryApiPath.mockResolvedValue('no-credentials');
+    mocks.sendPostMessageWhenReady.mockResolvedValue({
+      type: 'POST_RESULT',
+      platform: 'x',
+      success: false,
+      flow: {
+        mode: 'post',
+        submitReached: false,
+        failedStep: 'wait-submit',
+      },
+      error: 'video did not become ready',
+    } satisfies PostResultMessage);
+
+    const result = await createPoster().postToPlatform(
+      'x',
+      'hello',
+      [{
+        name: 'clip.mp4',
+        type: 'video/mp4',
+        data: 'AA==',
+        bytes: 1,
+        durationS: 1,
+      }],
+      undefined,
+      undefined,
+      true,
+    );
+
+    expect(result).toMatchObject({
+      success: false,
+      flow: {
+        submitReached: false,
+        failedStep: 'wait-submit',
+      },
+      error: 'video did not become ready',
+    });
+    expect(mocks.openOrFocusTab).toHaveBeenCalledOnce();
+    expect(mocks.sendPostMessageWhenReady).toHaveBeenCalledOnce();
+    expect(mocks.closeTabSafely).not.toHaveBeenCalled();
+  });
 });

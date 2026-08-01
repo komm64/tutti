@@ -94,6 +94,8 @@ const MESSAGE_VALIDATORS = {
   LOG_EXPORT_REQUEST: () => true,
   GET_BG_STATE: () => true,
   CLEAR_POSTING_STATE: () => true,
+  POSTING_MEDIA_FOCUS: (value) =>
+    value.phase === 'acquire' || value.phase === 'release',
   GET_BINARY_CHUNK: (value) =>
     isString(value.dataRef) &&
     isFiniteNumber(value.offset) &&

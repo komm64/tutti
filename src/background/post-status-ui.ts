@@ -1,6 +1,8 @@
 import { t } from '../utils/i18n';
 import { log } from '../utils/logger';
 
+const VIDEO_FOCUS_NOTIFICATION_ID = 'tutti-video-posting-focus';
+
 /**
  * v0.4.97: 投稿中の progress badge。 完了数 / 全体 を icon に重ねる
  * (色は in-progress = 青)。 PLATFORM_PROGRESS broadcast の度に呼ばれる。
@@ -71,4 +73,25 @@ export function notifyResults(results: { platform: string; success: boolean; unc
 
 export function clearBadge(): void {
   void browser.action.setBadgeText({ text: '' });
+}
+
+/** A silent notification is used so losing focus never produces audio. */
+export function notifyVideoPostingFocusLost(): void {
+  const getUrl = browser.runtime.getURL as (path: string) => string;
+  void browser.notifications.create(VIDEO_FOCUS_NOTIFICATION_ID, {
+    type: 'basic',
+    iconUrl: getUrl('icon/128.png'),
+    title: t('videoPostingFocusLostTitle'),
+    message: t('videoPostingFocusLostMessage'),
+    requireInteraction: true,
+    silent: true,
+  }).catch((error) => {
+    log.warn(
+      `video focus notification failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  });
+}
+
+export function clearVideoPostingFocusLost(): void {
+  void browser.notifications.clear(VIDEO_FOCUS_NOTIFICATION_ID).catch(() => {});
 }

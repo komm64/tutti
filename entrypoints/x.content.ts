@@ -4,7 +4,10 @@ import type {
   PostImplementationPath,
   PostResultMessage,
 } from '../src/messages';
-import { X_SELECTORS } from '../src/adapters/x';
+import {
+  X_SELECTORS,
+  X_VIDEO_MEDIA_READY_TIMEOUT_MS,
+} from '../src/adapters/x';
 import { resolvePostButtonTimeoutMs } from '../src/utils/post-flow';
 import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
@@ -20,8 +23,16 @@ import {
   injectImages,
   injectTextIntoElement,
 } from '../src/utils/image';
+import {
+  getXComposeRoot,
+  getXThreadTextarea,
+  getXThreadTextareas as getExactXThreadTextareas,
+  getXVideoComposeRoot,
+  hasXVideoAttachment,
+} from '../src/adapters/x-compose-dom';
 import { t } from '../src/utils/i18n';
 import { markPostSubmissionStarted } from '../src/utils/post-submission-state';
+import { resolveXOwnHandle } from '../src/adapters/x-user';
 
 const X_THREAD_TEXTAREA_TIMEOUT_MS = 15000;
 const X_THREAD_COMPOSE_READY_TIMEOUT_MS = 30000;
@@ -29,6 +40,7 @@ const X_THREAD_POST_BUTTON_TIMEOUT_MS = 10000;
 const X_SINGLE_COMPOSE_READY_TIMEOUT_MS = 30000;
 const X_SINGLE_POST_BUTTON_TIMEOUT_MS = 30000;
 const X_SINGLE_MEDIA_SETTLE_MS = 2500;
+const X_VIDEO_ATTACHMENT_LOST_GRACE_MS = 5000;
 const X_COMPOSE_TEXTAREA_SELECTOR = [
   '[data-testid="tweetTextarea_0"][role="textbox"]',
   '[data-testid="tweetTextarea_0"][contenteditable="true"]',
@@ -102,12 +114,13 @@ async function runPost(
   dryRun?: boolean,
   textChunks?: string[],
   implementationPath?: PostImplementationPath,
+  expectedUser?: string,
 ): Promise<PostResultMessage> {
   const sel = await resolveSelectors('x', X_SELECTORS);
 
   // post 前に own user の既存 status link を記録 (post 後の new status を識別する用)
   const handle = detectXUser();
-  let cleanHandle = handle?.startsWith('@') ? handle.slice(1) : handle;
+  let cleanHandle = resolveXOwnHandle(handle, expectedUser);
   const beforeIds = new Set<string>();
   if (cleanHandle) {
     for (const link of document.querySelectorAll<HTMLAnchorElement>(`a[href*="/${cleanHandle}/status/"]`)) {
@@ -142,7 +155,7 @@ async function runPost(
   let url: string | undefined;
   if (!dryRun) {
     const detectedAfterSubmit = detectXUser();
-    cleanHandle ??= detectedAfterSubmit?.startsWith('@') ? detectedAfterSubmit.slice(1) : detectedAfterSubmit;
+    cleanHandle ??= resolveXOwnHandle(detectedAfterSubmit, expectedUser);
     if (!cleanHandle) {
       throw new Error(t('runtimeXOwnHandleMissing'));
     }
@@ -167,8 +180,10 @@ async function executeXSinglePost(
   dryRun: boolean | undefined,
   implementationPath: PostImplementationPath | undefined,
 ): Promise<number | undefined> {
-  const composeRoot = await waitForXComposeDialog(X_SINGLE_COMPOSE_READY_TIMEOUT_MS);
-  if (!composeRoot) {
+  const initialTextarea = await waitForXInitialTextarea(
+    X_SINGLE_COMPOSE_READY_TIMEOUT_MS,
+  );
+  if (!initialTextarea) {
     throw new Error(t(
       'runtimeXTextareaTimeout',
       1,
@@ -178,10 +193,12 @@ async function executeXSinglePost(
       describeXComposeState(document),
     ));
   }
+  let composeRoot = getXComposeRoot(initialTextarea);
+  const hasVideo = (images ?? []).some((image) => image.type.startsWith('video/'));
 
-  const rootMarker = markXComposeRoot(composeRoot, 'single');
+  let rootMarker = markXComposeRoot(composeRoot, 'single');
   try {
-    const textareaSelector = scopedXComposeSelector(rootMarker, X_COMPOSE_TEXTAREA_SELECTOR);
+    let textareaSelector = scopedXComposeSelector(rootMarker, X_COMPOSE_TEXTAREA_SELECTOR);
     const textarea0 = await waitForXScopedElement(composeRoot, X_COMPOSE_TEXTAREA_SELECTOR, X_SINGLE_COMPOSE_READY_TIMEOUT_MS);
     if (!textarea0) {
       throw new Error(t(
@@ -200,8 +217,30 @@ async function executeXSinglePost(
       await injectImages(images, scopedXComposeSelector(rootMarker, X_COMPOSE_FILE_INPUT_SELECTOR), {
         requireMediaAccepted: true,
         requireMediaPreview: true,
+        requireUploadComplete: true,
         implementationPath,
+        requestPostingWindowMediaFocus: dryRun !== true,
       });
+      if (hasVideo) {
+        // Switching browser windows can make X replace the entire compose
+        // subtree. Observe readiness from document, then bind the remaining
+        // work to the current root instead of the detached pre-upload node.
+        const mediaReady = await waitForXMediaReady(X_VIDEO_MEDIA_READY_TIMEOUT_MS);
+        if (mediaReady === 'lost') {
+          throw new Error(t('runtimeXVideoAttachmentLost'));
+        }
+        if (mediaReady === 'timeout') {
+          throw new Error(t('runtimePostButtonDisabled'));
+        }
+      }
+      ({ root: composeRoot, marker: rootMarker } = await reacquireXComposeRoot(
+        composeRoot,
+        rootMarker,
+        'single',
+        X_SINGLE_COMPOSE_READY_TIMEOUT_MS,
+        hasVideo,
+      ));
+      textareaSelector = scopedXComposeSelector(rootMarker, X_COMPOSE_TEXTAREA_SELECTOR);
       await settleXEditorAfterMedia(
         composeRoot,
         0,
@@ -210,7 +249,12 @@ async function executeXSinglePost(
       );
     }
 
-    if (text) {
+    const currentTextarea = getXThreadTextarea(composeRoot, 0, isVisible);
+    if (
+      text &&
+      normalizeXEditableText(currentTextarea?.textContent) !==
+        normalizeXEditableText(text)
+    ) {
       await injectTextWithRetry(
         text,
         textareaSelector,
@@ -220,12 +264,21 @@ async function executeXSinglePost(
       );
     }
 
-    const hasVideo = (images ?? []).some((image) => image.type.startsWith('video/'));
-    const postBtn = await waitForXSinglePostButton(
-      composeRoot,
-      resolvePostButtonTimeoutMs(X_SINGLE_POST_BUTTON_TIMEOUT_MS, hasVideo),
+    const postButtonTimeoutMs = resolvePostButtonTimeoutMs(
+      X_SINGLE_POST_BUTTON_TIMEOUT_MS,
+      hasVideo,
     );
+    const postBtn = hasVideo
+      ? await waitForXStableVideoPostButton(
+          composeRoot,
+          postButtonTimeoutMs,
+          () => findXSinglePostButton(composeRoot),
+        )
+      : await waitForXSinglePostButton(composeRoot, postButtonTimeoutMs);
     if (!postBtn) {
+      if (hasVideo && !hasXVideoAttachment(composeRoot, isVisible)) {
+        throw new Error(t('runtimeXVideoAttachmentLost'));
+      }
       throw new Error(t('runtimePostButtonDisabled'));
     }
 
@@ -274,10 +327,10 @@ async function executeXInlineThread(
   dryRun: boolean | undefined,
   implementationPath: PostImplementationPath | undefined,
 ): Promise<number | undefined> {
-  // Thread compose は /compose/post modal 専用。home の inline composer には
-  // Add post UI が安定して存在しないため、fallback selector で拾わない。
-  const textarea0 = await waitForVisibleXElement(
-    X_THREAD_DIALOG_TEXTAREA_SELECTOR,
+  // X renders /compose/post either as a modal or as a full-page composer,
+  // depending on viewport/experiment state. The route guard excludes the
+  // unstable home inline composer while accepting both official surfaces.
+  const textarea0 = await waitForXInitialTextarea(
     X_THREAD_COMPOSE_READY_TIMEOUT_MS,
   );
   if (!textarea0) {
@@ -290,8 +343,9 @@ async function executeXInlineThread(
       describeXComposeState(document),
     ));
   }
-  const composeRoot = textarea0.closest<HTMLElement>('[role="dialog"]') ?? document.body;
-  const rootMarker = markXComposeRoot(composeRoot, 'thread');
+  let composeRoot = getXComposeRoot(textarea0);
+  const hasVideo = (images ?? []).some((image) => image.type.startsWith('video/'));
+  let rootMarker = markXComposeRoot(composeRoot, 'thread');
 
   try {
     // v0.4.97: 画像 → text の順序が重要。 旧 (text→image) は X の Lexical が
@@ -304,8 +358,28 @@ async function executeXInlineThread(
       await injectImages(images, scopedXComposeSelector(rootMarker, X_COMPOSE_FILE_INPUT_SELECTOR), {
         requireMediaAccepted: true,
         requireMediaPreview: true,
+        // Adding the next post while X is still uploading can strand the
+        // video progress at 0% in an unfocused posting window.
+        requireUploadComplete: true,
         implementationPath,
+        requestPostingWindowMediaFocus: dryRun !== true,
       });
+      if (hasVideo) {
+        const mediaReady = await waitForXMediaReady(X_VIDEO_MEDIA_READY_TIMEOUT_MS);
+        if (mediaReady === 'lost') {
+          throw new Error(t('runtimeXVideoAttachmentLost'));
+        }
+        if (mediaReady === 'timeout') {
+          throw new Error(t('runtimePostButtonDisabled'));
+        }
+      }
+      ({ root: composeRoot, marker: rootMarker } = await reacquireXComposeRoot(
+        composeRoot,
+        rootMarker,
+        'thread',
+        X_THREAD_COMPOSE_READY_TIMEOUT_MS,
+        hasVideo,
+      ));
       await settleXEditorAfterMedia(
         composeRoot,
         0,
@@ -355,9 +429,8 @@ async function executeXInlineThread(
 
     // 全 inject 完了後の最終 verify (上記 retry でも残った orphan を救う)。
     // 各 chunk が textarea[i].textContent と prefix 一致するか確認、 ダメなら 1 回 retry。
-    const finalTextareas = getXThreadTextareas(composeRoot);
     for (let i = 0; i < chunks.length; i++) {
-      const target = finalTextareas[i];
+      const target = getXThreadTextarea(composeRoot, i, isVisible);
       if (!target) continue;
       const currentText = (target.textContent ?? '').trim();
       const expected = chunks[i]!.trim();
@@ -377,13 +450,23 @@ async function executeXInlineThread(
     }
 
     // Post button (preview なら highlight だけ、 autoPost なら click)
-    const hasVideo = (images ?? []).some((image) => image.type.startsWith('video/'));
-    const postBtn = await waitForXPostAllButton(
-      sel,
-      composeRoot,
-      resolvePostButtonTimeoutMs(X_THREAD_POST_BUTTON_TIMEOUT_MS, hasVideo),
+    const postButtonTimeoutMs = resolvePostButtonTimeoutMs(
+      X_THREAD_POST_BUTTON_TIMEOUT_MS,
+      hasVideo,
     );
-    if (!postBtn) throw new Error(t('runtimeXPostAllButtonMissing'));
+    const postBtn = hasVideo
+      ? await waitForXStableVideoPostButton(
+          composeRoot,
+          postButtonTimeoutMs,
+          () => findXPostAllButton(sel, composeRoot),
+        )
+      : await waitForXPostAllButton(sel, composeRoot, postButtonTimeoutMs);
+    if (!postBtn) {
+      if (hasVideo && !hasXVideoAttachment(composeRoot, isVisible)) {
+        throw new Error(t('runtimeXVideoAttachmentLost'));
+      }
+      throw new Error(t('runtimeXPostAllButtonMissing'));
+    }
     if (dryRun) {
       const orig = postBtn.style.outline;
       postBtn.style.outline = '3px dashed #f59e0b';
@@ -447,31 +530,70 @@ async function injectTextIntoXThreadTextarea(
   implementationPath?: PostImplementationPath,
 ): Promise<void> {
   let lastError: unknown;
+  const expected = normalizeXEditableText(text);
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const target = getXThreadTextareas(scope)[index];
+    const target = getXThreadTextarea(scope, index, isVisible);
     if (!target) {
       lastError = new Error(`X: textarea index ${index} missing`);
       await sleep(250 + attempt * 150);
       continue;
     }
+    if (normalizeXEditableText(target.textContent) === expected) return;
     const marker = `tutti-x-chunk-${index}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     target.setAttribute('data-tutti-marker', marker);
     try {
-      await injectTextWithRetry(
-        text,
-        `[data-tutti-marker="${marker}"]`,
-        text,
-        2,
-        implementationPath,
-      );
-      return;
+      await injectTextIntoElement(text, `[data-tutti-marker="${marker}"]`);
     } catch (e) {
       lastError = e;
-      log.warn(`X: chunk ${index + 1} target remounted during inject, retrying (${attempt}/${maxAttempts})`);
-      await sleep(300 + attempt * 200);
+      log.warn(`X: chunk ${index + 1} inject failed, retrying with the current editor (${attempt}/${maxAttempts})`);
+      await sleep(250 + attempt * 150);
+      continue;
+    } finally {
+      target.removeAttribute('data-tutti-marker');
     }
+
+    if (implementationPath === 'next') {
+      const stable = await waitForStableCondition<HTMLElement>(
+        () => {
+          const current = getXThreadTextarea(scope, index, isVisible);
+          return current && normalizeXEditableText(current.textContent) === expected
+            ? current
+            : null;
+        },
+        {
+          timeoutMs: 700 + attempt * 250,
+          quietMs: 125,
+          intervalMs: 25,
+          root: scope instanceof Document ? scope.body : scope,
+        },
+      );
+      if (stable) {
+        if (attempt > 1) {
+          log.info(`X: chunk ${index + 1} inject attempt ${attempt}/${maxAttempts} succeeded`);
+        }
+        return;
+      }
+      const current = getXThreadTextarea(scope, index, isVisible);
+      // X can replace the Lexical element repeatedly while preserving its
+      // editor state. Element-identity stability is useful, but exact text on
+      // the latest editor is sufficient and must not trigger an append retry.
+      if (current && normalizeXEditableText(current.textContent) === expected) {
+        return;
+      }
+    } else {
+      await sleep(500 + attempt * 200);
+      const current = getXThreadTextarea(scope, index, isVisible);
+      if (current && normalizeXEditableText(current.textContent) === expected) return;
+    }
+
+    lastError = new Error(`X: chunk ${index + 1} editor remounted or lost injected text`);
+    log.warn(`X: chunk ${index + 1} verification failed, retrying with the current editor (${attempt}/${maxAttempts})`);
   }
   throw lastError instanceof Error ? lastError : new Error(t('runtimeTextInjectFailed'));
+}
+
+function normalizeXEditableText(value: string | null | undefined): string {
+  return (value ?? '').replace(/\s+/g, ' ').trim();
 }
 
 async function settleXEditorAfterMedia(
@@ -485,7 +607,7 @@ async function settleXEditorAfterMedia(
     return;
   }
   await waitForStableCondition<HTMLElement>(
-    () => getXThreadTextareas(scope)[index] ?? null,
+    () => getXThreadTextarea(scope, index, isVisible) ?? null,
     {
       timeoutMs,
       quietMs: 350,
@@ -510,39 +632,7 @@ function isDisabled(el: HTMLElement): boolean {
 }
 
 function getXThreadTextareas(scope: ParentNode = document): HTMLElement[] {
-  return Array
-    .from(scope.querySelectorAll<HTMLElement>('[data-testid^="tweetTextarea_"][contenteditable="true"], [data-testid^="tweetTextarea_"][role="textbox"]'))
-    .filter(isVisible);
-}
-
-function findVisibleXComposeDialog(): HTMLElement | null {
-  const dialogs = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"]')).filter(isVisible);
-  for (const dialog of dialogs) {
-    if (
-      Array.from(dialog.querySelectorAll<HTMLElement>(X_COMPOSE_TEXTAREA_SELECTOR)).some(isVisible) ||
-      dialog.querySelector(X_COMPOSE_FILE_INPUT_SELECTOR)
-    ) {
-      return dialog;
-    }
-  }
-  return null;
-}
-
-function waitForXComposeDialog(timeoutMs: number): Promise<HTMLElement | undefined> {
-  return waitForCondition<HTMLElement>(
-    () => findVisibleXComposeDialog(),
-    {
-      timeoutMs,
-      intervalMs: 150,
-      root: document.body,
-      observerInit: {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        attributeFilter: ['data-testid', 'contenteditable', 'role', 'aria-disabled', 'style', 'class'],
-      },
-    },
-  ).then((el) => el ?? undefined);
+  return getExactXThreadTextareas(scope, isVisible);
 }
 
 function waitForXScopedElement(
@@ -572,6 +662,38 @@ function markXComposeRoot(root: HTMLElement, label: string): string {
   return marker;
 }
 
+async function reacquireXComposeRoot(
+  previousRoot: HTMLElement,
+  previousMarker: string,
+  label: string,
+  timeoutMs: number,
+  preferVideoAttachment = false,
+): Promise<{ root: HTMLElement; marker: string }> {
+  const currentTextarea = await waitForXInitialTextarea(
+    timeoutMs,
+    preferVideoAttachment,
+  );
+  if (!currentTextarea) {
+    throw new Error(t(
+      'runtimeXTextareaTimeout',
+      1,
+      1,
+      1,
+      getXThreadTextareas(document).length,
+      describeXComposeState(document),
+    ));
+  }
+  const currentRoot = getXComposeRoot(currentTextarea);
+  if (currentRoot === previousRoot) {
+    return { root: previousRoot, marker: previousMarker };
+  }
+  unmarkXComposeRoot(previousRoot, previousMarker);
+  return {
+    root: currentRoot,
+    marker: markXComposeRoot(currentRoot, label),
+  };
+}
+
 function unmarkXComposeRoot(root: HTMLElement, marker: string): void {
   if (root.getAttribute('data-tutti-x-compose-root') === marker) {
     root.removeAttribute('data-tutti-x-compose-root');
@@ -593,7 +715,7 @@ function waitForXThreadTextarea(
   timeoutMs: number,
 ): Promise<HTMLElement | undefined> {
   return waitForCondition<HTMLElement>(
-    () => getXThreadTextareas(scope)[index],
+    () => getXThreadTextarea(scope, index, isVisible),
     {
       timeoutMs,
       intervalMs: 150,
@@ -646,9 +768,12 @@ function findXSinglePostButton(scope: ParentNode): HTMLElement | null {
   return null;
 }
 
-function waitForVisibleXElement(selector: string, timeoutMs: number): Promise<HTMLElement | undefined> {
+function waitForXInitialTextarea(
+  timeoutMs: number,
+  preferVideoAttachment = false,
+): Promise<HTMLElement | undefined> {
   return waitForCondition<HTMLElement>(
-    () => Array.from(document.querySelectorAll<HTMLElement>(selector)).find(isVisible),
+    () => findXInitialTextarea(preferVideoAttachment),
     {
       timeoutMs,
       intervalMs: 150,
@@ -657,10 +782,98 @@ function waitForVisibleXElement(selector: string, timeoutMs: number): Promise<HT
         childList: true,
         subtree: true,
         attributes: true,
-        attributeFilter: ['data-testid', 'contenteditable', 'role', 'aria-disabled', 'style', 'class'],
+        attributeFilter: ['data-testid', 'contenteditable', 'role', 'style', 'class'],
       },
     },
-  ).then((el) => el ?? undefined);
+  ).then((element) => element ?? undefined);
+}
+
+function findXInitialTextarea(preferVideoAttachment = false): HTMLElement | null {
+  if (preferVideoAttachment) {
+    const videoRoot = getXVideoComposeRoot(document, isVisible);
+    const videoTextarea = videoRoot
+      ? getXThreadTextarea(videoRoot, 0, isVisible)
+      : undefined;
+    if (videoTextarea) return videoTextarea;
+  }
+  const dialogTextarea = Array
+    .from(document.querySelectorAll<HTMLElement>(X_THREAD_DIALOG_TEXTAREA_SELECTOR))
+    .find(isVisible);
+  if (dialogTextarea) return dialogTextarea;
+  if (!/^\/(?:compose\/post|intent\/post)(?:\/|$)/.test(location.pathname)) return null;
+  return getXThreadTextareas(document)[0] ?? null;
+}
+
+async function waitForXMediaReady(
+  timeoutMs: number,
+): Promise<'ready' | 'lost' | 'timeout'> {
+  // injectImages has already observed a real media preview. If X later
+  // replaces the compose subtree and the preview does not return after focus
+  // is restored, stop before submit instead of waiting five minutes and
+  // reporting an unrelated disabled-button error.
+  let missingSince: number | undefined;
+  const result = await waitForCondition<'ready' | 'lost'>(
+    () => {
+      const currentCompose = findXInitialTextarea();
+      if (!currentCompose) {
+        missingSince = undefined;
+        return null;
+      }
+      const videoRoot = getXVideoComposeRoot(document, isVisible);
+      if (videoRoot) {
+        missingSince = undefined;
+        return findXSinglePostButton(videoRoot) ? 'ready' : null;
+      }
+      if (!document.hasFocus()) {
+        missingSince = undefined;
+        return null;
+      }
+      missingSince ??= Date.now();
+      return Date.now() - missingSince >= X_VIDEO_ATTACHMENT_LOST_GRACE_MS
+        ? 'lost'
+        : null;
+    },
+    {
+      timeoutMs,
+      intervalMs: 300,
+      root: document.body,
+      observerInit: {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['aria-disabled', 'disabled', 'data-testid', 'style', 'class'],
+      },
+      // X pauses server-side video processing when its browser window loses
+      // OS focus. Keep the bounded timeout, but count only focused time so a
+      // user who switches away can return and resume without an automatic
+      // retry or duplicate upload.
+      pauseTimeoutWhile: () => !document.hasFocus(),
+    },
+  );
+  return result ?? 'timeout';
+}
+
+async function waitForXStableVideoPostButton(
+  scope: ParentNode,
+  timeoutMs: number,
+  findButton: () => HTMLElement | null,
+): Promise<HTMLElement | null> {
+  return await waitForStableCondition<HTMLElement>(
+    () => hasXVideoAttachment(scope, isVisible) ? findButton() : null,
+    {
+      timeoutMs,
+      quietMs: 750,
+      intervalMs: 100,
+      root: scope instanceof Document ? scope.body : scope,
+      observerInit: {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['aria-disabled', 'disabled', 'data-testid', 'style', 'class'],
+      },
+      pauseTimeoutWhile: () => !document.hasFocus(),
+    },
+  );
 }
 
 async function clickElementMarkedInMainWorld(el: HTMLElement, prefix: string): Promise<void> {

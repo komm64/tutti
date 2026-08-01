@@ -13,6 +13,10 @@ export interface PostExecutionOptions {
   forceForeground?: boolean;
   forceBackground?: boolean;
   transportPolicy?: PostTransportPolicy;
+  /** Request-scoped unfocused window that owns real DOM posting tabs. */
+  postWindowId?: number;
+  /** Window that should retain OS focus while postWindowId owns the active SNS tab. */
+  postWindowFocusReturnId?: number;
 }
 
 export interface PostAlgorithmSelectionOptions extends PostExecutionOptions {

@@ -75,6 +75,7 @@ const currentMessageSamples: Message[] = [
   { type: 'LOG_EXPORT_REQUEST' },
   { type: 'GET_BG_STATE' },
   { type: 'CLEAR_POSTING_STATE' },
+  { type: 'POSTING_MEDIA_FOCUS', phase: 'acquire' },
   { type: 'GET_BINARY_CHUNK', dataRef: 'data', offset: 0, length: 1 },
   { type: 'GET_BLUESKY_SESSION' },
   {

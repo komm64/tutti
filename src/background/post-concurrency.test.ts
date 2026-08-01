@@ -39,19 +39,19 @@ describe('post execution plan', () => {
       },
       {
         id: 'foreground',
-        platforms: ['threads', 'instagram'],
+        platforms: ['x', 'threads', 'instagram'],
         concurrency: 1,
         forceForeground: true,
       },
       {
         id: 'background',
-        platforms: ['x', 'misskey'],
+        platforms: ['misskey'],
         concurrency: 3,
         forceForeground: false,
         forceBackground: true,
       },
     ]);
-    expect(needsForegroundRealPost('x')).toBe(false);
+    expect(needsForegroundRealPost('x')).toBe(true);
     expect(needsForegroundRealPost('misskey')).toBe(false);
     expect(needsForegroundRealPost('threads')).toBe(true);
     expect(needsForegroundRealPost('instagram')).toBe(true);

@@ -27,6 +27,7 @@ interface InjectResponse {
   source: typeof RES_TAG;
   id: string;
   ok: boolean;
+  phase?: 'media-dispatched';
   error?: string;
   fileCount?: number;
   droppedOn?: string;
@@ -39,8 +40,12 @@ interface InjectResponse {
 const DEFAULT_RESPONSE_TIMEOUT_MS = 35000; // helper 側 default 30s + safety margin
 const RESPONSE_GRACE_MS = 5000;
 const VIDEO_UPLOAD_TIMEOUT_MS = 120000;
+const MEDIA_DISPATCH_FOCUS_GRACE_MS = 350;
 
-async function sendInjectRequest(req: Omit<InjectRequest, 'source' | 'id'>): Promise<InjectResponse> {
+async function sendInjectRequest(
+  req: Omit<InjectRequest, 'source' | 'id'>,
+  onMediaDispatched?: () => void,
+): Promise<InjectResponse> {
   const id = `tutti-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
   return await new Promise<InjectResponse>((resolve, reject) => {
@@ -59,6 +64,10 @@ async function sendInjectRequest(req: Omit<InjectRequest, 'source' | 'id'>): Pro
       if (ev.source !== window) return;
       const data = ev.data as Partial<InjectResponse> | undefined;
       if (!data || data.source !== RES_TAG || data.id !== id) return;
+      if (data.phase === 'media-dispatched') {
+        onMediaDispatched?.();
+        return;
+      }
       clearTimeout(timeout);
       window.removeEventListener('message', onMessage);
       resolve(data as InjectResponse);
@@ -89,6 +98,7 @@ export async function injectImages(
     requireMediaPreview?: boolean;
     requireUploadComplete?: boolean;
     implementationPath?: PostImplementationPath;
+    requestPostingWindowMediaFocus?: boolean;
   } = {},
 ): Promise<void> {
   await waitForElement<HTMLInputElement>(fileInputSelector, 5000);
@@ -102,23 +112,48 @@ export async function injectImages(
     rawImages.map((m) => (m.data ? Promise.resolve(m) : resolveAttachmentToBase64ViaMessage(m))),
   );
 
-  const result = await sendInjectRequest({
-    mode: 'input',
-    selector: fileInputSelector,
-    uploadTimeoutMs: hasVideo ? VIDEO_UPLOAD_TIMEOUT_MS : (options.requireMediaAccepted ? 30000 : undefined),
-    requireVideoAccepted: options.requireVideoAccepted,
-    requireMediaAccepted: options.requireMediaAccepted,
-    requireMediaPreview: options.requireMediaPreview,
-    requireUploadComplete: options.requireUploadComplete,
-    files: images.map((img, i) => {
-      if (!img.data) {
-        throw new Error(
-          `image attachment[${i}] missing data (materialize 漏れ): name=${img.name} type=${img.type} dataRef=${img.dataRef ? 'set' : 'unset'} bytes=${img.bytes ?? '?'} dataLen=${img.data === undefined ? 'undefined' : img.data.length}`,
-        );
-      }
-      return { name: img.name, type: img.type, data: img.data };
-    }),
-  });
+  const shouldLeaseFocus = hasVideo && options.requestPostingWindowMediaFocus === true;
+  if (shouldLeaseFocus) {
+    await setPostingWindowMediaFocus('acquire');
+  }
+  let focusReleased = false;
+  let focusReleasePromise: Promise<void> | undefined;
+  const releaseFocus = (): void => {
+    if (!shouldLeaseFocus || focusReleased) return;
+    focusReleased = true;
+    // dispatchEvent invokes framework listeners synchronously, but X starts
+    // the actual upload from a queued task. Keep the lease through that first
+    // task, then return focus while upload processing continues in the active
+    // tab of the now-unfocused posting window.
+    focusReleasePromise = sleep(MEDIA_DISPATCH_FOCUS_GRACE_MS)
+      .then(() => setPostingWindowMediaFocus('release'));
+  };
+  let result: InjectResponse;
+  try {
+    result = await sendInjectRequest({
+      mode: 'input',
+      selector: fileInputSelector,
+      uploadTimeoutMs: hasVideo ? VIDEO_UPLOAD_TIMEOUT_MS : (options.requireMediaAccepted ? 30000 : undefined),
+      requireVideoAccepted: options.requireVideoAccepted,
+      requireMediaAccepted: options.requireMediaAccepted,
+      requireMediaPreview: options.requireMediaPreview,
+      requireUploadComplete: options.requireUploadComplete,
+      files: images.map((img, i) => {
+        if (!img.data) {
+          throw new Error(
+            `image attachment[${i}] missing data (materialize 漏れ): name=${img.name} type=${img.type} dataRef=${img.dataRef ? 'set' : 'unset'} bytes=${img.bytes ?? '?'} dataLen=${img.data === undefined ? 'undefined' : img.data.length}`,
+          );
+        }
+        return { name: img.name, type: img.type, data: img.data };
+      }),
+    }, releaseFocus);
+  } finally {
+    if (shouldLeaseFocus && !focusReleased) {
+      focusReleased = true;
+      focusReleasePromise = setPostingWindowMediaFocus('release');
+    }
+    await focusReleasePromise;
+  }
 
   if (!result.ok) {
     throw new Error(result.error ?? t('runtimeImageAttachFailed'));
@@ -132,6 +167,13 @@ export async function injectImages(
   if (options.implementationPath !== 'next') {
     await sleep(300);
   }
+}
+
+async function setPostingWindowMediaFocus(phase: 'acquire' | 'release'): Promise<void> {
+  await browser.runtime.sendMessage({
+    type: 'POSTING_MEDIA_FOCUS',
+    phase,
+  }).catch(() => undefined);
 }
 
 /**

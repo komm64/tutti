@@ -23,6 +23,17 @@ export interface PostSubmissionResponse {
 
 export type RuntimeSendMessage = (message: unknown) => Promise<unknown>;
 
+/**
+ * Real video posts use a dedicated foreground window because X suspends its
+ * server-side video processing when that browser window loses OS focus.
+ * Text/image posts keep the normal background path.
+ */
+export function needsVideoPostingConfirmation(
+  input: Pick<PostSubmissionInput, 'autoPost' | 'video'>,
+): boolean {
+  return input.autoPost && input.video !== null;
+}
+
 export async function sendPostRequest(
   input: PostSubmissionInput,
   sendMessage: RuntimeSendMessage = (message) => browser.runtime.sendMessage(message),

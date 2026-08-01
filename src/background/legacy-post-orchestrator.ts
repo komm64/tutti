@@ -28,6 +28,7 @@ import { extractHttpUrls } from '../utils/text-urls';
 import {
   continuationNeedsReplyUrl,
   isVerifySupported,
+  resolveComposeUrlForMedia,
   runVerify,
   tryApiPath,
 } from './platform-strategies';
@@ -315,6 +316,9 @@ export function createLegacyPostOrchestrator(
         // Foreground-only upload wizards are stateful enough that preview also needs
         // a clean compose surface between repeated runs.
         reuseExistingTab,
+        targetWindowId: postOptions.postWindowId,
+        focusWindow: typeof postOptions.postWindowId !== 'number',
+        restoreFocusWindowId: postOptions.postWindowFocusReturnId,
       },
     );
     if (typeof tab.id !== 'number') {
@@ -522,9 +526,11 @@ export function getComposeUrlForMedia(
   text: string,
   images?: readonly ImageAttachment[],
 ): string {
-  const hasVideo = images?.some((image) => image.type.startsWith('video/')) === true;
-  if (adapter.id === 'tumblr' && hasVideo) return 'https://www.tumblr.com/new/video';
-  return adapter.getComposeUrl(text);
+  return resolveComposeUrlForMedia(
+    adapter.id,
+    adapter.getComposeUrl(text),
+    images,
+  );
 }
 
 export function shouldOpenActive(

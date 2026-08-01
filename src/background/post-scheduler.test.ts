@@ -113,7 +113,7 @@ describe('runPostScheduler', () => {
           `${execution.forceBackground}:${execution.transportPolicy}`,
         );
         firstWaveCount += 1;
-        if (firstWaveCount === 5) firstWaveStarted.resolve();
+        if (firstWaveCount === 4) firstWaveStarted.resolve();
         await release.promise;
         return { type: 'POST_RESULT', platform, success: true };
       },
@@ -122,14 +122,15 @@ describe('runPostScheduler', () => {
     await firstWaveStarted.promise;
     expect(started.get('bluesky')).toBe('api:false:false:api-only');
     expect(started.get('mastodon')).toBe('api:false:false:api-only');
-    expect(started.get('x')).toBe('background:false:true:auto');
+    expect(started.get('x')).toBe('foreground:true:false:auto');
     expect(started.get('misskey')).toBe('background:false:true:auto');
-    expect(started.get('threads')).toBe('foreground:true:false:auto');
+    expect(started.has('threads')).toBe(false);
     expect(started.has('instagram')).toBe(false);
 
     release.resolve();
     const results = await resultPromise;
     expect(results).toHaveLength(platforms.length);
+    expect(started.get('threads')).toBe('foreground:true:false:auto');
     expect(started.get('instagram')).toBe('foreground:true:false:auto');
   });
 

@@ -62,6 +62,15 @@ describe('page-world media commands', () => {
     input.addEventListener('change', () => events.push('change'));
     input.addEventListener('input', () => events.push('input'));
     const runtime = createRuntime();
+    runtime.onMediaDispatched = () => events.push('dispatched');
+    vi.mocked(runtime.waitForUploadComplete).mockImplementation(async () => {
+      events.push('wait');
+      return {
+        uploadCount: 1,
+        timedOut: false,
+        acceptedByPreview: false,
+      };
+    });
     const handlers = createMediaCommandHandlers(SOURCE, runtime);
 
     const result = await handlers.input({
@@ -81,7 +90,7 @@ describe('page-world media commands', () => {
       acceptedByPreview: false,
       uploadTimedOut: false,
     });
-    expect(events).toEqual(['change', 'input']);
+    expect(events).toEqual(['change', 'input', 'dispatched', 'wait']);
     expect(runtime.waitForUploadComplete).toHaveBeenCalledWith(1234, {
       requireMediaAccepted: false,
       requirePreviewAccepted: false,

@@ -86,6 +86,11 @@ describe('X inline thread orchestration', () => {
     } satisfies PostResultMessage);
 
     Object.assign((globalThis as typeof globalThis & { browser: Record<string, unknown> }).browser, {
+      storage: {
+        local: {
+          get: vi.fn(async () => ({})),
+        },
+      },
       tabs: {
         get: vi.fn(async () => ({
           id: 42,
@@ -178,6 +183,76 @@ describe('X inline thread orchestration', () => {
     >) {
       expect(message.textChunks).toBeUndefined();
     }
+  });
+
+  it('posts real X video threads sequentially after each URL is confirmed', async () => {
+    vi.useFakeTimers();
+    mocks.sendPostMessageWhenReady
+      .mockResolvedValueOnce({
+        type: 'POST_RESULT',
+        platform: 'x',
+        success: true,
+        url: 'https://x.com/alice/status/333',
+      } satisfies PostResultMessage)
+      .mockResolvedValueOnce({
+        type: 'POST_RESULT',
+        platform: 'x',
+        success: true,
+        url: 'https://x.com/alice/status/444',
+      } satisfies PostResultMessage);
+    const poster = createPlatformPoster({
+      openedTabs: {
+        record: vi.fn(),
+        forget: vi.fn(),
+      },
+    });
+
+    const resultPromise = poster.postToPlatform(
+      'x',
+      'a'.repeat(400),
+      [{
+        name: 'thread.mp4',
+        type: 'video/mp4',
+        data: 'AA==',
+        bytes: 1,
+        durationS: 1,
+      }],
+      undefined,
+      undefined,
+      true,
+    );
+    await vi.runAllTimersAsync();
+    const result = await resultPromise;
+
+    expect(result).toMatchObject({
+      platform: 'x',
+      success: true,
+      confirmed: true,
+      url: 'https://x.com/alice/status/444',
+      mediaUrl: 'https://x.com/alice/status/333',
+    });
+    expect(mocks.openOrFocusTab).toHaveBeenCalledTimes(2);
+    expect(mocks.openOrFocusTab.mock.calls[1]?.[0]).toBe(
+      'https://x.com/intent/post?in_reply_to=333',
+    );
+    expect(mocks.sendPostMessageWhenReady).toHaveBeenCalledTimes(2);
+    const firstMessage = mocks.sendPostMessageWhenReady.mock.calls[0]?.[1] as PostToPlatformMessage;
+    const secondMessage = mocks.sendPostMessageWhenReady.mock.calls[1]?.[1] as PostToPlatformMessage;
+    expect(firstMessage.textChunks).toBeUndefined();
+    expect(firstMessage.images).toHaveLength(1);
+    expect(secondMessage.textChunks).toBeUndefined();
+    expect(secondMessage.images).toBeUndefined();
+    expect(mocks.attachVerifyResult).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: 'https://x.com/alice/status/444',
+        mediaUrl: 'https://x.com/alice/status/333',
+      }),
+      'x',
+      'https://x.com/alice/status/333',
+      [expect.any(String)],
+      expect.any(String),
+      expect.any(Array),
+    );
   });
 });
 

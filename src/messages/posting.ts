@@ -103,6 +103,8 @@ export interface PostResultMessage {
   flow?: PostFlowTrace;
   error?: string;
   url?: string;
+  /** URL of the chunk that owns the attachment when a thread ends elsewhere. */
+  mediaUrl?: string;
   verify?: {
     verified: boolean;
     issues: { kind: string; message: string; severity: 'warn' | 'error' }[];
@@ -116,6 +118,11 @@ export interface PlatformProgressMessage {
 
 export interface ClearPostingStateMessage {
   type: 'CLEAR_POSTING_STATE';
+}
+
+export interface PostingMediaFocusMessage {
+  type: 'POSTING_MEDIA_FOCUS';
+  phase: 'acquire' | 'release';
 }
 
 export interface VerifyPostDomMessage {
@@ -137,5 +144,6 @@ export type PostingMessage =
   | PostResultMessage
   | PlatformProgressMessage
   | ClearPostingStateMessage
+  | PostingMediaFocusMessage
   | VerifyPostDomMessage
   | VerifyPostDomResult;

@@ -67,6 +67,7 @@ export interface BootstrapOptions<S extends Record<string, string>> {
     dryRun: boolean | undefined,
     textChunks: string[] | undefined,
     implementationPath: PostImplementationPath | undefined,
+    expectedUser: string | undefined,
   ) => Promise<PostResultMessage>;
   /**
    * 当 SNS 固有の追加 message handler (例: bluesky の GET_BLUESKY_SESSION)。
@@ -159,6 +160,7 @@ export function bootstrapContentScript<S extends Record<string, string>>(
           msg.dryRun,
           msg.textChunks,
           msg.implementationPath,
+          msg.expectedUser,
         );
         sendResponse({
           ...result,

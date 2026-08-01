@@ -16,7 +16,13 @@ import {
 } from './post-result-policy';
 import { runPostScheduler } from './post-scheduler';
 import { resolveCredentialBackedApiPlatforms } from './platform-strategies';
-import { clearBadge, notifyResults } from './post-status-ui';
+import {
+  clearBadge,
+  clearVideoPostingFocusLost,
+  notifyResults,
+  notifyVideoPostingFocusLost,
+} from './post-status-ui';
+import { createPostingWindowSession } from './posting-window';
 import type { createPostingStateManager } from './posting-state';
 import { executeGuardedSubmission } from './submission-execution';
 import type {
@@ -103,81 +109,150 @@ export function createPostRequestHandler(options: PostRequestHandlerOptions) {
           return rejectedResults;
         }
 
-        // 投稿前に動画を安全な MP4/H.264/AAC へ正規化し、必要に応じて
-        // size/trim/letterbox も同じ経路で処理する。
-        adjustedImages = await maybeCompressVideoForBudget(
-          platforms,
-          request.images,
-          request.trimVideoToSeconds,
-          {
-            onConversionFinished: () => {
-              postingState.setCompression(null);
-            },
-          },
-        );
-        const hasVideo = adjustedImages?.some((image) => image.type.startsWith('video/')) === true;
+        const requestHasVideo = request.images?.some(
+          (image) => image.type.startsWith('video/'),
+        ) === true;
         const requestPoster = platformPoster.forAlgorithm(postingAlgorithm);
         const apiPlatforms = postingAlgorithm === 'next' && autoPost
           ? await resolveCredentialBackedApiPlatforms(platforms)
           : [];
-        const schedulerStartedAt = Date.now();
-        const executionResults = await runPostScheduler({
-          platforms,
-          autoPost,
-          planOptions: {
-            hasVideo,
-            postingAlgorithm,
-            apiPlatforms,
-          },
-          post: async (platform, execution) => {
-            const platformStartedAt = Date.now();
-            let result = annotateImplementation(
-              normalizePostEvidence(
-                await requestPoster.postToPlatform(
-                  platform,
-                  request.text,
-                  adjustedImages,
-                  request.cw,
-                  request.visibility,
-                  autoPost,
-                  {
-                    forceForeground: execution.forceForeground,
-                    forceBackground: execution.forceBackground,
-                    transportPolicy: execution.transportPolicy,
-                  },
-                ),
-              ),
-            );
-            if (postingAlgorithm === 'next') {
-              const completedAt = Date.now();
-              result = withPostTiming(result, {
-                step: `scheduler-queue:${execution.lane}`,
-                durationMs: Math.max(0, platformStartedAt - schedulerStartedAt),
-                outcome: 'completed',
-              });
-              result = withPostTiming(result, {
-                step: 'platform-total',
-                durationMs: Math.max(0, completedAt - platformStartedAt),
-                outcome: result.success ? 'completed' : 'failed',
-              }, Math.max(0, completedAt - schedulerStartedAt));
-            }
-            return result;
-          },
-          onResult: recordPlatformProgress,
+        const apiPlatformSet = new Set(apiPlatforms);
+        const foregroundVideoWindow = autoPost && requestHasVideo &&
+          platforms.some((platform) => !apiPlatformSet.has(platform));
+        const postingWindow = createPostingWindowSession({
+          focusMode: foregroundVideoWindow ? 'foreground-video' : 'background',
+          initialUrl: foregroundVideoWindow
+            ? browser.runtime.getURL('/posting-wait.html')
+            : undefined,
+          onFocusLost: foregroundVideoWindow
+            ? notifyVideoPostingFocusLost
+            : undefined,
+          onFocusRestored: foregroundVideoWindow
+            ? clearVideoPostingFocusLost
+            : undefined,
         });
-        const results = [...rejectedResults, ...executionResults];
+        try {
+          // The foreground transition is deliberately the first visible side
+          // effect. Video conversion and every DOM posting step happen after
+          // this window is already in front, so Tutti never surprises the user
+          // by stealing focus midway through the request.
+          if (foregroundVideoWindow) {
+            clearVideoPostingFocusLost();
+            await postingWindow.getOrCreateWindowId();
+          }
 
-        if (shouldRunPostCompletionSideEffects(autoPost, executionResults)) {
-          notifyResults(results);
-          await recordHistoryEntry(request.text, results, adjustedImages, {
-            bodyHash: reservation.fingerprint,
+          // 投稿前に動画を安全な MP4/H.264/AAC へ正規化し、必要に応じて
+          // size/trim/letterbox も同じ経路で処理する。
+          adjustedImages = await maybeCompressVideoForBudget(
+            platforms,
+            request.images,
+            request.trimVideoToSeconds,
+            {
+              onConversionFinished: () => {
+                postingState.setCompression(null);
+              },
+            },
+          );
+          const hasVideo = adjustedImages?.some(
+            (image) => image.type.startsWith('video/'),
+          ) === true;
+          const schedulerStartedAt = Date.now();
+          const executionResults = await runPostScheduler({
+            platforms,
+            autoPost,
+            planOptions: {
+              hasVideo,
+              postingAlgorithm,
+              apiPlatforms,
+            },
+            post: async (platform, execution) => {
+              const platformStartedAt = Date.now();
+              const postWindowId = autoPost && execution.transportPolicy !== 'api-only'
+                ? await postingWindow.getOrCreateWindowId()
+                : undefined;
+              const postWindowFocusReturnId = typeof postWindowId === 'number'
+                ? postingWindow.getFocusReturnWindowId()
+                : undefined;
+              const postOutcome = requestPoster.postToPlatform(
+                platform,
+                request.text,
+                adjustedImages,
+                request.cw,
+                request.visibility,
+                autoPost,
+                {
+                  forceForeground: execution.forceForeground,
+                  forceBackground: execution.forceBackground,
+                  transportPolicy: execution.transportPolicy,
+                  postWindowId,
+                  postWindowFocusReturnId,
+                },
+              ).then(
+                (value) => ({ kind: 'result' as const, value }),
+                (error: unknown) => ({ kind: 'error' as const, error }),
+              );
+              const outcome = typeof postWindowId === 'number'
+                ? await Promise.race([
+                    postOutcome,
+                    postingWindow.waitForUnexpectedClose(postWindowId).then(() => ({
+                      kind: 'window-closed' as const,
+                    })),
+                  ])
+                : await postOutcome;
+              if (outcome.kind === 'error') throw outcome.error;
+              const rawResult: PostResultMessage = outcome.kind === 'window-closed'
+                ? {
+                    type: 'POST_RESULT',
+                    platform,
+                    success: false,
+                    uncertain: true,
+                    userAction: 'check-post-before-retry',
+                    flow: {
+                      mode: 'post',
+                      submitReached: true,
+                      failedStep: 'posting-window-closed',
+                    },
+                    error:
+                      'The Tutti posting window was closed before the post ' +
+                      'could be confirmed. Check the SNS before retrying.',
+                  }
+                : outcome.value;
+              let result = annotateImplementation(
+                normalizePostEvidence(rawResult),
+              );
+              if (postingAlgorithm === 'next') {
+                const completedAt = Date.now();
+                result = withPostTiming(result, {
+                  step: `scheduler-queue:${execution.lane}`,
+                  durationMs: Math.max(0, platformStartedAt - schedulerStartedAt),
+                  outcome: 'completed',
+                });
+                result = withPostTiming(result, {
+                  step: 'platform-total',
+                  durationMs: Math.max(0, completedAt - platformStartedAt),
+                  outcome: result.success ? 'completed' : 'failed',
+                }, Math.max(0, completedAt - schedulerStartedAt));
+              }
+              return result;
+            },
+            onResult: recordPlatformProgress,
           });
-          void openedTabs.cleanup(results);
-        } else {
-          clearBadge();
-          openedTabs.clear();
+          const results = [...rejectedResults, ...executionResults];
+
+          if (shouldRunPostCompletionSideEffects(autoPost, executionResults)) {
+            notifyResults(results);
+            await recordHistoryEntry(request.text, results, adjustedImages, {
+              bodyHash: reservation.fingerprint,
+            });
+            await openedTabs.cleanup(results);
+          } else {
+            clearBadge();
+            openedTabs.clear();
+          }
+          return results;
+        } finally {
+          await postingWindow.releaseBootstrapTab();
         }
-        return results;
       },
       cleanup: async () => {
         // 元 dataRef と圧縮結果 dataRef の双方を、失敗経路も含めて必ず解放する。

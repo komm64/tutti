@@ -90,4 +90,58 @@ describe('openOrFocusTab reuseExistingTab option', () => {
     expect(update).toHaveBeenNthCalledWith(2, 1, { url: composeUrl, active: false });
     expect(reload).not.toHaveBeenCalled();
   });
+
+  it('keeps an active compose tab visible inside an unfocused posting window', async () => {
+    const created = {
+      id: 3,
+      url: 'https://x.com/compose/post',
+      status: 'loading',
+      active: true,
+      windowId: 41,
+    };
+    const create = vi.fn(async () => created);
+    const updateWindow = vi.fn();
+
+    vi.stubGlobal('browser', {
+      tabs: {
+        query: vi.fn(async () => []),
+        create,
+        update: vi.fn(),
+        reload: vi.fn(),
+        get: vi.fn(async () => ({ ...created, status: 'complete' })),
+        onUpdated: {
+          addListener: vi.fn((listener: (tabId: number, info: { status?: string }) => void) => {
+            queueMicrotask(() => listener(3, { status: 'complete' }));
+          }),
+          removeListener: vi.fn(),
+        },
+      },
+      windows: {
+        update: updateWindow,
+      },
+      scripting: {
+        executeScript: vi.fn(async () => [{ result: true }]),
+      },
+    });
+
+    const result = await openOrFocusTab(
+      'https://x.com/compose/post',
+      (url) => url.startsWith('https://x.com/'),
+      true,
+      {
+        reuseExistingTab: false,
+        targetWindowId: 41,
+        focusWindow: false,
+        restoreFocusWindowId: 7,
+      },
+    );
+
+    expect(result).toEqual({ tab: created, wasCreated: true });
+    expect(create).toHaveBeenCalledWith({
+      url: 'https://x.com/compose/post',
+      active: true,
+      windowId: 41,
+    });
+    expect(updateWindow).toHaveBeenCalledWith(7, { focused: true });
+  });
 });

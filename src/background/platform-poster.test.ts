@@ -36,6 +36,25 @@ describe('platform poster helpers', () => {
     expect(getComposeUrlForMedia(tumblr, 'hello')).toBe('https://www.tumblr.com/new/text');
   });
 
+  it('uses an empty X composer for video so text and media share one root', () => {
+    const x = adapter({
+      id: 'x',
+      getComposeUrl: (text) => `https://x.com/intent/post?text=${encodeURIComponent(text)}`,
+    });
+    const video = [{
+      name: 'clip.mp4',
+      type: 'video/mp4',
+      data: 'AA==',
+    }];
+
+    expect(getComposeUrlForMedia(x, 'video caption', video)).toBe(
+      'https://x.com/compose/post',
+    );
+    expect(getComposeUrlForMedia(x, 'text only')).toBe(
+      'https://x.com/intent/post?text=text%20only',
+    );
+  });
+
 });
 
 describe('posting transport safety policy', () => {

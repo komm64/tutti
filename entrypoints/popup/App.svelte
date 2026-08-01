@@ -29,7 +29,10 @@
     VideoPreview,
     Visibility,
   } from '../../src/popup/types';
-  import { uncertainPlatforms } from '../../src/popup/post-submit';
+  import {
+    needsVideoPostingConfirmation,
+    uncertainPlatforms,
+  } from '../../src/popup/post-submit';
   import {
     applyPresetSelection,
     createPresetFromSelection,
@@ -70,6 +73,7 @@
   import HistoryStrip from './components/HistoryStrip.svelte';
   import ErrorReportDialog from './components/ErrorReportDialog.svelte';
   import ResponsibleUseDialog from './components/ResponsibleUseDialog.svelte';
+  import VideoPostingDialog from './components/VideoPostingDialog.svelte';
 
   const platforms: PlatformOption[] = POPUP_PLATFORMS;
   const composerController = createComposerController();
@@ -115,6 +119,12 @@
   let autoPost = $state(false);
   let autoPostLoaded = $state(false);
   let responsibleUseDialogOpen = $state(false);
+  let videoPostingDialogOpen = $state(false);
+  let pendingVideoSubmission = $state<
+    | { kind: 'platforms'; platforms: PlatformId[]; isRetry: boolean }
+    | { kind: 'retry-failed' }
+    | null
+  >(null);
   let responsibleUseAccepted = $state(false);
   let lastResultDraftKey = $state<string | null>(null);
   let updateAvailableVersion = $state<string | null>(null);
@@ -495,7 +505,7 @@
       void browser.tabs.create({ url: cta.url, active: true });
     } else if (cta.kind === 'retry') {
       expandedFailure = null;
-      await submitPostFor([p], /* isRetry */ true);
+      await requestPostFor([p], /* isRetry */ true);
     } else if (cta.kind === 'report') {
       const result = lastResults?.find((r) => r.platform === p);
       const errorText = result?.error ?? t('platformFailedShort', p);
@@ -532,6 +542,7 @@
   );
   const canPost = $derived(
     !posting &&
+      !videoPostingDialogOpen &&
       (text.trim().length > 0 || hasMedia) &&
       selectedIds.length > 0 &&
       selectedCompatibilityErrors.length === 0,
@@ -685,7 +696,7 @@
       errorMessage = t('runtimePostUncertain');
       return;
     }
-    await submitPostFor(selectedIds, /* isRetry */ false);
+    await requestPostFor(selectedIds, /* isRetry */ false);
   }
 
   /**
@@ -699,11 +710,13 @@
    * 正規化する。
    */
   async function handleRetryFailed() {
-    await composerController.retryFailed(
-      currentSubmissionInput(),
-      posting,
-      submissionCallbacks,
-    );
+    const input = currentSubmissionInput();
+    if (needsVideoPostingConfirmation(input)) {
+      pendingVideoSubmission = { kind: 'retry-failed' };
+      videoPostingDialogOpen = true;
+      return;
+    }
+    await composerController.retryFailed(input, posting, submissionCallbacks);
   }
 
   async function submitPostFor(platforms: PlatformId[], isRetry: boolean) {
@@ -713,6 +726,41 @@
       isRetry,
       submissionCallbacks,
     );
+  }
+
+  async function requestPostFor(platforms: PlatformId[], isRetry: boolean) {
+    const input = currentSubmissionInput();
+    if (needsVideoPostingConfirmation(input)) {
+      pendingVideoSubmission = {
+        kind: 'platforms',
+        platforms: [...platforms],
+        isRetry,
+      };
+      videoPostingDialogOpen = true;
+      return;
+    }
+    await submitPostFor(platforms, isRetry);
+  }
+
+  function cancelVideoPosting(): void {
+    pendingVideoSubmission = null;
+    videoPostingDialogOpen = false;
+  }
+
+  async function startVideoPosting(): Promise<void> {
+    const pending = pendingVideoSubmission;
+    if (!pending) return;
+    pendingVideoSubmission = null;
+    videoPostingDialogOpen = false;
+    if (pending.kind === 'retry-failed') {
+      await composerController.retryFailed(
+        currentSubmissionInput(),
+        posting,
+        submissionCallbacks,
+      );
+      return;
+    }
+    await submitPostFor(pending.platforms, pending.isRetry);
   }
 </script>
 
@@ -880,6 +928,13 @@
       mode={responsibleUseAccepted ? 'review' : 'required'}
       onAccept={acceptResponsibleUse}
       onDismiss={responsibleUseAccepted ? () => { responsibleUseDialogOpen = false; } : undefined}
+    />
+  {/if}
+
+  {#if videoPostingDialogOpen}
+    <VideoPostingDialog
+      onStart={startVideoPosting}
+      onCancel={cancelVideoPosting}
     />
   {/if}
 </main>

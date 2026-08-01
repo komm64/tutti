@@ -46,9 +46,14 @@ describe('background platform strategy registry', () => {
   });
 
   it('derives inline thread and API reply continuation policy from strategies', () => {
+    const image = [{ name: 'still.png', type: 'image/png', data: 'AA==' }];
+    const video = [{ name: 'clip.mp4', type: 'video/mp4', data: 'AA==' }];
     expect(shouldUseInlineThread('bluesky', true)).toBe(true);
     expect(shouldUseInlineThread('x', false)).toBe(true);
     expect(shouldUseInlineThread('x', true)).toBe(true);
+    expect(shouldUseInlineThread('x', true, 'next', image)).toBe(true);
+    expect(shouldUseInlineThread('x', true, 'next', video)).toBe(false);
+    expect(shouldUseInlineThread('x', false, 'next', video)).toBe(true);
     expect(shouldUseInlineThread('x', true, 'legacy')).toBe(false);
     expect(shouldUseInlineThread('x', false, 'legacy')).toBe(true);
     expect(shouldUseInlineThread('bluesky', true, 'legacy')).toBe(true);

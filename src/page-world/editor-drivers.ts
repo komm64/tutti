@@ -15,7 +15,11 @@ export function resolveTextEditorDriver(element: HTMLElement): TextEditorDriverK
   }
   if (
     element.matches('[data-lexical-editor]') ||
-    !!element.closest('[data-lexical-editor]')
+    !!element.closest('[data-lexical-editor]') ||
+    (
+      element.getAttribute('contenteditable') === 'true' &&
+      /^tweetTextarea_\d+$/.test(element.getAttribute('data-testid') ?? '')
+    )
   ) {
     return 'lexical';
   }

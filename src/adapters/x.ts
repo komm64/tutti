@@ -1,5 +1,10 @@
 import type { PlatformAdapter } from './types';
 
+// X can finish the upload request while its server-side video processing is
+// still at 98%. Keep waiting in the same composer instead of reattaching the
+// file, which could create duplicate uploads or posts.
+export const X_VIDEO_MEDIA_READY_TIMEOUT_MS = 300_000;
+
 export const xAdapter: PlatformAdapter = {
   id: 'x',
   name: 'X',
@@ -7,14 +12,16 @@ export const xAdapter: PlatformAdapter = {
   popupOrder: 1,
   defaultSelected: true,
   previewLane: 'foreground',
-  realPostLane: 'background',
+  mediaRetryPolicy: 'single-attempt',
   matchUrl: (url) => /^https:\/\/(x|twitter)\.com\//.test(url),
   /**
-   * X は `/compose/post` の modal compose を使う。ホームの inline compose は
-   * 画面幅やタイムライン状態で描画されないことがあるため、実投稿の入口として
-   * 安定しない。
+   * Let X initialize its own controlled editor state through the official
+   * intent route. The content script still verifies the exact draft and fills
+   * it only when X did not preserve the prefill.
    */
-  getComposeUrl: () => 'https://x.com/compose/post',
+  getComposeUrl: (text) => text
+    ? `https://x.com/intent/post?text=${encodeURIComponent(text)}`
+    : 'https://x.com/compose/post',
   getLoginUrl: () => 'https://x.com/',
   prefillsViaUrl: false,
   videoConstraints: {
