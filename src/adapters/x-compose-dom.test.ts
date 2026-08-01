@@ -5,6 +5,7 @@ import {
   getXComposeRoot,
   getXThreadTextarea,
   getXThreadTextareas,
+  getXVideoComposeRoot,
   hasXVideoAttachment,
 } from './x-compose-dom';
 
@@ -72,5 +73,19 @@ describe('X thread compose DOM selection', () => {
 
     expect(hasXVideoAttachment(scope, (element) => element.id === 'attached')).toBe(true);
     expect(hasXVideoAttachment(scope, () => false)).toBe(false);
+  });
+
+  it('selects the attached dialog when X also renders an empty inline composer', () => {
+    document.body.innerHTML = `
+      <main id="inline">
+        <div data-testid="tweetTextarea_0" role="textbox" contenteditable="true"></div>
+      </main>
+      <div role="dialog" id="attached-dialog">
+        <div data-testid="tweetTextarea_0" role="textbox" contenteditable="true">draft</div>
+        <div data-testid="attachments"><video></video></div>
+      </div>
+    `;
+
+    expect(getXVideoComposeRoot(document, () => true)?.id).toBe('attached-dialog');
   });
 });

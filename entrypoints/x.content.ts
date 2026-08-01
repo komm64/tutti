@@ -27,6 +27,7 @@ import {
   getXComposeRoot,
   getXThreadTextarea,
   getXThreadTextareas as getExactXThreadTextareas,
+  getXVideoComposeRoot,
   hasXVideoAttachment,
 } from '../src/adapters/x-compose-dom';
 import { t } from '../src/utils/i18n';
@@ -193,6 +194,7 @@ async function executeXSinglePost(
     ));
   }
   let composeRoot = getXComposeRoot(initialTextarea);
+  const hasVideo = (images ?? []).some((image) => image.type.startsWith('video/'));
 
   let rootMarker = markXComposeRoot(composeRoot, 'single');
   try {
@@ -219,7 +221,7 @@ async function executeXSinglePost(
         implementationPath,
         requestPostingWindowMediaFocus: dryRun !== true,
       });
-      if (images.some((image) => image.type.startsWith('video/'))) {
+      if (hasVideo) {
         // Switching browser windows can make X replace the entire compose
         // subtree. Observe readiness from document, then bind the remaining
         // work to the current root instead of the detached pre-upload node.
@@ -236,6 +238,7 @@ async function executeXSinglePost(
         rootMarker,
         'single',
         X_SINGLE_COMPOSE_READY_TIMEOUT_MS,
+        hasVideo,
       ));
       textareaSelector = scopedXComposeSelector(rootMarker, X_COMPOSE_TEXTAREA_SELECTOR);
       await settleXEditorAfterMedia(
@@ -261,7 +264,6 @@ async function executeXSinglePost(
       );
     }
 
-    const hasVideo = (images ?? []).some((image) => image.type.startsWith('video/'));
     const postButtonTimeoutMs = resolvePostButtonTimeoutMs(
       X_SINGLE_POST_BUTTON_TIMEOUT_MS,
       hasVideo,
@@ -342,6 +344,7 @@ async function executeXInlineThread(
     ));
   }
   let composeRoot = getXComposeRoot(textarea0);
+  const hasVideo = (images ?? []).some((image) => image.type.startsWith('video/'));
   let rootMarker = markXComposeRoot(composeRoot, 'thread');
 
   try {
@@ -361,7 +364,7 @@ async function executeXInlineThread(
         implementationPath,
         requestPostingWindowMediaFocus: dryRun !== true,
       });
-      if (images.some((image) => image.type.startsWith('video/'))) {
+      if (hasVideo) {
         const mediaReady = await waitForXMediaReady(X_VIDEO_MEDIA_READY_TIMEOUT_MS);
         if (mediaReady === 'lost') {
           throw new Error(t('runtimeXVideoAttachmentLost'));
@@ -375,6 +378,7 @@ async function executeXInlineThread(
         rootMarker,
         'thread',
         X_THREAD_COMPOSE_READY_TIMEOUT_MS,
+        hasVideo,
       ));
       await settleXEditorAfterMedia(
         composeRoot,
@@ -446,7 +450,6 @@ async function executeXInlineThread(
     }
 
     // Post button (preview なら highlight だけ、 autoPost なら click)
-    const hasVideo = (images ?? []).some((image) => image.type.startsWith('video/'));
     const postButtonTimeoutMs = resolvePostButtonTimeoutMs(
       X_THREAD_POST_BUTTON_TIMEOUT_MS,
       hasVideo,
@@ -664,8 +667,12 @@ async function reacquireXComposeRoot(
   previousMarker: string,
   label: string,
   timeoutMs: number,
+  preferVideoAttachment = false,
 ): Promise<{ root: HTMLElement; marker: string }> {
-  const currentTextarea = await waitForXInitialTextarea(timeoutMs);
+  const currentTextarea = await waitForXInitialTextarea(
+    timeoutMs,
+    preferVideoAttachment,
+  );
   if (!currentTextarea) {
     throw new Error(t(
       'runtimeXTextareaTimeout',
@@ -763,9 +770,10 @@ function findXSinglePostButton(scope: ParentNode): HTMLElement | null {
 
 function waitForXInitialTextarea(
   timeoutMs: number,
+  preferVideoAttachment = false,
 ): Promise<HTMLElement | undefined> {
   return waitForCondition<HTMLElement>(
-    findXInitialTextarea,
+    () => findXInitialTextarea(preferVideoAttachment),
     {
       timeoutMs,
       intervalMs: 150,
@@ -780,7 +788,14 @@ function waitForXInitialTextarea(
   ).then((element) => element ?? undefined);
 }
 
-function findXInitialTextarea(): HTMLElement | null {
+function findXInitialTextarea(preferVideoAttachment = false): HTMLElement | null {
+  if (preferVideoAttachment) {
+    const videoRoot = getXVideoComposeRoot(document, isVisible);
+    const videoTextarea = videoRoot
+      ? getXThreadTextarea(videoRoot, 0, isVisible)
+      : undefined;
+    if (videoTextarea) return videoTextarea;
+  }
   const dialogTextarea = Array
     .from(document.querySelectorAll<HTMLElement>(X_THREAD_DIALOG_TEXTAREA_SELECTOR))
     .find(isVisible);
@@ -799,15 +814,15 @@ async function waitForXMediaReady(
   let missingSince: number | undefined;
   const result = await waitForCondition<'ready' | 'lost'>(
     () => {
-      const currentTextarea = findXInitialTextarea();
-      if (!currentTextarea) {
+      const currentCompose = findXInitialTextarea();
+      if (!currentCompose) {
         missingSince = undefined;
         return null;
       }
-      const currentRoot = getXComposeRoot(currentTextarea);
-      if (hasXVideoAttachment(currentRoot, isVisible)) {
+      const videoRoot = getXVideoComposeRoot(document, isVisible);
+      if (videoRoot) {
         missingSince = undefined;
-        return findXSinglePostButton(currentRoot) ? 'ready' : null;
+        return findXSinglePostButton(videoRoot) ? 'ready' : null;
       }
       if (!document.hasFocus()) {
         missingSince = undefined;

@@ -30,6 +30,20 @@ export function getXComposeRoot(textarea: HTMLElement): HTMLElement {
     document.body;
 }
 
+export function getXVideoComposeRoot(
+  scope: ParentNode,
+  isVisible: (element: HTMLElement) => boolean,
+): HTMLElement | undefined {
+  const visited = new Set<HTMLElement>();
+  for (const textarea of getXThreadTextareas(scope, isVisible)) {
+    const root = getXComposeRoot(textarea);
+    if (visited.has(root)) continue;
+    visited.add(root);
+    if (hasXVideoAttachment(root, isVisible)) return root;
+  }
+  return undefined;
+}
+
 export function hasXVideoAttachment(
   scope: ParentNode,
   isVisible: (element: HTMLElement) => boolean,
