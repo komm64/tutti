@@ -399,25 +399,46 @@ async function executeXInlineThread(
 
     // 各 chunk を「+」 click → wait → inject の繰り返し。
     for (let i = 1; i < chunks.length; i++) {
+      // X may remount the entire compose dialog after the previous Lexical
+      // editor settles. Always resolve the live root before looking for the
+      // next add button instead of querying a detached dialog subtree.
+      ({ root: composeRoot, marker: rootMarker } = await reacquireXComposeRoot(
+        composeRoot,
+        rootMarker,
+        'thread',
+        X_THREAD_TEXTAREA_TIMEOUT_MS,
+        hasVideo,
+      ));
       const addBtn = await waitForXAddPostButton(composeRoot, X_THREAD_TEXTAREA_TIMEOUT_MS);
       if (!addBtn) {
-        throw new Error(t('runtimeXAddButtonMissing', i + 1, chunks.length, i));
+        throw new Error(
+          `${t('runtimeXAddButtonMissing', i + 1, chunks.length, i)}; ` +
+          describeXComposeState(composeRoot),
+        );
       }
       await clickElementMarkedInMainWorld(addBtn, 'tutti-x-add-post');
 
-      // 新 textarea (index i) が出現するまで MutationObserver で待つ。
-      const target = await waitForXThreadTextarea(composeRoot, i, X_THREAD_TEXTAREA_TIMEOUT_MS);
+      // Adding an editor can itself remount the dialog. Wait at document scope
+      // for the exact textarea id, then adopt the root that owns that live
+      // editor before injecting text or looking for later controls.
+      const target = await waitForXThreadTextarea(document, i, X_THREAD_TEXTAREA_TIMEOUT_MS);
       if (!target) {
-        const got = getXThreadTextareas(composeRoot).length;
+        const got = getXThreadTextareas(document).length;
         throw new Error(t(
           'runtimeXTextareaTimeout',
           i + 1,
           chunks.length,
           i + 1,
           got,
-          describeXComposeState(composeRoot),
+          describeXComposeState(document),
         ));
       }
+      ({ root: composeRoot, marker: rootMarker } = adoptXComposeRoot(
+        composeRoot,
+        rootMarker,
+        target,
+        'thread',
+      ));
       await injectTextIntoXThreadTextarea(
         composeRoot,
         i,
@@ -465,7 +486,9 @@ async function executeXInlineThread(
       if (hasVideo && !hasXVideoAttachment(composeRoot, isVisible)) {
         throw new Error(t('runtimeXVideoAttachmentLost'));
       }
-      throw new Error(t('runtimeXPostAllButtonMissing'));
+      throw new Error(
+        `${t('runtimeXPostAllButtonMissing')}; ${describeXComposeState(composeRoot)}`,
+      );
     }
     if (dryRun) {
       const orig = postBtn.style.outline;
@@ -683,6 +706,20 @@ async function reacquireXComposeRoot(
       describeXComposeState(document),
     ));
   }
+  return adoptXComposeRoot(
+    previousRoot,
+    previousMarker,
+    currentTextarea,
+    label,
+  );
+}
+
+function adoptXComposeRoot(
+  previousRoot: HTMLElement,
+  previousMarker: string,
+  currentTextarea: HTMLElement,
+  label: string,
+): { root: HTMLElement; marker: string } {
   const currentRoot = getXComposeRoot(currentTextarea);
   if (currentRoot === previousRoot) {
     return { root: previousRoot, marker: previousMarker };

@@ -54,6 +54,30 @@ describe('X thread compose DOM selection', () => {
     expect(getXComposeRoot(secondTextarea).id).toBe('second');
   });
 
+  it('finds a later thread editor in the replacement dialog, not the detached root', () => {
+    document.body.innerHTML = `
+      <div role="dialog" id="first">
+        <div data-testid="tweetTextarea_0" role="textbox"></div>
+        <div data-testid="tweetTextarea_1" role="textbox"></div>
+      </div>
+    `;
+    const firstRoot = document.querySelector<HTMLElement>('#first')!;
+
+    firstRoot.remove();
+    document.body.innerHTML = `
+      <div role="dialog" id="replacement">
+        <div data-testid="tweetTextarea_0" role="textbox"></div>
+        <div data-testid="tweetTextarea_1" role="textbox"></div>
+        <div data-testid="tweetTextarea_2" role="textbox"></div>
+      </div>
+    `;
+
+    const thirdTextarea = getXThreadTextarea(document, 2, () => true);
+    expect(thirdTextarea).toBeDefined();
+    expect(getXComposeRoot(thirdTextarea!).id).toBe('replacement');
+    expect(firstRoot.isConnected).toBe(false);
+  });
+
   it('requires a visible video inside the current compose root', () => {
     document.body.innerHTML = `
       <div role="dialog" id="current"><video id="attached"></video></div>

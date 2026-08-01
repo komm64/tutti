@@ -32,6 +32,30 @@ export function resolveTextEditorDriver(element: HTMLElement): TextEditorDriverK
   return 'contenteditable';
 }
 
+export function shouldUseDirectLexicalState(
+  hostname: string,
+  element: HTMLElement,
+): boolean {
+  const host = hostname.toLowerCase();
+  if (/(?:^|\.)instagram\.com$/.test(host)) return true;
+  if (/(?:^|\.)threads\.(?:com|net)$/.test(host)) return true;
+  if (!/(?:^|\.)x\.com$/.test(host)) return false;
+
+  // X's parent thread composer state is not updated when a follow-up editor
+  // is changed only through Lexical setEditorState. Its DOM contains the text,
+  // but Post all stays disabled and the next Add post button disappears.
+  return !shouldUseXThreadPaste(host, element);
+}
+
+export function shouldUseXThreadPaste(
+  hostname: string,
+  element: HTMLElement,
+): boolean {
+  if (!/(?:^|\.)x\.com$/.test(hostname.toLowerCase())) return false;
+  const testId = element.getAttribute('data-testid') ?? '';
+  return /^tweetTextarea_[1-9]\d*$/.test(testId);
+}
+
 export function injectNativeText(
   element: HTMLInputElement | HTMLTextAreaElement,
   text: string,
