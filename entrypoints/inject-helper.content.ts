@@ -47,7 +47,7 @@ import {
   injectNativeText,
   resolveTextEditorDriver,
   shouldUseDirectLexicalState,
-  shouldUseXThreadPaste,
+  shouldUseXEditorPaste,
 } from '../src/page-world/editor-drivers';
 import { handleTumblrTextCommand } from '../src/page-world/tumblr-editor-driver';
 
@@ -691,11 +691,11 @@ export default defineContentScript({
             el,
           );
           const shouldRequireStableFrameworkText = isThreadsHost || isXHost;
-          const useXThreadPaste = shouldUseXThreadPaste(location.hostname, el);
-          if (useXThreadPaste) {
-            // X's follow-up thread editors need the framework paste handler.
-            // Direct Lexical state leaves Post all disabled, while execCommand
-            // inserts the text twice in the current composer implementation.
+          const useXEditorPaste = shouldUseXEditorPaste(location.hostname, el);
+          if (useXEditorPaste) {
+            // X's paste handler is the only synthetic path verified to update
+            // CreateTweet.tweet_text. Direct Lexical/DOM state can render the
+            // caption while the eventual request still contains an empty body.
             await injectContentEditableText(el, text, { waitFor });
             editor = null;
           } else if (useDirectLexicalState && editor && typeof editor.parseEditorState === 'function' && typeof editor.setEditorState === 'function') {
@@ -845,7 +845,7 @@ export default defineContentScript({
             editor = null; // X 等は framework event path の方が composer state と同期しやすい
           }
 
-          if (!editor && !useXThreadPaste) {
+          if (!editor && !useXEditorPaste) {
             // editor instance が取れない or setEditorState 失敗 → event-based fallback
             el.focus();
             const sel0 = window.getSelection();

@@ -14,6 +14,12 @@ export function resolveTextEditorDriver(element: HTMLElement): TextEditorDriverK
     return 'native';
   }
   if (
+    element.matches('.public-DraftEditor-content') ||
+    !!element.closest('.DraftEditor-root')
+  ) {
+    return 'draft';
+  }
+  if (
     element.matches('[data-lexical-editor]') ||
     !!element.closest('[data-lexical-editor]') ||
     (
@@ -22,12 +28,6 @@ export function resolveTextEditorDriver(element: HTMLElement): TextEditorDriverK
     )
   ) {
     return 'lexical';
-  }
-  if (
-    element.matches('.public-DraftEditor-content') ||
-    !!element.closest('.DraftEditor-root')
-  ) {
-    return 'draft';
   }
   return 'contenteditable';
 }
@@ -39,21 +39,20 @@ export function shouldUseDirectLexicalState(
   const host = hostname.toLowerCase();
   if (/(?:^|\.)instagram\.com$/.test(host)) return true;
   if (/(?:^|\.)threads\.(?:com|net)$/.test(host)) return true;
-  if (!/(?:^|\.)x\.com$/.test(host)) return false;
-
-  // X's parent thread composer state is not updated when a follow-up editor
-  // is changed only through Lexical setEditorState. Its DOM contains the text,
-  // but Post all stays disabled and the next Add post button disappears.
-  return !shouldUseXThreadPaste(host, element);
+  // X's current composer does not expose a stable Lexical editor instance.
+  // Direct DOM/editor-state mutation can leave tweet_text empty even while the
+  // rendered textarea contains the expected caption. Use X's paste handler for
+  // every exact tweetTextarea_n editor so its submit state owns the text.
+  return false;
 }
 
-export function shouldUseXThreadPaste(
+export function shouldUseXEditorPaste(
   hostname: string,
   element: HTMLElement,
 ): boolean {
   if (!/(?:^|\.)x\.com$/.test(hostname.toLowerCase())) return false;
   const testId = element.getAttribute('data-testid') ?? '';
-  return /^tweetTextarea_[1-9]\d*$/.test(testId);
+  return /^tweetTextarea_\d+$/.test(testId);
 }
 
 export function injectNativeText(

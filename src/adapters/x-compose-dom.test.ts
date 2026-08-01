@@ -7,6 +7,7 @@ import {
   getXThreadTextareas,
   getXVideoComposeRoot,
   hasXVideoAttachment,
+  readXEditableText,
 } from './x-compose-dom';
 
 describe('X thread compose DOM selection', () => {
@@ -111,5 +112,17 @@ describe('X thread compose DOM selection', () => {
     `;
 
     expect(getXVideoComposeRoot(document, () => true)?.id).toBe('attached-dialog');
+  });
+
+  it('preserves rendered Draft.js block boundaries when reading X text', () => {
+    const editor = document.createElement('div');
+    editor.innerHTML = '<div>first line</div><div><br></div><div>https://example.com/</div>';
+    Object.defineProperty(editor, 'innerText', {
+      configurable: true,
+      value: 'first line\n\nhttps://example.com/',
+    });
+
+    expect(editor.textContent).toBe('first linehttps://example.com/');
+    expect(readXEditableText(editor)).toBe('first line\n\nhttps://example.com/');
   });
 });
