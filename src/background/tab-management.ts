@@ -128,6 +128,12 @@ export async function openOrFocusTab(
         runPacedNavigation(() => browser.tabs.update(existingTabId, { url: composeUrl, active }))
       )),
     );
+    if (active) {
+      await retryTransientTabAction('re-activate ready SNS tab', () => (
+        browser.tabs.update(existingTabId, { active: true })
+      ));
+      await restoreRequestedWindowFocus(options, existing.windowId);
+    }
     const readyTab = await browser.tabs.get(existingTabId);
     await sleep(READY_DELAY_MS);
     return { tab: readyTab, wasCreated: false };
@@ -162,6 +168,12 @@ export async function openOrFocusTab(
       runPacedNavigation(() => browser.tabs.reload(createdTabId))
     )),
   );
+  if (active) {
+    await retryTransientTabAction('re-activate ready SNS tab', () => (
+      browser.tabs.update(createdTabId, { active: true })
+    ));
+    await restoreRequestedWindowFocus(options, createdWindowId);
+  }
   await sleep(READY_DELAY_MS);
   return { tab: created, wasCreated: true };
 }

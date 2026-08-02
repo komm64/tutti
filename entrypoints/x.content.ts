@@ -25,6 +25,7 @@ import {
 } from '../src/utils/image';
 import {
   getXComposeRoot,
+  getLiveXVideoComposeRoot,
   getXThreadTextarea,
   getXThreadTextareas as getExactXThreadTextareas,
   getXVideoComposeRoot,
@@ -274,11 +275,11 @@ async function executeXSinglePost(
       ? await waitForXStableVideoPostButton(
           composeRoot,
           postButtonTimeoutMs,
-          () => findXSinglePostButton(composeRoot),
+          (liveRoot) => findXSinglePostButton(liveRoot),
         )
       : await waitForXSinglePostButton(composeRoot, postButtonTimeoutMs);
     if (!postBtn) {
-      if (hasVideo && !hasXVideoAttachment(composeRoot, isVisible)) {
+      if (hasVideo && !hasXVideoAttachment(document, isVisible)) {
         throw new Error(t('runtimeXVideoAttachmentLost'));
       }
       throw new Error(t('runtimePostButtonDisabled'));
@@ -310,7 +311,7 @@ async function executeXSinglePost(
 
     const submittedAt = Date.now();
     markPostSubmissionStarted(submittedAt);
-    await clickElementMarkedInMainWorld(livePostBtn, 'tutti-x-post');
+    await clickElementMarkedInMainWorld(livePostBtn, 'tutti-x-post', false);
     return submittedAt;
   } finally {
     unmarkXComposeRoot(composeRoot, rootMarker);
@@ -498,11 +499,11 @@ async function executeXInlineThread(
       ? await waitForXStableVideoPostButton(
           composeRoot,
           postButtonTimeoutMs,
-          () => findXPostAllButton(sel, composeRoot),
+          (liveRoot) => findXPostAllButton(sel, liveRoot),
         )
       : await waitForXPostAllButton(sel, composeRoot, postButtonTimeoutMs);
     if (!postBtn) {
-      if (hasVideo && !hasXVideoAttachment(composeRoot, isVisible)) {
+      if (hasVideo && !hasXVideoAttachment(document, isVisible)) {
         throw new Error(t('runtimeXVideoAttachmentLost'));
       }
       throw new Error(
@@ -535,7 +536,7 @@ async function executeXInlineThread(
     }
     const submittedAt = Date.now();
     markPostSubmissionStarted(submittedAt);
-    await clickElementMarkedInMainWorld(livePostBtn, 'tutti-x-post-all');
+    await clickElementMarkedInMainWorld(livePostBtn, 'tutti-x-post-all', false);
     return submittedAt;
   } finally {
     unmarkXComposeRoot(composeRoot, rootMarker);
@@ -797,7 +798,7 @@ async function resolveXSubmitAfterPacing(options: {
     ? await waitForXStableVideoPostButton(
         root,
         timeoutMs,
-        () => options.findButton(root),
+        (liveRoot) => options.findButton(liveRoot),
       )
     : await options.waitForButton(root, timeoutMs);
   return { root, marker, button };
@@ -957,17 +958,20 @@ async function waitForXMediaReady(
 }
 
 async function waitForXStableVideoPostButton(
-  scope: ParentNode,
+  scope: HTMLElement,
   timeoutMs: number,
-  findButton: () => HTMLElement | null,
+  findButton: (root: HTMLElement) => HTMLElement | null,
 ): Promise<HTMLElement | null> {
   return await waitForStableCondition<HTMLElement>(
-    () => hasXVideoAttachment(scope, isVisible) ? findButton() : null,
+    () => {
+      const liveRoot = getLiveXVideoComposeRoot(document, scope, isVisible);
+      return liveRoot ? findButton(liveRoot) : null;
+    },
     {
       timeoutMs,
       quietMs: 750,
       intervalMs: 100,
-      root: scope instanceof Document ? scope.body : scope,
+      root: document.body,
       observerInit: {
         childList: true,
         subtree: true,
@@ -979,11 +983,19 @@ async function waitForXStableVideoPostButton(
   );
 }
 
-async function clickElementMarkedInMainWorld(el: HTMLElement, prefix: string): Promise<void> {
+async function clickElementMarkedInMainWorld(
+  el: HTMLElement,
+  prefix: string,
+  pacing: 'interaction' | false = 'interaction',
+): Promise<void> {
   const marker = `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   el.setAttribute('data-tutti-click-marker', marker);
   try {
-    await clickElementInMainWorld(`[data-tutti-click-marker="${marker}"]`);
+    await clickElementInMainWorld(
+      `[data-tutti-click-marker="${marker}"]`,
+      undefined,
+      { pacing },
+    );
   } finally {
     el.removeAttribute('data-tutti-click-marker');
   }

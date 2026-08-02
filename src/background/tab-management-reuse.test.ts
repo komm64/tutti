@@ -110,12 +110,13 @@ describe('openOrFocusTab reuseExistingTab option', () => {
     };
     const create = vi.fn(async () => created);
     const updateWindow = vi.fn();
+    const updateTab = vi.fn(async () => created);
 
     vi.stubGlobal('browser', {
       tabs: {
         query: vi.fn(async () => []),
         create,
-        update: vi.fn(),
+        update: updateTab,
         reload: vi.fn(),
         get: vi.fn(async () => ({ ...created, status: 'complete' })),
         onUpdated: {
@@ -152,5 +153,6 @@ describe('openOrFocusTab reuseExistingTab option', () => {
       windowId: 41,
     });
     expect(updateWindow).toHaveBeenCalledWith(7, { focused: true });
+    expect(updateTab).toHaveBeenCalledWith(3, { active: true });
   });
 });

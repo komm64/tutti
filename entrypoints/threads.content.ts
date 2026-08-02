@@ -17,6 +17,16 @@ import { detectThreadsUserFromDocument } from '../src/utils/threads-user-detect'
 import { findThreadsMediaRejection, hasThreadsMediaPreview } from '../src/utils/threads-media-preview';
 import { waitForWebActionPacing } from '../src/utils/web-action-pacing';
 
+const THREADS_POST_BUTTON_TEXTS = ['Post', '投稿', '投稿する', 'Post now'];
+const THREADS_COMPOSER_TRIGGER_TEXTS = [
+  'New thread',
+  '新しいスレッド',
+  "What's new?",
+  '新規投稿',
+  '新しい投稿',
+  'Create',
+];
+
 function detectThreadsUser(): string | null {
   return detectThreadsUserFromDocument(document);
 }
@@ -87,9 +97,10 @@ async function runPost(
     requireMediaPreview: hasMedia,
     beforeDropDelayMs: hasMedia ? 5000 : undefined,
     beforeSubmit: hasMedia ? () => assertThreadsMediaAttached(hasVideo ? 30_000 : 10_000) : undefined,
-    clickPostButton: () => clickElementInMainWorld(
+    clickPostButton: () => clickLiveThreadsButton(
       '[role="dialog"] [role="button"], [role="dialog"] button',
-      ['Post', '投稿', '投稿する', 'Post now'],
+      THREADS_POST_BUTTON_TEXTS,
+      false,
     ),
   });
   if (!dryRun) {
@@ -101,9 +112,9 @@ async function runPost(
       const button = findThreadsPostButton();
       if (button && !isDisabled(button)) {
         log.warn('Threads: composer still open after submit; enabled Post button returned, retrying click once');
-        await clickElementInMainWorld(
+        await clickLiveThreadsButton(
           '[role="dialog"] [role="button"], [role="dialog"] button',
-          ['Post', '投稿', '投稿する', 'Post now'],
+          THREADS_POST_BUTTON_TEXTS,
         );
         await waitForCondition<boolean>(
           () => isThreadsDraftOpen(text, textareaSelector) ? null : true,
@@ -172,9 +183,9 @@ async function runPost(
 async function ensureThreadsComposerOpen(textareaSelector: string): Promise<void> {
   if (document.querySelector(textareaSelector)) return;
 
-  await clickElementInMainWorld(
+  await clickLiveThreadsButton(
     '[role="button"], button',
-    ['New thread', '新しいスレッド', "What's new?", '新規投稿', '新しい投稿'],
+    THREADS_COMPOSER_TRIGGER_TEXTS,
   );
   const textarea = await waitForCondition<HTMLElement>(
     () => document.querySelector<HTMLElement>(textareaSelector),
@@ -183,6 +194,50 @@ async function ensureThreadsComposerOpen(textareaSelector: string): Promise<void
   if (!textarea) {
     throw new Error('Threads composer dialog did not open from the authenticated home page.');
   }
+}
+
+async function clickLiveThreadsButton(
+  selector: string,
+  texts: readonly string[],
+  pace = true,
+): Promise<void> {
+  if (pace) {
+    await waitForWebActionPacing('interaction');
+  }
+  const target = await waitForCondition<HTMLElement>(
+    () => findLiveThreadsButton(selector, texts),
+    { timeoutMs: 12_000, intervalMs: 100 },
+  );
+  if (!target) throw new Error('Threads click target not found');
+
+  const marker = `tutti-threads-click-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  target.setAttribute('data-tutti-click-marker', marker);
+  try {
+    await clickElementInMainWorld(
+      `[data-tutti-click-marker="${marker}"]`,
+      undefined,
+      { pacing: false },
+    );
+  } finally {
+    target.removeAttribute('data-tutti-click-marker');
+  }
+}
+
+function findLiveThreadsButton(
+  selector: string,
+  texts: readonly string[],
+): HTMLElement | null {
+  for (const element of document.querySelectorAll<HTMLElement>(selector)) {
+    const values = [
+      element.textContent,
+      element.getAttribute('aria-label'),
+      element.getAttribute('title'),
+    ].map((value) => (value ?? '').replace(/\s+/g, ' ').trim());
+    if (!values.some((value) => value && texts.includes(value))) continue;
+    if (isDisabled(element) || element.getClientRects().length === 0) continue;
+    return element;
+  }
+  return null;
 }
 
 async function assertThreadsMediaAttached(timeoutMs: number): Promise<void> {

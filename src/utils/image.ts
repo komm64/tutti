@@ -2,7 +2,7 @@ import type { ImageAttachment, PostImplementationPath } from '../messages';
 import { sleep, waitForElement, waitForStableCondition } from './dom';
 import { t } from './i18n';
 import { log } from './logger';
-import { waitForWebActionPacing } from './web-action-pacing';
+import { waitForWebActionPacing, type WebActionKind } from './web-action-pacing';
 
 const REQ_TAG = 'tutti-inject-req-v1';
 const RES_TAG = 'tutti-inject-res-v1';
@@ -248,8 +248,15 @@ export async function injectTagList(
   }
 }
 
-export async function clickElementInMainWorld(selector: string, texts?: string[]): Promise<void> {
-  await waitForWebActionPacing('interaction');
+export async function clickElementInMainWorld(
+  selector: string,
+  texts?: string[],
+  options: { pacing?: WebActionKind | false } = {},
+): Promise<void> {
+  const pacing = options.pacing ?? 'interaction';
+  if (pacing !== false) {
+    await waitForWebActionPacing(pacing);
+  }
   const result = await sendInjectRequest({
     mode: 'click',
     selector,

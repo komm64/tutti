@@ -350,7 +350,7 @@ async function runPost(
       dryRun,
       implementationPath,
       beforeSubmit: hasVideo ? assertBlueskyVideoAttached : undefined,
-      clickPostButton: () => clickElementInMainWorld(sel.postButton),
+      clickPostButton: () => clickElementInMainWorld(sel.postButton, undefined, { pacing: false }),
     });
   }
 

@@ -524,7 +524,7 @@ for (const caseName of requestedCases) {
         }
         if (result.url && caseDef.verifyPublishedMedia) {
           const mediaUrl = result.mediaUrl ?? result.url;
-          const mediaExpectedText = result.mediaUrl && result.mediaUrl !== result.url
+          const mediaExpectedText = result.mediaUrl
             ? text.slice(0, 120)
             : text;
           const mediaCheck = await checkPublishedMediaEvidence(
@@ -990,13 +990,14 @@ async function observeForegroundVideoPostingWindow(
   { timeoutMs = 360_000, simulateFocusInterruption = true } = {},
 ) {
   const deadline = Date.now() + timeoutMs;
-  const focusLossHoldMs = 5_000;
+  const allowedFocusReclaimMs = 1_500;
   let last;
   let postingWindowId;
   let browsingTab;
   let foregroundObservedAt;
   let focusLostAt;
   let focusRestoredAt;
+  let focusReclaimExceeded = false;
   let browsingNavigationDone = false;
 
   do {
@@ -1036,6 +1037,7 @@ async function observeForegroundVideoPostingWindow(
       foregroundObservedAt = Date.now();
       if (simulateFocusInterruption) {
         browsingTab = await openBrowsingTab(popup, initialFocusedWindowId);
+        focusLostAt = Date.now();
         continue;
       }
     }
@@ -1050,13 +1052,15 @@ async function observeForegroundVideoPostingWindow(
       last.focusedOriginalWindowId === browsingTab?.windowId &&
       last.browsingTabActive === true
     ) {
-      focusLostAt ??= Date.now();
       const focusLossDurationMs = Date.now() - focusLostAt;
-      if (!browsingNavigationDone && focusLossDurationMs >= 1_500) {
+      if (!browsingNavigationDone && focusLossDurationMs >= allowedFocusReclaimMs) {
         browsingTab = await navigateBrowsingTab(popup, browsingTab);
         browsingNavigationDone = true;
       }
-      if (focusLossDurationMs >= focusLossHoldMs && typeof postingWindowId === 'number') {
+      if (focusLossDurationMs >= allowedFocusReclaimMs && typeof postingWindowId === 'number') {
+        focusReclaimExceeded = true;
+        // Restore focus for cleanup so a failed reclaim assertion does not
+        // leave X suspended until the outer case timeout.
         await focusBrowserWindow(popup, postingWindowId);
       }
     }
@@ -1073,7 +1077,7 @@ async function observeForegroundVideoPostingWindow(
 
     if (isRequestSettled()) {
       const focusEvidenceOk = !simulateFocusInterruption ||
-        Boolean(focusLostAt && focusRestoredAt);
+        Boolean(focusLostAt && focusRestoredAt && !focusReclaimExceeded);
       return {
         ...last,
         ok: Boolean(foregroundObservedAt && focusEvidenceOk),
@@ -1084,6 +1088,8 @@ async function observeForegroundVideoPostingWindow(
         foregroundObservedAt,
         focusLostAt,
         focusRestoredAt,
+        allowedFocusReclaimMs,
+        focusReclaimExceeded,
         focusLossDurationMs: focusLostAt
           ? (focusRestoredAt ?? Date.now()) - focusLostAt
           : 0,
@@ -1106,6 +1112,8 @@ async function observeForegroundVideoPostingWindow(
     foregroundObservedAt,
     focusLostAt,
     focusRestoredAt,
+    allowedFocusReclaimMs,
+    focusReclaimExceeded,
     focusLossDurationMs: focusLostAt
       ? (focusRestoredAt ?? Date.now()) - focusLostAt
       : 0,
@@ -1142,6 +1150,7 @@ async function observePostingWindow(
   let mediaFocusLeaseSamples = 0;
   let maxMediaFocusLeaseMs = 0;
   let invalidBrowsingSample;
+  const observedPostingWindowIds = new Set();
   let last = {
     ok: false,
     platform,
@@ -1176,6 +1185,7 @@ async function observePostingWindow(
         allowedMediaFocusLeaseMs,
         mediaFocusLeaseSamples,
         maxMediaFocusLeaseMs,
+        observedPostingWindowIds: [...observedPostingWindowIds],
         ...(invalidBrowsingSample ? { invalidBrowsingSample } : {}),
       };
     }
@@ -1186,6 +1196,14 @@ async function observePostingWindow(
       platform,
       browsingTab,
     );
+    for (const tab of last.activePostingTabs ?? []) {
+      if (typeof tab.windowId === 'number') observedPostingWindowIds.add(tab.windowId);
+    }
+    for (const candidate of last.candidates ?? []) {
+      if (candidate.newWindow && typeof candidate.windowId === 'number') {
+        observedPostingWindowIds.add(candidate.windowId);
+      }
+    }
     if (!simulateUserBrowsing && last.ok) return last;
 
     if (simulateUserBrowsing && !browsingTab && last.ok) {
@@ -1197,11 +1215,10 @@ async function observePostingWindow(
       continue;
     }
     if (simulateUserBrowsing && browsingTab) {
-      const postingTabActiveAndVisible = last.candidates.some((candidate) => (
-        candidate.newWindow &&
-        candidate.tabActive === true &&
-        candidate.visibilityState === 'visible' &&
-        candidate.hidden === false
+      const postingTabActiveAndVisible = last.activePostingTabs?.some((tab) => (
+        tab.tabActive === true &&
+        tab.visibilityState === 'visible' &&
+        tab.hidden === false
       ));
       const originalWindowFocused =
         last.browsingTabActive === true &&
@@ -1209,11 +1226,17 @@ async function observePostingWindow(
       const mediaFocusLeaseObserved =
         postingTabActiveAndVisible &&
         last.browsingTabActive === true &&
-        last.candidates.some((candidate) => candidate.windowFocused === true);
-      const ownedPostingTabClosedDuringInspection = last.candidates.some((candidate) => (
-        candidate.newWindow &&
+        last.activePostingTabs?.some((tab) => tab.windowFocused === true);
+      const ownedPostingTabClosedDuringInspection = [
+        ...last.candidates.filter((candidate) => candidate.newWindow),
+        ...(last.activePostingTabs ?? []),
+      ].some((candidate) => (
         /No tab with id|tab (?:was|is) closed/i.test(candidate.inspectError ?? '')
       ));
+      const observedPostingWindowStillPresent = [
+        ...(last.activePostingTabs ?? []),
+        ...(last.candidates ?? []).filter((candidate) => candidate.newWindow),
+      ].some((candidate) => observedPostingWindowIds.has(candidate.windowId));
       if (postingTabActiveAndVisible && originalWindowFocused) {
         if (typeof mediaFocusLeaseStartedAt === 'number') {
           maxMediaFocusLeaseMs = Math.max(
@@ -1241,8 +1264,16 @@ async function observePostingWindow(
       } else if (
         last.candidates.length > 0 &&
         !ownedPostingTabClosedDuringInspection &&
+        (
+          observedPostingWindowIds.size === 0 ||
+          observedPostingWindowStillPresent
+        ) &&
         !invalidBrowsingSample
       ) {
+        // A successful request closes its owned posting window before the
+        // runtime response necessarily settles. Once that window has been
+        // observed, its disappearance is normal cleanup; unexpected user
+        // closure is still rejected by the POST_RESULT uncertain contract.
         invalidBrowsingSample = {
           reason: 'browsing-or-posting-tab-lost',
           originalWindowStillFocused: last.originalWindowStillFocused,
@@ -1271,6 +1302,7 @@ async function observePostingWindow(
     allowedMediaFocusLeaseMs,
     mediaFocusLeaseSamples,
     maxMediaFocusLeaseMs,
+    observedPostingWindowIds: [...observedPostingWindowIds],
     ...(invalidBrowsingSample ? { invalidBrowsingSample } : {}),
     error: `posting window observation timed out after ${timeoutMs}ms`,
   };
@@ -1382,6 +1414,40 @@ async function inspectPostingWindow(
         });
       }
     }
+    const activePostingTabs = [];
+    for (const window of windows) {
+      if (typeof window.id !== 'number' || initial.has(window.id)) continue;
+      const tab = (window.tabs ?? []).find((candidate) => (
+        typeof candidate.id === 'number' && candidate.active === true
+      ));
+      if (typeof tab?.id !== 'number') continue;
+      let visibilityState;
+      let hidden;
+      let inspectError;
+      try {
+        const injected = await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: () => ({
+            visibilityState: document.visibilityState,
+            hidden: document.hidden,
+          }),
+        });
+        visibilityState = injected[0]?.result?.visibilityState;
+        hidden = injected[0]?.result?.hidden;
+      } catch (err) {
+        inspectError = err instanceof Error ? err.message : String(err);
+      }
+      activePostingTabs.push({
+        windowId: window.id,
+        windowFocused: window.focused,
+        tabId: tab.id,
+        tabActive: tab.active,
+        visibilityState,
+        hidden,
+        inspectError,
+        url: tab.url ?? tab.pendingUrl ?? '',
+      });
+    }
     const focusedOriginalWindow = windows.find((window) => (
       typeof window.id === 'number' &&
       initial.has(window.id) &&
@@ -1414,6 +1480,7 @@ async function inspectPostingWindow(
       focusedOriginalWindowId: focusedOriginalWindow?.id,
       browsingTabActive: browsingChromeTab?.active,
       candidates,
+      activePostingTabs,
     };
   }, {
     baseline: initialWindowIds,

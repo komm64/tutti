@@ -3,6 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   getXComposeRoot,
+  getLiveXVideoComposeRoot,
   getXThreadTextarea,
   getXThreadTextareas,
   getXVideoComposeRoot,
@@ -112,6 +113,30 @@ describe('X thread compose DOM selection', () => {
     `;
 
     expect(getXVideoComposeRoot(document, () => true)?.id).toBe('attached-dialog');
+  });
+
+  it('reacquires the live video composer after X detaches the previous root', () => {
+    document.body.innerHTML = `
+      <div role="dialog" id="previous">
+        <div data-testid="tweetTextarea_0" role="textbox"></div>
+        <div data-testid="attachments"><video></video></div>
+      </div>
+    `;
+    const previous = document.querySelector<HTMLElement>('#previous')!;
+
+    previous.remove();
+    document.body.innerHTML = `
+      <div role="dialog" id="replacement">
+        <div data-testid="tweetTextarea_0" role="textbox"></div>
+        <div data-testid="attachments"><video></video></div>
+        <button data-testid="tweetButton">Post</button>
+      </div>
+    `;
+
+    const live = getLiveXVideoComposeRoot(document, previous, () => true);
+    expect(previous.isConnected).toBe(false);
+    expect(live?.id).toBe('replacement');
+    expect(live?.querySelector('[data-testid="tweetButton"]')).not.toBeNull();
   });
 
   it('preserves rendered Draft.js block boundaries when reading X text', () => {

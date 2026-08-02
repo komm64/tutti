@@ -329,4 +329,52 @@ describe('Bluesky inline thread orchestration', () => {
     expect(mocks.openOrFocusTab).not.toHaveBeenCalled();
     expect(mocks.sendPostMessageWhenReady).not.toHaveBeenCalled();
   });
+
+  it('preserves the media-bearing root URL for a DOM video thread', async () => {
+    mocks.tryApiThreadPath.mockResolvedValue('no-credentials');
+    mocks.openOrFocusTab.mockResolvedValue({
+      tab: {
+        id: 84,
+        url: 'https://bsky.app/intent/compose',
+        status: 'complete',
+      },
+      wasCreated: true,
+    });
+    mocks.sendPostMessageWhenReady.mockResolvedValue({
+      type: 'POST_RESULT',
+      platform: 'bluesky',
+      success: true,
+      confirmed: true,
+      url: 'https://bsky.app/profile/alice.test/post/root',
+    } satisfies PostResultMessage);
+    const poster = createPlatformPoster({
+      openedTabs: {
+        record: vi.fn(),
+        forget: vi.fn(),
+      },
+    });
+
+    const result = await poster.postToPlatform(
+      'bluesky',
+      'a'.repeat(400),
+      [{
+        name: 'thread.mp4',
+        type: 'video/mp4',
+        data: 'AA==',
+        bytes: 1,
+        durationS: 1,
+      }],
+      undefined,
+      undefined,
+      true,
+    );
+
+    expect(result).toMatchObject({
+      platform: 'bluesky',
+      success: true,
+      confirmed: true,
+      url: 'https://bsky.app/profile/alice.test/post/root',
+      mediaUrl: 'https://bsky.app/profile/alice.test/post/root',
+    });
+  });
 });
