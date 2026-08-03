@@ -124,13 +124,9 @@ export function createPostingTransport(options: PostingTransportOptions) {
             error: message,
           };
         }
-        if (
-          autoPost &&
-          rawImages?.length &&
-          adapter.mediaRetryPolicy === 'single-attempt'
-        ) {
+        if (rawImages?.length && adapter.mediaRetryPolicy === 'single-attempt') {
           log.warn(
-            `${adapter.id}: real-post media attempt "${attempt.label}" failed ` +
+            `${adapter.id}: media attempt "${attempt.label}" failed ` +
             'before submit; skipping a fresh upload attempt',
           );
           throw error;
@@ -251,9 +247,10 @@ export function createPostingTransport(options: PostingTransportOptions) {
     if (typeof tab.id !== 'number') {
       throw new Error(t('runtimeSnsTabOpenFailed'));
     }
-    const ownedTabId = wasCreated && !dryRun ? tab.id : undefined;
-    if (typeof ownedTabId === 'number') {
-      options.openedTabs.record(adapter.id, ownedTabId);
+    const createdAttemptTabId = wasCreated ? tab.id : undefined;
+    const registeredTabId = !dryRun ? createdAttemptTabId : undefined;
+    if (typeof registeredTabId === 'number') {
+      options.openedTabs.record(adapter.id, registeredTabId);
     }
     let response: PostResultMessage | undefined;
 
@@ -371,11 +368,14 @@ export function createPostingTransport(options: PostingTransportOptions) {
         rawImages?.length &&
         adapter.mediaRetryPolicy === 'single-attempt';
       if (
-        typeof ownedTabId === 'number' &&
+        typeof createdAttemptTabId === 'number' &&
         response?.flow?.submitReached !== true &&
         !preserveFailedMediaCompose
       ) {
-        await closeOwnedAttemptTab(adapter.id, ownedTabId, attempt.label);
+        // Keep only the successful preview composer. A failed preview retry is
+        // still our freshly-created tab; leaving it open can make X process
+        // the same video in several tabs at once and strand later attempts.
+        await closeOwnedAttemptTab(adapter.id, createdAttemptTabId, attempt.label);
       }
       throw error;
     }

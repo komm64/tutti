@@ -1,4 +1,5 @@
 import { buildYouTubeTitle } from '../adapters/youtube';
+import { waitForWebActionPacing } from '../utils/web-action-pacing';
 import { retryTransientTabAction } from './tab-action-retry';
 import { closeTabSafely, waitForTabComplete } from './tab-management';
 
@@ -21,13 +22,16 @@ export async function captureYouTubeStudioPostIdsFromTab(
   debug(`open isolated Studio content snapshot before posting: ${contentUrl}`);
   const snapshotTab = await retryTransientTabAction(
     'open YouTube Studio content snapshot before posting',
-    () => browser.tabs.create({
-      url: contentUrl,
-      active: false,
-      ...(typeof sourceTab.windowId === 'number'
-        ? { windowId: sourceTab.windowId }
-        : {}),
-    }),
+    async () => {
+      await waitForWebActionPacing('navigation');
+      return await browser.tabs.create({
+        url: contentUrl,
+        active: false,
+        ...(typeof sourceTab.windowId === 'number'
+          ? { windowId: sourceTab.windowId }
+          : {}),
+      });
+    },
   );
   if (typeof snapshotTab.id !== 'number') {
     throw new Error('YouTube Studio baseline snapshot tab was not created');
@@ -75,9 +79,10 @@ export async function captureYouTubeStudioPostUrlFromTab(
   const targetTitle = buildYouTubeStudioCaptureTarget(sourceText);
   const contentUrl = await resolveYouTubeStudioContentUrlFromTab(tabId);
   debug(`open newest-first Studio content list for URL lookup: ${contentUrl}`);
-  await retryTransientTabAction('open YouTube Studio content list for URL capture', () => (
-    browser.tabs.update(tabId, { url: contentUrl })
-  ));
+  await retryTransientTabAction('open YouTube Studio content list for URL capture', async () => {
+    await waitForWebActionPacing('navigation');
+    return await browser.tabs.update(tabId, { url: contentUrl });
+  });
   await waitForTabComplete(tabId);
 
   const results = await browser.scripting.executeScript({

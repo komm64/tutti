@@ -65,7 +65,9 @@ export interface PlatformAdapter {
   /**
    * Stateful media composers may rate-limit or duplicate uploads when a
    * pre-submit failure automatically opens another fresh compose attempt.
-   * Opt in to one real-post media attempt and surface the first failure.
+   * Opt in to one media attempt and surface the first failure. This lets a
+   * stateful server-side processor keep working in the same compose session
+   * instead of resetting progress by re-uploading into a fresh composer.
    */
   mediaRetryPolicy?: 'single-attempt';
   /** 投稿操作前の compose page load timeout に対する宣言policy */

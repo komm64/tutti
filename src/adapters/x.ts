@@ -3,7 +3,7 @@ import type { PlatformAdapter } from './types';
 // X can finish the upload request while its server-side video processing is
 // still at 98%. Keep waiting in the same composer instead of reattaching the
 // file, which could create duplicate uploads or posts.
-export const X_VIDEO_MEDIA_READY_TIMEOUT_MS = 300_000;
+export const X_VIDEO_MEDIA_READY_TIMEOUT_MS = 600_000;
 
 export const xAdapter: PlatformAdapter = {
   id: 'x',
@@ -11,8 +11,8 @@ export const xAdapter: PlatformAdapter = {
   charLimit: 280,
   popupOrder: 1,
   defaultSelected: true,
-  previewLane: 'foreground',
   mediaRetryPolicy: 'single-attempt',
+  previewLane: 'foreground',
   matchUrl: (url) => /^https:\/\/(x|twitter)\.com\//.test(url),
   /**
    * Let X initialize its own controlled editor state through the official

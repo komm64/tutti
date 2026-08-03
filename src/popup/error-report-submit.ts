@@ -13,6 +13,10 @@ import {
   isRecentlyReported,
   markReported,
 } from '../utils/report-dedup';
+import { withTimeout } from '../utils/promise-timeout';
+
+export const REPORT_RUNTIME_MESSAGE_TIMEOUT_MS = 5_000;
+export const REPORT_SUBMIT_TIMEOUT_MS = 15_000;
 
 export interface PopupReportContext extends CurrentDraftReportInput {
   version: string;
@@ -23,8 +27,10 @@ export async function buildPopupReportPayload(
   context: PopupReportContext,
 ): Promise<{ title: string; body: string }> {
   const platforms = selectedPlatformIds(context);
-  const logsExcerpt = await loadLogsExcerpt(platforms);
-  const diagnosticsJson = await loadDiagnosticsJson(platforms);
+  const [logsExcerpt, diagnosticsJson] = await Promise.all([
+    loadLogsExcerpt(platforms),
+    loadDiagnosticsJson(platforms),
+  ]);
   return buildErrorReportPayload({
     errorText,
     version: context.version,
@@ -55,13 +61,27 @@ export async function submitPopupErrorReport(input: {
   }
 
   const { title, body } = await buildPopupReportPayload(input.errorText, input.context);
+  const controller = new AbortController();
   try {
-    const res = await fetch(input.endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, body }),
-    });
-    const data = (await res.json().catch(() => ({}))) as { ok?: boolean; issueUrl?: string; error?: string };
+    const { res, data } = await withTimeout(
+      fetch(input.endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, body }),
+          signal: controller.signal,
+        })
+        .then(async (res) => ({
+          res,
+          data: (await res.json().catch(() => ({}))) as {
+            ok?: boolean;
+            issueUrl?: string;
+            error?: string;
+          },
+        })),
+      REPORT_SUBMIT_TIMEOUT_MS,
+      'Error report submission',
+      () => controller.abort(),
+    );
     if (res.ok && data.ok) {
       if (!settings.disableReportDedup) void markReported(hash);
       return { ok: true, issueUrl: data.issueUrl };
@@ -86,7 +106,11 @@ export async function openPopupGitHubIssue(input: {
 
 async function loadLogsExcerpt(platforms: ReturnType<typeof selectedPlatformIds>): Promise<string> {
   try {
-    const res = (await browser.runtime.sendMessage({ type: 'LOG_EXPORT_REQUEST' })) as
+    const res = (await withTimeout(
+      browser.runtime.sendMessage({ type: 'LOG_EXPORT_REQUEST' }),
+      REPORT_RUNTIME_MESSAGE_TIMEOUT_MS,
+      'Error report log collection',
+    )) as
       | { entries?: ErrorReportLogEntry[] }
       | undefined;
     return formatReportLogs(res?.entries ?? [], platforms);
@@ -103,7 +127,11 @@ function selectedPlatformIds(context: PopupReportContext) {
 
 async function loadDiagnosticsJson(platforms: ReturnType<typeof selectedPlatformIds>): Promise<string> {
   try {
-    const res = (await browser.runtime.sendMessage({ type: 'DIAGNOSE_REQUEST', platforms })) as
+    const res = (await withTimeout(
+      browser.runtime.sendMessage({ type: 'DIAGNOSE_REQUEST', platforms }),
+      REPORT_RUNTIME_MESSAGE_TIMEOUT_MS,
+      'Error report diagnostics',
+    )) as
       | { report?: unknown }
       | undefined;
     return res?.report ? JSON.stringify(res.report, null, 2) : '';

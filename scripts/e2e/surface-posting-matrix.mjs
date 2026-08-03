@@ -128,6 +128,15 @@ const CASES = {
     verifyPostingWindowPlatform: 'x',
     simulateUserBrowsing: true,
   },
+  'text-four-images': {
+    requires: ['image'],
+    // Mirrors tutti-issues#93: one 463-character Threads chunk plus four images.
+    text: (stamp) => (
+      `tutti surface matrix four images ${stamp} ` +
+      'four-image continuation and bounded timeout verification '.repeat(12)
+    ).slice(0, 463),
+    media: 'four-images',
+  },
   'hashtags-image': {
     requires: ['image'],
     text: () => '#tutti #test1',
@@ -178,6 +187,7 @@ const CASES = {
 
 const UNSUPPORTED_CASES = {
   pixiv: ['image-only'],
+  deviantart: ['text-four-images'],
 };
 
 const args = process.argv.slice(2);
@@ -263,16 +273,10 @@ console.log(`[matrix] extension=${extensionId}`);
 
 let popup = await openPopupPage(ctx, extensionId);
 const version = await popup.evaluate(() => chrome.runtime.getManifest().version);
-const postingAlgorithm = await popup.evaluate(async () => {
-  const settings = (await chrome.storage.sync.get('settings'))['settings'] ?? {};
-  if (settings.postingAlgorithm === 'legacy') return 'legacy';
-  if (settings.postingAlgorithm === 'next') return 'next';
-  return settings.xThreadPostingMode === 'sequential' ? 'legacy' : 'next';
-});
 console.log(`[matrix] extension version=${version}`);
-console.log(`[matrix] postingAlgorithm=${postingAlgorithm}`);
+console.log('[matrix] posting implementation=next');
 
-const expectedImplementationPath = () => postingAlgorithm;
+const expectedImplementationPath = () => 'next';
 
 const failures = [];
 const summary = [];
@@ -280,7 +284,7 @@ const persistSummary = async () => {
   await writeSummary(summaryPath, {
     mode,
     version,
-    postingAlgorithm,
+    postingImplementation: 'next',
     platforms: requestedPlatforms,
     cases: requestedCases,
     repeat,
@@ -367,7 +371,7 @@ for (const caseName of requestedCases) {
         platforms,
         images,
         autoPost,
-      }).finally(() => {
+      }, caseTimeoutMs).finally(() => {
         requestSettled = true;
       });
       if (postingWindowPlatform) {
@@ -410,7 +414,11 @@ for (const caseName of requestedCases) {
       browsingTabId = postingWindowEvidence?.browsingTabId;
       await closeBrowserTab(popup, browsingTabId);
       const message = err instanceof Error ? err.message : String(err);
-      const backgroundState = await readBackgroundState(popup)
+      const backgroundState = await withTimeout(
+        readBackgroundState(popup),
+        10_000,
+        `${caseName} background state recovery`,
+      )
         .then(compactBackgroundState)
         .catch((stateErr) => ({
           error: stateErr instanceof Error ? stateErr.message : String(stateErr),
@@ -524,7 +532,7 @@ for (const caseName of requestedCases) {
         }
         if (result.url && caseDef.verifyPublishedMedia) {
           const mediaUrl = result.mediaUrl ?? result.url;
-          const mediaExpectedText = result.mediaUrl && result.mediaUrl !== result.url
+          const mediaExpectedText = result.mediaUrl
             ? text.slice(0, 120)
             : text;
           const mediaCheck = await checkPublishedMediaEvidence(
@@ -767,10 +775,11 @@ async function readImageFixture(path) {
   const type = path.toLowerCase().endsWith('.jpg') || path.toLowerCase().endsWith('.jpeg')
     ? 'image/jpeg'
     : 'image/png';
-  return await loadE2eFixture(basename(path), type, {
+  const fixture = await loadE2eFixture(basename(path), type, {
     root: dirname(path),
     required: true,
   });
+  return { ...fixture, path };
 }
 
 async function readVideoFixture(path) {
@@ -802,10 +811,15 @@ async function readVideoFixture(path) {
 async function buildMedia(kind, imageFixture, videoFixture, stamp) {
   if (kind === 'none') return undefined;
   if (kind === 'image') {
-    return [{
-      ...imageFixture,
-      name: uniqueName(imageFixture.name, stamp),
-    }];
+    return [buildImageAttachment(imageFixture, stamp)];
+  }
+  if (kind === 'four-images') {
+    const variants = await createUniqueImageVariants(imageFixture.path, stamp, 4);
+    return variants.map((data, index) => buildImageAttachment(
+      imageFixture,
+      `${stamp}-${index + 1}`,
+      data,
+    ));
   }
   if (kind === 'video') {
     // X can strand repeated byte-identical test media in processing even when
@@ -825,14 +839,50 @@ async function buildMedia(kind, imageFixture, videoFixture, stamp) {
   if (kind === 'mixed') {
     const video = await buildMedia('video', imageFixture, videoFixture, stamp);
     return [
-      {
-        ...imageFixture,
-        name: uniqueName(imageFixture.name, stamp),
-      },
+      buildImageAttachment(imageFixture, stamp),
       ...video,
     ];
   }
   throw new Error(`unknown media kind: ${kind}`);
+}
+
+function buildImageAttachment(imageFixture, stamp, data) {
+  const encodedData = data === undefined
+    ? imageFixture.data
+    : data.toString('base64');
+  return {
+    name: uniqueName(imageFixture.name, stamp),
+    type: imageFixture.type,
+    data: encodedData,
+    bytes: data?.byteLength ?? imageFixture.bytes,
+  };
+}
+
+async function createUniqueImageVariants(sourcePath, stamp, count) {
+  return await withTemporaryDirectory(async (tempDir) => {
+    const variants = [];
+    for (let index = 0; index < count; index += 1) {
+      const digest = createHash('sha256').update(`${stamp}-${index + 1}`).digest();
+      const color = digest.subarray(0, 3).toString('hex');
+      const x = 32 + index * 128;
+      const y = 32 + index * 96;
+      const outputPath = resolve(tempDir, `tutti-surface-variant-${index + 1}.png`);
+      await execFileAsync('ffmpeg', [
+        '-y',
+        '-hide_banner',
+        '-loglevel', 'error',
+        '-i', sourcePath,
+        '-vf', `drawbox=x=${x}:y=${y}:w=96:h=96:color=0x${color}:t=fill`,
+        '-frames:v', '1',
+        outputPath,
+      ], {
+        timeout: 30_000,
+        windowsHide: true,
+      });
+      variants.push(await readFile(outputPath));
+    }
+    return variants;
+  }, { prefix: 'tutti-surface-image-' });
 }
 
 async function createUniqueVideoVariant(sourcePath, stamp) {
@@ -880,7 +930,7 @@ async function wakeServiceWorker(ctx, extensionId) {
   let sw = ctx.serviceWorkers().find((worker) => worker.url().includes(`chrome-extension://${extensionId}/`));
   if (sw) return sw;
   const page = await ctx.newPage();
-  await page.goto(`chrome-extension://${extensionId}/popup.html`, { waitUntil: 'domcontentloaded' });
+  await navigateToPopupWithRetry(page, extensionId);
   for (let i = 0; i < 50; i += 1) {
     sw = ctx.serviceWorkers().find((worker) => worker.url().includes(`chrome-extension://${extensionId}/`));
     if (sw) break;
@@ -893,12 +943,28 @@ async function wakeServiceWorker(ctx, extensionId) {
 
 async function openPopupPage(ctx, extensionId) {
   const page = await ctx.newPage();
-  await page.goto(`chrome-extension://${extensionId}/popup.html`, {
-    waitUntil: 'domcontentloaded',
-    timeout: 30_000,
-  });
+  await navigateToPopupWithRetry(page, extensionId);
   await page.waitForTimeout(1000);
   return page;
+}
+
+async function navigateToPopupWithRetry(page, extensionId) {
+  const url = `chrome-extension://${extensionId}/popup.html`;
+  let lastError;
+  for (let attempt = 1; attempt <= 5; attempt += 1) {
+    try {
+      await page.goto(url, {
+        waitUntil: 'domcontentloaded',
+        timeout: 30_000,
+      });
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt === 5) break;
+      await page.waitForTimeout(attempt * 500);
+    }
+  }
+  throw lastError;
 }
 
 async function closeNonExtensionPages(ctx, extensionId) {
@@ -940,17 +1006,69 @@ async function reloadExtension(ctx, extensionId) {
   await new Promise((resolveReload) => setTimeout(resolveReload, 1500));
 }
 
-async function sendPostRequest(popup, request) {
-  return await popup.evaluate(async (payload) => {
-    return await new Promise((resolveResponse) => {
-      chrome.runtime.sendMessage(payload, (response) => {
-        resolveResponse({
-          response,
-          lastError: chrome.runtime.lastError?.message,
-        });
-      });
-    });
-  }, request);
+async function sendPostRequest(popup, request, timeoutMs) {
+  return await popup.evaluate(async ({ payload, requestTimeoutMs }) => {
+    const deadline = Date.now() + requestTimeoutMs;
+    const sendRuntimeMessage = async (message, responseTimeoutMs = 10_000) => {
+      let timer;
+      try {
+        return await Promise.race([
+          new Promise((resolveResponse) => {
+            chrome.runtime.sendMessage(message, (response) => {
+              resolveResponse({
+                response,
+                lastError: chrome.runtime.lastError?.message,
+              });
+            });
+          }),
+          new Promise((_, reject) => {
+            timer = setTimeout(
+              () => reject(new Error(
+                `runtime message timed out after ${responseTimeoutMs}ms`,
+              )),
+              responseTimeoutMs,
+            );
+          }),
+        ]);
+      } finally {
+        clearTimeout(timer);
+      }
+    };
+
+    const initial = await sendRuntimeMessage(
+      payload,
+      Math.min(30_000, requestTimeoutMs),
+    );
+    if (!initial.response?.accepted || initial.response.requestId !== payload.requestId) {
+      return initial;
+    }
+
+    while (Date.now() <= deadline) {
+      let stateRead;
+      try {
+        stateRead = await sendRuntimeMessage(
+          { type: 'GET_BG_STATE' },
+          Math.min(10_000, Math.max(1, deadline - Date.now())),
+        );
+      } catch {
+        if (Date.now() > deadline) break;
+        await new Promise((resolveDelay) => setTimeout(resolveDelay, 500));
+        continue;
+      }
+      const postingState = stateRead.response?.postingState;
+      if (postingState?.requestId === payload.requestId && postingState.done) {
+        return {
+          response: { results: postingState.results ?? [] },
+          lastError: stateRead.lastError,
+        };
+      }
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, 500));
+    }
+    throw new Error(
+      `POST_REQUEST state timed out after ${requestTimeoutMs}ms ` +
+      `for requestId=${payload.requestId}`,
+    );
+  }, { payload: request, requestTimeoutMs: timeoutMs });
 }
 
 async function readHistory(popup) {
@@ -961,7 +1079,13 @@ async function readHistory(popup) {
 
 async function readBackgroundState(popup) {
   return await popup.evaluate(async () => {
-    return await chrome.runtime.sendMessage({ type: 'GET_BG_STATE' });
+    return await Promise.race([
+      chrome.runtime.sendMessage({ type: 'GET_BG_STATE' }),
+      new Promise((_, reject) => setTimeout(
+        () => reject(new Error('GET_BG_STATE timed out after 8000ms')),
+        8_000,
+      )),
+    ]);
   });
 }
 
@@ -990,13 +1114,14 @@ async function observeForegroundVideoPostingWindow(
   { timeoutMs = 360_000, simulateFocusInterruption = true } = {},
 ) {
   const deadline = Date.now() + timeoutMs;
-  const focusLossHoldMs = 5_000;
+  const allowedFocusReclaimMs = 1_500;
   let last;
   let postingWindowId;
   let browsingTab;
   let foregroundObservedAt;
   let focusLostAt;
   let focusRestoredAt;
+  let focusReclaimExceeded = false;
   let browsingNavigationDone = false;
 
   do {
@@ -1036,6 +1161,7 @@ async function observeForegroundVideoPostingWindow(
       foregroundObservedAt = Date.now();
       if (simulateFocusInterruption) {
         browsingTab = await openBrowsingTab(popup, initialFocusedWindowId);
+        focusLostAt = Date.now();
         continue;
       }
     }
@@ -1050,13 +1176,15 @@ async function observeForegroundVideoPostingWindow(
       last.focusedOriginalWindowId === browsingTab?.windowId &&
       last.browsingTabActive === true
     ) {
-      focusLostAt ??= Date.now();
       const focusLossDurationMs = Date.now() - focusLostAt;
-      if (!browsingNavigationDone && focusLossDurationMs >= 1_500) {
+      if (!browsingNavigationDone && focusLossDurationMs >= allowedFocusReclaimMs) {
         browsingTab = await navigateBrowsingTab(popup, browsingTab);
         browsingNavigationDone = true;
       }
-      if (focusLossDurationMs >= focusLossHoldMs && typeof postingWindowId === 'number') {
+      if (focusLossDurationMs >= allowedFocusReclaimMs && typeof postingWindowId === 'number') {
+        focusReclaimExceeded = true;
+        // Restore focus for cleanup so a failed reclaim assertion does not
+        // leave X suspended until the outer case timeout.
         await focusBrowserWindow(popup, postingWindowId);
       }
     }
@@ -1073,7 +1201,7 @@ async function observeForegroundVideoPostingWindow(
 
     if (isRequestSettled()) {
       const focusEvidenceOk = !simulateFocusInterruption ||
-        Boolean(focusLostAt && focusRestoredAt);
+        Boolean(focusLostAt && focusRestoredAt && !focusReclaimExceeded);
       return {
         ...last,
         ok: Boolean(foregroundObservedAt && focusEvidenceOk),
@@ -1084,6 +1212,8 @@ async function observeForegroundVideoPostingWindow(
         foregroundObservedAt,
         focusLostAt,
         focusRestoredAt,
+        allowedFocusReclaimMs,
+        focusReclaimExceeded,
         focusLossDurationMs: focusLostAt
           ? (focusRestoredAt ?? Date.now()) - focusLostAt
           : 0,
@@ -1106,6 +1236,8 @@ async function observeForegroundVideoPostingWindow(
     foregroundObservedAt,
     focusLostAt,
     focusRestoredAt,
+    allowedFocusReclaimMs,
+    focusReclaimExceeded,
     focusLossDurationMs: focusLostAt
       ? (focusRestoredAt ?? Date.now()) - focusLostAt
       : 0,
@@ -1142,6 +1274,7 @@ async function observePostingWindow(
   let mediaFocusLeaseSamples = 0;
   let maxMediaFocusLeaseMs = 0;
   let invalidBrowsingSample;
+  const observedPostingWindowIds = new Set();
   let last = {
     ok: false,
     platform,
@@ -1176,6 +1309,7 @@ async function observePostingWindow(
         allowedMediaFocusLeaseMs,
         mediaFocusLeaseSamples,
         maxMediaFocusLeaseMs,
+        observedPostingWindowIds: [...observedPostingWindowIds],
         ...(invalidBrowsingSample ? { invalidBrowsingSample } : {}),
       };
     }
@@ -1186,6 +1320,14 @@ async function observePostingWindow(
       platform,
       browsingTab,
     );
+    for (const tab of last.activePostingTabs ?? []) {
+      if (typeof tab.windowId === 'number') observedPostingWindowIds.add(tab.windowId);
+    }
+    for (const candidate of last.candidates ?? []) {
+      if (candidate.newWindow && typeof candidate.windowId === 'number') {
+        observedPostingWindowIds.add(candidate.windowId);
+      }
+    }
     if (!simulateUserBrowsing && last.ok) return last;
 
     if (simulateUserBrowsing && !browsingTab && last.ok) {
@@ -1197,11 +1339,10 @@ async function observePostingWindow(
       continue;
     }
     if (simulateUserBrowsing && browsingTab) {
-      const postingTabActiveAndVisible = last.candidates.some((candidate) => (
-        candidate.newWindow &&
-        candidate.tabActive === true &&
-        candidate.visibilityState === 'visible' &&
-        candidate.hidden === false
+      const postingTabActiveAndVisible = last.activePostingTabs?.some((tab) => (
+        tab.tabActive === true &&
+        tab.visibilityState === 'visible' &&
+        tab.hidden === false
       ));
       const originalWindowFocused =
         last.browsingTabActive === true &&
@@ -1209,11 +1350,17 @@ async function observePostingWindow(
       const mediaFocusLeaseObserved =
         postingTabActiveAndVisible &&
         last.browsingTabActive === true &&
-        last.candidates.some((candidate) => candidate.windowFocused === true);
-      const ownedPostingTabClosedDuringInspection = last.candidates.some((candidate) => (
-        candidate.newWindow &&
+        last.activePostingTabs?.some((tab) => tab.windowFocused === true);
+      const ownedPostingTabClosedDuringInspection = [
+        ...last.candidates.filter((candidate) => candidate.newWindow),
+        ...(last.activePostingTabs ?? []),
+      ].some((candidate) => (
         /No tab with id|tab (?:was|is) closed/i.test(candidate.inspectError ?? '')
       ));
+      const observedPostingWindowStillPresent = [
+        ...(last.activePostingTabs ?? []),
+        ...(last.candidates ?? []).filter((candidate) => candidate.newWindow),
+      ].some((candidate) => observedPostingWindowIds.has(candidate.windowId));
       if (postingTabActiveAndVisible && originalWindowFocused) {
         if (typeof mediaFocusLeaseStartedAt === 'number') {
           maxMediaFocusLeaseMs = Math.max(
@@ -1241,8 +1388,16 @@ async function observePostingWindow(
       } else if (
         last.candidates.length > 0 &&
         !ownedPostingTabClosedDuringInspection &&
+        (
+          observedPostingWindowIds.size === 0 ||
+          observedPostingWindowStillPresent
+        ) &&
         !invalidBrowsingSample
       ) {
+        // A successful request closes its owned posting window before the
+        // runtime response necessarily settles. Once that window has been
+        // observed, its disappearance is normal cleanup; unexpected user
+        // closure is still rejected by the POST_RESULT uncertain contract.
         invalidBrowsingSample = {
           reason: 'browsing-or-posting-tab-lost',
           originalWindowStillFocused: last.originalWindowStillFocused,
@@ -1271,6 +1426,7 @@ async function observePostingWindow(
     allowedMediaFocusLeaseMs,
     mediaFocusLeaseSamples,
     maxMediaFocusLeaseMs,
+    observedPostingWindowIds: [...observedPostingWindowIds],
     ...(invalidBrowsingSample ? { invalidBrowsingSample } : {}),
     error: `posting window observation timed out after ${timeoutMs}ms`,
   };
@@ -1382,6 +1538,40 @@ async function inspectPostingWindow(
         });
       }
     }
+    const activePostingTabs = [];
+    for (const window of windows) {
+      if (typeof window.id !== 'number' || initial.has(window.id)) continue;
+      const tab = (window.tabs ?? []).find((candidate) => (
+        typeof candidate.id === 'number' && candidate.active === true
+      ));
+      if (typeof tab?.id !== 'number') continue;
+      let visibilityState;
+      let hidden;
+      let inspectError;
+      try {
+        const injected = await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: () => ({
+            visibilityState: document.visibilityState,
+            hidden: document.hidden,
+          }),
+        });
+        visibilityState = injected[0]?.result?.visibilityState;
+        hidden = injected[0]?.result?.hidden;
+      } catch (err) {
+        inspectError = err instanceof Error ? err.message : String(err);
+      }
+      activePostingTabs.push({
+        windowId: window.id,
+        windowFocused: window.focused,
+        tabId: tab.id,
+        tabActive: tab.active,
+        visibilityState,
+        hidden,
+        inspectError,
+        url: tab.url ?? tab.pendingUrl ?? '',
+      });
+    }
     const focusedOriginalWindow = windows.find((window) => (
       typeof window.id === 'number' &&
       initial.has(window.id) &&
@@ -1414,6 +1604,7 @@ async function inspectPostingWindow(
       focusedOriginalWindowId: focusedOriginalWindow?.id,
       browsingTabActive: browsingChromeTab?.active,
       candidates,
+      activePostingTabs,
     };
   }, {
     baseline: initialWindowIds,

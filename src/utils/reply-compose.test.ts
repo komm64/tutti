@@ -8,6 +8,10 @@ import {
   parseMastodonStatusIdFromUrl,
 } from './reply-compose';
 
+vi.mock('./web-action-pacing', () => ({
+  clickElementWithPacing: vi.fn(async (element: HTMLElement) => { element.click(); }),
+}));
+
 function markVisible(el: HTMLElement): void {
   Object.defineProperty(el, 'getClientRects', {
     value: () => [{ width: 10, height: 10 }],

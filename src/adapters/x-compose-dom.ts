@@ -54,6 +54,18 @@ export function getXVideoComposeRoot(
   return undefined;
 }
 
+export function getLiveXVideoComposeRoot(
+  scope: ParentNode,
+  previousRoot: HTMLElement,
+  isVisible: (element: HTMLElement) => boolean,
+): HTMLElement | undefined {
+  return getXVideoComposeRoot(scope, isVisible) ?? (
+    previousRoot.isConnected && hasXVideoAttachment(previousRoot, isVisible)
+      ? previousRoot
+      : undefined
+  );
+}
+
 export function hasXVideoAttachment(
   scope: ParentNode,
   isVisible: (element: HTMLElement) => boolean,

@@ -20,6 +20,7 @@ import {
   markPostStepCompleted,
   markPostStepStarted,
 } from './post-submission-state';
+import { waitForWebActionPacing } from './web-action-pacing';
 
 const VIDEO_POST_BUTTON_TIMEOUT_MS = 120_000;
 
@@ -75,6 +76,8 @@ export interface PostFlowOptions {
   textInjector?: (text: string, selector: string) => Promise<void>;
   /** framework が MAIN world の click のみ受理する場合の submit hook */
   clickPostButton?: () => Promise<void>;
+  /** 実投稿の不可逆 submit 直前に入れる pacing。テストでは no-op を注入できる。 */
+  preSubmitPacing?: () => Promise<unknown>;
   /** upload request または compose preview で media 受理を確認する */
   requireMediaAccepted?: boolean;
   /** compose preview が出るまで media 注入成功扱いにしない */
@@ -122,6 +125,7 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
     dryRun = false,
     textInjector = injectTextIntoElement,
     clickPostButton,
+    preSubmitPacing = () => waitForWebActionPacing('submit'),
     requireMediaAccepted,
     requireMediaPreview,
     requireUploadComplete,
@@ -276,9 +280,22 @@ export async function executePostFlow(options: PostFlowOptions): Promise<void> {
     return;
   }
 
+  await preSubmitPacing();
+
+  // Pacing 中に SPA が button を remount/disable することがあるため、古い
+  // HTMLElement をそのまま押さず、live かつ enabled な候補を再取得する。
+  const { button: liveButton } = await waitForSubmitButton({
+    finder: findButton,
+  }, Math.min(effectiveTimeoutMs, 5000), {
+    intervalMs: 150,
+  });
+  if (!liveButton) {
+    throw new Error(t('runtimePostButtonDisabled'));
+  }
+
   const preClickDialogs = collectConfirmDialogs();
   await finalizeFlow({
-    button,
+    button: liveButton,
     click: clickPostButton,
     confirmDialogButtonTexts,
     confirmDialogGraceMs,

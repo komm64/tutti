@@ -25,6 +25,7 @@ import {
 } from '../src/utils/image';
 import {
   getXComposeRoot,
+  getLiveXVideoComposeRoot,
   getXThreadTextarea,
   getXThreadTextareas as getExactXThreadTextareas,
   getXVideoComposeRoot,
@@ -33,6 +34,7 @@ import {
 } from '../src/adapters/x-compose-dom';
 import { t } from '../src/utils/i18n';
 import { markPostSubmissionStarted } from '../src/utils/post-submission-state';
+import { waitForWebActionPacing } from '../src/utils/web-action-pacing';
 import { resolveXOwnHandle } from '../src/adapters/x-user';
 
 const X_THREAD_TEXTAREA_TIMEOUT_MS = 15000;
@@ -273,11 +275,11 @@ async function executeXSinglePost(
       ? await waitForXStableVideoPostButton(
           composeRoot,
           postButtonTimeoutMs,
-          () => findXSinglePostButton(composeRoot),
+          (liveRoot) => findXSinglePostButton(liveRoot),
         )
       : await waitForXSinglePostButton(composeRoot, postButtonTimeoutMs);
     if (!postBtn) {
-      if (hasVideo && !hasXVideoAttachment(composeRoot, isVisible)) {
+      if (hasVideo && !hasXVideoAttachment(document, isVisible)) {
         throw new Error(t('runtimeXVideoAttachmentLost'));
       }
       throw new Error(t('runtimePostButtonDisabled'));
@@ -290,9 +292,26 @@ async function executeXSinglePost(
       return;
     }
 
+    const pacedSubmit = await resolveXSubmitAfterPacing({
+      root: composeRoot,
+      marker: rootMarker,
+      label: 'single',
+      reacquireTimeoutMs: X_SINGLE_COMPOSE_READY_TIMEOUT_MS,
+      buttonTimeoutMs: postButtonTimeoutMs,
+      hasVideo,
+      findButton: findXSinglePostButton,
+      waitForButton: waitForXSinglePostButton,
+    });
+    composeRoot = pacedSubmit.root;
+    rootMarker = pacedSubmit.marker;
+    const livePostBtn = pacedSubmit.button;
+    if (!livePostBtn) {
+      throw new Error(t('runtimePostButtonDisabled'));
+    }
+
     const submittedAt = Date.now();
     markPostSubmissionStarted(submittedAt);
-    await clickElementMarkedInMainWorld(postBtn, 'tutti-x-post');
+    await clickElementMarkedInMainWorld(livePostBtn, 'tutti-x-post', false);
     return submittedAt;
   } finally {
     unmarkXComposeRoot(composeRoot, rootMarker);
@@ -355,7 +374,12 @@ async function executeXInlineThread(
     // 800ms wait では足りず、 後発の Lexical re-mount で chunk 0 が flush されて
     // 「画像だけ表示」 になっていた (user 報告 2026-05-23)。 wait を 2500ms に
     // 拡張 + injectTextWithRetry で多段 verify+re-inject。
-    if (images && images.length > 0) {
+    // Images still go first because X can remount Draft.js while creating a
+    // thumbnail. Video threads are the inverse: decorating a later hashtag
+    // after the video has finished processing consistently removes the video
+    // attachment. Build the complete text thread first and attach its video to
+    // textarea_0 below, after every Draft entity has settled.
+    if (images && images.length > 0 && !hasVideo) {
       await injectImages(images, scopedXComposeSelector(rootMarker, X_COMPOSE_FILE_INPUT_SELECTOR), {
         requireMediaAccepted: true,
         requireMediaPreview: true,
@@ -365,21 +389,12 @@ async function executeXInlineThread(
         implementationPath,
         requestPostingWindowMediaFocus: dryRun !== true,
       });
-      if (hasVideo) {
-        const mediaReady = await waitForXMediaReady(X_VIDEO_MEDIA_READY_TIMEOUT_MS);
-        if (mediaReady === 'lost') {
-          throw new Error(t('runtimeXVideoAttachmentLost'));
-        }
-        if (mediaReady === 'timeout') {
-          throw new Error(t('runtimePostButtonDisabled'));
-        }
-      }
       ({ root: composeRoot, marker: rootMarker } = await reacquireXComposeRoot(
         composeRoot,
         rootMarker,
         'thread',
         X_THREAD_COMPOSE_READY_TIMEOUT_MS,
-        hasVideo,
+        false,
       ));
       await settleXEditorAfterMedia(
         composeRoot,
@@ -471,6 +486,81 @@ async function executeXInlineThread(
       }
     }
 
+    if (images && images.length > 0 && hasVideo) {
+      const activeEditor = await waitForXThreadTextarea(
+        document,
+        chunks.length - 1,
+        X_THREAD_TEXTAREA_TIMEOUT_MS,
+      );
+      if (!activeEditor) {
+        throw new Error(t(
+          'runtimeXTextareaTimeout',
+          chunks.length,
+          chunks.length,
+          chunks.length,
+          getXThreadTextareas(document).length,
+          describeXComposeState(document),
+        ));
+      }
+      ({ root: composeRoot, marker: rootMarker } = adoptXComposeRoot(
+        composeRoot,
+        rootMarker,
+        activeEditor,
+        'thread',
+      ));
+      // X virtualizes earlier thread items after the active editor settles and
+      // exposes one file input for that active item. Attach only after the
+      // complete thread text is in Draft state; otherwise decorating a later
+      // hashtag remounts the composer and drops an already-processed video.
+      await clickElementMarkedInMainWorld(activeEditor, 'tutti-x-video-owner', false);
+      await sleep(250);
+      await injectImages(images, scopedXComposeSelector(rootMarker, X_COMPOSE_FILE_INPUT_SELECTOR), {
+        requireMediaAccepted: true,
+        requireMediaPreview: true,
+        requireUploadComplete: true,
+        implementationPath,
+        requestPostingWindowMediaFocus: dryRun !== true,
+      });
+      const mediaReady = await waitForXMediaReady(X_VIDEO_MEDIA_READY_TIMEOUT_MS);
+      if (mediaReady === 'lost') {
+        throw new Error(t('runtimeXVideoAttachmentLost'));
+      }
+      if (mediaReady === 'timeout') {
+        throw new Error(t('runtimePostButtonDisabled'));
+      }
+      ({ root: composeRoot, marker: rootMarker } = await reacquireXComposeRoot(
+        composeRoot,
+        rootMarker,
+        'thread',
+        X_THREAD_COMPOSE_READY_TIMEOUT_MS,
+        true,
+      ));
+      await settleXEditorAfterMedia(
+        composeRoot,
+        0,
+        implementationPath,
+        X_SINGLE_MEDIA_SETTLE_MS,
+      );
+      for (let i = 0; i < chunks.length; i++) {
+        const editor = getXThreadTextarea(composeRoot, i, isVisible);
+        if (
+          editor &&
+          normalizeXEditableText(readXEditableText(editor)) !==
+            normalizeXEditableText(chunks[i])
+        ) {
+          throw new Error(`X: chunk ${i + 1} editor lost text while attaching video`);
+        }
+      }
+      const retainedActive = getXThreadTextarea(
+        composeRoot,
+        chunks.length - 1,
+        isVisible,
+      );
+      if (!retainedActive) {
+        throw new Error(`X: active chunk editor disappeared while attaching video`);
+      }
+    }
+
     // Post button (preview なら highlight だけ、 autoPost なら click)
     const postButtonTimeoutMs = resolvePostButtonTimeoutMs(
       X_THREAD_POST_BUTTON_TIMEOUT_MS,
@@ -480,11 +570,11 @@ async function executeXInlineThread(
       ? await waitForXStableVideoPostButton(
           composeRoot,
           postButtonTimeoutMs,
-          () => findXPostAllButton(sel, composeRoot),
+          (liveRoot) => findXPostAllButton(sel, liveRoot),
         )
       : await waitForXPostAllButton(sel, composeRoot, postButtonTimeoutMs);
     if (!postBtn) {
-      if (hasVideo && !hasXVideoAttachment(composeRoot, isVisible)) {
+      if (hasVideo && !hasXVideoAttachment(document, isVisible)) {
         throw new Error(t('runtimeXVideoAttachmentLost'));
       }
       throw new Error(
@@ -497,9 +587,27 @@ async function executeXInlineThread(
       setTimeout(() => { postBtn.style.outline = orig; }, 5000);
       return;
     }
+    const pacedSubmit = await resolveXSubmitAfterPacing({
+      root: composeRoot,
+      marker: rootMarker,
+      label: 'thread',
+      reacquireTimeoutMs: X_THREAD_TEXTAREA_TIMEOUT_MS,
+      buttonTimeoutMs: postButtonTimeoutMs,
+      hasVideo,
+      findButton: (root) => findXPostAllButton(sel, root),
+      waitForButton: (root, timeoutMs) => waitForXPostAllButton(sel, root, timeoutMs),
+    });
+    composeRoot = pacedSubmit.root;
+    rootMarker = pacedSubmit.marker;
+    const livePostBtn = pacedSubmit.button;
+    if (!livePostBtn) {
+      throw new Error(
+        `${t('runtimeXPostAllButtonMissing')}; ${describeXComposeState(composeRoot)}`,
+      );
+    }
     const submittedAt = Date.now();
     markPostSubmissionStarted(submittedAt);
-    await clickElementMarkedInMainWorld(postBtn, 'tutti-x-post-all');
+    await clickElementMarkedInMainWorld(livePostBtn, 'tutti-x-post-all', false);
     return submittedAt;
   } finally {
     unmarkXComposeRoot(composeRoot, rootMarker);
@@ -576,6 +684,14 @@ async function injectTextIntoXThreadTextarea(
       target.removeAttribute('data-tutti-marker');
     }
 
+    const bridgeCurrent = getXThreadTextarea(scope, index, isVisible);
+    const bridgeText = readXEditableText(bridgeCurrent);
+    log.info(
+      `X: chunk ${index + 1} bridge returned ` +
+      `(targetConnected=${target.isConnected}, currentFound=${!!bridgeCurrent}, ` +
+      `got=${JSON.stringify(bridgeText.slice(0, 180))}, length=${bridgeText.length})`,
+    );
+
     if (implementationPath === 'next') {
       const stable = await waitForStableCondition<HTMLElement>(
         () => {
@@ -610,8 +726,14 @@ async function injectTextIntoXThreadTextarea(
       if (current && normalizeXEditableText(readXEditableText(current)) === expected) return;
     }
 
+    const current = getXThreadTextarea(scope, index, isVisible);
+    const got = normalizeXEditableText(readXEditableText(current));
     lastError = new Error(`X: chunk ${index + 1} editor remounted or lost injected text`);
-    log.warn(`X: chunk ${index + 1} verification failed, retrying with the current editor (${attempt}/${maxAttempts})`);
+    log.warn(
+      `X: chunk ${index + 1} verification failed ` +
+      `(got=${got.length}:${JSON.stringify(got.slice(0, 100))}, expected=${expected.length}), ` +
+      `retrying with the current editor (${attempt}/${maxAttempts})`,
+    );
   }
   throw lastError instanceof Error ? lastError : new Error(t('runtimeTextInjectFailed'));
 }
@@ -736,6 +858,35 @@ function unmarkXComposeRoot(root: HTMLElement, marker: string): void {
   if (root.getAttribute('data-tutti-x-compose-root') === marker) {
     root.removeAttribute('data-tutti-x-compose-root');
   }
+}
+
+async function resolveXSubmitAfterPacing(options: {
+  root: HTMLElement;
+  marker: string;
+  label: string;
+  reacquireTimeoutMs: number;
+  buttonTimeoutMs: number;
+  hasVideo: boolean;
+  findButton: (root: HTMLElement) => HTMLElement | null;
+  waitForButton: (root: HTMLElement, timeoutMs: number) => Promise<HTMLElement | null>;
+}): Promise<{ root: HTMLElement; marker: string; button: HTMLElement | null }> {
+  await waitForWebActionPacing('submit');
+  const { root, marker } = await reacquireXComposeRoot(
+    options.root,
+    options.marker,
+    options.label,
+    options.reacquireTimeoutMs,
+    options.hasVideo,
+  );
+  const timeoutMs = Math.min(options.buttonTimeoutMs, 5000);
+  const button = options.hasVideo
+    ? await waitForXStableVideoPostButton(
+        root,
+        timeoutMs,
+        (liveRoot) => options.findButton(liveRoot),
+      )
+    : await options.waitForButton(root, timeoutMs);
+  return { root, marker, button };
 }
 
 function scopedXComposeSelector(rootMarker: string, selector: string): string {
@@ -881,44 +1032,91 @@ async function waitForXMediaReady(
         attributes: true,
         attributeFilter: ['aria-disabled', 'disabled', 'data-testid', 'style', 'class'],
       },
-      // X pauses server-side video processing when its browser window loses
-      // OS focus. Keep the bounded timeout, but count only focused time so a
-      // user who switches away can return and resume without an automatic
-      // retry or duplicate upload.
-      pauseTimeoutWhile: () => !document.hasFocus(),
+      // This is a real-time ceiling. The dedicated video window reclaims focus
+      // after interruptions, while a hard bound prevents an abandoned X
+      // composer from outliving the platform-level timeout.
     },
   );
   return result ?? 'timeout';
 }
 
 async function waitForXStableVideoPostButton(
-  scope: ParentNode,
+  scope: HTMLElement,
   timeoutMs: number,
-  findButton: () => HTMLElement | null,
+  findButton: (root: HTMLElement) => HTMLElement | null,
 ): Promise<HTMLElement | null> {
-  return await waitForStableCondition<HTMLElement>(
-    () => hasXVideoAttachment(scope, isVisible) ? findButton() : null,
+  const attachmentLost = Symbol('x-video-attachment-lost');
+  let missingSince: number | undefined;
+  let buttonCandidate: HTMLElement | undefined;
+  let buttonCandidateSince: number | undefined;
+  const result = await waitForCondition<HTMLElement | typeof attachmentLost>(
+    () => {
+      const liveRoot = getLiveXVideoComposeRoot(document, scope, isVisible);
+      const now = Date.now();
+      if (!liveRoot) {
+        buttonCandidate = undefined;
+        buttonCandidateSince = undefined;
+        // The foreground-video window manager immediately reclaims focus
+        // after an interruption. Only classify a missing attachment while the
+        // compose document is actually focused; otherwise let the real-time
+        // timeout below end the wait without guessing.
+        if (!document.hasFocus()) {
+          missingSince = undefined;
+          return null;
+        }
+        missingSince ??= now;
+        return now - missingSince >= X_VIDEO_ATTACHMENT_LOST_GRACE_MS
+          ? attachmentLost
+          : null;
+      }
+
+      missingSince = undefined;
+      const button = findButton(liveRoot);
+      if (!button) {
+        buttonCandidate = undefined;
+        buttonCandidateSince = undefined;
+        return null;
+      }
+      if (button !== buttonCandidate) {
+        buttonCandidate = button;
+        buttonCandidateSince = now;
+        return null;
+      }
+      return now - (buttonCandidateSince ?? now) >= 750
+        ? button
+        : null;
+    },
     {
       timeoutMs,
-      quietMs: 750,
       intervalMs: 100,
-      root: scope instanceof Document ? scope.body : scope,
+      root: document.body,
       observerInit: {
         childList: true,
         subtree: true,
         attributes: true,
         attributeFilter: ['aria-disabled', 'disabled', 'data-testid', 'style', 'class'],
       },
-      pauseTimeoutWhile: () => !document.hasFocus(),
     },
   );
+  if (result === attachmentLost) {
+    throw new Error(t('runtimeXVideoAttachmentLost'));
+  }
+  return result;
 }
 
-async function clickElementMarkedInMainWorld(el: HTMLElement, prefix: string): Promise<void> {
+async function clickElementMarkedInMainWorld(
+  el: HTMLElement,
+  prefix: string,
+  pacing: 'interaction' | false = 'interaction',
+): Promise<void> {
   const marker = `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   el.setAttribute('data-tutti-click-marker', marker);
   try {
-    await clickElementInMainWorld(`[data-tutti-click-marker="${marker}"]`);
+    await clickElementInMainWorld(
+      `[data-tutti-click-marker="${marker}"]`,
+      undefined,
+      { pacing },
+    );
   } finally {
     el.removeAttribute('data-tutti-click-marker');
   }

@@ -1,4 +1,5 @@
 import type { PlatformId } from '../types/platform';
+import { waitForWebActionPacing } from '../utils/web-action-pacing';
 import { closeTabSafely, waitForTabComplete } from './tab-management';
 import { retryTransientTabAction } from './tab-action-retry';
 
@@ -103,9 +104,10 @@ export async function captureRenderedProfilePostUrl(
   }
 
   dbg(`rendered profile scrape: ${profileUrl}`);
-  const tab = await retryTransientTabAction('open rendered profile capture tab', () => (
-    browser.tabs.create({ url: profileUrl, active: false })
-  ));
+  const tab = await retryTransientTabAction('open rendered profile capture tab', async () => {
+    await waitForWebActionPacing('navigation');
+    return await browser.tabs.create({ url: profileUrl, active: false });
+  });
   if (typeof tab.id !== 'number') return undefined;
   try {
     await waitForTabComplete(tab.id);

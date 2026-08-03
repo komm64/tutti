@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PostRequestMessage, PostResultMessage } from '../messages';
+import { POST_MESSAGE_RESPONSE_TIMEOUT_MS } from './content-dispatch';
 import { createPostRequestHandler } from './post-request-handler';
 import { createPostingStateManager } from './posting-state';
 import { createSubmissionGuard } from './submission-guard';
@@ -18,10 +19,11 @@ vi.mock('./history-recorder', () => ({
 
 describe('post request settings boundary', () => {
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
-  it('fixes the selected posting algorithm at request start and forwards it', async () => {
+  it('ignores a retired stored legacy selector and uses the current implementation', async () => {
     vi.stubGlobal('browser', {
       storage: {
         sync: {
@@ -45,7 +47,6 @@ describe('post request settings boundary', () => {
       success: true,
       preview: true,
     }));
-    const forAlgorithm = vi.fn(() => ({ postToPlatform }));
     const handler = createPostRequestHandler({
       submissionGuard: createSubmissionGuard(),
       openedTabs: {
@@ -56,7 +57,6 @@ describe('post request settings boundary', () => {
       },
       postingState: createPostingStateManager(),
       platformPoster: {
-        forAlgorithm,
         postToPlatform,
       },
       appendBackgroundLog: vi.fn(),
@@ -72,13 +72,11 @@ describe('post request settings boundary', () => {
 
     const results = await handler(request);
 
-    expect(forAlgorithm).toHaveBeenCalledTimes(1);
-    expect(forAlgorithm).toHaveBeenCalledWith('legacy');
     expect(postToPlatform).toHaveBeenCalledTimes(2);
     expect(results).toHaveLength(2);
     expect(results.every((result) => (
       result.implementation?.revision === 1
-      && result.implementation.path === 'legacy'
+      && result.implementation.path === 'next'
     ))).toBe(true);
   });
 
@@ -124,7 +122,6 @@ describe('post request settings boundary', () => {
       },
       postingState: createPostingStateManager(),
       platformPoster: {
-        forAlgorithm: vi.fn(() => ({ postToPlatform })),
         postToPlatform,
       },
       appendBackgroundLog: vi.fn(),
@@ -147,6 +144,171 @@ describe('post request settings boundary', () => {
         { step: 'platform-total', durationMs: expect.any(Number) },
       ],
     });
+  });
+
+  it('isolates a channel-close failure and continues later foreground platforms', async () => {
+    vi.stubGlobal('browser', {
+      storage: {
+        sync: {
+          get: vi.fn(async () => ({
+            settings: { autoPost: true, postingAlgorithm: 'next' },
+          })),
+        },
+        local: {
+          get: vi.fn(async () => ({})),
+          set: vi.fn(async () => undefined),
+        },
+      },
+      windows: {
+        getAll: vi.fn(async () => []),
+        create: vi.fn(async () => ({ id: 41, tabs: [{ id: 410, windowId: 41 }] })),
+        update: vi.fn(async () => undefined),
+        get: vi.fn(async () => ({ id: 41, tabs: [{ id: 410, windowId: 41 }] })),
+        remove: vi.fn(async () => undefined),
+        onRemoved: { addListener: vi.fn(), removeListener: vi.fn() },
+        onFocusChanged: { addListener: vi.fn(), removeListener: vi.fn() },
+      },
+      tabs: {
+        query: vi.fn(async () => []),
+        remove: vi.fn(async () => undefined),
+      },
+      action: {
+        setBadgeText: vi.fn(async () => undefined),
+        setBadgeBackgroundColor: vi.fn(async () => undefined),
+      },
+      notifications: { create: vi.fn(async () => undefined) },
+      runtime: { getURL: vi.fn((path: string) => `chrome-extension://test${path}`) },
+      i18n: { getMessage: vi.fn((key: string) => key) },
+    });
+    const started: PostResultMessage['platform'][] = [];
+    const postToPlatform = vi.fn(async (
+      platform: PostResultMessage['platform'],
+    ): Promise<PostResultMessage> => {
+      started.push(platform);
+      if (platform === 'threads') {
+        throw new Error(
+          'A listener indicated an asynchronous response but the message channel closed',
+        );
+      }
+      return {
+        type: 'POST_RESULT',
+        platform,
+        success: true,
+        confirmed: true,
+        url: `https://example.test/${platform}/1`,
+        flow: { submitReached: true },
+      };
+    });
+    const progress: PostResultMessage[] = [];
+    const handler = createPostRequestHandler({
+      submissionGuard: createSubmissionGuard(),
+      openedTabs: {
+        clear: vi.fn(),
+        record: vi.fn(),
+        forget: vi.fn(),
+        cleanup: vi.fn(async () => undefined),
+      },
+      postingState: createPostingStateManager(),
+      platformPoster: {
+        postToPlatform,
+      },
+      appendBackgroundLog: vi.fn(),
+      sendRuntimeMessage: vi.fn(async (message: unknown) => {
+        const result = (message as { result?: PostResultMessage }).result;
+        if (result) progress.push(result);
+      }),
+    });
+
+    const results = await handler({
+      type: 'POST_REQUEST',
+      requestId: 'request-isolate-channel-close',
+      intent: 'new',
+      text: 'four image regression',
+      platforms: ['threads', 'tumblr', 'instagram'],
+    });
+
+    expect(started).toEqual(['threads', 'tumblr', 'instagram']);
+    expect(results).toHaveLength(3);
+    expect(results[0]).toMatchObject({
+      platform: 'threads',
+      success: false,
+      uncertain: true,
+      implementation: { path: 'next', revision: 1 },
+      flow: { submitReached: true, failedStep: 'platform-exception' },
+    });
+    expect(results.slice(1).every((result) => result.success)).toBe(true);
+    expect(progress.map((result) => result.platform)).toEqual([
+      'threads',
+      'tumblr',
+      'instagram',
+    ]);
+  });
+
+  it('times out the entire platform attempt and continues the serial lane', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('browser', {
+      storage: {
+        sync: {
+          get: vi.fn(async () => ({
+            settings: { autoPost: false, postingAlgorithm: 'next' },
+          })),
+        },
+      },
+      action: {
+        setBadgeText: vi.fn(async () => undefined),
+      },
+    });
+    const started: PostResultMessage['platform'][] = [];
+    const postToPlatform = vi.fn((
+      platform: PostResultMessage['platform'],
+    ): Promise<PostResultMessage> => {
+      started.push(platform);
+      if (platform === 'tumblr') return new Promise(() => { /* never resolves */ });
+      return Promise.resolve({
+        type: 'POST_RESULT',
+        platform,
+        success: true,
+        preview: true,
+      });
+    });
+    const handler = createPostRequestHandler({
+      submissionGuard: createSubmissionGuard(),
+      openedTabs: {
+        clear: vi.fn(),
+        record: vi.fn(),
+        forget: vi.fn(),
+        cleanup: vi.fn(async () => undefined),
+      },
+      postingState: createPostingStateManager(),
+      platformPoster: {
+        postToPlatform,
+      },
+      appendBackgroundLog: vi.fn(),
+      sendRuntimeMessage: vi.fn(async () => undefined),
+    });
+
+    const resultsPromise = handler({
+      type: 'POST_REQUEST',
+      requestId: 'request-platform-timeout',
+      intent: 'new',
+      text: 'bounded preview',
+      platforms: ['tumblr', 'x'],
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(started).toEqual(['tumblr']);
+
+    await vi.advanceTimersByTimeAsync(POST_MESSAGE_RESPONSE_TIMEOUT_MS);
+    const results = await resultsPromise;
+
+    expect(started).toEqual(['tumblr', 'x']);
+    expect(results).toHaveLength(2);
+    expect(results[0]).toMatchObject({
+      platform: 'tumblr',
+      success: false,
+      flow: { submitReached: false, failedStep: 'platform-timeout' },
+      error: `tumblr post (1 chunk) timed out after ${POST_MESSAGE_RESPONSE_TIMEOUT_MS}ms`,
+    });
+    expect(results[1]).toMatchObject({ platform: 'x', success: true });
   });
 
   it('returns an uncertain result immediately when the posting window is closed', async () => {
@@ -224,7 +386,6 @@ describe('post request settings boundary', () => {
       },
       postingState: createPostingStateManager(),
       platformPoster: {
-        forAlgorithm: vi.fn(() => ({ postToPlatform })),
         postToPlatform,
       },
       appendBackgroundLog: vi.fn(),
@@ -363,7 +524,6 @@ describe('post request settings boundary', () => {
       },
       postingState: createPostingStateManager(),
       platformPoster: {
-        forAlgorithm: vi.fn(() => ({ postToPlatform })),
         postToPlatform,
       },
       appendBackgroundLog: vi.fn(),

@@ -10,6 +10,7 @@ import {
   markPostStepStarted,
   markPostSubmissionStarted,
 } from './post-submission-state';
+import { clickElementWithPacing } from './web-action-pacing';
 
 const CONFIRM_DIALOG_SELECTORS = [
   '[role="dialog"]',
@@ -163,7 +164,7 @@ export async function maybeConfirmDialog(
   const excludedButtons = new Set(options.excludedButtons ?? []);
   let lastSeenDialog: HTMLElement | null = null;
   let lastSeenButtonTexts: string[] = [];
-  const confirmed = await waitForCondition<boolean>(() => {
+  const resolution = await waitForCondition<HTMLElement | true>(() => {
     for (const dialog of collectConfirmDialogs()) {
       if (ignoredDialogs.has(dialog)) continue;
       if (
@@ -184,15 +185,18 @@ export async function maybeConfirmDialog(
       for (const wanted of texts) {
         const target = buttons.find((button) => elementTextMatches(button, [wanted]));
         if (target && !target.disabled) {
-          console.log(`[Tutti] confirm dialog: clicking "${wanted}"`);
-          target.click();
-          return true;
+          console.log(`[Tutti] confirm dialog: preparing "${wanted}"`);
+          return target;
         }
       }
     }
     if (!lastSeenDialog && Date.now() - start >= graceMs) return true;
     return null;
   }, { timeoutMs: 8000, intervalMs: 150 });
+
+  if (resolution && resolution !== true) {
+    await clickElementWithPacing(resolution);
+  }
 
   if (lastSeenDialog && lastSeenButtonTexts.length > 0) {
     console.warn(
@@ -201,7 +205,7 @@ export async function maybeConfirmDialog(
       `Saw: [${lastSeenButtonTexts.join(', ')}]`,
     );
   }
-  return confirmed === true;
+  return resolution !== null;
 }
 
 export function collectConfirmDialogs(): HTMLElement[] {

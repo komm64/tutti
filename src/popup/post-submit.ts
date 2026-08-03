@@ -23,6 +23,16 @@ export interface PostSubmissionResponse {
 
 export type RuntimeSendMessage = (message: unknown) => Promise<unknown>;
 
+export interface PostRequestPollingOptions {
+  intervalMs?: number;
+  timeoutMs?: number;
+  now?: () => number;
+  sleep?: (delayMs: number) => Promise<void>;
+}
+
+const DEFAULT_POST_REQUEST_POLL_INTERVAL_MS = 500;
+const DEFAULT_POST_REQUEST_POLL_TIMEOUT_MS = 60 * 60 * 1000;
+
 /**
  * Real video posts use a dedicated foreground window because X suspends its
  * server-side video processing when that browser window loses OS focus.
@@ -37,12 +47,61 @@ export function needsVideoPostingConfirmation(
 export async function sendPostRequest(
   input: PostSubmissionInput,
   sendMessage: RuntimeSendMessage = (message) => browser.runtime.sendMessage(message),
+  polling: PostRequestPollingOptions = {},
 ): Promise<PostSubmissionResponse | undefined> {
   const message = await buildPostRequest({
     ...input,
     requestId: createPostRequestId(),
   });
-  return await sendMessage(message) as PostSubmissionResponse | undefined;
+  const response = await sendMessage(message) as PostSubmissionResponse & {
+    accepted?: boolean;
+    requestId?: string;
+  } | undefined;
+  if (!response?.accepted) return response;
+  if (response.requestId !== message.requestId) {
+    throw new Error('POST_REQUEST acknowledgement did not match the submitted request');
+  }
+  return await pollPostRequestResult(message.requestId, sendMessage, polling);
+}
+
+export async function pollPostRequestResult(
+  requestId: string,
+  sendMessage: RuntimeSendMessage,
+  options: PostRequestPollingOptions = {},
+): Promise<PostSubmissionResponse> {
+  const intervalMs = options.intervalMs ?? DEFAULT_POST_REQUEST_POLL_INTERVAL_MS;
+  const timeoutMs = options.timeoutMs ?? DEFAULT_POST_REQUEST_POLL_TIMEOUT_MS;
+  const now = options.now ?? Date.now;
+  const sleep = options.sleep ?? ((delayMs: number) =>
+    new Promise<void>((resolve) => setTimeout(resolve, delayMs)));
+  const deadline = now() + timeoutMs;
+  let lastError: unknown;
+
+  while (now() <= deadline) {
+    try {
+      const state = await sendMessage({ type: 'GET_BG_STATE' }) as {
+        postingState?: {
+          requestId?: string;
+          results?: PostResultMessage[];
+          done?: boolean;
+        } | null;
+      } | undefined;
+      if (state?.postingState?.requestId === requestId && state.postingState.done) {
+        return { results: state.postingState.results ?? [] };
+      }
+      lastError = undefined;
+    } catch (error) {
+      // A worker restart or popup lifecycle race can make one poll fail. Retry
+      // while the request's overall timeout budget remains available.
+      lastError = error;
+    }
+    await sleep(intervalMs);
+  }
+
+  const suffix = lastError
+    ? ` Last state read failed: ${lastError instanceof Error ? lastError.message : String(lastError)}`
+    : '';
+  throw new Error(`POST_REQUEST state timed out after ${timeoutMs}ms.${suffix}`);
 }
 
 export function mergePostResults(
