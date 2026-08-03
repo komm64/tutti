@@ -132,59 +132,6 @@ describe('X inline thread orchestration', () => {
     expect(message.textChunks?.join('')).toContain('word119');
   }, 10_000);
 
-  it('uses captured post URLs when the legacy sequential mode is selected', async () => {
-    vi.useFakeTimers();
-    mocks.sendPostMessageWhenReady
-      .mockResolvedValueOnce({
-        type: 'POST_RESULT',
-        platform: 'x',
-        success: true,
-        url: 'https://x.com/alice/status/111',
-      } satisfies PostResultMessage)
-      .mockResolvedValueOnce({
-        type: 'POST_RESULT',
-        platform: 'x',
-        success: true,
-        url: 'https://x.com/alice/status/222',
-      } satisfies PostResultMessage);
-    const poster = createPlatformPoster({
-      openedTabs: {
-        record: vi.fn(),
-        forget: vi.fn(),
-      },
-    });
-    const legacyPoster = poster.forAlgorithm('legacy');
-    const text = 'a'.repeat(400);
-
-    const resultPromise = legacyPoster.postToPlatform(
-      'x',
-      text,
-      undefined,
-      undefined,
-      undefined,
-      true,
-    );
-    await vi.runAllTimersAsync();
-    const result = await resultPromise;
-
-    expect(result).toMatchObject({
-      platform: 'x',
-      success: true,
-      confirmed: true,
-      url: 'https://x.com/alice/status/222',
-    });
-    expect(mocks.openOrFocusTab).toHaveBeenCalledTimes(2);
-    expect(mocks.openOrFocusTab.mock.calls[1]?.[0]).toBe(
-      'https://x.com/intent/post?in_reply_to=111',
-    );
-    expect(mocks.sendPostMessageWhenReady).toHaveBeenCalledTimes(2);
-    for (const [, message] of mocks.sendPostMessageWhenReady.mock.calls as Array<
-      [number, PostToPlatformMessage]
-    >) {
-      expect(message.textChunks).toBeUndefined();
-    }
-  });
-
   it('posts real X video threads sequentially after each URL is confirmed', async () => {
     vi.useFakeTimers();
     mocks.sendPostMessageWhenReady

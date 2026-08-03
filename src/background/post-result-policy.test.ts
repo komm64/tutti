@@ -23,23 +23,23 @@ describe('post result policy', () => {
       success: true,
       implementation: {
         revision: 999,
-        path: 'legacy',
+        path: 'next',
       },
     });
 
     expect(result.implementation).toEqual(CURRENT_POST_IMPLEMENTATION);
   });
 
-  it('records the explicitly selected legacy X path', () => {
+  it('records the current implementation path', () => {
     const result = withPostImplementationDiagnostics({
       type: 'POST_RESULT',
       platform: 'x',
       success: true,
-    }, 'legacy');
+    }, 'next');
 
     expect(result.implementation).toEqual({
       revision: CURRENT_POST_IMPLEMENTATION.revision,
-      path: 'legacy',
+      path: 'next',
     });
   });
 

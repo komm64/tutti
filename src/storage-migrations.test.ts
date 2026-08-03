@@ -50,7 +50,6 @@ describe('storage migration fixtures', () => {
       selectorOverrideUrl: CURRENT_SELECTOR_FEED_URL,
       logLevel: 'DEBUG',
       autoOpenPostUrl: 'never',
-      postingAlgorithm: 'next',
       uiLanguage: 'auto',
     });
     expect(settings).not.toHaveProperty('dryRun');
@@ -74,7 +73,7 @@ describe('storage migration fixtures', () => {
     });
   });
 
-  it('migrates the temporary X selector to the global posting algorithm', async () => {
+  it('drops retired posting implementation selectors', async () => {
     stubStorage({
       sync: {
         settings: {
@@ -82,9 +81,7 @@ describe('storage migration fixtures', () => {
         },
       },
     });
-    await expect(getSettings()).resolves.toMatchObject({
-      postingAlgorithm: 'legacy',
-    });
+    await expect(getSettings()).resolves.not.toHaveProperty('xThreadPostingMode');
 
     stubStorage({
       sync: {
@@ -94,9 +91,7 @@ describe('storage migration fixtures', () => {
         },
       },
     });
-    await expect(getSettings()).resolves.toMatchObject({
-      postingAlgorithm: 'next',
-    });
+    await expect(getSettings()).resolves.not.toHaveProperty('postingAlgorithm');
 
     stubStorage({
       sync: {
@@ -106,9 +101,7 @@ describe('storage migration fixtures', () => {
         },
       },
     });
-    await expect(getSettings()).resolves.toMatchObject({
-      postingAlgorithm: 'next',
-    });
+    await expect(getSettings()).resolves.not.toHaveProperty('postingAlgorithm');
   });
 
   it('converts legacy boolean history results through the public reader', async () => {

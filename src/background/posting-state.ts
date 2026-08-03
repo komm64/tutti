@@ -6,6 +6,7 @@ export interface CompressionState {
 }
 
 interface PostingState {
+  requestId: string;
   platforms: PlatformId[];
   pending: Set<PlatformId>;
   results: PostResultMessage[];
@@ -15,6 +16,7 @@ interface PostingState {
 }
 
 export interface PostingStateSnapshot {
+  requestId: string;
   platforms: PlatformId[];
   pending: PlatformId[];
   results: PostResultMessage[];
@@ -49,9 +51,10 @@ export function createPostingStateManager(options: PostingStateManagerOptions = 
       compression = state;
     },
 
-    start(platforms: readonly PlatformId[]): void {
+    start(requestId: string, platforms: readonly PlatformId[]): void {
       posting = true;
       postingState = {
+        requestId,
         platforms: [...platforms],
         pending: new Set(platforms),
         results: [],
@@ -72,6 +75,45 @@ export function createPostingStateManager(options: PostingStateManagerOptions = 
         postingState.results.push(result);
       }
       options.onProgressUpdate?.(completedCount(), postingState.platforms.length);
+    },
+
+    failRequest(
+      requestId: string,
+      platforms: readonly PlatformId[],
+      error: string,
+    ): void {
+      const current = postingState?.requestId === requestId
+        ? postingState
+        : {
+            requestId,
+            platforms: [...platforms],
+            pending: new Set(platforms),
+            results: [],
+            startedAt: now(),
+            done: false,
+          };
+      const completed = new Set(current.results.map((result) => result.platform));
+      for (const platform of current.pending) {
+        if (completed.has(platform)) continue;
+        current.results.push({
+          type: 'POST_RESULT',
+          platform,
+          success: false,
+          flow: {
+            mode: 'preview',
+            submitReached: false,
+            failedStep: 'request-exception',
+          },
+          error,
+        });
+      }
+      current.pending.clear();
+      current.done = true;
+      current.finishedAt = now();
+      postingState = current;
+      posting = false;
+      compression = null;
+      options.onProgressUpdate?.(current.platforms.length, current.platforms.length);
     },
 
     markDone(): void {
@@ -97,6 +139,7 @@ export function createPostingStateManager(options: PostingStateManagerOptions = 
         posting,
         postingState: postingState
           ? {
+              requestId: postingState.requestId,
               platforms: [...postingState.platforms],
               pending: Array.from(postingState.pending),
               results: [...postingState.results],

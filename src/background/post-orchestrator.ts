@@ -90,7 +90,6 @@ export function createNextPostOrchestrator(options: PostOrchestratorOptions) {
       shouldUseInlineThread(
         adapter.id,
         autoPost,
-        'next',
         images,
       )
       && chunks.length > 1

@@ -3,7 +3,6 @@ import type {
   PlatformId,
   PostResultMessage,
 } from '../messages';
-import type { PostingAlgorithm } from '../types/posting';
 import type { OpenedTabRegistry } from './opened-tab-registry';
 import type { PostTransportPolicy } from './post-concurrency';
 
@@ -19,16 +18,12 @@ export interface PostExecutionOptions {
   postWindowFocusReturnId?: number;
 }
 
-export interface PostAlgorithmSelectionOptions extends PostExecutionOptions {
-  postingAlgorithm?: PostingAlgorithm;
-}
-
 export interface PostingOrchestratorDependencies {
   openedTabs: Pick<OpenedTabRegistry, 'record' | 'forget'>;
   appendBackgroundLog?: (message: string) => void;
 }
 
-export interface PostingAlgorithmOrchestrator {
+export interface PostingOrchestrator {
   postToPlatform(
     platform: PlatformId,
     text: string,

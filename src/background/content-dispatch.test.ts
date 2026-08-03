@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   POST_MESSAGE_RESPONSE_TIMEOUT_MS,
+  VIDEO_POST_MESSAGE_RESPONSE_TIMEOUT_MS,
   buildLoginRedirectErrorForUrl,
   buildMissingReceiverLoginError,
   isMissingReceiverError,
+  resolvePostMessageResponseTimeoutMs,
   sendPostMessageWhenReady,
 } from './content-dispatch';
 
@@ -90,5 +92,56 @@ describe('buildMissingReceiverLoginError', () => {
     await vi.advanceTimersByTimeAsync(POST_MESSAGE_RESPONSE_TIMEOUT_MS);
 
     await assertion;
+  });
+
+  it('scales text/image and video budgets for multi-post threads', () => {
+    expect(resolvePostMessageResponseTimeoutMs({
+      type: 'POST_TO_PLATFORM',
+      platform: 'threads',
+      text: 'four images',
+      images: Array.from({ length: 4 }, (_, index) => ({
+        name: `${index}.png`,
+        type: 'image/png',
+        data: 'AA==',
+      })),
+    })).toBe(POST_MESSAGE_RESPONSE_TIMEOUT_MS);
+
+    expect(resolvePostMessageResponseTimeoutMs({
+      type: 'POST_TO_PLATFORM',
+      platform: 'tumblr',
+      text: 'four images',
+      images: [{ name: '0.png', type: 'image/png', data: 'AA==' }],
+    })).toBe(POST_MESSAGE_RESPONSE_TIMEOUT_MS);
+
+    expect(resolvePostMessageResponseTimeoutMs({
+      type: 'POST_TO_PLATFORM',
+      platform: 'mastodon',
+      text: 'text only',
+    })).toBe(POST_MESSAGE_RESPONSE_TIMEOUT_MS);
+
+    expect(resolvePostMessageResponseTimeoutMs({
+      type: 'POST_TO_PLATFORM',
+      platform: 'bluesky',
+      text: 'first',
+      textChunks: ['first', 'second', 'third'],
+    })).toBe(POST_MESSAGE_RESPONSE_TIMEOUT_MS * 3);
+
+    expect(resolvePostMessageResponseTimeoutMs({
+      type: 'POST_TO_PLATFORM',
+      platform: 'instagram',
+      text: 'video',
+      images: [{ name: 'clip.mp4', type: 'video/mp4', data: 'AA==' }],
+    })).toBe(VIDEO_POST_MESSAGE_RESPONSE_TIMEOUT_MS);
+
+    expect(resolvePostMessageResponseTimeoutMs({
+      type: 'POST_TO_PLATFORM',
+      platform: 'bluesky',
+      text: 'first',
+      textChunks: ['first', 'second', 'third'],
+      images: [{ name: 'clip.mp4', type: 'video/mp4', data: 'AA==' }],
+    })).toBe(
+      VIDEO_POST_MESSAGE_RESPONSE_TIMEOUT_MS +
+      POST_MESSAGE_RESPONSE_TIMEOUT_MS * 2,
+    );
   });
 });

@@ -121,18 +121,26 @@ async function runPost(
       action: async () => {
         assertNoYouTubeDailyUploadLimit();
         if (document.querySelector(sel.fileInput)) return;
-        await waitForElement<HTMLElement>(
-          '#upload-button, #upload-icon, [aria-label="Upload videos"], [aria-label="動画をアップロード"]',
-          15000,
+        // Studio can take more than 15 seconds to rebuild its dashboard after
+        // the previous upload wizard closes, especially late in a multi-SNS
+        // video request. Keep this inside the video platform budget and wait
+        // for the actual button rather than ignoring the first wait result.
+        let uploadBtn = await waitForCondition<HTMLElement>(
+          findYouTubeUploadButton,
+          { timeoutMs: 45_000, intervalMs: 250 },
         );
-        // 直接 Upload videos ボタンを探す
-        const uploadBtn =
-          document.querySelector<HTMLElement>('#upload-button') ??
-          document.querySelector<HTMLElement>('#upload-icon') ??
-          document.querySelector<HTMLElement>('[aria-label="Upload videos"]') ??
-          document.querySelector<HTMLElement>('[aria-label="動画をアップロード"]') ??
-          Array.from(document.querySelectorAll<HTMLElement>('button, ytcp-button, [role="button"]'))
-            .find((b) => /^Upload videos$|^動画をアップロード$/.test((b.textContent ?? '').trim()));
+        if (!uploadBtn) {
+          // Some Studio variants expose only the persistent Create button.
+          // Open its menu, then resolve the same Upload videos command there.
+          const createBtn = findYouTubeCreateButton();
+          if (createBtn) {
+            await clickElementWithPacing(createBtn);
+            uploadBtn = await waitForCondition<HTMLElement>(
+              findYouTubeUploadButton,
+              { timeoutMs: 10_000, intervalMs: 200 },
+            );
+          }
+        }
         if (!uploadBtn) {
           throw new Error(t('runtimeYouTubeUploadButtonMissing'));
         }
@@ -394,6 +402,26 @@ function findYouTubePublishButton(): HTMLElement | null {
     });
   const buttons = uniqueElements([...selectorMatches, ...textMatches]);
   return buttons.find((button) => !isDisabledButton(button)) ?? buttons[0] ?? null;
+}
+
+function findYouTubeUploadButton(): HTMLElement | null {
+  return document.querySelector<HTMLElement>('#upload-button') ??
+    document.querySelector<HTMLElement>('#upload-icon') ??
+    document.querySelector<HTMLElement>('[aria-label="Upload videos"]') ??
+    document.querySelector<HTMLElement>('[aria-label="動画をアップロード"]') ??
+    Array.from(document.querySelectorAll<HTMLElement>(
+      'button, ytcp-button, ytcp-icon-button, [role="button"]',
+    )).find((button) => (
+      /^Upload videos$|^動画をアップロード$/.test(getButtonLabel(button))
+    )) ?? null;
+}
+
+function findYouTubeCreateButton(): HTMLElement | null {
+  return Array.from(document.querySelectorAll<HTMLElement>(
+    'button, ytcp-button, ytcp-icon-button, [role="button"]',
+  )).find((button) => (
+    /^Create$|^作成$/.test(getButtonLabel(button)) && !isDisabledButton(button)
+  )) ?? null;
 }
 
 async function waitForSelectedYouTubeRadio(

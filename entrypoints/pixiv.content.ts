@@ -122,6 +122,20 @@ async function runPost(
 
   // Pixiv は単一ページ form なので advance なしの sequential step で表現する。
   // 1) 画像注入 / 2) title / 3) caption / 4) tags → finalize で Post
+  const tagSteps: Step[] = tags.length > 0
+    ? [{
+        // Enter confirms one extracted hashtag at a time. With no hashtags,
+        // leave the optional/manual field untouched instead of reporting that
+        // zero attempted tags failed.
+        name: 'fill-tags',
+        action: async () => {
+          await injectTagList(tags, sel.tagInput, { implementationPath });
+        },
+        settleMs: 400,
+        waitAfterAction: async () => {},
+      }]
+    : [];
+
   const steps: Step[] = [
     {
       name: 'inject-images',
@@ -166,16 +180,7 @@ async function runPost(
         });
       },
     },
-    {
-      // Pixiv は tags が必須 (Required ラベル付き)。本文の #hashtag を抽出、
-      // 無ければ default ['Tutti'] が使われる。Enter で 1 tag ずつ確定。
-      name: 'fill-tags',
-      action: async () => {
-        await injectTagList(tags, sel.tagInput, { implementationPath });
-      },
-      settleMs: 400,
-      waitAfterAction: async () => {},
-    },
+    ...tagSteps,
     {
       // Visible to (x_restrict) も必須。 default は Settings.pixivVisibility
       // ('general' クロスポスト標準、 R-18 投稿者は 'r18' / 'r18g' に切替可)。
@@ -320,6 +325,10 @@ async function runPost(
       // 全 required field が valid になるまで時間がかかる (画像 upload 完了 + radio
       // click の React 反映を含めて 5〜10s)。8s default だと足りないので 15s に
       timeoutMs: 15000,
+      // No default tag is injected by design. In preview mode a disabled
+      // button is still valid evidence that Tutti reached the completed form;
+      // the user can add a Pixiv tag manually before submitting.
+      allowDisabledInPreview: tags.length === 0,
       // URL capture 側が navigation を polling するので、固定 sleep は最小限にする。
       afterClickDelayMs: 500,
     },

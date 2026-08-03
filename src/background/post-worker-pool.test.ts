@@ -47,6 +47,32 @@ describe('runPostWorkerPool', () => {
       post: async () => ({ type: 'POST_RESULT', platform: 'x', success: true }),
     })).resolves.toEqual([]);
   });
+
+  it('records a thrown platform failure and continues with later queued platforms', async () => {
+    const started: PlatformId[] = [];
+    const completed: PlatformId[] = [];
+
+    const results = await runPostWorkerPool({
+      platforms: ['threads', 'tumblr', 'instagram'],
+      concurrency: 1,
+      post: async (platform) => {
+        started.push(platform);
+        if (platform === 'threads') throw new Error('message channel closed');
+        return { type: 'POST_RESULT', platform, success: true };
+      },
+      onResult: (result) => completed.push(result.platform),
+    });
+
+    expect(started).toEqual(['threads', 'tumblr', 'instagram']);
+    expect(completed).toEqual(['threads', 'tumblr', 'instagram']);
+    expect(results[0]).toMatchObject({
+      platform: 'threads',
+      success: false,
+      flow: { submitReached: false, failedStep: 'platform-exception' },
+      error: 'message channel closed',
+    });
+    expect(results.slice(1).every((result) => result.success)).toBe(true);
+  });
 });
 
 function deferred<T>(): { promise: Promise<T>; resolve: (value: T | PromiseLike<T>) => void } {

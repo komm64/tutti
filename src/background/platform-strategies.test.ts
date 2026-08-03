@@ -51,12 +51,9 @@ describe('background platform strategy registry', () => {
     expect(shouldUseInlineThread('bluesky', true)).toBe(true);
     expect(shouldUseInlineThread('x', false)).toBe(true);
     expect(shouldUseInlineThread('x', true)).toBe(true);
-    expect(shouldUseInlineThread('x', true, 'next', image)).toBe(true);
-    expect(shouldUseInlineThread('x', true, 'next', video)).toBe(false);
-    expect(shouldUseInlineThread('x', false, 'next', video)).toBe(true);
-    expect(shouldUseInlineThread('x', true, 'legacy')).toBe(false);
-    expect(shouldUseInlineThread('x', false, 'legacy')).toBe(true);
-    expect(shouldUseInlineThread('bluesky', true, 'legacy')).toBe(true);
+    expect(shouldUseInlineThread('x', true, image)).toBe(true);
+    expect(shouldUseInlineThread('x', true, video)).toBe(false);
+    expect(shouldUseInlineThread('x', false, video)).toBe(true);
     expect(shouldUseInlineThread('threads', false)).toBe(false);
 
     expect(canUseApiWithReplyUrl('mastodon', 'https://mastodon.social/@alice/123')).toBe(true);
