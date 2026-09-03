@@ -111,6 +111,7 @@ async function runPost(
     const settlement = await settleThreadsPost({
       timeoutMs: postSettleTimeoutMs,
       isDraftOpen: () => isThreadsDraftOpen(text, textareaSelector),
+      hasPostEvidence: () => hasThreadsPostEvidence(text, preSubmitPostUrl),
       findRejection: () => findThreadsMediaRejection(document),
       canRetry: () => {
         const button = findThreadsPostButton();
@@ -141,7 +142,7 @@ async function runPost(
         error: `Threads rejected the post: ${settlement.rejection}`,
       };
     }
-    if (!settlement.closed) {
+    if (!settlement.closed && !settlement.confirmed) {
       return {
         type: 'POST_RESULT',
         platform: 'threads',
@@ -416,4 +417,18 @@ function isThreadsDraftOpen(text: string, textareaSelector: string): boolean {
     return dialogs.some((dialog) => (dialog.textContent ?? '').includes(text));
   }
   return dialogs.some((dialog) => !!dialog.querySelector(textareaSelector));
+}
+
+function hasThreadsPostEvidence(text: string, preSubmitPostUrl?: string): boolean {
+  const direct = normalizeThreadsPostUrl(location.href, location.origin);
+  if (direct && direct !== preSubmitPostUrl) return true;
+  try {
+    return !!readFreshCapturedPost(
+      localStorage.getItem('tutti:threads-latest-post'),
+      text,
+      120_000,
+    )?.url;
+  } catch {
+    return false;
+  }
 }

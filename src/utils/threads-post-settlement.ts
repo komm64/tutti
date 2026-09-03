@@ -1,6 +1,8 @@
 export interface ThreadsPostSettlementOptions {
   timeoutMs: number;
   isDraftOpen: () => boolean;
+  /** Return true when the submit already produced durable page/API evidence. */
+  hasPostEvidence?: () => boolean;
   findRejection: () => string | undefined;
   canRetry: () => boolean;
   retrySubmit: () => Promise<void>;
@@ -12,6 +14,7 @@ export interface ThreadsPostSettlementOptions {
 export interface ThreadsPostSettlementResult {
   closed: boolean;
   retries: number;
+  confirmed?: boolean;
   rejection?: string;
 }
 
@@ -32,6 +35,11 @@ export async function settleThreadsPost(
   let nextRetryAt = startedAt + (retryAtMs[0] ?? Number.POSITIVE_INFINITY);
 
   while (true) {
+    // Threads can leave the submitted composer mounted. Never click that
+    // stale-looking button again once the page-world/API observer has seen
+    // the resulting post; the composer state is not a submission signal.
+    if (options.hasPostEvidence?.()) return { closed: true, retries, confirmed: true };
+
     const rejection = options.findRejection();
     if (rejection) return { closed: false, retries, rejection };
     if (!options.isDraftOpen()) return { closed: true, retries };

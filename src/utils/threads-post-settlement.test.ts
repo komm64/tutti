@@ -83,4 +83,26 @@ describe('settleThreadsPost', () => {
       rejection: 'Could not upload this image',
     });
   });
+
+  it('does not retry a composer after post evidence is captured', async () => {
+    vi.useFakeTimers();
+    const retrySubmit = vi.fn(async () => undefined);
+    let evidence = false;
+    const result = settleThreadsPost({
+      timeoutMs: 10_000,
+      retryAtMs: [100],
+      isDraftOpen: () => true,
+      hasPostEvidence: () => evidence,
+      findRejection: () => undefined,
+      canRetry: () => true,
+      retrySubmit,
+    });
+
+    await vi.advanceTimersByTimeAsync(50);
+    evidence = true;
+    await vi.advanceTimersByTimeAsync(250);
+
+    await expect(result).resolves.toEqual({ closed: true, retries: 0, confirmed: true });
+    expect(retrySubmit).not.toHaveBeenCalled();
+  });
 });
