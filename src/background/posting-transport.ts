@@ -27,6 +27,7 @@ import {
 import { maybeResizeImagesForPlatform } from './media-preprocess';
 import type { OpenedTabRegistry } from './opened-tab-registry';
 import type { PostConfirmation } from './post-confirmation';
+import { waitForYouTubeStudioDispatchReady } from './post-url-youtube-studio';
 import {
   canUseApiWithReplyUrl,
   resolveComposeUrlForMedia,
@@ -124,10 +125,10 @@ export function createPostingTransport(options: PostingTransportOptions) {
             error: message,
           };
         }
-        if (rawImages?.length && adapter.mediaRetryPolicy === 'single-attempt') {
+        if (rawImages?.length) {
           log.warn(
             `${adapter.id}: media attempt "${attempt.label}" failed ` +
-            'before submit; skipping a fresh upload attempt',
+            'before submit; refusing an automatic re-upload in a fresh composer',
           );
           throw error;
         }
@@ -255,8 +256,8 @@ export function createPostingTransport(options: PostingTransportOptions) {
     let response: PostResultMessage | undefined;
 
     try {
-      const currentTab = await browser.tabs.get(tab.id).catch(() => tab);
-      const tabUrlBefore = currentTab.url ?? currentTab.pendingUrl;
+      let currentTab = await browser.tabs.get(tab.id).catch(() => tab);
+      let tabUrlBefore = currentTab.url ?? currentTab.pendingUrl;
       const loginRedirectError = buildLoginRedirectErrorForUrl(
         currentTab.url ?? currentTab.pendingUrl ?? '',
       );
@@ -272,6 +273,12 @@ export function createPostingTransport(options: PostingTransportOptions) {
           tabUrlBefore,
           failedStep: 'verify-login',
         });
+      }
+
+      if (adapter.id === 'youtube') {
+        await waitForYouTubeStudioDispatchReady(tab.id);
+        currentTab = await browser.tabs.get(tab.id).catch(() => currentTab);
+        tabUrlBefore = currentTab.url ?? currentTab.pendingUrl;
       }
 
       const lastSeenUsers = await getLastSeenUsers();
@@ -365,8 +372,7 @@ export function createPostingTransport(options: PostingTransportOptions) {
     } catch (error) {
       const preserveFailedMediaCompose =
         autoPost &&
-        rawImages?.length &&
-        adapter.mediaRetryPolicy === 'single-attempt';
+        rawImages?.length;
       if (
         typeof createdAttemptTabId === 'number' &&
         response?.flow?.submitReached !== true &&

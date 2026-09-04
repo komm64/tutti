@@ -108,27 +108,20 @@ async function runPost(
     ),
   });
   if (!dryRun) {
+    const capturedPost = captureThreadsPostUrlWithinBudget(
+      text,
+      postingUser,
+      preSubmitSnapshot,
+      preSubmitPostUrl,
+      THREADS_URL_CAPTURE_TIMEOUT_MS,
+    );
     const settlement = await settleThreadsPost({
       timeoutMs: postSettleTimeoutMs,
       isDraftOpen: () => isThreadsDraftOpen(text, textareaSelector),
-      hasPostEvidence: () => hasThreadsPostEvidence(text, preSubmitPostUrl),
+      findPostEvidence: () => findThreadsPostEvidenceUrl(text, preSubmitPostUrl),
       findRejection: () => findThreadsMediaRejection(document),
-      canRetry: () => {
-        const button = findThreadsPostButton();
-        return !!button && !isDisabled(button);
-      },
-      retrySubmit: async () => {
-        log.warn('Threads: unchanged composer has an enabled Post button; retrying submit');
-        await clickLiveThreadsButton(
-          '[role="dialog"] [role="button"], [role="dialog"] button',
-          THREADS_POST_BUTTON_TEXTS,
-        );
-      },
-      onRetryError: (error) => {
-        log.warn(`Threads: retry click failed; continuing bounded settlement checks: ${error instanceof Error ? error.message : String(error)}`);
-      },
     });
-    if (settlement.rejection) {
+    if (settlement.outcome === 'rejected') {
       return {
         type: 'POST_RESULT',
         platform: 'threads',
@@ -142,7 +135,28 @@ async function runPost(
         error: `Threads rejected the post: ${settlement.rejection}`,
       };
     }
-    if (!settlement.closed && !settlement.confirmed) {
+
+    if (settlement.outcome === 'confirmed') {
+      log.info('Threads: post evidence observed after the initial submit');
+    } else if (settlement.outcome === 'closed') {
+      log.info('Threads: composer closed after the initial submit');
+    }
+
+    // A profile/rendered URL can appear after the composer observation budget.
+    // Keep looking, but never click Post again: an unconfirmed first click is
+    // an uncertain result, not permission to repeat an irreversible action.
+    const captured = settlement.url ?? await capturedPost;
+    if (captured) {
+      return {
+        type: 'POST_RESULT',
+        platform: 'threads',
+        success: true,
+        confirmed: true,
+        url: captured,
+      };
+    }
+
+    if (settlement.outcome === 'uncertain') {
       return {
         type: 'POST_RESULT',
         platform: 'threads',
@@ -156,44 +170,26 @@ async function runPost(
           failedStep: 'confirm-post',
         },
         error:
-          `Threads kept the original composer open after ${settlement.retries + 1} submit attempts ` +
-          `within ${postSettleTimeoutMs}ms. Check Threads before retrying.`,
+          'Threads kept the original composer open and no post evidence appeared ' +
+          'after one submit attempt. Check Threads before retrying.',
       };
     }
-    log.info(`Threads: composer closed after submit (${settlement.retries} retries)`);
-  }
 
-  // dryRun でなければ post URL を捕捉 (= 本当に landing したことの証跡)。
-  // Threads は post 直後に /@<user>/post/<id> へ redirect する… のが期待だが、
-  // v0.5.7〜 「redirect 来なかった = 失敗」 と即決しない (実際には landing して
-  // いるケースが報告された)。 URL を取れた時は付与、 取れなかった時は url=undefined
-  // のまま success=true を返す。 verify は post-verify framework が timeline scrape で補完。
-  let url: string | undefined;
-  let confirmed = !!dryRun;
-  if (!dryRun) {
-    const captured = await captureThreadsPostUrlWithinBudget(
-      text,
-      postingUser,
-      preSubmitSnapshot,
-      preSubmitPostUrl,
-      THREADS_URL_CAPTURE_TIMEOUT_MS,
-    );
-    if (captured) {
-      url = captured;
-      confirmed = true;
-    } else {
-      // Composer closure is useful submit evidence, but the background still
-      // requires a durable URL before it records this as a confirmed success.
-      confirmed = !isThreadsDraftOpen(text, textareaSelector);
-    }
+    // Closure is useful submit evidence, but the background confirmation policy
+    // will downgrade this URL-less result to uncertain before recording success.
+    return {
+      type: 'POST_RESULT',
+      platform: 'threads',
+      success: true,
+      confirmed: false,
+    };
   }
 
   return {
     type: 'POST_RESULT',
     platform: 'threads',
     success: true,
-    confirmed,
-    url,
+    confirmed: true,
   };
 }
 
@@ -306,12 +302,8 @@ async function captureThreadsPostUrlWithinBudget(
     if (direct && direct !== preSubmitPostUrl) return direct;
 
     try {
-      const record = readFreshCapturedPost(
-        localStorage.getItem('tutti:threads-latest-post'),
-        text,
-        120_000,
-      );
-      if (record?.url) return record.url;
+      const captured = readMatchingThreadsCapturedPostUrl(text);
+      if (captured) return captured;
     } catch { /* ignore storage failures */ }
 
     const rendered = findThreadsPostUrlByText(text, document);
@@ -419,16 +411,25 @@ function isThreadsDraftOpen(text: string, textareaSelector: string): boolean {
   return dialogs.some((dialog) => !!dialog.querySelector(textareaSelector));
 }
 
-function hasThreadsPostEvidence(text: string, preSubmitPostUrl?: string): boolean {
+function findThreadsPostEvidenceUrl(text: string, preSubmitPostUrl?: string): string | undefined {
   const direct = normalizeThreadsPostUrl(location.href, location.origin);
-  if (direct && direct !== preSubmitPostUrl) return true;
+  if (direct && direct !== preSubmitPostUrl) return direct;
   try {
-    return !!readFreshCapturedPost(
-      localStorage.getItem('tutti:threads-latest-post'),
-      text,
-      120_000,
-    )?.url;
+    const captured = readMatchingThreadsCapturedPostUrl(text);
+    if (captured) return captured;
   } catch {
-    return false;
+    // Continue with rendered evidence when storage is unavailable.
   }
+  return findThreadsPostUrlByText(text, document) ?? undefined;
+}
+
+function readMatchingThreadsCapturedPostUrl(text: string): string | undefined {
+  const record = readFreshCapturedPost(
+    localStorage.getItem('tutti:threads-latest-post'),
+    text,
+    120_000,
+  );
+  return record?.url && record.textHash === hashCaptureText(text)
+    ? record.url
+    : undefined;
 }

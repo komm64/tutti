@@ -4,7 +4,6 @@ import { X_VIDEO_MEDIA_READY_TIMEOUT_MS, xAdapter } from './x';
 describe('X adapter compose URL', () => {
   it('allows slow server-side video processing without re-uploading', () => {
     expect(X_VIDEO_MEDIA_READY_TIMEOUT_MS).toBe(600_000);
-    expect(xAdapter.mediaRetryPolicy).toBe('single-attempt');
   });
 
   it('uses X intent prefill so the controlled editor owns non-empty text', () => {

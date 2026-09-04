@@ -13,6 +13,8 @@ import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
 import { t } from '../src/utils/i18n';
 
+const TIKTOK_FILE_INPUT_TIMEOUT_MS = 90_000;
+
 /**
  * TikTok のログイン中ユーザー検出。
  *
@@ -72,7 +74,25 @@ async function runPost(
       // 動画 file input に inject。upload が始まり caption form が mount される
       name: 'inject-video',
       action: async () => {
-        const input = await waitForElement<HTMLInputElement>(sel.fileInput, 45000);
+        // TikTok Studio can leave the authenticated upload route blank while
+        // its heavy SPA hydrates, especially on a second immediate open. Wait
+        // for the same page to finish mounting; do not reload or re-open it,
+        // because that could start a duplicate media workflow.
+        const input = await waitForCondition<HTMLInputElement>(
+          () => document.querySelector<HTMLInputElement>(sel.fileInput),
+          {
+            timeoutMs: TIKTOK_FILE_INPUT_TIMEOUT_MS,
+            intervalMs: 250,
+            root: document.body,
+            observerInit: {
+              childList: true,
+              subtree: true,
+              attributes: true,
+              attributeFilter: ['accept', 'type', 'class', 'style'],
+            },
+            pauseTimeoutWhile: () => document.hidden,
+          },
+        );
         if (!input) {
           const buttons = dumpVisibleButtons();
           const buttonHint = buttons ? ` [visible buttons: ${buttons}]` : '';

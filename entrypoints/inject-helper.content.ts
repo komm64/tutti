@@ -54,6 +54,9 @@ import { handleTumblrTextCommand } from '../src/page-world/tumblr-editor-driver'
 
 const REQ_TAG = 'tutti-inject-req-v1';
 const RES_TAG = 'tutti-inject-res-v1';
+const THREADS_STABLE_TEXT_TIMEOUT_MS = 8_000;
+const THREADS_STABLE_TEXT_MAX_REAPPLIES = 5;
+const THREADS_STABLE_TEXT_REAPPLY_INTERVAL_MS = 750;
 
 const SNS_HOSTS = [
   'https://x.com/*',
@@ -607,7 +610,7 @@ export default defineContentScript({
     }
 
     async function injectText(req: InjectRequest): Promise<InjectResponse> {
-      const found = findEl(req.selector);
+      const found = findEl(req.selector, { preferVisible: true });
       if (!found) {
         return { source: RES_TAG, id: req.id, ok: false, error: 'text target not found' };
       }
@@ -795,14 +798,15 @@ export default defineContentScript({
               // full textが安定して残るまで監視し、消えた場合だけstateを再適用する。
               if (requiresStableFrameworkText) {
                 try {
-                  const deadline = Date.now() + 5000;
+                  const deadline = Date.now() + THREADS_STABLE_TEXT_TIMEOUT_MS;
                   let stableSince: number | undefined;
                   let reapplyCount = 0;
+                  let nextReapplyAt = 0;
                   let finalStateJson: unknown;
                   let stableTarget: HTMLElement | undefined;
                   frameworkTextVerified = false;
                   while (Date.now() < deadline) {
-                    const currentTarget = findEl(req.selector)?.el;
+                    const currentTarget = findEl(req.selector, { preferVisible: true })?.el;
                     const currentEditor = findLexicalEditor(currentTarget);
                     finalStateJson = currentEditor?.getEditorState?.().toJSON();
                     const finalStateRoot = finalStateJson
@@ -824,7 +828,8 @@ export default defineContentScript({
                       stableTarget = undefined;
                       stableSince = undefined;
                       if (
-                        reapplyCount < 2 &&
+                        reapplyCount < THREADS_STABLE_TEXT_MAX_REAPPLIES &&
+                        Date.now() >= nextReapplyAt &&
                         currentTarget &&
                         currentEditor &&
                         typeof currentEditor.parseEditorState === 'function' &&
@@ -833,9 +838,10 @@ export default defineContentScript({
                         reapplyCount += 1;
                         editor = currentEditor;
                         applyLexicalState(currentEditor, currentTarget);
+                        nextReapplyAt = Date.now() + THREADS_STABLE_TEXT_REAPPLY_INTERVAL_MS;
                         console.warn(
                           `[Tutti inject-helper] Lexical editor reset after direct state update; ` +
-                          `reapplied (${reapplyCount}/2)`,
+                          `reapplied (${reapplyCount}/${THREADS_STABLE_TEXT_MAX_REAPPLIES})`,
                         );
                       }
                     }

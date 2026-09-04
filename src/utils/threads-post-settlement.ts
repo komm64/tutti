@@ -1,72 +1,44 @@
 export interface ThreadsPostSettlementOptions {
   timeoutMs: number;
   isDraftOpen: () => boolean;
-  /** Return true when the submit already produced durable page/API evidence. */
-  hasPostEvidence?: () => boolean;
+  /** Return the post URL when the initial submit produced durable evidence. */
+  findPostEvidence: () => string | undefined;
   findRejection: () => string | undefined;
-  canRetry: () => boolean;
-  retrySubmit: () => Promise<void>;
-  retryAtMs?: readonly number[];
   pollMs?: number;
-  onRetryError?: (error: unknown) => void;
 }
 
 export interface ThreadsPostSettlementResult {
-  closed: boolean;
-  retries: number;
-  confirmed?: boolean;
+  outcome: 'confirmed' | 'closed' | 'rejected' | 'uncertain';
+  url?: string;
   rejection?: string;
 }
 
 /**
- * Threads occasionally re-enables Post without dismissing the original draft.
- * Retry only while that same draft is visible and the button is enabled, and
- * keep all attempts inside one wall-clock budget so waits never add up into
- * several minutes.
+ * Observe the result of one irreversible Threads submit. Threads can leave the
+ * submitted composer mounted and re-enable its Post button, so composer state
+ * must never trigger another click: without durable post evidence a retry can
+ * duplicate a post that already succeeded.
  */
 export async function settleThreadsPost(
   options: ThreadsPostSettlementOptions,
 ): Promise<ThreadsPostSettlementResult> {
   const startedAt = Date.now();
-  const retryAtMs = options.retryAtMs ?? [8_000, 20_000];
   const pollMs = options.pollMs ?? 250;
-  let retryIndex = 0;
-  let retries = 0;
-  let nextRetryAt = startedAt + (retryAtMs[0] ?? Number.POSITIVE_INFINITY);
 
   while (true) {
-    // Threads can leave the submitted composer mounted. Never click that
-    // stale-looking button again once the page-world/API observer has seen
-    // the resulting post; the composer state is not a submission signal.
-    if (options.hasPostEvidence?.()) return { closed: true, retries, confirmed: true };
-
     const rejection = options.findRejection();
-    if (rejection) return { closed: false, retries, rejection };
-    if (!options.isDraftOpen()) return { closed: true, retries };
+    if (rejection) return { outcome: 'rejected', rejection };
+
+    const url = options.findPostEvidence();
+    if (url) return { outcome: 'confirmed', url };
+
+    if (!options.isDraftOpen()) return { outcome: 'closed' };
 
     const elapsedMs = Date.now() - startedAt;
     if (elapsedMs >= options.timeoutMs) {
-      return { closed: !options.isDraftOpen(), retries };
-    }
-
-    if (
-      retryIndex < retryAtMs.length &&
-      Date.now() >= nextRetryAt &&
-      options.canRetry()
-    ) {
-      const previousScheduleMs = retryAtMs[retryIndex]!;
-      retryIndex += 1;
-      const nextScheduleMs = retryAtMs[retryIndex];
-      nextRetryAt = nextScheduleMs === undefined
-        ? Number.POSITIVE_INFINITY
-        : Date.now() + Math.max(0, nextScheduleMs - previousScheduleMs);
-      try {
-        await options.retrySubmit();
-        retries += 1;
-      } catch (error) {
-        options.onRetryError?.(error);
-      }
-      continue;
+      return options.isDraftOpen()
+        ? { outcome: 'uncertain' }
+        : { outcome: 'closed' };
     }
 
     await sleep(Math.min(pollMs, Math.max(1, options.timeoutMs - elapsedMs)));

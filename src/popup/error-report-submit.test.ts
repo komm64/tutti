@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   buildPopupReportPayload,
   REPORT_RUNTIME_MESSAGE_TIMEOUT_MS,
@@ -35,6 +35,10 @@ const context = {
 } as never;
 
 describe('popup error report submission', () => {
+  beforeEach(() => {
+    vi.stubGlobal('navigator', { userAgent: 'Tutti test' });
+  });
+
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllGlobals();

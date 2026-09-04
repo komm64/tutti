@@ -11,7 +11,6 @@ export const xAdapter: PlatformAdapter = {
   charLimit: 280,
   popupOrder: 1,
   defaultSelected: true,
-  mediaRetryPolicy: 'single-attempt',
   previewLane: 'foreground',
   matchUrl: (url) => /^https:\/\/(x|twitter)\.com\//.test(url),
   /**

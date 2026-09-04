@@ -52,7 +52,6 @@ const ALL_PLATFORMS = [
   'bluesky',
   'threads',
   'mastodon',
-  'misskey',
   'tumblr',
   'pixiv',
   'deviantart',
@@ -60,6 +59,12 @@ const ALL_PLATFORMS = [
   'tiktok',
   'youtube',
 ];
+
+// misskey.io is intentionally outside the default live-account matrix. The
+// retained integration can still be probed explicitly with --platforms
+// misskey, but automated release runs must not exercise that account.
+const OPTIONAL_PLATFORMS = ['misskey'];
+const KNOWN_PLATFORMS = [...ALL_PLATFORMS, ...OPTIONAL_PLATFORMS];
 
 const PLATFORM_KINDS = {
   x: ['text', 'image', 'shortVideo', 'longVideo'],
@@ -236,7 +241,7 @@ if (debugBgStateOnTimeout) console.log('[matrix] debugBgStateOnTimeout=true');
 console.log(`[matrix] simulateVideoFocusInterruption=${simulateVideoFocusInterruption}`);
 
 for (const platform of requestedPlatforms) {
-  if (!ALL_PLATFORMS.includes(platform)) {
+  if (!KNOWN_PLATFORMS.includes(platform)) {
     console.error(`[matrix] unknown platform: ${platform}`);
     process.exit(2);
   }

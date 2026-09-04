@@ -3,11 +3,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   getXComposeRoot,
-  getLiveXVideoComposeRoot,
+  getLiveXMediaComposeRoot,
+  getXMediaComposeRoot,
+  getXThreadAddPostTarget,
   getXThreadTextarea,
   getXThreadTextareas,
-  getXVideoComposeRoot,
-  hasXVideoAttachment,
+  hasXMediaAttachment,
   readXEditableText,
 } from './x-compose-dom';
 
@@ -87,18 +88,18 @@ describe('X thread compose DOM selection', () => {
     `;
     const current = document.querySelector<HTMLElement>('#current')!;
 
-    expect(hasXVideoAttachment(current, (element) => element.id === 'attached')).toBe(true);
-    expect(hasXVideoAttachment(current, () => false)).toBe(false);
+    expect(hasXMediaAttachment(current, (element) => element.id === 'attached')).toBe(true);
+    expect(hasXMediaAttachment(current, () => false)).toBe(false);
     document.querySelector('#attached')?.remove();
-    expect(hasXVideoAttachment(current, () => true)).toBe(false);
+    expect(hasXMediaAttachment(current, () => true)).toBe(false);
   });
 
   it('accepts the compact attachment container after X replaces the video player', () => {
     const scope = document.createElement('div');
     scope.innerHTML = '<div id="attached" data-testid="attachments"></div>';
 
-    expect(hasXVideoAttachment(scope, (element) => element.id === 'attached')).toBe(true);
-    expect(hasXVideoAttachment(scope, () => false)).toBe(false);
+    expect(hasXMediaAttachment(scope, (element) => element.id === 'attached')).toBe(true);
+    expect(hasXMediaAttachment(scope, () => false)).toBe(false);
   });
 
   it('selects the attached dialog when X also renders an empty inline composer', () => {
@@ -112,7 +113,50 @@ describe('X thread compose DOM selection', () => {
       </div>
     `;
 
-    expect(getXVideoComposeRoot(document, () => true)?.id).toBe('attached-dialog');
+    expect(getXMediaComposeRoot(document, () => true)?.id).toBe('attached-dialog');
+  });
+
+  it('keeps the attached inline composer when an empty dialog mounts later', () => {
+    document.body.innerHTML = `
+      <div role="dialog" id="empty-dialog">
+        <div data-testid="tweetTextarea_0" role="textbox" contenteditable="true"></div>
+        <button data-testid="tweetButton" disabled>Post</button>
+      </div>
+      <main id="attached-inline">
+        <div data-testid="tweetTextarea_0" role="textbox" contenteditable="true"></div>
+        <div data-testid="attachments"><img src="blob:test"></div>
+        <button data-testid="tweetButtonInline">Post</button>
+      </main>
+    `;
+
+    expect(getXMediaComposeRoot(document, () => true)?.id).toBe('attached-inline');
+  });
+
+  it('selects the matching dialog Add post control when an inline composer was selected first', () => {
+    document.body.innerHTML = `
+      <main id="inline">
+        <div data-testid="tweetTextarea_0" role="textbox" contenteditable="true">first chunk</div>
+        <button data-testid="tweetButtonInline" disabled>Post</button>
+      </main>
+      <div role="dialog" id="unrelated-dialog">
+        <div data-testid="tweetTextarea_0" role="textbox" contenteditable="true">other draft</div>
+        <button data-testid="addButton" aria-label="Add post"></button>
+      </div>
+      <div role="dialog" id="matching-dialog">
+        <div data-testid="tweetTextarea_0" role="textbox" contenteditable="true">first chunk</div>
+        <button data-testid="addButton" aria-label="Add post"></button>
+      </div>
+    `;
+
+    const target = getXThreadAddPostTarget(
+      document,
+      'first   chunk',
+      () => true,
+      () => false,
+    );
+
+    expect(target?.button.closest('[role="dialog"]')?.id).toBe('matching-dialog');
+    expect(getXComposeRoot(target!.textarea).id).toBe('matching-dialog');
   });
 
   it('reacquires the live video composer after X detaches the previous root', () => {
@@ -133,7 +177,7 @@ describe('X thread compose DOM selection', () => {
       </div>
     `;
 
-    const live = getLiveXVideoComposeRoot(document, previous, () => true);
+    const live = getLiveXMediaComposeRoot(document, previous, () => true);
     expect(previous.isConnected).toBe(false);
     expect(live?.id).toBe('replacement');
     expect(live?.querySelector('[data-testid="tweetButton"]')).not.toBeNull();

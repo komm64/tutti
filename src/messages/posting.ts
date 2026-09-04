@@ -43,6 +43,7 @@ export type PostRequestIntent = 'new' | 'retry' | 'history-repost';
 export type SubmissionGuardDecision = 'allow' | 'blocked' | 'indeterminate';
 export type SubmissionGuardReason =
   | 'in-flight'
+  | 'recent-new-success'
   | 'recent-success'
   | 'recent-uncertain'
   | 'fingerprint-unavailable'

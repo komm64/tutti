@@ -4,105 +4,84 @@ import { settleThreadsPost } from './threads-post-settlement';
 describe('settleThreadsPost', () => {
   afterEach(() => vi.useRealTimers());
 
-  it('retries an enabled unchanged draft twice inside one bounded wait', async () => {
-    vi.useFakeTimers();
-    let open = true;
-    const retrySubmit = vi.fn(async () => {
-      if (retrySubmit.mock.calls.length === 2) open = false;
-    });
-    const result = settleThreadsPost({
-      timeoutMs: 1_000,
-      retryAtMs: [100, 250],
-      pollMs: 25,
-      isDraftOpen: () => open,
-      findRejection: () => undefined,
-      canRetry: () => true,
-      retrySubmit,
-    });
-
-    await vi.advanceTimersByTimeAsync(300);
-
-    await expect(result).resolves.toEqual({ closed: true, retries: 2 });
-    expect(retrySubmit).toHaveBeenCalledTimes(2);
-  });
-
-  it('returns at the single deadline instead of stacking retry waits', async () => {
+  it('never resubmits an unchanged open composer when confirmation is unavailable', async () => {
     vi.useFakeTimers();
     const result = settleThreadsPost({
       timeoutMs: 500,
-      retryAtMs: [100, 200],
       pollMs: 25,
       isDraftOpen: () => true,
+      findPostEvidence: () => undefined,
       findRejection: () => undefined,
-      canRetry: () => false,
-      retrySubmit: vi.fn(async () => undefined),
     });
-    const assertion = expect(result).resolves.toEqual({ closed: false, retries: 0 });
+
+    await vi.advanceTimersByTimeAsync(500);
+
+    await expect(result).resolves.toEqual({ outcome: 'uncertain' });
+  });
+
+  it('returns at the single observation deadline', async () => {
+    vi.useFakeTimers();
+    const result = settleThreadsPost({
+      timeoutMs: 500,
+      pollMs: 25,
+      isDraftOpen: () => true,
+      findPostEvidence: () => undefined,
+      findRejection: () => undefined,
+    });
+    const assertion = expect(result).resolves.toEqual({ outcome: 'uncertain' });
 
     await vi.advanceTimersByTimeAsync(500);
 
     await assertion;
   });
 
-  it('does not fire two retries back-to-back when the button enables late', async () => {
+  it('reports composer closure without conflating it with post confirmation', async () => {
     vi.useFakeTimers();
-    let retryEnabled = false;
-    const retrySubmit = vi.fn(async () => undefined);
+    let open = true;
     const result = settleThreadsPost({
       timeoutMs: 600,
-      retryAtMs: [100, 300],
       pollMs: 25,
-      isDraftOpen: () => true,
+      isDraftOpen: () => open,
+      findPostEvidence: () => undefined,
       findRejection: () => undefined,
-      canRetry: () => retryEnabled,
-      retrySubmit,
     });
 
-    await vi.advanceTimersByTimeAsync(350);
-    retryEnabled = true;
+    open = false;
     await vi.advanceTimersByTimeAsync(25);
-    expect(retrySubmit).toHaveBeenCalledOnce();
-    await vi.advanceTimersByTimeAsync(199);
-    expect(retrySubmit).toHaveBeenCalledOnce();
-    await vi.advanceTimersByTimeAsync(1);
-    expect(retrySubmit).toHaveBeenCalledTimes(2);
-    await vi.advanceTimersByTimeAsync(25);
-    await expect(result).resolves.toEqual({ closed: false, retries: 2 });
+
+    await expect(result).resolves.toEqual({ outcome: 'closed' });
   });
 
   it('stops immediately on an explicit Threads rejection', async () => {
     await expect(settleThreadsPost({
       timeoutMs: 10_000,
       isDraftOpen: () => true,
+      findPostEvidence: () => undefined,
       findRejection: () => 'Could not upload this image',
-      canRetry: () => true,
-      retrySubmit: vi.fn(async () => undefined),
     })).resolves.toEqual({
-      closed: false,
-      retries: 0,
+      outcome: 'rejected',
       rejection: 'Could not upload this image',
     });
   });
 
-  it('does not retry a composer after post evidence is captured', async () => {
+  it('confirms a post without claiming that its composer closed', async () => {
     vi.useFakeTimers();
-    const retrySubmit = vi.fn(async () => undefined);
-    let evidence = false;
+    let evidence: string | undefined;
     const result = settleThreadsPost({
       timeoutMs: 10_000,
-      retryAtMs: [100],
+      pollMs: 25,
       isDraftOpen: () => true,
-      hasPostEvidence: () => evidence,
+      findPostEvidence: () => evidence,
       findRejection: () => undefined,
-      canRetry: () => true,
-      retrySubmit,
     });
 
     await vi.advanceTimersByTimeAsync(50);
-    evidence = true;
-    await vi.advanceTimersByTimeAsync(250);
+    evidence = 'https://www.threads.com/@user/post/confirmed';
+    await vi.advanceTimersByTimeAsync(25);
 
-    await expect(result).resolves.toEqual({ closed: true, retries: 0, confirmed: true });
-    expect(retrySubmit).not.toHaveBeenCalled();
+    await expect(result).resolves.toEqual({
+      outcome: 'confirmed',
+      url: evidence,
+    });
   });
 });

@@ -62,14 +62,6 @@ export interface PlatformAdapter {
    * 未指定は安全側のforeground。指定adapterはリリース前にSurface gateで継続検証する。
    */
   realPostLane?: 'background';
-  /**
-   * Stateful media composers may rate-limit or duplicate uploads when a
-   * pre-submit failure automatically opens another fresh compose attempt.
-   * Opt in to one media attempt and surface the first failure. This lets a
-   * stateful server-side processor keep working in the same compose session
-   * instead of resetting progress by re-uploading into a fresh composer.
-   */
-  mediaRetryPolicy?: 'single-attempt';
   /** 投稿操作前の compose page load timeout に対する宣言policy */
   preSubmitLoad?: PreSubmitLoadPolicy;
   /** 動画投稿で優先する表示aspect。未指定なら原寸を維持する */

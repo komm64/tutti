@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   runVerify: vi.fn(),
   sendPostMessageWhenReady: vi.fn(),
   tryApiPath: vi.fn(),
+  waitForYouTubeStudioDispatchReady: vi.fn(async () => undefined),
 }));
 
 vi.mock('../storage', () => ({
@@ -59,6 +60,10 @@ vi.mock('./content-dispatch', () => ({
 
 vi.mock('./media-preprocess', () => ({
   maybeResizeImagesForPlatform: mocks.maybeResizeImagesForPlatform,
+}));
+
+vi.mock('./post-url-youtube-studio', () => ({
+  waitForYouTubeStudioDispatchReady: mocks.waitForYouTubeStudioDispatchReady,
 }));
 
 vi.mock('./platform-media', () => ({
@@ -192,6 +197,34 @@ describe('platform poster transport boundaries', () => {
     expect(openCalls[0]?.[2]).toBe(false);
   });
 
+  it('stabilizes the YouTube Studio channel document before dispatching media', async () => {
+    mocks.tryApiPath.mockResolvedValue('no-credentials');
+    mocks.resolveAdapter.mockResolvedValue({
+      ...adapter('youtube'),
+      kinds: ['shortVideo'],
+      videoConstraints: { maxDurationS: 60, maxBytes: 1024 * 1024 },
+    });
+    mocks.sendPostMessageWhenReady.mockResolvedValue({
+      type: 'POST_RESULT',
+      platform: 'youtube',
+      success: true,
+    } satisfies PostResultMessage);
+
+    const result = await createPoster().postToPlatform(
+      'youtube',
+      'video caption',
+      [{ name: 'clip.mp4', type: 'video/mp4', data: 'AA==' }],
+      undefined,
+      undefined,
+      false,
+    );
+
+    expect(result.success).toBe(true);
+    expect(mocks.waitForYouTubeStudioDispatchReady).toHaveBeenCalledWith(42);
+    expect(mocks.waitForYouTubeStudioDispatchReady.mock.invocationCallOrder[0])
+      .toBeLessThan(mocks.sendPostMessageWhenReady.mock.invocationCallOrder[0]!);
+  });
+
   it('stops after one real-post dispatch when the content response times out', async () => {
     mocks.tryApiPath.mockResolvedValue('no-credentials');
     mocks.sendPostMessageWhenReady.mockRejectedValue(
@@ -243,9 +276,8 @@ describe('platform poster transport boundaries', () => {
     expect(mocks.sendPostMessageWhenReady).toHaveBeenCalledOnce();
   });
 
-  it('does not repeat a failed real X media upload before submit', async () => {
+  it('does not repeat a failed real media upload before submit', async () => {
     const x = adapter('x');
-    x.mediaRetryPolicy = 'single-attempt';
     mocks.resolveAdapter.mockResolvedValue(x);
     mocks.tryApiPath.mockResolvedValue('no-credentials');
     mocks.sendPostMessageWhenReady.mockResolvedValue({
@@ -288,9 +320,8 @@ describe('platform poster transport boundaries', () => {
     expect(mocks.closeTabSafely).not.toHaveBeenCalled();
   });
 
-  it('does not reset a failed preview X media processor in a fresh composer', async () => {
+  it('does not reset a failed preview media processor in a fresh composer', async () => {
     const x = adapter('x');
-    x.mediaRetryPolicy = 'single-attempt';
     mocks.resolveAdapter.mockResolvedValue(x);
     mocks.sendPostMessageWhenReady.mockResolvedValue({
       type: 'POST_RESULT',
@@ -326,7 +357,7 @@ describe('platform poster transport boundaries', () => {
     expect(mocks.closeTabSafely).toHaveBeenCalledOnce();
   });
 
-  it('retries a real media upload when submit was not reached and the adapter permits it', async () => {
+  it('still retries a text-only pre-submit failure', async () => {
     const x = adapter('x');
     mocks.resolveAdapter.mockResolvedValue(x);
     mocks.tryApiPath.mockResolvedValue('no-credentials');
@@ -356,13 +387,7 @@ describe('platform poster transport boundaries', () => {
     const result = await createPoster().postToPlatform(
       'x',
       'hello',
-      [{
-        name: 'clip.mp4',
-        type: 'video/mp4',
-        data: 'AA==',
-        bytes: 1,
-        durationS: 1,
-      }],
+      undefined,
       undefined,
       undefined,
       true,
@@ -374,7 +399,7 @@ describe('platform poster transport boundaries', () => {
     expect(mocks.closeTabSafely).toHaveBeenCalledOnce();
   });
 
-  it('closes a failed created preview tab before opening the retry', async () => {
+  it('closes a failed text-only preview tab before opening the retry', async () => {
     const x = adapter('x');
     mocks.resolveAdapter.mockResolvedValue(x);
     mocks.sendPostMessageWhenReady
@@ -398,13 +423,7 @@ describe('platform poster transport boundaries', () => {
     const result = await createPoster().postToPlatform(
       'x',
       'hello',
-      [{
-        name: 'clip.mp4',
-        type: 'video/mp4',
-        data: 'AA==',
-        bytes: 1,
-        durationS: 1,
-      }],
+      undefined,
       undefined,
       undefined,
       false,
