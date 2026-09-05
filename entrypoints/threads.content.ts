@@ -14,6 +14,8 @@ import { hashCaptureText, readFreshCapturedPost } from '../src/utils/post-captur
 import { openReplyComposerIfOnPostPage } from '../src/utils/reply-compose';
 import { detectThreadsUserFromDocument } from '../src/utils/threads-user-detect';
 import { findThreadsMediaRejection, hasThreadsMediaPreview } from '../src/utils/threads-media-preview';
+import { resolveThreadsPostEvidenceUrl } from '../src/utils/threads-post-evidence';
+import { retryDetachedClick } from '../src/utils/retry-detached-click';
 import { settleThreadsPost } from '../src/utils/threads-post-settlement';
 import { waitForWebActionPacing } from '../src/utils/web-action-pacing';
 import { withTimeout } from '../src/utils/promise-timeout';
@@ -145,7 +147,10 @@ async function runPost(
     // A profile/rendered URL can appear after the composer observation budget.
     // Keep looking, but never click Post again: an unconfirmed first click is
     // an uncertain result, not permission to repeat an irreversible action.
-    const captured = settlement.url ?? await capturedPost;
+    // The longer capture path also checks the posting profile's latest-post
+    // diff. Prefer it over the shorter settlement signal so a delayed exact
+    // capture cannot be shadowed by weaker evidence.
+    const captured = await capturedPost ?? settlement.url;
     if (captured) {
       return {
         type: 'POST_RESULT',
@@ -196,9 +201,12 @@ async function runPost(
 async function ensureThreadsComposerOpen(textareaSelector: string): Promise<void> {
   if (document.querySelector(textareaSelector)) return;
 
-  await clickLiveThreadsButton(
-    '[role="button"], button',
-    THREADS_COMPOSER_TRIGGER_TEXTS,
+  await retryDetachedClick(
+    () => clickLiveThreadsButton(
+      '[role="button"], button',
+      THREADS_COMPOSER_TRIGGER_TEXTS,
+    ),
+    () => sleep(150),
   );
   const textarea = await waitForCondition<HTMLElement>(
     () => document.querySelector<HTMLElement>(textareaSelector),
@@ -299,15 +307,16 @@ async function captureThreadsPostUrlWithinBudget(
   let nextProfileFetchAt = 0;
   while (Date.now() < deadline) {
     const direct = normalizeThreadsPostUrl(location.href, location.origin);
-    if (direct && direct !== preSubmitPostUrl) return direct;
-
+    let exactCapturedPostUrl: string | undefined;
     try {
-      const captured = readMatchingThreadsCapturedPostUrl(text);
-      if (captured) return captured;
+      exactCapturedPostUrl = readMatchingThreadsCapturedPostUrl(text);
     } catch { /* ignore storage failures */ }
-
-    const rendered = findThreadsPostUrlByText(text, document);
-    if (rendered) return rendered;
+    const trustedEvidence = resolveThreadsPostEvidenceUrl({
+      currentPostUrl: direct,
+      preSubmitPostUrl,
+      exactCapturedPostUrl,
+    });
+    if (trustedEvidence) return trustedEvidence;
 
     if (username && Date.now() >= nextProfileFetchAt) {
       const snapshot = await fetchThreadsLatestPostSnapshot(username);
@@ -320,26 +329,6 @@ async function captureThreadsPostUrlWithinBudget(
       nextProfileFetchAt = Date.now() + 2_000;
     }
     await sleep(250);
-  }
-  return null;
-}
-
-function findThreadsPostUrlByText(text: string, doc: Document): string | null {
-  const target = text.replace(/\s+/g, ' ').trim().slice(0, 60);
-  if (!target) return null;
-  const normalize = (value: string): string => value.replace(/\s+/g, ' ').trim();
-  const links = Array.from(doc.querySelectorAll<HTMLAnchorElement>('a[href*="/post/"]'))
-    .filter((anchor) => /\/@[^/]+\/post\/[\w-]+/.test(anchor.href));
-  for (const link of links) {
-    let ancestor: HTMLElement | null = link;
-    for (let depth = 0; ancestor && depth < 12; depth += 1, ancestor = ancestor.parentElement) {
-      if (normalize(ancestor.innerText ?? ancestor.textContent ?? '').includes(target)) {
-        return link.href;
-      }
-    }
-  }
-  if (normalize(doc.body.innerText ?? doc.body.textContent ?? '').includes(target)) {
-    return links[0]?.href ?? null;
   }
   return null;
 }
@@ -413,14 +402,21 @@ function isThreadsDraftOpen(text: string, textareaSelector: string): boolean {
 
 function findThreadsPostEvidenceUrl(text: string, preSubmitPostUrl?: string): string | undefined {
   const direct = normalizeThreadsPostUrl(location.href, location.origin);
-  if (direct && direct !== preSubmitPostUrl) return direct;
+  let exactCapturedPostUrl: string | undefined;
   try {
-    const captured = readMatchingThreadsCapturedPostUrl(text);
-    if (captured) return captured;
+    exactCapturedPostUrl = readMatchingThreadsCapturedPostUrl(text);
   } catch {
-    // Continue with rendered evidence when storage is unavailable.
+    // Durable capture remains unavailable until the API/profile path resolves.
   }
-  return findThreadsPostUrlByText(text, document) ?? undefined;
+  // Do not infer confirmation from arbitrary rendered feed links. The open
+  // composer and unrelated posts share high-level ancestors on Threads, which
+  // can make short text such as hashtags appear to belong to the first stale
+  // post link in the document.
+  return resolveThreadsPostEvidenceUrl({
+    currentPostUrl: direct,
+    preSubmitPostUrl,
+    exactCapturedPostUrl,
+  });
 }
 
 function readMatchingThreadsCapturedPostUrl(text: string): string | undefined {
