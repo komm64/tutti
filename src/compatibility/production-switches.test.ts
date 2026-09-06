@@ -11,17 +11,8 @@ const packageVersion = (
 ).version;
 
 describe('production compatibility switch policy', () => {
-  it('registers the time-bounded post-orchestrator recovery path only', () => {
-    expect(PRODUCTION_COMPATIBILITY_SWITCHES).toEqual([
-      {
-        id: 'legacy-post-orchestrator',
-        scope: 'post-orchestrator',
-        owner: 'Issue #152',
-        introducedVersion: '0.5.50',
-        removalVersion: '0.5.52',
-        defaultPath: 'next',
-      },
-    ]);
+  it('has no active production compatibility switches', () => {
+    expect(PRODUCTION_COMPATIBILITY_SWITCHES).toEqual([]);
   });
 
   it('guards metadata, uniqueness, default path, and removal version', () => {

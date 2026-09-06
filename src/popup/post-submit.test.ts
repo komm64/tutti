@@ -6,6 +6,7 @@ import {
   mergePostResults,
   needsVideoPostingConfirmation,
   normalizeRetryGuardResults,
+  pollPostRequestResult,
   sendPostRequest,
   shouldClearDraftAfterSubmit,
   uncertainPlatforms,
@@ -52,6 +53,74 @@ describe('popup post submit policy', () => {
       autoPost: false,
     });
     expect(response?.results?.[0]).toMatchObject({ platform: 'x', preview: true });
+  });
+
+  it('polls request-scoped background state after an immediate acknowledgement', async () => {
+    const sent: unknown[] = [];
+    let requestId = '';
+    let stateRead = 0;
+    const response = await sendPostRequest({
+      text: 'hello',
+      platforms: ['x'],
+      images: [],
+      video: null,
+      imageAlts: [],
+      autoPost: true,
+      cw: '',
+      visibility: 'public',
+      trimToS: null,
+      intent: 'new',
+    }, async (message) => {
+      sent.push(message);
+      if ((message as { type?: string }).type === 'POST_REQUEST') {
+        requestId = (message as { requestId: string }).requestId;
+        return { accepted: true, requestId };
+      }
+      stateRead += 1;
+      if (stateRead === 1) {
+        return { postingState: { requestId: 'old-request', done: true, results: [] } };
+      }
+      if (stateRead === 2) {
+        return { postingState: { requestId, done: false, results: [] } };
+      }
+      return {
+        postingState: {
+          requestId,
+          done: true,
+          results: [{ type: 'POST_RESULT', platform: 'x', success: true }],
+        },
+      };
+    }, {
+      intervalMs: 0,
+      sleep: async () => {},
+    });
+
+    expect(sent.slice(1)).toEqual([
+      { type: 'GET_BG_STATE' },
+      { type: 'GET_BG_STATE' },
+      { type: 'GET_BG_STATE' },
+    ]);
+    expect(response?.results).toEqual([
+      { type: 'POST_RESULT', platform: 'x', success: true },
+    ]);
+  });
+
+  it('reports a bounded polling timeout after transient state read failures', async () => {
+    let now = 0;
+    await expect(pollPostRequestResult(
+      'request-timeout',
+      async () => {
+        throw new Error('worker unavailable');
+      },
+      {
+        intervalMs: 10,
+        timeoutMs: 20,
+        now: () => now,
+        sleep: async (delayMs) => { now += delayMs; },
+      },
+    )).rejects.toThrow(
+      'POST_REQUEST state timed out after 20ms. Last state read failed: worker unavailable',
+    );
   });
 
   it('merges retry results without dropping unrelated successes', () => {

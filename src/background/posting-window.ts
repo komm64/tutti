@@ -66,6 +66,7 @@ export function createPostingWindowSession(
   const unexpectedlyClosedWindows = new Set<number>();
   const closeWaiters = new Map<number, Set<() => void>>();
   let focusRestoreInFlight = false;
+  let foregroundFocusRestoreInFlight = false;
   let videoFocusLost = false;
   let mediaFocusLeaseActive = false;
   let mediaFocusLeaseTimer: ReturnType<typeof setTimeout> | undefined;
@@ -101,6 +102,9 @@ export function createPostingWindowSession(
         videoFocusLost = true;
         options.onFocusLost?.(state.windowId);
       }
+      if (focusMode === 'foreground-video') {
+        restoreForegroundVideoFocus(state.windowId);
+      }
       return;
     }
     if (focusMode === 'foreground-video') {
@@ -130,6 +134,16 @@ export function createPostingWindowSession(
       .catch(() => {})
       .finally(() => {
         focusRestoreInFlight = false;
+      });
+  }
+
+  function restoreForegroundVideoFocus(windowId: number): void {
+    if (foregroundFocusRestoreInFlight) return;
+    foregroundFocusRestoreInFlight = true;
+    void browser.windows.update(windowId, { focused: true })
+      .catch(() => {})
+      .finally(() => {
+        foregroundFocusRestoreInFlight = false;
       });
   }
 
@@ -175,8 +189,10 @@ export function createPostingWindowSession(
   async function acquireMediaFocus(): Promise<boolean> {
     const state = currentState;
     if (!state) return false;
-    // Foreground video mode takes focus once, before any posting work begins.
-    // Never steal it back later if the user chooses another window.
+    // Foreground video mode owns focus for the duration of the request. X can
+    // permanently strand video processing after even a short focus loss, so
+    // onFocusChanged restores this window immediately instead of relying on X
+    // to resume when the user comes back later.
     if (focusMode === 'foreground-video') {
       const postingWindow = await browser.windows.get(state.windowId).catch(() => undefined);
       return postingWindow?.focused === true;

@@ -1,7 +1,6 @@
 import type { ImageAttachment } from '../messages';
 import type { ApiPostResult } from '../api/types';
 import type { PlatformId } from '../types/platform';
-import type { PostingAlgorithm } from '../types/posting';
 import {
   verifyError,
   type VerifyExpectation,
@@ -59,7 +58,6 @@ export interface BackgroundPlatformStrategy {
   inlineThread?: {
     shouldUse: (
       autoPost: boolean,
-      postingAlgorithm: PostingAlgorithm,
       attachments?: readonly ImageAttachment[],
     ) => boolean;
     forceForegroundPreview?: true;
@@ -96,14 +94,11 @@ export const backgroundPlatformStrategies: Record<PlatformId, BackgroundPlatform
     ),
     inlineThread: {
       // X の複数投稿は preview / 本投稿とも compose 上で全件を組み立て、
-      // 最後に "Post all" を 1 回だけ実行する。旧方式を明示選択した
-      // 本投稿だけ、URL capture を挟む逐次 reply 経路へ戻す。
-      shouldUse: (autoPost, algorithm, attachments) => (
+      // 最後に "Post all" を 1 回だけ実行する。動画は安定性のため
+      // URL capture を挟む逐次 reply 経路を使う。
+      shouldUse: (autoPost, attachments) => (
         !autoPost ||
-        (
-          algorithm === 'next' &&
-          !attachments?.some((attachment) => attachment.type.startsWith('video/'))
-        )
+        !attachments?.some((attachment) => attachment.type.startsWith('video/'))
       ),
       forceForegroundPreview: true,
     },
@@ -267,11 +262,10 @@ export function continuationNeedsReplyUrl(platform: PlatformId): boolean {
 export function shouldUseInlineThread(
   platform: PlatformId,
   autoPost: boolean,
-  postingAlgorithm: PostingAlgorithm = 'next',
   attachments?: readonly ImageAttachment[],
 ): boolean {
   return getBackgroundPlatformStrategy(platform).inlineThread
-    ?.shouldUse(autoPost, postingAlgorithm, attachments) === true;
+    ?.shouldUse(autoPost, attachments) === true;
 }
 
 export function canUseApiWithReplyUrl(

@@ -7,6 +7,7 @@ import {
 } from '../api/bluesky';
 import { postViaApi as postMastodonApi } from '../api/mastodon';
 import { getApiCredentials } from '../utils/api-credentials';
+import { waitForWebActionPacing } from '../utils/web-action-pacing';
 import {
   backgroundPlatformStrategies,
   resolveCredentialBackedApiPlatforms,
@@ -33,6 +34,10 @@ vi.mock('../utils/api-credentials', () => ({
   getApiCredentials: vi.fn(),
 }));
 
+vi.mock('../utils/web-action-pacing', () => ({
+  waitForWebActionPacing: vi.fn(async () => 0),
+}));
+
 describe('tryApiPath', () => {
   const getCreds = vi.mocked(getApiCredentials);
   const postBluesky = vi.mocked(postBlueskyApi);
@@ -40,6 +45,7 @@ describe('tryApiPath', () => {
   const postBlueskyThread = vi.mocked(postBlueskyThreadApi);
   const postBlueskyThreadSession = vi.mocked(postBlueskyThreadSessionApi);
   const postMastodon = vi.mocked(postMastodonApi);
+  const waitForActionPacing = vi.mocked(waitForWebActionPacing);
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -84,6 +90,10 @@ describe('tryApiPath', () => {
     }]);
 
     expect(result).toMatchObject({ success: true });
+    expect(waitForActionPacing).toHaveBeenCalledWith('submit');
+    expect(waitForActionPacing.mock.invocationCallOrder[0]).toBeLessThan(
+      postBluesky.mock.invocationCallOrder[0]!,
+    );
     expect(postBluesky).toHaveBeenCalledWith(
       { identifier: 'alice.test', appPassword: 'xxxx-xxxx-xxxx-xxxx' },
       {

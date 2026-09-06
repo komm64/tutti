@@ -306,8 +306,9 @@
     "placeholders": { "N": { "content": "$1" } }
   },
   "retryDedupSkippedHint": { "message": "すでに投稿が完了している可能性が高いので再送を skip しました (直近 10 分の履歴に同一内容の成功 entry あり)。" },
+  "newDuplicateSkippedHint": { "message": "1 分以内に同一内容の投稿が完了しているため、重複の可能性がある投稿を停止しました。SNS 側を確認してから再投稿してください。" },
   "runtimeSubmissionAlreadyInFlight": { "message": "同じ内容の投稿がこの SNS ですでに進行中です。完了してから再実行してください。" },
-  "runtimeSubmissionGuardIndeterminate": { "message": "この再送が重複投稿になるか安全に判定できませんでした。履歴と SNS 側を確認してから再実行してください。" },
+  "runtimeSubmissionGuardIndeterminate": { "message": "この投稿が重複になるか安全に判定できませんでした。履歴と SNS 側を確認してから再実行してください。" },
   "reportDeduped": {
     "message": "同じエラーは既に $N$h 前に報告済みです (24h cooldown)。",
     "placeholders": { "N": { "content": "$1" } }

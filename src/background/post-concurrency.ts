@@ -1,11 +1,13 @@
 import type { PlatformId } from '../types/platform';
-import type { PostingAlgorithm } from '../types/posting';
 import { getAdapter } from '../adapters/registry';
 
 export const REAL_POST_CONCURRENCY = 1;
 export const REAL_API_CONCURRENCY = 3;
-export const REAL_BACKGROUND_CONCURRENCY = 3;
-export const PREVIEW_BACKGROUND_CONCURRENCY = 3;
+// A foreground DOM flow runs alongside this pool. Keeping the background DOM
+// pool at two avoids four simultaneous heavyweight SNS tabs on low-memory
+// machines while still allowing independent platforms to make progress.
+export const REAL_BACKGROUND_CONCURRENCY = 2;
+export const PREVIEW_BACKGROUND_CONCURRENCY = 2;
 export const PREVIEW_VIDEO_BACKGROUND_CONCURRENCY = 1;
 export const PREVIEW_FOREGROUND_CONCURRENCY = 1;
 
@@ -27,7 +29,6 @@ export interface PostExecutionPlan {
 
 export interface PostExecutionPlanOptions {
   hasVideo?: boolean;
-  postingAlgorithm?: PostingAlgorithm;
   apiPlatforms?: readonly PlatformId[];
 }
 
@@ -37,17 +38,7 @@ export function buildPostExecutionPlan(
   options: PostExecutionPlanOptions = {},
 ): PostExecutionPlan {
   if (autoPost) {
-    if (options.postingAlgorithm === 'next') {
-      return buildNextRealPostExecutionPlan(platforms, options);
-    }
-    return {
-      lanes: [{
-        id: 'serial',
-        platforms: [...platforms],
-        concurrency: REAL_POST_CONCURRENCY,
-        forceForeground: false,
-      }],
-    };
+    return buildRealPostExecutionPlan(platforms, options);
   }
 
   if (options.hasVideo) {
@@ -89,7 +80,7 @@ export function buildPostExecutionPlan(
   return { lanes };
 }
 
-function buildNextRealPostExecutionPlan(
+function buildRealPostExecutionPlan(
   platforms: readonly PlatformId[],
   options: PostExecutionPlanOptions,
 ): PostExecutionPlan {

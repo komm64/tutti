@@ -136,6 +136,28 @@ describe('entrypoint architecture guard', () => {
     expect(dispatch).toContain('[Mode in InjectRequestMode]');
   });
 
+  it('keeps platform content clicks behind web-action pacing', () => {
+    const violations: string[] = [];
+    for (const path of entrypointSourceFiles('entrypoints')) {
+      const normalized = normalize(relative('.', path));
+      if (!normalized.endsWith('.content.ts') || normalized === 'entrypoints/inject-helper.content.ts') {
+        continue;
+      }
+      const source = readFileSync(path, 'utf8');
+      for (const match of source.matchAll(/^\s*(?!\/\/)([\w$.]+)\.click\(\);/gm)) {
+        const expression = match[1];
+        if (normalized === 'entrypoints/bluesky.content.ts' && expression === 'livePostBtn') {
+          continue;
+        }
+        violations.push(`${normalized}: direct ${expression}.click()`);
+      }
+    }
+    assertArchitectureGuard({
+      guard: 'platform-content-click-pacing',
+      violations,
+    });
+  });
+
   it('keeps page-world tag and click commands out of the entrypoint', () => {
     const entrypoint = readFileSync('entrypoints/inject-helper.content.ts', 'utf8');
 

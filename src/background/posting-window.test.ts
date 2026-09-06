@@ -382,7 +382,7 @@ describe('posting window session', () => {
     await session.releaseBootstrapTab();
   });
 
-  it('focuses a video window once at startup and never reclaims focus later', async () => {
+  it('keeps the video posting window focused until the request finishes', async () => {
     let focusListener: ((windowId: number) => void) | undefined;
     let focusedWindowId = 50;
     const update = vi.fn(async (windowId: number) => {
@@ -457,20 +457,25 @@ describe('posting window session', () => {
     focusListener?.(7);
     expect(onFocusLost).toHaveBeenCalledTimes(1);
 
+    await vi.waitFor(() => {
+      expect(update).toHaveBeenCalledTimes(1);
+    });
+    expect(update).toHaveBeenCalledWith(50, { focused: true });
+    expect(focusedWindowId).toBe(50);
+
     await expect(handlePostingMediaFocus(50, 'acquire')).resolves.toEqual({
       ok: true,
-      active: false,
+      active: true,
     });
     await expect(handlePostingMediaFocus(50, 'release')).resolves.toEqual({
       ok: true,
       active: false,
     });
-    expect(update).not.toHaveBeenCalled();
+    expect(update).toHaveBeenCalledTimes(1);
 
-    focusedWindowId = 50;
     focusListener?.(50);
     expect(onFocusRestored).toHaveBeenCalledTimes(1);
-    expect(update).not.toHaveBeenCalled();
+    expect(update).toHaveBeenCalledTimes(1);
 
     await session.releaseBootstrapTab();
   });

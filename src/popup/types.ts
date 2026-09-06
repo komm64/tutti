@@ -32,6 +32,7 @@ export interface FailureHistoryEntry {
 }
 
 export interface PostingRestoreState {
+  requestId?: string;
   platforms: PlatformId[];
   pending: PlatformId[];
   results: PostResultMessage[];

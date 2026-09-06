@@ -8,6 +8,7 @@ import {
   waitForCondition,
 } from './dom';
 import { clickElementInMainWorld } from './image';
+import { clickElementWithPacing } from './web-action-pacing';
 
 const REPLY_TEXTS = ['Reply', '返信', '返信する', 'Respond'];
 
@@ -56,7 +57,7 @@ export async function openReplyComposerIfOnPostPage(
       button.removeAttribute('data-tutti-reply-target');
     }
   } else {
-    button.click();
+    await clickElementWithPacing(button);
   }
 
   if (options.implementationPath !== 'next') {

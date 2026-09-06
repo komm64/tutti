@@ -1,13 +1,42 @@
 import type { PlatformId, PostResultMessage, PostToPlatformMessage } from '../messages';
 import { log } from '../utils/logger';
 import { t } from '../utils/i18n';
+import { waitForWebActionPacing } from '../utils/web-action-pacing';
+import { withTimeout } from '../utils/promise-timeout';
 import { waitForTabComplete } from './tab-management';
 import { retryTransientTabAction } from './tab-action-retry';
 
-// X may spend up to 120s accepting a video, another 300s processing it, then
-// capture the resulting URL. Keep this guard above that complete content flow
-// so the background does not abandon a valid composer and invite a retry.
-export const POST_MESSAGE_RESPONSE_TIMEOUT_MS = 600_000;
+// Text/image automation must not hold a serial posting lane for many minutes.
+// Video retains a larger budget because platforms can spend several minutes
+// uploading and processing it server-side.
+export const POST_MESSAGE_RESPONSE_TIMEOUT_MS = 120_000;
+// A single X upload can remain in server-side processing for the full five-
+// minute content-script attempt. Allow up to three safe pre-submit attempts;
+// text/image posts keep the much shorter two-minute ceiling below.
+export const VIDEO_POST_MESSAGE_RESPONSE_TIMEOUT_MS = 900_000;
+
+export function resolvePostMessageResponseTimeoutMs(
+  message: PostToPlatformMessage,
+): number {
+  return resolvePlatformPostTimeoutMs(
+    message.images,
+    message.textChunks?.length ?? 1,
+  );
+}
+
+export function resolvePlatformPostTimeoutMs(
+  images?: PostToPlatformMessage['images'],
+  chunkCount = 1,
+): number {
+  const normalizedChunkCount = Number.isFinite(chunkCount)
+    ? Math.max(1, Math.floor(chunkCount))
+    : 1;
+  if (images?.some((item) => item.type.startsWith('video/'))) {
+    return VIDEO_POST_MESSAGE_RESPONSE_TIMEOUT_MS +
+      POST_MESSAGE_RESPONSE_TIMEOUT_MS * (normalizedChunkCount - 1);
+  }
+  return POST_MESSAGE_RESPONSE_TIMEOUT_MS * normalizedChunkCount;
+}
 
 /**
  * tab complete の直後は content script の listener 登録が数百 ms 遅れる場合がある。
@@ -24,7 +53,7 @@ export async function sendPostMessageWhenReady(
     try {
       const response = await withTimeout(
         browser.tabs.sendMessage(tabId, message) as Promise<PostResultMessage | undefined>,
-        POST_MESSAGE_RESPONSE_TIMEOUT_MS,
+        resolvePostMessageResponseTimeoutMs(message),
         `${message.platform} content script response`,
       );
       return response;
@@ -52,7 +81,8 @@ export async function sendPostMessageWhenReady(
         }
         reloaded = true;
         await retryTransientTabAction('reload SNS tab after missing receiver', () => (
-          browser.tabs.reload(tabId)
+          waitForWebActionPacing('navigation')
+            .then(() => browser.tabs.reload(tabId))
         ));
         await waitForTabComplete(tabId);
         await sleep(100);
@@ -136,17 +166,4 @@ async function tryInjectFederatedContentScripts(tabId: number, platform: Platfor
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
-  let timeout: ReturnType<typeof setTimeout> | undefined;
-  return new Promise<T>((resolve, reject) => {
-    timeout = setTimeout(() => {
-      reject(new Error(`${label} timed out after ${timeoutMs}ms`));
-    }, timeoutMs);
-
-    promise.then(resolve, reject).finally(() => {
-      if (timeout) clearTimeout(timeout);
-    });
-  });
 }

@@ -3,10 +3,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   injectContentEditableText,
+  injectXDraftText,
   injectNativeText,
   resolveTextEditorDriver,
   shouldUseDirectLexicalState,
   shouldUseXEditorPaste,
+  splitXDraftTextSegments,
 } from './editor-drivers';
 
 beforeEach(() => {
@@ -15,6 +17,52 @@ beforeEach(() => {
 });
 
 describe('page-world editor drivers', () => {
+  it('splits X hashtags and mentions into remount-safe typing segments', () => {
+    expect(splitXDraftTextSegments('body #tag and @user')).toEqual([
+      { kind: 'paste', text: 'body ' },
+      { kind: 'type', text: '#tag' },
+      { kind: 'paste', text: ' and ' },
+      { kind: 'type', text: '@user' },
+    ]);
+  });
+
+  it('retries one X entity character lost during a Draft editor remount', async () => {
+    document.body.innerHTML = '<div data-testid="tweetTextarea_3" contenteditable="true"></div>';
+    let current = document.querySelector<HTMLElement>('[data-testid="tweetTextarea_3"]')!;
+    const installPaste = (element: HTMLElement) => {
+      element.addEventListener('paste', (event) => {
+        element.textContent += (event as ClipboardEvent).clipboardData?.getData('text/plain') ?? '';
+      });
+    };
+    installPaste(current);
+    let lostFirstTagCharacter = false;
+
+    const result = await injectXDraftText(current, 'body #tag', {
+      resolveCurrent: () => current,
+      waitFor: async (predicate) => predicate(),
+      sleep: async () => {},
+      insertText: (element, character) => {
+        const before = element.textContent ?? '';
+        element.textContent = `${before}${character}`;
+        if (character === 't' && !lostFirstTagCharacter) {
+          lostFirstTagCharacter = true;
+          const replacement = document.createElement('div');
+          replacement.setAttribute('data-testid', 'tweetTextarea_3');
+          replacement.setAttribute('contenteditable', 'true');
+          replacement.textContent = before;
+          installPaste(replacement);
+          element.replaceWith(replacement);
+          current = replacement;
+        }
+        return true;
+      },
+    });
+
+    expect(lostFirstTagCharacter).toBe(true);
+    expect(result).toBe(current);
+    expect(current.textContent).toBe('body #tag');
+  });
+
   it('selects native, Lexical, Draft.js, and generic contenteditable drivers', () => {
     document.body.innerHTML = `
       <input id="input">
@@ -32,7 +80,7 @@ describe('page-world editor drivers', () => {
     expect(resolveTextEditorDriver(document.querySelector('#textarea')!)).toBe('native');
     expect(resolveTextEditorDriver(document.querySelector('#lexical')!)).toBe('lexical');
     expect(resolveTextEditorDriver(document.querySelector('#x-editor')!)).toBe('lexical');
-    expect(resolveTextEditorDriver(document.querySelector('#x-draft')!)).toBe('draft');
+    expect(resolveTextEditorDriver(document.querySelector('#x-draft')!)).toBe('lexical');
     expect(resolveTextEditorDriver(document.querySelector('#draft')!)).toBe('draft');
     expect(resolveTextEditorDriver(document.querySelector('#generic')!)).toBe('contenteditable');
   });

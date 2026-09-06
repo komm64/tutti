@@ -15,7 +15,21 @@ export async function runPostWorkerPool(options: PostWorkerPoolOptions): Promise
     while (queue.length > 0) {
       const platform = queue.shift();
       if (!platform) break;
-      const result = await options.post(platform);
+      let result: PostResultMessage;
+      try {
+        result = await options.post(platform);
+      } catch (error) {
+        result = {
+          type: 'POST_RESULT',
+          platform,
+          success: false,
+          flow: {
+            submitReached: false,
+            failedStep: 'platform-exception',
+          },
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
       results.push(result);
       options.onResult?.(result);
     }

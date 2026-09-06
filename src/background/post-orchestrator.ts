@@ -90,7 +90,6 @@ export function createNextPostOrchestrator(options: PostOrchestratorOptions) {
       shouldUseInlineThread(
         adapter.id,
         autoPost,
-        'next',
         images,
       )
       && chunks.length > 1
@@ -256,7 +255,7 @@ export function createNextPostOrchestrator(options: PostOrchestratorOptions) {
       `${adapter.id}: inline thread compose で ` +
       `${chunks.length} chunks を 1 つの compose に並べる`,
     );
-    return await transport.postSingleChunkWithRetry(
+    const result = await transport.postSingleChunkWithRetry(
       adapter,
       chunks[0]!,
       images,
@@ -268,6 +267,9 @@ export function createNextPostOrchestrator(options: PostOrchestratorOptions) {
       undefined,
       postOptions,
     );
+    return images?.length && result.success && result.url
+      ? { ...result, mediaUrl: result.mediaUrl ?? result.url }
+      : result;
   }
 
   return { postToPlatform };

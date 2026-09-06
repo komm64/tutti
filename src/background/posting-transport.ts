@@ -27,6 +27,7 @@ import {
 import { maybeResizeImagesForPlatform } from './media-preprocess';
 import type { OpenedTabRegistry } from './opened-tab-registry';
 import type { PostConfirmation } from './post-confirmation';
+import { waitForYouTubeStudioDispatchReady } from './post-url-youtube-studio';
 import {
   canUseApiWithReplyUrl,
   resolveComposeUrlForMedia,
@@ -124,14 +125,10 @@ export function createPostingTransport(options: PostingTransportOptions) {
             error: message,
           };
         }
-        if (
-          autoPost &&
-          rawImages?.length &&
-          adapter.mediaRetryPolicy === 'single-attempt'
-        ) {
+        if (rawImages?.length) {
           log.warn(
-            `${adapter.id}: real-post media attempt "${attempt.label}" failed ` +
-            'before submit; skipping a fresh upload attempt',
+            `${adapter.id}: media attempt "${attempt.label}" failed ` +
+            'before submit; refusing an automatic re-upload in a fresh composer',
           );
           throw error;
         }
@@ -251,15 +248,16 @@ export function createPostingTransport(options: PostingTransportOptions) {
     if (typeof tab.id !== 'number') {
       throw new Error(t('runtimeSnsTabOpenFailed'));
     }
-    const ownedTabId = wasCreated && !dryRun ? tab.id : undefined;
-    if (typeof ownedTabId === 'number') {
-      options.openedTabs.record(adapter.id, ownedTabId);
+    const createdAttemptTabId = wasCreated ? tab.id : undefined;
+    const registeredTabId = !dryRun ? createdAttemptTabId : undefined;
+    if (typeof registeredTabId === 'number') {
+      options.openedTabs.record(adapter.id, registeredTabId);
     }
     let response: PostResultMessage | undefined;
 
     try {
-      const currentTab = await browser.tabs.get(tab.id).catch(() => tab);
-      const tabUrlBefore = currentTab.url ?? currentTab.pendingUrl;
+      let currentTab = await browser.tabs.get(tab.id).catch(() => tab);
+      let tabUrlBefore = currentTab.url ?? currentTab.pendingUrl;
       const loginRedirectError = buildLoginRedirectErrorForUrl(
         currentTab.url ?? currentTab.pendingUrl ?? '',
       );
@@ -275,6 +273,12 @@ export function createPostingTransport(options: PostingTransportOptions) {
           tabUrlBefore,
           failedStep: 'verify-login',
         });
+      }
+
+      if (adapter.id === 'youtube') {
+        await waitForYouTubeStudioDispatchReady(tab.id);
+        currentTab = await browser.tabs.get(tab.id).catch(() => currentTab);
+        tabUrlBefore = currentTab.url ?? currentTab.pendingUrl;
       }
 
       const lastSeenUsers = await getLastSeenUsers();
@@ -368,14 +372,16 @@ export function createPostingTransport(options: PostingTransportOptions) {
     } catch (error) {
       const preserveFailedMediaCompose =
         autoPost &&
-        rawImages?.length &&
-        adapter.mediaRetryPolicy === 'single-attempt';
+        rawImages?.length;
       if (
-        typeof ownedTabId === 'number' &&
+        typeof createdAttemptTabId === 'number' &&
         response?.flow?.submitReached !== true &&
         !preserveFailedMediaCompose
       ) {
-        await closeOwnedAttemptTab(adapter.id, ownedTabId, attempt.label);
+        // Keep only the successful preview composer. A failed preview retry is
+        // still our freshly-created tab; leaving it open can make X process
+        // the same video in several tabs at once and strand later attempts.
+        await closeOwnedAttemptTab(adapter.id, createdAttemptTabId, attempt.label);
       }
       throw error;
     }

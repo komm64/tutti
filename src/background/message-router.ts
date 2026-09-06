@@ -69,6 +69,7 @@ type TypedHandlerRegistry = {
 interface PostingStateManager {
   setCompression: ReturnType<typeof createPostingStateManager>['setCompression'];
   clearPostingState: ReturnType<typeof createPostingStateManager>['clearPostingState'];
+  failRequest: ReturnType<typeof createPostingStateManager>['failRequest'];
   shouldClearBadgeOnRead: ReturnType<typeof createPostingStateManager>['shouldClearBadgeOnRead'];
   snapshot: ReturnType<typeof createPostingStateManager>['snapshot'];
 }
@@ -190,9 +191,19 @@ export function createBackgroundMessageRouter(
     },
     POST_REQUEST: (message, { sendResponse }) => {
       void options.handlePostRequest(message)
-        .then((results) => sendResponse({ results }))
-        .catch((error: unknown) => sendResponse({ error: errorMessage(error) }));
-      return true;
+        .catch((error: unknown) => {
+          const detail = errorMessage(error);
+          options.logBuffer.appendBackground(
+            `POST_REQUEST failed requestId=${message.requestId}: ${detail}`,
+          );
+          options.postingState.failRequest(
+            message.requestId,
+            message.platforms,
+            detail,
+          );
+        });
+      sendResponse({ accepted: true, requestId: message.requestId });
+      return false;
     },
   });
 

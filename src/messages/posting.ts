@@ -3,7 +3,6 @@
  */
 
 import type { PlatformId } from '../types/platform';
-import type { PostingAlgorithm } from '../types/posting';
 import type { ImageAttachment } from './media';
 
 export type UserActionCategory =
@@ -44,6 +43,7 @@ export type PostRequestIntent = 'new' | 'retry' | 'history-repost';
 export type SubmissionGuardDecision = 'allow' | 'blocked' | 'indeterminate';
 export type SubmissionGuardReason =
   | 'in-flight'
+  | 'recent-new-success'
   | 'recent-success'
   | 'recent-uncertain'
   | 'fingerprint-unavailable'
@@ -55,7 +55,7 @@ export interface SubmissionGuardTrace {
   requestId: string;
 }
 
-export type PostImplementationPath = PostingAlgorithm;
+export type PostImplementationPath = 'next';
 
 export interface PostImplementationDiagnostics {
   revision: number;

@@ -104,7 +104,11 @@ async function runPost(
     images,
     dryRun,
     implementationPath,
-    clickPostButton: () => clickElementInMainWorld('button, [role="button"]', ['投稿', 'ノート', 'Note', 'Post', 'Submit']),
+    clickPostButton: () => clickElementInMainWorld(
+      'button, [role="button"]',
+      ['投稿', 'ノート', 'Note', 'Post', 'Submit'],
+      { pacing: false },
+    ),
   });
   if (!dryRun) {
     const closed = await waitForCondition<boolean>(

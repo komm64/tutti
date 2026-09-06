@@ -1,4 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('../utils/web-action-pacing', () => ({
+  waitForWebActionPacing: vi.fn(async () => 0),
+}));
 import { verifyBlueskyPost } from '../api/bluesky-verify';
 import { verifyMastodonPost } from '../api/mastodon-verify';
 import { verifyMisskeyPost } from '../api/misskey-verify';

@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   runVerify: vi.fn(),
   sendPostMessageWhenReady: vi.fn(),
   tryApiPath: vi.fn(),
+  waitForYouTubeStudioDispatchReady: vi.fn(async () => undefined),
 }));
 
 vi.mock('../storage', () => ({
@@ -59,6 +60,10 @@ vi.mock('./content-dispatch', () => ({
 
 vi.mock('./media-preprocess', () => ({
   maybeResizeImagesForPlatform: mocks.maybeResizeImagesForPlatform,
+}));
+
+vi.mock('./post-url-youtube-studio', () => ({
+  waitForYouTubeStudioDispatchReady: mocks.waitForYouTubeStudioDispatchReady,
 }));
 
 vi.mock('./platform-media', () => ({
@@ -145,7 +150,6 @@ describe('platform poster transport boundaries', () => {
       undefined,
       true,
       {
-        postingAlgorithm: 'next',
         transportPolicy: 'api-only',
       },
     );
@@ -180,7 +184,6 @@ describe('platform poster transport boundaries', () => {
       undefined,
       true,
       {
-        postingAlgorithm: 'next',
         forceBackground: true,
         transportPolicy: 'dom-only',
       },
@@ -192,6 +195,34 @@ describe('platform poster transport boundaries', () => {
       [string, (url: string) => boolean, boolean]
     >;
     expect(openCalls[0]?.[2]).toBe(false);
+  });
+
+  it('stabilizes the YouTube Studio channel document before dispatching media', async () => {
+    mocks.tryApiPath.mockResolvedValue('no-credentials');
+    mocks.resolveAdapter.mockResolvedValue({
+      ...adapter('youtube'),
+      kinds: ['shortVideo'],
+      videoConstraints: { maxDurationS: 60, maxBytes: 1024 * 1024 },
+    });
+    mocks.sendPostMessageWhenReady.mockResolvedValue({
+      type: 'POST_RESULT',
+      platform: 'youtube',
+      success: true,
+    } satisfies PostResultMessage);
+
+    const result = await createPoster().postToPlatform(
+      'youtube',
+      'video caption',
+      [{ name: 'clip.mp4', type: 'video/mp4', data: 'AA==' }],
+      undefined,
+      undefined,
+      false,
+    );
+
+    expect(result.success).toBe(true);
+    expect(mocks.waitForYouTubeStudioDispatchReady).toHaveBeenCalledWith(42);
+    expect(mocks.waitForYouTubeStudioDispatchReady.mock.invocationCallOrder[0])
+      .toBeLessThan(mocks.sendPostMessageWhenReady.mock.invocationCallOrder[0]!);
   });
 
   it('stops after one real-post dispatch when the content response times out', async () => {
@@ -245,9 +276,8 @@ describe('platform poster transport boundaries', () => {
     expect(mocks.sendPostMessageWhenReady).toHaveBeenCalledOnce();
   });
 
-  it('does not repeat a failed real X media upload before submit', async () => {
+  it('does not repeat a failed real media upload before submit', async () => {
     const x = adapter('x');
-    x.mediaRetryPolicy = 'single-attempt';
     mocks.resolveAdapter.mockResolvedValue(x);
     mocks.tryApiPath.mockResolvedValue('no-credentials');
     mocks.sendPostMessageWhenReady.mockResolvedValue({
@@ -288,5 +318,120 @@ describe('platform poster transport boundaries', () => {
     expect(mocks.openOrFocusTab).toHaveBeenCalledOnce();
     expect(mocks.sendPostMessageWhenReady).toHaveBeenCalledOnce();
     expect(mocks.closeTabSafely).not.toHaveBeenCalled();
+  });
+
+  it('does not reset a failed preview media processor in a fresh composer', async () => {
+    const x = adapter('x');
+    mocks.resolveAdapter.mockResolvedValue(x);
+    mocks.sendPostMessageWhenReady.mockResolvedValue({
+      type: 'POST_RESULT',
+      platform: 'x',
+      success: false,
+      flow: {
+        mode: 'preview',
+        submitReached: false,
+        failedStep: 'wait-submit',
+      },
+      error: 'video did not become ready',
+    } satisfies PostResultMessage);
+
+    await expect(createPoster().postToPlatform(
+      'x',
+      '',
+      [{
+        name: 'clip.mp4',
+        type: 'video/mp4',
+        data: 'AA==',
+        bytes: 1,
+        durationS: 1,
+      }],
+      undefined,
+      undefined,
+      false,
+    )).resolves.toMatchObject({
+      success: false,
+      error: 'video did not become ready',
+    });
+    expect(mocks.openOrFocusTab).toHaveBeenCalledOnce();
+    expect(mocks.sendPostMessageWhenReady).toHaveBeenCalledOnce();
+    expect(mocks.closeTabSafely).toHaveBeenCalledOnce();
+  });
+
+  it('still retries a text-only pre-submit failure', async () => {
+    const x = adapter('x');
+    mocks.resolveAdapter.mockResolvedValue(x);
+    mocks.tryApiPath.mockResolvedValue('no-credentials');
+    mocks.sendPostMessageWhenReady
+      .mockResolvedValueOnce({
+        type: 'POST_RESULT',
+        platform: 'x',
+        success: false,
+        flow: {
+          mode: 'post',
+          submitReached: false,
+          failedStep: 'wait-submit',
+        },
+        error: 'video did not become ready',
+      } satisfies PostResultMessage)
+      .mockResolvedValueOnce({
+        type: 'POST_RESULT',
+        platform: 'x',
+        success: true,
+        url: 'https://x.com/test/status/1',
+        flow: {
+          mode: 'post',
+          submitReached: true,
+        },
+      } satisfies PostResultMessage);
+
+    const result = await createPoster().postToPlatform(
+      'x',
+      'hello',
+      undefined,
+      undefined,
+      undefined,
+      true,
+    );
+
+    expect(result).toMatchObject({ success: true });
+    expect(mocks.openOrFocusTab).toHaveBeenCalledTimes(2);
+    expect(mocks.sendPostMessageWhenReady).toHaveBeenCalledTimes(2);
+    expect(mocks.closeTabSafely).toHaveBeenCalledOnce();
+  });
+
+  it('closes a failed text-only preview tab before opening the retry', async () => {
+    const x = adapter('x');
+    mocks.resolveAdapter.mockResolvedValue(x);
+    mocks.sendPostMessageWhenReady
+      .mockResolvedValueOnce({
+        type: 'POST_RESULT',
+        platform: 'x',
+        success: false,
+        flow: {
+          mode: 'preview',
+          submitReached: false,
+          failedStep: 'wait-submit',
+        },
+        error: 'video did not become ready',
+      } satisfies PostResultMessage)
+      .mockResolvedValueOnce({
+        type: 'POST_RESULT',
+        platform: 'x',
+        success: true,
+      } satisfies PostResultMessage);
+
+    const result = await createPoster().postToPlatform(
+      'x',
+      'hello',
+      undefined,
+      undefined,
+      undefined,
+      false,
+    );
+
+    expect(result).toMatchObject({ success: true, preview: true });
+    expect(mocks.openOrFocusTab).toHaveBeenCalledTimes(2);
+    expect(mocks.closeTabSafely).toHaveBeenCalledOnce();
+    expect(mocks.closeTabSafely).toHaveBeenCalledWith(42);
   });
 });

@@ -13,6 +13,7 @@ import type { ApiPostResult } from '../api/types';
 import { getApiCredentials } from '../utils/api-credentials';
 import { log } from '../utils/logger';
 import { parseMastodonStatusIdFromUrl } from '../utils/reply-compose';
+import { waitForWebActionPacing } from '../utils/web-action-pacing';
 
 export type ApiPostingVisibility = 'public' | 'unlisted' | 'private' | 'direct';
 
@@ -43,12 +44,14 @@ export async function tryBlueskyApiPost({
 }: ApiPostingInput): Promise<ApiPostResult | 'no-credentials'> {
   const creds = await getApiCredentials();
   if (creds.bluesky) {
+    await waitForWebActionPacing('submit');
     return await postBlueskyApi(creds.bluesky, { text, images });
   }
   const session = await readBlueskySessionFromOpenTab();
   if (session) {
     const hasVideo = !!images?.some((image) => image.type.startsWith('video/'));
     log.info(`bluesky via borrowed web session API start: media=${images?.length ?? 0} video=${hasVideo}`);
+    await waitForWebActionPacing('submit');
     return await postBlueskySession(session, { text, images });
   }
   return 'no-credentials';
@@ -60,6 +63,7 @@ export async function tryBlueskyApiThreadPost({
 }: ApiThreadPostingInput): Promise<ApiPostResult | 'no-credentials'> {
   const creds = await getApiCredentials();
   if (creds.bluesky) {
+    await waitForWebActionPacing('submit');
     return await postBlueskyThreadApi(creds.bluesky, { chunks, images });
   }
   const session = await readBlueskySessionFromOpenTab();
@@ -69,6 +73,7 @@ export async function tryBlueskyApiThreadPost({
       `bluesky thread via borrowed web session API start: ` +
       `chunks=${chunks.length} media=${images?.length ?? 0} video=${hasVideo}`,
     );
+    await waitForWebActionPacing('submit');
     return await postBlueskyThreadSession(session, { chunks, images });
   }
   return 'no-credentials';
@@ -83,6 +88,7 @@ export async function tryMastodonApiPost({
 }: ApiPostingInput): Promise<ApiPostResult | 'no-credentials'> {
   const creds = await getApiCredentials();
   if (creds.mastodon) {
+    await waitForWebActionPacing('submit');
     return await postMastodonApi(creds.mastodon, {
       text,
       images,
@@ -102,6 +108,7 @@ export async function tryMisskeyApiPost({
 }: ApiPostingInput): Promise<ApiPostResult | 'no-credentials'> {
   const creds = await getApiCredentials();
   if (creds.misskey) {
+    await waitForWebActionPacing('submit');
     return await postMisskeyApi(creds.misskey, { text, images, cw, visibility });
   }
   return 'no-credentials';

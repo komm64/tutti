@@ -4,7 +4,9 @@ Issue #12 Phase 6 requires an independent decision for each high-risk Phase 7
 and Phase 8 migration. A production legacy path is allowed when the deployed
 implementation can remain complete, isolated behind a stable boundary,
 user-selectable before side effects, and explicitly time-bounded. The decision
-baseline is extension `0.5.49`.
+baseline is extension `0.5.49`. The matrix records the temporary 0.5.50–0.5.51
+migration window; the post-orchestrator switch was removed in 0.5.52 as
+scheduled.
 
 ## Decision matrix
 
@@ -52,14 +54,14 @@ install or select an old page-world hook implementation.
 
 ## Guard
 
-`PRODUCTION_COMPATIBILITY_SWITCHES` registers
-`legacy-post-orchestrator` through 0.5.51. It defaults to `next`, is owned by
-Issue #152, and must be removed before 0.5.52.
+`PRODUCTION_COMPATIBILITY_SWITCHES` registered `legacy-post-orchestrator`
+through 0.5.51. Version 0.5.52 removed the frozen controller, Options selector,
+and request-scoped selection; the registry is now empty.
 
 `architecture:check` fails invalid metadata, duplicate active scopes, or
 entries whose removal version has been reached.
 
-## v0.5.50 posting algorithm preference
+## v0.5.50–0.5.51 posting algorithm preference (removed)
 
 An early Issue #12 draft proposed install buckets and a percentage rollout.
 That proposal was withdrawn during design review and was never implemented or

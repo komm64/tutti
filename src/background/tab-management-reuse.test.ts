@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { waitForWebActionPacing } from '../utils/web-action-pacing';
 import { openOrFocusTab } from './tab-management';
+
+vi.mock('../utils/web-action-pacing', () => ({
+  waitForWebActionPacing: vi.fn(async () => 0),
+}));
 
 describe('openOrFocusTab reuseExistingTab option', () => {
   afterEach(() => {
@@ -42,6 +47,10 @@ describe('openOrFocusTab reuseExistingTab option', () => {
     );
 
     expect(result).toEqual({ tab: created, wasCreated: true });
+    expect(waitForWebActionPacing).toHaveBeenCalledWith('navigation');
+    expect(vi.mocked(waitForWebActionPacing).mock.invocationCallOrder[0]).toBeLessThan(
+      create.mock.invocationCallOrder[0]!,
+    );
     expect(query).not.toHaveBeenCalled();
     expect(create).toHaveBeenCalledWith({ url: 'https://x.com/compose/post', active: false });
     expect(update).not.toHaveBeenCalled();
@@ -101,12 +110,13 @@ describe('openOrFocusTab reuseExistingTab option', () => {
     };
     const create = vi.fn(async () => created);
     const updateWindow = vi.fn();
+    const updateTab = vi.fn(async () => created);
 
     vi.stubGlobal('browser', {
       tabs: {
         query: vi.fn(async () => []),
         create,
-        update: vi.fn(),
+        update: updateTab,
         reload: vi.fn(),
         get: vi.fn(async () => ({ ...created, status: 'complete' })),
         onUpdated: {
@@ -143,5 +153,6 @@ describe('openOrFocusTab reuseExistingTab option', () => {
       windowId: 41,
     });
     expect(updateWindow).toHaveBeenCalledWith(7, { focused: true });
+    expect(updateTab).toHaveBeenCalledWith(3, { active: true });
   });
 });

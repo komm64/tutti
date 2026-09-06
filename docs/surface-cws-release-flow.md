@@ -154,6 +154,10 @@ $env:E2E_EXTENSION_ID = '<returned-extension-id>'
 node scripts/e2e/surface-posting-matrix.mjs --mode preview --repeat 2
 ```
 
+`misskey.io` is retired from the required live-account gate. The default
+matrix does not exercise it. Its retained best-effort integration may only be
+probed with `--platforms misskey` when the owner explicitly requests it.
+
 If a platform hangs, keep the failure visible instead of waiting indefinitely:
 
 ```powershell
@@ -164,7 +168,7 @@ The report is checkpointed after every iteration. If a grouped request still
 times out, completed per-platform results and pending platform IDs are retained
 in the summary instead of losing the whole group.
 
-The matrix must pass the common draft shapes for every supported SNS: text only,
+The matrix must pass the common draft shapes for every required SNS: text only,
 image only, text + image, video only, text + video, image + video input
 normalized to video-only, long text + image, and an immediate repeated run.
 Preview must never write history or return post URLs.

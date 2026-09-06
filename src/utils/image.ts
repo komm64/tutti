@@ -2,6 +2,7 @@ import type { ImageAttachment, PostImplementationPath } from '../messages';
 import { sleep, waitForElement, waitForStableCondition } from './dom';
 import { t } from './i18n';
 import { log } from './logger';
+import { waitForWebActionPacing, type WebActionKind } from './web-action-pacing';
 
 const REQ_TAG = 'tutti-inject-req-v1';
 const RES_TAG = 'tutti-inject-res-v1';
@@ -99,6 +100,7 @@ export async function injectImages(
     requireUploadComplete?: boolean;
     implementationPath?: PostImplementationPath;
     requestPostingWindowMediaFocus?: boolean;
+    webActionPacing?: () => Promise<unknown>;
   } = {},
 ): Promise<void> {
   await waitForElement<HTMLInputElement>(fileInputSelector, 5000);
@@ -111,6 +113,8 @@ export async function injectImages(
   const images = await Promise.all(
     rawImages.map((m) => (m.data ? Promise.resolve(m) : resolveAttachmentToBase64ViaMessage(m))),
   );
+
+  await (options.webActionPacing ?? (() => waitForWebActionPacing('media')))();
 
   const shouldLeaseFocus = hasVideo && options.requestPostingWindowMediaFocus === true;
   if (shouldLeaseFocus) {
@@ -189,6 +193,7 @@ export async function injectTextIntoElement(
   selector: string,
 ): Promise<void> {
   await waitForElement<HTMLElement>(selector, 5000);
+  await waitForWebActionPacing('input');
   const result = await sendInjectRequest({
     mode: 'text',
     selector,
@@ -205,6 +210,7 @@ export async function injectTumblrTextIntoElement(
   selector: string,
 ): Promise<void> {
   await waitForElement<HTMLElement>(selector, 5000);
+  await waitForWebActionPacing('input');
   const result = await sendInjectRequest({
     mode: 'tumblr-text',
     selector,
@@ -227,6 +233,7 @@ export async function injectTagList(
   options: { implementationPath?: PostImplementationPath } = {},
 ): Promise<void> {
   await waitForElement<HTMLElement>(inputSelector, 5000);
+  await waitForWebActionPacing('input');
   const result = await sendInjectRequest({
     mode: 'tag-list',
     selector: inputSelector,
@@ -241,7 +248,15 @@ export async function injectTagList(
   }
 }
 
-export async function clickElementInMainWorld(selector: string, texts?: string[]): Promise<void> {
+export async function clickElementInMainWorld(
+  selector: string,
+  texts?: string[],
+  options: { pacing?: WebActionKind | false } = {},
+): Promise<void> {
+  const pacing = options.pacing ?? 'interaction';
+  if (pacing !== false) {
+    await waitForWebActionPacing(pacing);
+  }
   const result = await sendInjectRequest({
     mode: 'click',
     selector,
@@ -282,6 +297,7 @@ export async function dropImages(
     requireUploadComplete?: boolean;
     beforeDropDelayMs?: number;
     implementationPath?: PostImplementationPath;
+    webActionPacing?: () => Promise<unknown>;
   } = {},
 ): Promise<void> {
   await waitForElement<HTMLElement>(dropTargetSelector, 5000);
@@ -307,6 +323,7 @@ export async function dropImages(
     rawImages.map((m) => (m.data ? Promise.resolve(m) : resolveAttachmentToBase64ViaMessage(m))),
   );
 
+  await (options.webActionPacing ?? (() => waitForWebActionPacing('media')))();
   const result = await sendInjectRequest({
     mode: 'drop',
     selector: dropTargetSelector,

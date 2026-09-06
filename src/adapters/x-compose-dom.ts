@@ -40,7 +40,7 @@ export function readXEditableText(element: HTMLElement | undefined): string {
   return element?.innerText ?? element?.textContent ?? '';
 }
 
-export function getXVideoComposeRoot(
+export function getXMediaComposeRoot(
   scope: ParentNode,
   isVisible: (element: HTMLElement) => boolean,
 ): HTMLElement | undefined {
@@ -49,12 +49,73 @@ export function getXVideoComposeRoot(
     const root = getXComposeRoot(textarea);
     if (visited.has(root)) continue;
     visited.add(root);
-    if (hasXVideoAttachment(root, isVisible)) return root;
+    if (hasXMediaAttachment(root, isVisible)) return root;
   }
   return undefined;
 }
 
-export function hasXVideoAttachment(
+export function getLiveXMediaComposeRoot(
+  scope: ParentNode,
+  previousRoot: HTMLElement,
+  isVisible: (element: HTMLElement) => boolean,
+): HTMLElement | undefined {
+  return getXMediaComposeRoot(scope, isVisible) ?? (
+    previousRoot.isConnected && hasXMediaAttachment(previousRoot, isVisible)
+      ? previousRoot
+      : undefined
+  );
+}
+
+export interface XThreadAddPostTarget {
+  button: HTMLElement;
+  textarea: HTMLElement;
+}
+
+/**
+ * X can mirror text from the home inline composer into a compose dialog after
+ * `/compose/post` has already become interactive. Resolve the Add post button
+ * together with the textarea that owns it, and require that owner's first
+ * chunk to match the draft. This avoids staying scoped to the disabled home
+ * composer or clicking an unrelated visible draft dialog.
+ */
+export function getXThreadAddPostTarget(
+  scope: ParentNode,
+  expectedFirstChunk: string,
+  isVisible: (element: HTMLElement) => boolean,
+  isDisabled: (element: HTMLElement) => boolean,
+): XThreadAddPostTarget | undefined {
+  const expected = normalizeXComposeText(expectedFirstChunk);
+  const candidates = Array.from(scope.querySelectorAll<HTMLElement>(
+    '[data-testid="addButton"], button[aria-label], [role="button"][aria-label]',
+  ));
+  const ariaPatterns = [/add post/i, /ポストを追加/, /add tweet/i, /ツイートを追加/];
+
+  for (const button of candidates) {
+    if (!isVisible(button) || isDisabled(button)) continue;
+    const aria = button.getAttribute('aria-label') ?? '';
+    if (
+      button.getAttribute('data-testid') !== 'addButton' &&
+      !ariaPatterns.some((pattern) => pattern.test(aria))
+    ) {
+      continue;
+    }
+
+    const owner = button.closest<HTMLElement>('[role="dialog"]') ??
+      button.closest<HTMLElement>('main') ??
+      document.body;
+    const textarea = getXThreadTextarea(owner, 0, isVisible);
+    if (
+      textarea &&
+      normalizeXComposeText(readXEditableText(textarea)) === expected
+    ) {
+      return { button, textarea };
+    }
+  }
+
+  return undefined;
+}
+
+export function hasXMediaAttachment(
   scope: ParentNode,
   isVisible: (element: HTMLElement) => boolean,
 ): boolean {
@@ -68,4 +129,8 @@ export function hasXVideoAttachment(
   return Array.from(
     scope.querySelectorAll<HTMLElement>('[data-testid="attachments"]'),
   ).some(isVisible);
+}
+
+function normalizeXComposeText(value: string | null | undefined): string {
+  return (value ?? '').replace(/\s+/g, ' ').trim();
 }

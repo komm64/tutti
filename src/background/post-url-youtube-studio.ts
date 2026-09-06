@@ -1,4 +1,6 @@
 import { buildYouTubeTitle } from '../adapters/youtube';
+import { t } from '../utils/i18n';
+import { waitForWebActionPacing } from '../utils/web-action-pacing';
 import { retryTransientTabAction } from './tab-action-retry';
 import { closeTabSafely, waitForTabComplete } from './tab-management';
 
@@ -12,6 +14,83 @@ export interface YouTubeStudioPostIdBaselineState {
   settled: boolean;
 }
 
+export interface YouTubeStudioDispatchState {
+  channelReady: boolean;
+  dashboardReady: boolean;
+  documentTimeOrigin: number;
+}
+
+const YOUTUBE_STUDIO_DISPATCH_TIMEOUT_MS = 45_000;
+const YOUTUBE_STUDIO_DOCUMENT_STABILITY_MS = 750;
+const YOUTUBE_STUDIO_DISPATCH_POLL_MS = 250;
+
+/**
+ * Studio briefly exposes a usable document at `/` before replacing it with the
+ * channel dashboard. Sending the upload request to that first document loses
+ * the async response as soon as the replacement navigation commits. Wait for
+ * the channel dashboard and ensure its document survives a short stability
+ * window before the one media-bearing dispatch is allowed to start.
+ */
+export async function waitForYouTubeStudioDispatchReady(
+  tabId: number,
+  timeoutMs = YOUTUBE_STUDIO_DISPATCH_TIMEOUT_MS,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  let stableDocumentTimeOrigin: number | undefined;
+  let stableSince = 0;
+
+  while (Date.now() < deadline) {
+    const state = await browser.scripting.executeScript({
+      target: { tabId },
+      func: inspectYouTubeStudioDispatchStateInPage,
+      world: 'ISOLATED',
+    }).then(
+      (results) => results?.[0]?.result as YouTubeStudioDispatchState | undefined,
+      () => undefined,
+    );
+
+    if (state?.channelReady && state.dashboardReady) {
+      if (stableDocumentTimeOrigin !== state.documentTimeOrigin) {
+        stableDocumentTimeOrigin = state.documentTimeOrigin;
+        stableSince = Date.now();
+      } else if (Date.now() - stableSince >= YOUTUBE_STUDIO_DOCUMENT_STABILITY_MS) {
+        return;
+      }
+    } else {
+      stableDocumentTimeOrigin = undefined;
+      stableSince = 0;
+    }
+
+    await sleep(YOUTUBE_STUDIO_DISPATCH_POLL_MS);
+  }
+
+  throw new Error(t('runtimeYouTubeUploadButtonMissing'));
+}
+
+export function inspectYouTubeStudioDispatchStateInPage(
+  root: ParentNode = document,
+  pageUrl: string = location.href,
+  documentTimeOrigin: number = performance.timeOrigin,
+): YouTubeStudioDispatchState {
+  let channelReady = false;
+  try {
+    const url = new URL(pageUrl);
+    channelReady = url.hostname === 'studio.youtube.com' &&
+      /^\/channel\/[^/]+(?:\/|$)/.test(url.pathname);
+  } catch {
+    channelReady = false;
+  }
+
+  return {
+    channelReady,
+    dashboardReady: Boolean(root.querySelector(
+      '#upload-button, #upload-icon, [aria-label="Upload videos"], ' +
+      '[aria-label="動画をアップロード"]',
+    )),
+    documentTimeOrigin,
+  };
+}
+
 export async function captureYouTubeStudioPostIdsFromTab(
   tabId: number,
   debug: (message: string) => void,
@@ -21,13 +100,16 @@ export async function captureYouTubeStudioPostIdsFromTab(
   debug(`open isolated Studio content snapshot before posting: ${contentUrl}`);
   const snapshotTab = await retryTransientTabAction(
     'open YouTube Studio content snapshot before posting',
-    () => browser.tabs.create({
-      url: contentUrl,
-      active: false,
-      ...(typeof sourceTab.windowId === 'number'
-        ? { windowId: sourceTab.windowId }
-        : {}),
-    }),
+    async () => {
+      await waitForWebActionPacing('navigation');
+      return await browser.tabs.create({
+        url: contentUrl,
+        active: false,
+        ...(typeof sourceTab.windowId === 'number'
+          ? { windowId: sourceTab.windowId }
+          : {}),
+      });
+    },
   );
   if (typeof snapshotTab.id !== 'number') {
     throw new Error('YouTube Studio baseline snapshot tab was not created');
@@ -75,9 +157,10 @@ export async function captureYouTubeStudioPostUrlFromTab(
   const targetTitle = buildYouTubeStudioCaptureTarget(sourceText);
   const contentUrl = await resolveYouTubeStudioContentUrlFromTab(tabId);
   debug(`open newest-first Studio content list for URL lookup: ${contentUrl}`);
-  await retryTransientTabAction('open YouTube Studio content list for URL capture', () => (
-    browser.tabs.update(tabId, { url: contentUrl })
-  ));
+  await retryTransientTabAction('open YouTube Studio content list for URL capture', async () => {
+    await waitForWebActionPacing('navigation');
+    return await browser.tabs.update(tabId, { url: contentUrl });
+  });
   await waitForTabComplete(tabId);
 
   const results = await browser.scripting.executeScript({

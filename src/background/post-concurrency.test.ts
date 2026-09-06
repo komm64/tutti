@@ -7,17 +7,7 @@ import {
 } from './post-concurrency';
 
 describe('post execution plan', () => {
-  it('serializes real posts in one lane', () => {
-    expect(resolvePostConcurrency(['x', 'bluesky', 'threads'], true)).toBe(1);
-    expect(buildPostExecutionPlan(['x', 'bluesky', 'threads'], true).lanes).toEqual([{
-      id: 'serial',
-      platforms: ['x', 'bluesky', 'threads'],
-      concurrency: 1,
-      forceForeground: false,
-    }]);
-  });
-
-  it('splits next real posts into API, foreground DOM, and background DOM lanes', () => {
+  it('splits real posts into API, foreground DOM, and background DOM lanes', () => {
     const platforms = [
       'x',
       'bluesky',
@@ -27,7 +17,6 @@ describe('post execution plan', () => {
       'instagram',
     ] as const;
     expect(buildPostExecutionPlan(platforms, true, {
-      postingAlgorithm: 'next',
       apiPlatforms: ['bluesky', 'mastodon'],
     }).lanes).toEqual([
       {
@@ -46,7 +35,7 @@ describe('post execution plan', () => {
       {
         id: 'background',
         platforms: ['misskey'],
-        concurrency: 3,
+        concurrency: 2,
         forceForeground: false,
         forceBackground: true,
       },
@@ -57,30 +46,18 @@ describe('post execution plan', () => {
     expect(needsForegroundRealPost('instagram')).toBe(true);
   });
 
-  it('keeps legacy real posts serialized even when API hints are present', () => {
-    expect(buildPostExecutionPlan(['bluesky', 'x'], true, {
-      postingAlgorithm: 'legacy',
-      apiPlatforms: ['bluesky'],
-    }).lanes).toEqual([{
-      id: 'serial',
-      platforms: ['bluesky', 'x'],
-      concurrency: 1,
-      forceForeground: false,
-    }]);
-  });
-
   it('keeps low-risk preview flows in the background pool', () => {
-    expect(resolvePostConcurrency(['bluesky', 'threads', 'mastodon', 'misskey'], false)).toBe(3);
+    expect(resolvePostConcurrency(['bluesky', 'threads', 'mastodon', 'misskey'], false)).toBe(2);
     expect(buildPostExecutionPlan(['bluesky', 'threads', 'mastodon', 'misskey'], false).lanes).toEqual([{
       id: 'background',
       platforms: ['bluesky', 'threads', 'mastodon', 'misskey'],
-      concurrency: 3,
+      concurrency: 2,
       forceForeground: false,
     }]);
   });
 
   it('runs mixed preview selections as foreground plus background lanes', () => {
-    expect(resolvePostConcurrency(['x', 'bluesky', 'threads', 'mastodon'], false)).toBe(4);
+    expect(resolvePostConcurrency(['x', 'bluesky', 'threads', 'mastodon'], false)).toBe(3);
     expect(buildPostExecutionPlan(['x', 'bluesky', 'threads', 'mastodon'], false).lanes).toEqual([
       {
         id: 'foreground',
@@ -91,7 +68,7 @@ describe('post execution plan', () => {
       {
         id: 'background',
         platforms: ['bluesky', 'threads', 'mastodon'],
-        concurrency: 3,
+        concurrency: 2,
         forceForeground: false,
       },
     ]);

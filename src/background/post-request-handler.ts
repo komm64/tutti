@@ -2,8 +2,11 @@ import type {
   PostRequestMessage,
   PostResultMessage,
 } from '../messages';
+import { getAdapter } from '../adapters/registry';
 import { getSettings } from '../storage';
-import type { PostingAlgorithm } from '../types/posting';
+import { splitTextForPlatform } from '../utils/platform-text';
+import { OperationTimeoutError, withTimeout } from '../utils/promise-timeout';
+import { resolvePlatformPostTimeoutMs } from './content-dispatch';
 import { releasePostAttachments, recordHistoryEntry } from './history-recorder';
 import { maybeCompressVideoForBudget } from './media-preprocess';
 import type { OpenedTabRegistry } from './opened-tab-registry';
@@ -15,6 +18,7 @@ import {
   withPostTiming,
 } from './post-result-policy';
 import { runPostScheduler } from './post-scheduler';
+import { isAmbiguousPostDispatchError } from './post-confirmation';
 import { resolveCredentialBackedApiPlatforms } from './platform-strategies';
 import {
   clearBadge,
@@ -25,6 +29,7 @@ import {
 import { createPostingWindowSession } from './posting-window';
 import type { createPostingStateManager } from './posting-state';
 import { executeGuardedSubmission } from './submission-execution';
+import { withServiceWorkerKeepAlive } from './service-worker-keepalive';
 import type {
   createSubmissionGuard,
   SubmissionGuardReservation,
@@ -66,14 +71,13 @@ export function createPostRequestHandler(options: PostRequestHandlerOptions) {
     let adjustedImages: PostRequestMessage['images'];
     let postingStateStarted = false;
     let autoPost = false;
-    let postingAlgorithm: PostingAlgorithm = 'next';
     const annotateImplementation = (result: PostResultMessage): PostResultMessage =>
-      withPostImplementationDiagnostics(result, postingAlgorithm);
-    return await executeGuardedSubmission<SubmissionGuardReservation, PostResultMessage[]>({
+      withPostImplementationDiagnostics(result, 'next');
+    return await withServiceWorkerKeepAlive(() =>
+      executeGuardedSubmission<SubmissionGuardReservation, PostResultMessage[]>({
       reserve: async () => {
         const settings = await getSettings();
         autoPost = request.autoPost ?? settings.autoPost;
-        postingAlgorithm = settings.postingAlgorithm;
         return await submissionGuard.reserve({
           requestId: request.requestId,
           intent: request.intent,
@@ -91,7 +95,7 @@ export function createPostRequestHandler(options: PostRequestHandlerOptions) {
         // Guard reservation が確定するまで tab / posting side effect を開始しない。
         // POST_REQUEST ごとに cleanup 所有権を切り、前回 state を完全上書きする。
         openedTabs.clear();
-        postingState.start(requestedPlatforms);
+        postingState.start(request.requestId, requestedPlatforms);
         postingStateStarted = true;
         for (const rejected of rejectedResults) {
           const guard = rejected.submissionGuard;
@@ -112,8 +116,7 @@ export function createPostRequestHandler(options: PostRequestHandlerOptions) {
         const requestHasVideo = request.images?.some(
           (image) => image.type.startsWith('video/'),
         ) === true;
-        const requestPoster = platformPoster.forAlgorithm(postingAlgorithm);
-        const apiPlatforms = postingAlgorithm === 'next' && autoPost
+        const apiPlatforms = autoPost
           ? await resolveCredentialBackedApiPlatforms(platforms)
           : [];
         const apiPlatformSet = new Set(apiPlatforms);
@@ -162,77 +165,109 @@ export function createPostRequestHandler(options: PostRequestHandlerOptions) {
             autoPost,
             planOptions: {
               hasVideo,
-              postingAlgorithm,
               apiPlatforms,
             },
             post: async (platform, execution) => {
               const platformStartedAt = Date.now();
-              const postWindowId = autoPost && execution.transportPolicy !== 'api-only'
-                ? await postingWindow.getOrCreateWindowId()
-                : undefined;
-              const postWindowFocusReturnId = typeof postWindowId === 'number'
-                ? postingWindow.getFocusReturnWindowId()
-                : undefined;
-              const postOutcome = requestPoster.postToPlatform(
-                platform,
-                request.text,
+              const adapter = getAdapter(platform);
+              const chunkCount = adapter
+                ? splitTextForPlatform(platform, request.text, adapter.charLimit).length
+                : 1;
+              const platformTimeoutMs = resolvePlatformPostTimeoutMs(
                 adjustedImages,
-                request.cw,
-                request.visibility,
-                autoPost,
-                {
-                  forceForeground: execution.forceForeground,
-                  forceBackground: execution.forceBackground,
-                  transportPolicy: execution.transportPolicy,
-                  postWindowId,
-                  postWindowFocusReturnId,
-                },
-              ).then(
-                (value) => ({ kind: 'result' as const, value }),
-                (error: unknown) => ({ kind: 'error' as const, error }),
+                chunkCount,
               );
-              const outcome = typeof postWindowId === 'number'
-                ? await Promise.race([
-                    postOutcome,
-                    postingWindow.waitForUnexpectedClose(postWindowId).then(() => ({
-                      kind: 'window-closed' as const,
-                    })),
-                  ])
-                : await postOutcome;
-              if (outcome.kind === 'error') throw outcome.error;
-              const rawResult: PostResultMessage = outcome.kind === 'window-closed'
-                ? {
-                    type: 'POST_RESULT',
+              let rawResult: PostResultMessage;
+              try {
+                rawResult = await withTimeout((async () => {
+                  const postWindowId = autoPost && execution.transportPolicy !== 'api-only'
+                    ? await postingWindow.getOrCreateWindowId()
+                    : undefined;
+                  const postWindowFocusReturnId = typeof postWindowId === 'number'
+                    ? postingWindow.getFocusReturnWindowId()
+                    : undefined;
+                  const postOutcome = platformPoster.postToPlatform(
                     platform,
-                    success: false,
-                    uncertain: true,
-                    userAction: 'check-post-before-retry',
-                    flow: {
-                      mode: 'post',
-                      submitReached: true,
-                      failedStep: 'posting-window-closed',
+                    request.text,
+                    adjustedImages,
+                    request.cw,
+                    request.visibility,
+                    autoPost,
+                    {
+                      forceForeground: execution.forceForeground,
+                      forceBackground: execution.forceBackground,
+                      transportPolicy: execution.transportPolicy,
+                      postWindowId,
+                      postWindowFocusReturnId,
                     },
-                    error:
-                      'The Tutti posting window was closed before the post ' +
-                      'could be confirmed. Check the SNS before retrying.',
-                  }
-                : outcome.value;
+                  ).then(
+                    (value) => ({ kind: 'result' as const, value }),
+                    (error: unknown) => ({ kind: 'error' as const, error }),
+                  );
+                  const outcome = typeof postWindowId === 'number'
+                    ? await Promise.race([
+                        postOutcome,
+                        postingWindow.waitForUnexpectedClose(postWindowId).then(() => ({
+                          kind: 'window-closed' as const,
+                        })),
+                      ])
+                    : await postOutcome;
+                  if (outcome.kind === 'error') throw outcome.error;
+                  return outcome.kind === 'window-closed'
+                    ? {
+                        type: 'POST_RESULT' as const,
+                        platform,
+                        success: false,
+                        uncertain: true,
+                        userAction: 'check-post-before-retry' as const,
+                        flow: {
+                          mode: 'post' as const,
+                          submitReached: true,
+                          failedStep: 'posting-window-closed',
+                        },
+                        error:
+                          'The Tutti posting window was closed before the post ' +
+                          'could be confirmed. Check the SNS before retrying.',
+                      }
+                    : outcome.value;
+                })(), platformTimeoutMs, (
+                  `${platform} post (${chunkCount} chunk${chunkCount === 1 ? '' : 's'})`
+                ));
+              } catch (error) {
+                const timedOut = error instanceof OperationTimeoutError;
+                const ambiguous = autoPost && (timedOut || isAmbiguousPostDispatchError(error));
+                const message = error instanceof Error ? error.message : String(error);
+                appendBackgroundLog(
+                  `${platform}: isolated platform failure; continuing remaining posts: ${message}`,
+                );
+                rawResult = {
+                  type: 'POST_RESULT',
+                  platform,
+                  success: false,
+                  uncertain: ambiguous || undefined,
+                  userAction: ambiguous ? 'check-post-before-retry' : undefined,
+                  flow: {
+                    mode: autoPost ? 'post' : 'preview',
+                    submitReached: ambiguous,
+                    failedStep: timedOut ? 'platform-timeout' : 'platform-exception',
+                  },
+                  error: message,
+                };
+              }
               let result = annotateImplementation(
                 normalizePostEvidence(rawResult),
               );
-              if (postingAlgorithm === 'next') {
-                const completedAt = Date.now();
-                result = withPostTiming(result, {
-                  step: `scheduler-queue:${execution.lane}`,
-                  durationMs: Math.max(0, platformStartedAt - schedulerStartedAt),
-                  outcome: 'completed',
-                });
-                result = withPostTiming(result, {
-                  step: 'platform-total',
-                  durationMs: Math.max(0, completedAt - platformStartedAt),
-                  outcome: result.success ? 'completed' : 'failed',
-                }, Math.max(0, completedAt - schedulerStartedAt));
-              }
+              const completedAt = Date.now();
+              result = withPostTiming(result, {
+                step: `scheduler-queue:${execution.lane}`,
+                durationMs: Math.max(0, platformStartedAt - schedulerStartedAt),
+                outcome: 'completed',
+              });
+              result = withPostTiming(result, {
+                step: 'platform-total',
+                durationMs: Math.max(0, completedAt - platformStartedAt),
+                outcome: result.success ? 'completed' : 'failed',
+              }, Math.max(0, completedAt - schedulerStartedAt));
               return result;
             },
             onResult: recordPlatformProgress,
@@ -259,6 +294,7 @@ export function createPostRequestHandler(options: PostRequestHandlerOptions) {
         await releasePostAttachments(request.images, adjustedImages);
         if (postingStateStarted) postingState.markDone();
       },
-    });
+      }),
+    );
   };
 }

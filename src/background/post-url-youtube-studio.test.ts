@@ -1,5 +1,9 @@
 import { Window } from 'happy-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('../utils/web-action-pacing', () => ({
+  waitForWebActionPacing: vi.fn(async () => 0),
+}));
 import {
   buildYouTubeStudioCaptureTarget,
   buildYouTubeStudioContentUrl,
@@ -8,6 +12,8 @@ import {
   captureYouTubeStudioPostIdsInPage,
   captureYouTubeStudioPostUrlFromTab,
   captureYouTubeStudioPostUrlInPage,
+  inspectYouTubeStudioDispatchStateInPage,
+  waitForYouTubeStudioDispatchReady,
 } from './post-url-youtube-studio';
 
 describe('YouTube Studio post URL capture', () => {
@@ -26,6 +32,60 @@ describe('YouTube Studio post URL capture', () => {
     )).toContain('/channel/UC123/videos/upload?');
     expect(buildYouTubeStudioContentUrl('https://studio.youtube.com/')).toBeUndefined();
     expect(buildYouTubeStudioContentUrl('https://www.youtube.com/channel/UC123')).toBeUndefined();
+  });
+
+  it('recognizes only a channel dashboard with an upload control as dispatch-ready', () => {
+    const window = new Window();
+    window.document.body.innerHTML = '<ytcp-button id="upload-button">Upload videos</ytcp-button>';
+
+    expect(inspectYouTubeStudioDispatchStateInPage(
+      window.document as unknown as ParentNode,
+      'https://studio.youtube.com/',
+      10,
+    )).toEqual({
+      channelReady: false,
+      dashboardReady: true,
+      documentTimeOrigin: 10,
+    });
+    expect(inspectYouTubeStudioDispatchStateInPage(
+      window.document as unknown as ParentNode,
+      'https://studio.youtube.com/channel/UC123',
+      10,
+    )).toEqual({
+      channelReady: true,
+      dashboardReady: true,
+      documentTimeOrigin: 10,
+    });
+  });
+
+  it('waits for the canonical dashboard document to remain stable before dispatch', async () => {
+    vi.useFakeTimers();
+    const states = [
+      { channelReady: false, dashboardReady: false, documentTimeOrigin: 1 },
+      { channelReady: true, dashboardReady: true, documentTimeOrigin: 1 },
+      { channelReady: true, dashboardReady: true, documentTimeOrigin: 2 },
+    ];
+    const executeScript = vi.fn(async () => [{
+      result: states.shift() ?? {
+        channelReady: true,
+        dashboardReady: true,
+        documentTimeOrigin: 2,
+      },
+    }]);
+    vi.stubGlobal('browser', {
+      scripting: { executeScript },
+    });
+
+    const pending = waitForYouTubeStudioDispatchReady(7);
+    await vi.advanceTimersByTimeAsync(2_000);
+
+    await expect(pending).resolves.toBeUndefined();
+    expect(executeScript).toHaveBeenCalledWith(expect.objectContaining({
+      target: { tabId: 7 },
+      func: inspectYouTubeStudioDispatchStateInPage,
+      world: 'ISOLATED',
+    }));
+    expect(executeScript.mock.calls.length).toBeGreaterThanOrEqual(6);
   });
 
   it('captures the unique video IDs visible before submission', () => {

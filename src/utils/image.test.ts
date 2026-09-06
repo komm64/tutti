@@ -57,6 +57,7 @@ describe('media focus lease', () => {
         {
           implementationPath: 'next',
           requestPostingWindowMediaFocus: true,
+          webActionPacing: async () => undefined,
         },
       );
     } finally {

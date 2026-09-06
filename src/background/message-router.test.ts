@@ -27,6 +27,7 @@ function createOptions(
     postingState: {
       setCompression: vi.fn(),
       clearPostingState: vi.fn(),
+      failRequest: vi.fn(),
       shouldClearBadgeOnRead: vi.fn(() => false),
       snapshot: vi.fn(() => ({
         compression: null,
@@ -216,7 +217,7 @@ describe('background message router', () => {
     expect(buildDiagnosticsReport).toHaveBeenCalledWith(['x']);
   });
 
-  it('decodes conservative POST_REQUEST defaults before async dispatch', async () => {
+  it('acknowledges POST_REQUEST immediately before async dispatch completes', async () => {
     const result: PostResultMessage = {
       type: 'POST_RESULT',
       platform: 'x',
@@ -239,15 +240,50 @@ describe('background message router', () => {
       },
       {},
       sendResponse,
-    )).toBe(true);
+    )).toBe(false);
 
-    await vi.waitFor(() => expect(sendResponse).toHaveBeenCalledWith({ results: [result] }));
+    expect(sendResponse).toHaveBeenCalledWith({
+      accepted: true,
+      requestId: expect.any(String),
+    });
+    await vi.waitFor(() => expect(handlePostRequest).toHaveBeenCalledOnce());
     const routed = handlePostRequest.mock.calls[0]![0];
     expect(routed.requestId).toEqual(expect.any(String));
     expect(routed.requestId.length).toBeGreaterThan(0);
     expect(routed.intent).toBe('retry');
     expect(options.logBuffer.appendBackground).toHaveBeenCalledWith(
       expect.stringContaining('POST_REQUEST contract defaulted requestId,intent'),
+    );
+  });
+
+  it('records an asynchronous POST_REQUEST failure in polling state', async () => {
+    const handlePostRequest = vi.fn(async () => {
+      throw new Error('scheduler failed');
+    });
+    const options = createOptions({ handlePostRequest });
+    const router = createBackgroundMessageRouter(options);
+    const sendResponse = vi.fn();
+
+    expect(router({
+      type: 'POST_REQUEST',
+      requestId: 'request-failed',
+      intent: 'new',
+      text: 'hello',
+      platforms: ['x', 'threads'],
+      autoPost: true,
+    }, {}, sendResponse)).toBe(false);
+
+    expect(sendResponse).toHaveBeenCalledWith({
+      accepted: true,
+      requestId: 'request-failed',
+    });
+    await vi.waitFor(() => expect(options.postingState.failRequest).toHaveBeenCalledWith(
+      'request-failed',
+      ['x', 'threads'],
+      'scheduler failed',
+    ));
+    expect(options.logBuffer.appendBackground).toHaveBeenCalledWith(
+      expect.stringContaining('POST_REQUEST failed requestId=request-failed: scheduler failed'),
     );
   });
 });

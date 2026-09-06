@@ -7,6 +7,9 @@ import {
   getSelectorFeedDiagnostics,
   type SelectorFeedDiagnostics,
 } from '../utils/selector-feed-runtime';
+import { withTimeout } from '../utils/promise-timeout';
+
+export const DIAGNOSTIC_TAB_TIMEOUT_MS = 3_000;
 
 export interface DiagnosticsReport {
   version: string;
@@ -45,31 +48,35 @@ export async function buildDiagnosticsReport(
   options: DiagnosticsReportOptions = {},
 ): Promise<DiagnosticsReport> {
   const tabs = await browser.tabs.query({});
-  const platformResults: DiagnosePlatformResult[] = [];
   const platformIds = Object.keys(adapters) as PlatformId[];
   const requestedPlatforms = options.platforms ? new Set(options.platforms) : undefined;
 
-  for (const tab of tabs) {
-    if (typeof tab.url !== 'string' || typeof tab.id !== 'number') continue;
+  const platformResults = (await Promise.all(tabs.map(async (tab) => {
+    if (typeof tab.url !== 'string' || typeof tab.id !== 'number') return undefined;
     const platform = platformIds.find((p) => getAdapter(p)?.matchUrl(tab.url ?? ''));
-    if (!platform) continue;
-    if (requestedPlatforms && !requestedPlatforms.has(platform)) continue;
+    if (!platform) return undefined;
+    if (requestedPlatforms && !requestedPlatforms.has(platform)) return undefined;
     try {
-      const res = (await browser.tabs.sendMessage(tab.id, {
-        type: 'DIAGNOSE_PLATFORM',
-        platform,
-      })) as DiagnosePlatformResult | undefined;
-      if (res?.type !== 'DIAGNOSE_PLATFORM_RESULT') continue;
+      const res = (await withTimeout(
+        browser.tabs.sendMessage(tab.id, {
+          type: 'DIAGNOSE_PLATFORM',
+          platform,
+        }),
+        DIAGNOSTIC_TAB_TIMEOUT_MS,
+        `${platform} diagnostics`,
+      )) as DiagnosePlatformResult | undefined;
+      if (res?.type !== 'DIAGNOSE_PLATFORM_RESULT') return undefined;
       if (!shouldIncludeDiagnosticPlatformResult(res, {
         requested: requestedPlatforms?.has(platform) === true,
         tabUrl: tab.url,
-      })) continue;
-      platformResults.push(res);
+      })) return undefined;
+      return res;
     } catch {
       // content script unreachable (= まだ inject されてない or wrong page)。
       // これも compose context じゃないので skip (privacy 寄りの判断)。
+      return undefined;
     }
-  }
+  }))).filter((result): result is DiagnosePlatformResult => !!result);
 
   return {
     version: browser.runtime.getManifest().version,

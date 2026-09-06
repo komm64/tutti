@@ -38,7 +38,7 @@ describe('runPostScheduler', () => {
           await xReleased;
         } else if (!execution.forceForeground) {
           backgroundStartedCount += 1;
-          if (backgroundStartedCount === 3) backgroundStarted.resolve();
+          if (backgroundStartedCount === 2) backgroundStarted.resolve();
           await releaseBackground.promise;
         }
 
@@ -58,13 +58,13 @@ describe('runPostScheduler', () => {
     const results = await resultsPromise;
 
     expect(maxForeground).toBe(1);
-    expect(maxBackground).toBe(3);
+    expect(maxBackground).toBe(2);
     expect(results.map((result) => result.platform).sort()).toEqual([...platforms].sort());
     expect(completed.sort()).toEqual([...platforms].sort());
   });
 
-  it('keeps real posts serialized', async () => {
-    const platforms: PlatformId[] = ['x', 'bluesky', 'instagram'];
+  it('keeps the real foreground lane serialized', async () => {
+    const platforms: PlatformId[] = ['x', 'threads', 'instagram'];
     let active = 0;
     let maxActive = 0;
     const forceForegroundFlags: boolean[] = [];
@@ -82,7 +82,7 @@ describe('runPostScheduler', () => {
     });
 
     expect(maxActive).toBe(1);
-    expect(forceForegroundFlags).toEqual([false, false, false]);
+    expect(forceForegroundFlags).toEqual([true, true, true]);
   });
 
   it('runs next API and background DOM lanes beside one serialized foreground lane', async () => {
@@ -103,7 +103,6 @@ describe('runPostScheduler', () => {
       platforms,
       autoPost: true,
       planOptions: {
-        postingAlgorithm: 'next',
         apiPlatforms: ['bluesky', 'mastodon'],
       },
       post: async (platform, execution): Promise<PostResultMessage> => {

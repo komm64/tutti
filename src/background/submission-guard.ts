@@ -11,6 +11,7 @@ import { t } from '../utils/i18n';
 import { computePostFingerprint } from './post-fingerprint';
 
 export const RECENT_DUPLICATE_WINDOW_MS = 10 * 60 * 1000;
+export const RECENT_NEW_DUPLICATE_WINDOW_MS = 60 * 1000;
 
 export interface SubmissionGuardInput {
   requestId: string;
@@ -70,21 +71,19 @@ export function createSubmissionGuard(options: SubmissionGuardOptions = {}) {
       );
     }
 
-    let history: HistoryEntry[] = [];
-    if (input.intent !== 'new') {
-      try {
-        history = await readHistory();
-      } catch {
-        return buildReservation(
-          input,
-          platforms.map((platform) => ({
-            platform,
-            decision: 'indeterminate',
-            reason: 'history-unavailable',
-          })),
-          fingerprint,
-        );
-      }
+    let history: HistoryEntry[];
+    try {
+      history = await readHistory();
+    } catch {
+      return buildReservation(
+        input,
+        platforms.map((platform) => ({
+          platform,
+          decision: 'indeterminate',
+          reason: 'history-unavailable',
+        })),
+        fingerprint,
+      );
     }
 
     const owner = Symbol(input.requestId);
@@ -95,14 +94,24 @@ export function createSubmissionGuard(options: SubmissionGuardOptions = {}) {
         return { platform, decision: 'blocked', reason: 'in-flight' };
       }
 
-      if (input.intent !== 'new') {
-        const recent = findRecentResult(history, fingerprint, platform, now());
-        if (recent?.uncertain) {
-          return { platform, decision: 'indeterminate', reason: 'recent-uncertain' };
-        }
-        if (recent?.success) {
-          return { platform, decision: 'blocked', reason: 'recent-success' };
-        }
+      const recent = findRecentResult(
+        history,
+        fingerprint,
+        platform,
+        now(),
+        input.intent === 'new'
+          ? RECENT_NEW_DUPLICATE_WINDOW_MS
+          : RECENT_DUPLICATE_WINDOW_MS,
+      );
+      if (recent?.uncertain) {
+        return { platform, decision: 'indeterminate', reason: 'recent-uncertain' };
+      }
+      if (recent?.success) {
+        return {
+          platform,
+          decision: 'blocked',
+          reason: input.intent === 'new' ? 'recent-new-success' : 'recent-success',
+        };
       }
 
       inFlight.set(key, owner);
@@ -165,6 +174,7 @@ function buildRejectedResult(
 }
 
 function guardError(reason?: SubmissionGuardReason): string {
+  if (reason === 'recent-new-success') return t('newDuplicateSkippedHint');
   if (reason === 'recent-success') return t('retryDedupSkippedHint');
   if (reason === 'in-flight') return t('runtimeSubmissionAlreadyInFlight');
   return t('runtimeSubmissionGuardIndeterminate');
@@ -175,8 +185,9 @@ function findRecentResult(
   fingerprint: string,
   platform: PlatformId,
   now: number,
+  windowMs = RECENT_DUPLICATE_WINDOW_MS,
 ): HistoryEntry['results'][PlatformId] | undefined {
-  const cutoff = now - RECENT_DUPLICATE_WINDOW_MS;
+  const cutoff = now - windowMs;
   for (const entry of history) {
     if (!entry.timestamp || entry.timestamp < cutoff) continue;
     if (entry.bodyHash !== fingerprint) continue;

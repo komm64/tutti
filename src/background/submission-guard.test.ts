@@ -4,6 +4,7 @@ import type { HistoryEntry } from '../storage';
 import {
   createSubmissionGuard,
   RECENT_DUPLICATE_WINDOW_MS,
+  RECENT_NEW_DUPLICATE_WINDOW_MS,
   type SubmissionGuardInput,
 } from './submission-guard';
 
@@ -41,7 +42,7 @@ describe('SubmissionGuard', () => {
     expect(getHistory).not.toHaveBeenCalled();
   });
 
-  it('lets new requests ignore recent History but blocks the same in-flight platform', async () => {
+  it('blocks a likely duplicate new request completed less than one minute ago', async () => {
     const getHistory = vi.fn(async () => [
       history({ x: { success: true } }),
     ]);
@@ -51,36 +52,42 @@ describe('SubmissionGuard', () => {
       now: () => NOW,
     });
 
-    const first = await guard.reserve(input({ intent: 'new', platforms: ['x'] }));
-    const blocked = await guard.reserve(input({
-      requestId: 'new-2',
-      intent: 'new',
-      platforms: ['x'],
-    }));
-    blocked.release();
-    const stillBlocked = await guard.reserve(input({
-      requestId: 'new-3',
-      intent: 'new',
-      platforms: ['x'],
-    }));
-    first.release();
-    const afterRelease = await guard.reserve(input({
-      requestId: 'new-4',
-      intent: 'new',
-      platforms: ['x'],
-    }));
+    const reservation = await guard.reserve(input({ intent: 'new', platforms: ['x'] }));
 
-    expect(first.allowedPlatforms).toEqual(['x']);
-    expect(blocked.decisions[0]).toMatchObject({ decision: 'blocked', reason: 'in-flight' });
-    expect(stillBlocked.decisions[0]).toMatchObject({ decision: 'blocked', reason: 'in-flight' });
-    expect(afterRelease.allowedPlatforms).toEqual(['x']);
-    expect(getHistory).not.toHaveBeenCalled();
-    afterRelease.release();
+    expect(reservation.decisions).toEqual([{
+      platform: 'x',
+      decision: 'blocked',
+      reason: 'recent-new-success',
+    }]);
+    expect(reservation.allowedPlatforms).toEqual([]);
+    expect(reservation.rejectedResults[0]).toMatchObject({
+      success: false,
+      submissionGuard: { reason: 'recent-new-success' },
+      flow: { submitReached: false },
+    });
+    expect(getHistory).toHaveBeenCalledOnce();
+  });
+
+  it('allows a new request when the matching success is older than one minute', async () => {
+    const guard = createSubmissionGuard({
+      computeFingerprint: async () => FINGERPRINT,
+      getHistory: async () => [history(
+        { x: { success: true } },
+        NOW - RECENT_NEW_DUPLICATE_WINDOW_MS - 1,
+      )],
+      now: () => NOW,
+    });
+
+    const reservation = await guard.reserve(input({ intent: 'new', platforms: ['x'] }));
+
+    expect(reservation.allowedPlatforms).toEqual(['x']);
+    reservation.release();
   });
 
   it('blocks only colliding in-flight platforms and reserves unrelated ones', async () => {
     const guard = createSubmissionGuard({
       computeFingerprint: async () => FINGERPRINT,
+      getHistory: async () => [],
     });
     const first = await guard.reserve(input({ platforms: ['x'] }));
     const second = await guard.reserve(input({
@@ -186,7 +193,7 @@ describe('SubmissionGuard', () => {
     expect(getHistory).not.toHaveBeenCalled();
   });
 
-  it.each<PostRequestIntent>(['retry', 'history-repost'])(
+  it.each<PostRequestIntent>(['new', 'retry', 'history-repost'])(
     '%s fails closed when History cannot be read',
     async (intent) => {
       const guard = createSubmissionGuard({

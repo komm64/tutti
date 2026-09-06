@@ -5,6 +5,7 @@ import type {
 } from '../messages';
 import { getSettings } from '../storage';
 import { log } from '../utils/logger';
+import { waitForWebActionPacing } from '../utils/web-action-pacing';
 import type { VerifyExpectation } from '../utils/post-verify';
 import {
   buildExpectedUrlsForVerification,
@@ -238,9 +239,10 @@ export async function maybeAutoOpenPostUrl(
       (issue) => issue.severity === 'error' || issue.kind === 'verify-error',
     );
     if (autoOpenPostUrl === 'on-issue' && !hasError) return;
-    await retryTransientTabAction('auto-open post URL tab', () => (
-      browser.tabs.create({ url, active: false })
-    ));
+    await retryTransientTabAction('auto-open post URL tab', async () => {
+      await waitForWebActionPacing('navigation');
+      return await browser.tabs.create({ url, active: false });
+    });
     log.info(
       `auto-open post URL: ${url} ` +
       `(autoOpenPostUrl=${autoOpenPostUrl}, hasError=${!!hasError})`,

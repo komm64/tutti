@@ -9,13 +9,14 @@ describe('posting state manager', () => {
       now: () => 1000,
     });
 
-    manager.start(['x', 'bluesky']);
+    manager.start('request-1', ['x', 'bluesky']);
     manager.recordResult({ type: 'POST_RESULT', platform: 'x', success: true });
 
     const snapshot = manager.snapshot();
     expect(snapshot).toMatchObject({
       posting: true,
       postingState: {
+        requestId: 'request-1',
         platforms: ['x', 'bluesky'],
         pending: ['bluesky'],
         results: [{ type: 'POST_RESULT', platform: 'x', success: true }],
@@ -32,7 +33,7 @@ describe('posting state manager', () => {
     let now = 1000;
     const manager = createPostingStateManager({ now: () => now });
 
-    manager.start(['x']);
+    manager.start('request-2', ['x']);
     manager.recordResult({ type: 'POST_RESULT', platform: 'x', success: true });
     now = 2500;
     manager.markDone();
@@ -41,6 +42,7 @@ describe('posting state manager', () => {
     expect(manager.snapshot()).toMatchObject({
       posting: false,
       postingState: {
+        requestId: 'request-2',
         platforms: ['x'],
         pending: [],
         done: true,
@@ -52,7 +54,7 @@ describe('posting state manager', () => {
   it('clears only the retained posting state', () => {
     const manager = createPostingStateManager();
 
-    manager.start(['x']);
+    manager.start('request-3', ['x']);
     manager.clearPostingState();
 
     expect(manager.snapshot()).toMatchObject({
@@ -69,5 +71,32 @@ describe('posting state manager', () => {
 
     manager.setCompression(null);
     expect(manager.snapshot().compression).toBeNull();
+  });
+
+  it('turns an uncaught request failure into final per-platform results', () => {
+    const manager = createPostingStateManager({ now: () => 1234 });
+
+    manager.start('request-failed', ['x', 'threads']);
+    manager.recordResult({ type: 'POST_RESULT', platform: 'x', success: true });
+    manager.failRequest('request-failed', ['x', 'threads'], 'scheduler failed');
+
+    expect(manager.snapshot()).toMatchObject({
+      posting: false,
+      postingState: {
+        requestId: 'request-failed',
+        pending: [],
+        done: true,
+        finishedAt: 1234,
+        results: [
+          { platform: 'x', success: true },
+          {
+            platform: 'threads',
+            success: false,
+            error: 'scheduler failed',
+            flow: { failedStep: 'request-exception' },
+          },
+        ],
+      },
+    });
   });
 });

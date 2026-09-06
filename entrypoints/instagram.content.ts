@@ -19,6 +19,7 @@ import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
 import { t } from '../src/utils/i18n';
 import { readFreshCapturedPost } from '../src/utils/post-capture-record';
+import { clickElementWithPacing, waitForWebActionPacing } from '../src/utils/web-action-pacing';
 
 /**
  * Instagram のログイン中ユーザー名検出。
@@ -99,7 +100,7 @@ async function runPost(
   // ポップアップが wizard 中に被さってくるので、先に dismiss しておく。
   // Surface 実機 2026-05-13 で発覚: 通知許可 dialog が Create dialog に被さって
   // findDialogButtonByText が誤検索する事故を防ぐ
-  dismissOverlayDialogs();
+  await dismissOverlayDialogs();
 
   // Wizard 構造 (2026-05-01 検証):
   //   1. Create button click → Modal #1 (file 選択)
@@ -131,7 +132,7 @@ async function runPost(
         if (!trigger) {
           throw new Error(t('runtimeInstagramCreateTriggerMissing'));
         }
-        trigger.click();
+        await clickElementWithPacing(trigger);
         // v0.4.60: Create click 後、variant 判別 — 一部アカウント (Personal でも)
         // sidebar "+" → "Post / Live video / Ad" の popover が挟まる variant が
         // ある (user 報告 2026-05-17、本垢 Brave で再現)。fixture でいうと
@@ -146,7 +147,7 @@ async function runPost(
           const postItem = findCreateSubmenuItem(['Post', '投稿', 'Publicación', 'Publication']);
           if (postItem) {
             log.info('IG: popover variant detected, clicking "Post" submenu item');
-            postItem.click();
+            await clickElementWithPacing(postItem);
           } else {
             log.warn('IG: popover の Post も file input も見つからず、10s 待機継続 (variant 不明)');
           }
@@ -291,7 +292,10 @@ async function runPost(
     if (captured?.url) {
       log.info(`IG: URL captured via configure response: ${captured.url}`);
     }
-    if (postingUser) location.assign(`/${postingUser}/`);
+    if (postingUser) {
+      await waitForWebActionPacing('navigation');
+      location.assign(`/${postingUser}/`);
+    }
     return {
       type: 'POST_RESULT',
       platform: 'instagram',
@@ -325,7 +329,7 @@ async function selectOriginalCrop(
     log.warn('IG: "Select crop" button が Crop dialog に見つかりません (UI 変更?)、default 1:1 で続行');
     return;
   }
-  cropBtn.click();
+  await clickElementWithPacing(cropBtn);
   const originalTexts = ['Original', 'オリジナル', '元のサイズ', '元の比率', 'Original ratio'];
   const originalItem = await waitForCondition<HTMLElement>(
     () => findCropOption(originalTexts),
@@ -333,13 +337,13 @@ async function selectOriginalCrop(
   );
   if (!originalItem) {
     log.warn('IG: Crop popover に "Original" 系の選択肢が無い、default 1:1 で続行');
-    cropBtn.click(); // popover を閉じる (toggle)
+    await clickElementWithPacing(cropBtn); // popover を閉じる (toggle)
     if (implementationPath !== 'next') {
       await sleep(200);
     }
     return;
   }
-  originalItem.click();
+  await clickElementWithPacing(originalItem);
   log.info('IG: Original aspect ratio を選択');
   if (implementationPath !== 'next') {
     await sleep(400);
@@ -490,7 +494,7 @@ async function verifyInstagramPosted(timeoutMs = 90_000, text = ''): Promise<voi
  * 安全なボタン ("Not Now" / "あとで" / "Decline") のみ click、危険なボタン
  * ("Turn On" / "Allow" / "Save") は触らない。
  */
-function dismissOverlayDialogs(): void {
+async function dismissOverlayDialogs(): Promise<void> {
   const SAFE_DISMISS_TEXTS = ['Not Now', 'あとで', 'いいえ', 'No thanks', 'Decline', '後で'];
   const dialogs = document.querySelectorAll<HTMLElement>('[role="dialog"]');
   for (const dialog of dialogs) {
@@ -502,7 +506,7 @@ function dismissOverlayDialogs(): void {
       const t = (b.textContent ?? '').trim();
       if (SAFE_DISMISS_TEXTS.includes(t)) {
         log.info(`IG: dismissing overlay dialog via "${t}"`);
-        b.click();
+        await clickElementWithPacing(b);
         break;
       }
     }
