@@ -28,34 +28,24 @@ type MessageEntry = { message: string; placeholders?: Record<string, { content: 
 type LocaleMessages = Record<string, MessageEntry>;
 type LocaleConfigEntry = { code: string; nativeName: string; englishName: string; chromeLocale?: string };
 
-type WebExtGlobals = {
-  chrome?: {
-    i18n?: { getMessage: (k: string, s?: string[]) => string };
-    runtime?: { getURL: (p: string) => string };
-    storage?: {
-      sync?: { get: (k: string) => Promise<Record<string, unknown>> };
-      onChanged?: { addListener: (fn: (changes: Record<string, { newValue?: unknown }>, area: string) => void) => void };
-    };
-  };
-  browser?: {
-    i18n?: { getMessage: (k: string, s?: string[]) => string };
-    runtime?: { getURL: (p: string) => string };
-    storage?: {
-      sync?: { get: (k: string) => Promise<Record<string, unknown>> };
-      onChanged?: { addListener: (fn: (changes: Record<string, { newValue?: unknown }>, area: string) => void) => void };
-    };
+type WebExtApi = {
+  i18n?: { getMessage: (k: string, s?: string[]) => string };
+  runtime?: { getURL: (p: string) => string };
+  storage?: {
+    sync?: { get: (k: string) => Promise<Record<string, unknown>> };
+    onChanged?: { addListener: (fn: (changes: Record<string, { newValue?: unknown }>, area: string) => void) => void };
   };
 };
 
 /** prod (Chrome) では `chrome.*`、 firefox では `browser.*`、 dev WXT polyfill では `browser.*` も生える。 */
-function webExt(): NonNullable<WebExtGlobals['chrome']> | undefined {
-  const g = globalThis as unknown as WebExtGlobals;
+function webExt(): WebExtApi | undefined {
+  const g = globalThis as unknown as { chrome?: WebExtApi; browser?: WebExtApi };
   return g.chrome ?? g.browser;
 }
 
 const cache = new Map<string, LocaleMessages>();
 let currentLocale = 'auto';
-let initialized = false;
+let initialization: Promise<void> | undefined;
 
 const canonicalLocaleConfig: LocaleConfigEntry[] = localeConfig;
 const TUTTI_LOCALE_CODES = new Set(canonicalLocaleConfig.map(({ code }) => code));
@@ -98,9 +88,11 @@ async function loadLocale(locale: string): Promise<LocaleMessages> {
  * popup / sidepanel / options の main.ts から起動時に await で呼ぶ。
  * Settings.uiLanguage を読んで messages を pre-load する。
  */
-export async function initI18n(): Promise<void> {
-  if (initialized) return;
-  initialized = true;
+export function initI18n(): Promise<void> {
+  return initialization ??= initializeI18n();
+}
+
+async function initializeI18n(): Promise<void> {
   try {
     const api = webExt();
     const stored = await api?.storage?.sync?.get?.('settings');
@@ -109,10 +101,7 @@ export async function initI18n(): Promise<void> {
   } catch {
     currentLocale = 'auto';
   }
-  if (currentLocale !== 'auto') {
-    // pre-load 指定 locale + en (fallback)
-    await Promise.all([loadLocale(currentLocale), loadLocale('en')]);
-  }
+  await preloadLocale(currentLocale);
   // Settings 変更時に reload
   webExt()?.storage?.onChanged?.addListener?.((changes, area) => {
     if (area !== 'sync' || !changes['settings']) return;
@@ -120,9 +109,14 @@ export async function initI18n(): Promise<void> {
     const next = resolveTuttiLocale(newSettings?.uiLanguage);
     if (next !== currentLocale) {
       currentLocale = next;
-      if (next !== 'auto') void Promise.all([loadLocale(next), loadLocale('en')]);
+      void preloadLocale(next);
     }
   });
+}
+
+async function preloadLocale(locale: string): Promise<void> {
+  if (locale === 'auto') return;
+  await Promise.all([...new Set([locale, 'en'])].map(loadLocale));
 }
 
 function applyPlaceholders(entry: MessageEntry, subs: string[]): string {

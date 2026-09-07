@@ -73,6 +73,23 @@ export function markPostStepFailed(step?: PostFlowStep): void {
   }
 }
 
+/** Measure a nested operation without replacing the active posting step. */
+export async function measurePostStage<T>(
+  step: PostFlowStep,
+  operation: () => Promise<T>,
+): Promise<T> {
+  const startedAt = Date.now();
+  try {
+    const result = await operation();
+    recordStageTiming(step, startedAt, 'completed');
+    return result;
+  } catch (error) {
+    recordStageTiming(step, startedAt, 'failed');
+    failedStep ??= step;
+    throw error;
+  }
+}
+
 export function getPostSubmissionTrace(overrides: Partial<PostFlowTrace> = {}): PostFlowTrace {
   const now = Date.now();
   const pendingTiming = currentStep && currentStepStartedAt !== undefined

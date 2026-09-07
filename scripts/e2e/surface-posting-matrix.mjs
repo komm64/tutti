@@ -225,6 +225,13 @@ if (!Number.isInteger(caseTimeoutMs) || caseTimeoutMs < 10_000) {
 const skipExtensionReload = args.includes('--skip-extension-reload');
 const debugBgStateOnTimeout = args.includes('--debug-bg-state-on-timeout');
 const simulateVideoFocusInterruption = !args.includes('--no-video-focus-interruption');
+const failThreadsProfileBaseline = args.includes('--fail-threads-profile-baseline');
+if (failThreadsProfileBaseline && (
+  !autoPost || repeat !== 1 || requestedCases.length !== 1 ||
+  requestedPlatforms.length !== 1 || requestedPlatforms[0] !== 'threads'
+)) {
+  throw new Error('--fail-threads-profile-baseline requires one Threads post case with --repeat 1');
+}
 
 const cdp = resolveCdpEndpoint({ fallback: 'http://127.0.0.1:9223' });
 const imagePath = resolve(process.env.IMAGE_PATH ?? 'scripts/e2e/fixtures/test-image.png');
@@ -285,6 +292,24 @@ const expectedImplementationPath = () => 'next';
 
 const failures = [];
 const summary = [];
+const threadsProfileBaseline = { interceptedUrls: [] };
+const threadsProfileRoute = /^https:\/\/www\.threads\.com\/@[^/?#]+$/;
+if (failThreadsProfileBaseline) {
+  // Fail the pre-submit profile snapshot, not navigation or publish requests.
+  // Subsequent snapshots would be unsafe evidence without a known baseline.
+  await ctx.route(threadsProfileRoute, async (route) => {
+    const request = route.request();
+    if (request.method() !== 'GET' || request.resourceType() !== 'fetch') {
+      return route.continue();
+    }
+    threadsProfileBaseline.interceptedUrls.push(request.url());
+    console.log(`[matrix] Threads profile fetch #${threadsProfileBaseline.interceptedUrls.length}: ${request.url()}`);
+    if (threadsProfileBaseline.interceptedUrls.length === 1) {
+      return route.fulfill({ status: 503, contentType: 'text/plain', body: 'Simulated profile snapshot failure' });
+    }
+    return route.continue();
+  });
+}
 const persistSummary = async () => {
   await writeSummary(summaryPath, {
     mode,
@@ -293,6 +318,7 @@ const persistSummary = async () => {
     platforms: requestedPlatforms,
     cases: requestedCases,
     repeat,
+    ...(failThreadsProfileBaseline ? { threadsProfileBaseline } : {}),
     failures,
     summary,
     generatedAt: new Date().toISOString(),
@@ -591,6 +617,12 @@ for (const caseName of requestedCases) {
   }
 }
 
+if (failThreadsProfileBaseline) {
+  await ctx.unroute(threadsProfileRoute);
+  if (threadsProfileBaseline.interceptedUrls.length !== 1) {
+    failures.push(`Threads baseline failure: expected exactly one profile fetch, observed ${threadsProfileBaseline.interceptedUrls.length}`);
+  }
+}
 console.log('\n[matrix] summary');
 console.log(JSON.stringify(summary, null, 2));
 await persistSummary();
