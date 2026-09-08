@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   WEB_ACTION_PACING,
   clickElementWithPacing,
@@ -8,10 +8,56 @@ import {
 } from './web-action-pacing';
 import {
   getPostSubmissionTrace,
+  markPostStepStarted,
+  markPostStepCompleted,
   resetPostSubmissionState,
 } from './post-submission-state';
 
 describe('web action pacing', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('preserves the parent step while measuring a nested wait', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000);
+    resetPostSubmissionState();
+    markPostStepStarted('attach-media');
+
+    await waitForWebActionPacing('media', {
+      random: () => 0,
+      wait: async () => { vi.setSystemTime(1_450); },
+    });
+    expect(getPostSubmissionTrace().failedStep).toBe('attach-media');
+    expect(getPostSubmissionTrace().lastCompletedStep).toBeUndefined();
+    vi.setSystemTime(1_900);
+    markPostStepCompleted('attach-media');
+
+    expect(getPostSubmissionTrace()).toMatchObject({
+      lastCompletedStep: 'attach-media',
+      failedStep: undefined,
+      stageTimings: [
+        { step: 'web-action-pacing:media', durationMs: 450, outcome: 'completed' },
+        { step: 'attach-media', durationMs: 900, outcome: 'completed' },
+      ],
+    });
+  });
+
+  it('keeps a real pacing failure visible without losing its parent timing', async () => {
+    resetPostSubmissionState();
+    markPostStepStarted('inject-text');
+
+    await expect(waitForWebActionPacing('input', {
+      wait: async () => { throw new Error('wait failed'); },
+    })).rejects.toThrow('wait failed');
+
+    expect(getPostSubmissionTrace()).toMatchObject({
+      failedStep: 'web-action-pacing:input',
+      stageTimings: [
+        expect.objectContaining({ step: 'web-action-pacing:input', outcome: 'failed' }),
+        expect.objectContaining({ step: 'inject-text', outcome: 'failed' }),
+      ],
+    });
+  });
+
   it.each<WebActionKind>([
     'navigation',
     'interaction',

@@ -201,6 +201,17 @@ $env:PLATFORMS = 'threads,tumblr'
 node scripts/e2e/surface-url-capture-check.mjs
 ```
 
+For the Threads unavailable-profile-baseline regression, run one real post:
+
+```powershell
+node scripts/e2e/surface-posting-matrix.mjs --mode post --platforms threads --cases text-video --repeat 1 --fail-threads-profile-baseline --summary-json .tmp/surface-threads-profile-baseline.json
+```
+
+This simulates HTTP 503 for the pre-submit profile snapshot. The gate requires
+exactly one intercepted profile fetch (no unsafe subsequent profile diff), a
+confirmed captured URL, and the expected text/video on the published page.
+The flag rejects preview mode, multiple cases/platforms, and repeated posts.
+
 For preview-only diagnosis:
 
 ```powershell

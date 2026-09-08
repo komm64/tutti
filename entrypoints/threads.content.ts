@@ -17,8 +17,8 @@ import { findThreadsMediaRejection, hasThreadsMediaPreview } from '../src/utils/
 import { resolveThreadsPostEvidenceUrl } from '../src/utils/threads-post-evidence';
 import { retryDetachedClick } from '../src/utils/retry-detached-click';
 import { settleThreadsPost } from '../src/utils/threads-post-settlement';
+import { fetchLatestThreadsPostUrl, normalizeThreadsPostUrl } from '../src/utils/threads-profile';
 import { waitForWebActionPacing } from '../src/utils/web-action-pacing';
-import { withTimeout } from '../src/utils/promise-timeout';
 
 const THREADS_POST_BUTTON_TEXTS = ['Post', '投稿', '投稿する', 'Post now'];
 const THREADS_COMPOSER_TRIGGER_TEXTS = [
@@ -29,7 +29,6 @@ const THREADS_COMPOSER_TRIGGER_TEXTS = [
   '新しい投稿',
   'Create',
 ];
-const THREADS_PROFILE_FETCH_TIMEOUT_MS = 5_000;
 const THREADS_URL_CAPTURE_TIMEOUT_MS = 25_000;
 
 function detectThreadsUser(): string | null {
@@ -59,10 +58,9 @@ async function runPost(
   const hasVideo = !!images?.some((image) => image.type.startsWith('video/'));
   const postSettleTimeoutMs = hasVideo ? 90_000 : hasMedia ? 35_000 : 25_000;
   const preSubmitPostUrl = normalizeThreadsPostUrl(location.href, location.origin);
-  const shouldUseLatestDiff = !dryRun && !!postingUser;
-  const preSubmitSnapshot = shouldUseLatestDiff && postingUser
-    ? await fetchThreadsLatestPostSnapshot(postingUser)
-    : { ok: false, url: undefined };
+  const preSubmitProfilePostUrl = !dryRun && postingUser
+    ? await fetchLatestThreadsPostUrl(postingUser)
+    : undefined;
   if (!dryRun) {
     try {
       localStorage.removeItem('tutti:threads-latest-post');
@@ -113,7 +111,7 @@ async function runPost(
     const capturedPost = captureThreadsPostUrlWithinBudget(
       text,
       postingUser,
-      preSubmitSnapshot,
+      preSubmitProfilePostUrl,
       preSubmitPostUrl,
       THREADS_URL_CAPTURE_TIMEOUT_MS,
     );
@@ -144,13 +142,9 @@ async function runPost(
       log.info('Threads: composer closed after the initial submit');
     }
 
-    // A profile/rendered URL can appear after the composer observation budget.
-    // Keep looking, but never click Post again: an unconfirmed first click is
-    // an uncertain result, not permission to repeat an irreversible action.
-    // The longer capture path also checks the posting profile's latest-post
-    // diff. Prefer it over the shorter settlement signal so a delayed exact
-    // capture cannot be shadowed by weaker evidence.
-    const captured = await capturedPost ?? settlement.url;
+    // Prefer the direct/API evidence observed by settlement. Otherwise await
+    // the profile diff, without repeating the irreversible Post action.
+    const captured = settlement.url ?? await capturedPost;
     if (captured) {
       return {
         type: 'POST_RESULT',
@@ -272,97 +266,33 @@ async function assertThreadsMediaAttached(timeoutMs: number): Promise<void> {
   throw new Error('Threads media attachment was not accepted; refusing to publish without media.');
 }
 
-async function fetchThreadsLatestPostSnapshot(username: string): Promise<{ ok: boolean; url?: string }> {
-  const controller = new AbortController();
-  try {
-    const response = await withTimeout(
-      fetch(`https://www.threads.com/@${encodeURIComponent(username)}`, {
-        credentials: 'include',
-        signal: controller.signal,
-      }),
-      THREADS_PROFILE_FETCH_TIMEOUT_MS,
-      'Threads profile snapshot',
-      () => controller.abort(),
-    );
-    if (!response.ok) return { ok: false };
-    const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
-    return {
-      ok: true,
-      url: findLatestThreadsPostUrlInDocument(doc, username, location.origin),
-    };
-  } catch (e) {
-    log.warn(`threads: latest profile URL capture failed: ${e instanceof Error ? e.message : String(e)}`);
-  }
-  return { ok: false };
-}
-
 async function captureThreadsPostUrlWithinBudget(
   text: string,
   username: string | null,
-  preSubmitSnapshot: { ok: boolean; url?: string },
+  preSubmitProfilePostUrl: string | undefined,
   preSubmitPostUrl: string | undefined,
   timeoutMs: number,
 ): Promise<string | null> {
   const deadline = Date.now() + timeoutMs;
   let nextProfileFetchAt = 0;
   while (Date.now() < deadline) {
-    const direct = normalizeThreadsPostUrl(location.href, location.origin);
-    let exactCapturedPostUrl: string | undefined;
-    try {
-      exactCapturedPostUrl = readMatchingThreadsCapturedPostUrl(text);
-    } catch { /* ignore storage failures */ }
-    const trustedEvidence = resolveThreadsPostEvidenceUrl({
-      currentPostUrl: direct,
-      preSubmitPostUrl,
-      exactCapturedPostUrl,
-    });
+    const trustedEvidence = findThreadsPostEvidenceUrl(text, preSubmitPostUrl);
     if (trustedEvidence) return trustedEvidence;
 
-    if (username && Date.now() >= nextProfileFetchAt) {
-      const snapshot = await fetchThreadsLatestPostSnapshot(username);
-      if (
-        snapshot.url &&
-        (!preSubmitSnapshot.ok || snapshot.url !== preSubmitSnapshot.url)
-      ) {
-        return snapshot.url;
-      }
+    if (username && preSubmitProfilePostUrl && Date.now() >= nextProfileFetchAt) {
+      const currentProfilePostUrl = await fetchLatestThreadsPostUrl(
+        username,
+        Math.min(5_000, Math.max(1, deadline - Date.now())),
+      );
+      // The exact capture may have arrived while the profile was loading.
+      const captured = findThreadsPostEvidenceUrl(text, preSubmitPostUrl) ??
+        resolveThreadsPostEvidenceUrl({ preSubmitProfilePostUrl, currentProfilePostUrl });
+      if (captured) return captured;
       nextProfileFetchAt = Date.now() + 2_000;
     }
     await sleep(250);
   }
   return null;
-}
-
-function findLatestThreadsPostUrlInDocument(doc: Document, username: string, origin: string): string | undefined {
-  const escapedUser = escapeRegExp(username);
-  const links = Array.from(doc.querySelectorAll<HTMLAnchorElement>('a[href*="/post/"]'));
-  const seen = new Set<string>();
-  for (const link of links) {
-    const href = link.getAttribute('href') ?? '';
-    const url = normalizeThreadsPostUrl(href, origin);
-    if (!url || seen.has(url)) continue;
-    seen.add(url);
-    if (!new RegExp(`/@${escapedUser}/post/[\\w-]+`, 'i').test(new URL(url).pathname)) continue;
-    return url;
-  }
-  return undefined;
-}
-
-function normalizeThreadsPostUrl(href: string, origin: string): string | undefined {
-  try {
-    const url = new URL(href, origin);
-    const match = url.href.match(/^https:\/\/(?:www\.)?threads\.(?:com|net)\/@([^/]+)\/post\/([\w-]+)(?:[/?#]|$)/);
-    if (!match?.[1] || !match?.[2]) return undefined;
-    url.search = '';
-    url.hash = '';
-    return `https://www.threads.com/@${match[1]}/post/${match[2]}`;
-  } catch {
-    return undefined;
-  }
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /**

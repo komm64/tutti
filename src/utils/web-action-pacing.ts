@@ -1,9 +1,5 @@
 import { sleep } from './dom';
-import {
-  markPostStepCompleted,
-  markPostStepFailed,
-  markPostStepStarted,
-} from './post-submission-state';
+import { measurePostStage } from './post-submission-state';
 
 export type WebActionKind =
   | 'navigation'
@@ -50,16 +46,10 @@ export async function waitForWebActionPacing(
   options: WebActionPacingOptions = {},
 ): Promise<number> {
   const delayMs = resolveWebActionDelayMs(kind, (options.random ?? Math.random)());
-  const step = `web-action-pacing:${kind}`;
-  markPostStepStarted(step);
-  try {
+  return measurePostStage(`web-action-pacing:${kind}`, async () => {
     await (options.wait ?? sleep)(delayMs);
-    markPostStepCompleted(step);
     return delayMs;
-  } catch (error) {
-    markPostStepFailed(step);
-    throw error;
-  }
+  });
 }
 
 export async function clickElementWithPacing(

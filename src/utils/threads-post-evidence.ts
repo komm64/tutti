@@ -2,6 +2,8 @@ export interface ThreadsPostEvidenceInput {
   currentPostUrl?: string;
   preSubmitPostUrl?: string;
   exactCapturedPostUrl?: string;
+  preSubmitProfilePostUrl?: string;
+  currentProfilePostUrl?: string;
 }
 
 /**
@@ -12,8 +14,16 @@ export interface ThreadsPostEvidenceInput {
 export function resolveThreadsPostEvidenceUrl(
   input: ThreadsPostEvidenceInput,
 ): string | undefined {
+  if (input.exactCapturedPostUrl) return input.exactCapturedPostUrl;
   if (input.currentPostUrl && input.currentPostUrl !== input.preSubmitPostUrl) {
     return input.currentPostUrl;
   }
-  return input.exactCapturedPostUrl;
+  // A failed/empty baseline cannot establish that a profile link is new.
+  if (
+    input.preSubmitProfilePostUrl &&
+    input.currentProfilePostUrl !== input.preSubmitProfilePostUrl
+  ) {
+    return input.currentProfilePostUrl;
+  }
+  return undefined;
 }
