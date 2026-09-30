@@ -7,6 +7,7 @@ import type {
 import {
   X_SELECTORS,
   X_VIDEO_MEDIA_READY_TIMEOUT_MS,
+  xAdapter,
 } from '../src/adapters/x';
 import { resolvePostButtonTimeoutMs } from '../src/utils/post-flow';
 import { resolveSelectors } from '../src/utils/selector-overrides';
@@ -107,6 +108,7 @@ export default defineContentScript({
   matches: ['https://x.com/*', 'https://twitter.com/*'],
   main: () => bootstrapContentScript({
     platform: 'x',
+    displayName: xAdapter.name,
     selectors: X_SELECTORS,
     detectUser: detectXUser,
     runPost,
@@ -432,6 +434,7 @@ async function executeXInlineThread(
       ));
       const addTarget = await waitForXAddPostTarget(
         chunks[0]!,
+        { index: i - 1, text: chunks[i - 1]! },
         X_THREAD_TEXTAREA_TIMEOUT_MS,
       );
       if (!addTarget) {
@@ -1177,6 +1180,7 @@ async function clickElementMarkedInMainWorld(
 
 async function waitForXAddPostTarget(
   expectedFirstChunk: string,
+  previousChunk: { index: number; text: string },
   timeoutMs: number,
 ): Promise<ReturnType<typeof getXThreadAddPostTarget>> {
   const target = await waitForCondition<NonNullable<ReturnType<typeof getXThreadAddPostTarget>>>(() => {
@@ -1185,6 +1189,7 @@ async function waitForXAddPostTarget(
       expectedFirstChunk,
       isVisible,
       isDisabled,
+      previousChunk,
     ) ?? null;
   }, {
     timeoutMs,

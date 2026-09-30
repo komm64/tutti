@@ -8,7 +8,13 @@ import {
   YOUTUBE_SELECTORS,
   buildYouTubeTitle,
   hasYouTubeDailyUploadLimit,
+  youtubeAdapter,
 } from '../src/adapters/youtube';
+import {
+  buildYouTubeVideoUrl,
+  readYouTubeUploadVideoId,
+  resolveYouTubePublishState,
+} from '../src/adapters/youtube-studio-dom';
 import { executeMultiStepFlow, type Step } from '../src/utils/step-runner';
 import { injectImages, injectTagList, injectTextIntoElement } from '../src/utils/image';
 import {
@@ -21,6 +27,11 @@ import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
 import { t } from '../src/utils/i18n';
 import { clickElementWithPacing } from '../src/utils/web-action-pacing';
+import {
+  markPostStepCompleted,
+  markPostStepFailed,
+  markPostStepStarted,
+} from '../src/utils/post-submission-state';
 
 /**
  * YouTube logged-in user 検出 (v0.4.98 改善)。
@@ -92,6 +103,7 @@ export default defineContentScript({
   matches: ['https://*.youtube.com/*', 'https://youtube.com/*'],
   main: () => bootstrapContentScript({
     platform: 'youtube',
+    displayName: youtubeAdapter.name,
     selectors: YOUTUBE_SELECTORS,
     detectUser: detectYouTubeUser,
     runPost,
@@ -342,35 +354,20 @@ async function runPost(
     finalize: {
       finder: findYouTubePublishButton,
       texts: ['Publish', 'Save', '公開', '保存'],
-      // v0.5.11〜 YouTube は自動 content check (copyright / safety) が間に合わない
-      // 動画 (実写 / 長尺 / 音楽あり) で Publish click 直後に確認 dialog を出す:
-      //   "We're still checking your content / We recommend keeping your content
-      //    private until checks complete. If you publish now, you may get a strike..."
-      // 各 locale で primary button のテキストを多変種で当て、 dialog scope 内
-      // (maybeConfirmDialog は [role="dialog"] / ytcp-dialog 配下のみ探索) で押す。
-      confirmDialogButtonTexts: [
-        'Publish', 'Publish anyway', 'Continue', 'Got it',
-        '公開', 'このまま公開', '続行', '了解',
-      ],
-      // YouTube の server-side checks dialog は遅れて出ることがある。
-      // 通常 SNS より長く待ち、確認を取りこぼさない。
-      confirmDialogGraceMs: 8000,
+      // The "We're still checking your content" confirmation is handled by
+      // waitForYouTubePublishCompletion. The generic confirm-dialog helper
+      // treats the upload wizard itself as a dialog and would re-click Publish.
       timeoutMs: 30000,
-      afterClickDelayMs: 250,
+      afterClickDelayMs: 0,
       allowDisabledInPreview: true,
     },
     dryRun,
     implementationPath,
   });
 
-  // dryRun でなければ Studio が channel content listing もしくは個別 video
-  // URL に navigate するのを待つ (= 「本当の完了」)。
   let url: string | undefined;
   if (!dryRun) {
-    const captured = await waitForYouTubePostUrlOrCompletion();
-    // Studio の一部 UI variant は publish 完了後も dashboard に留まる。
-    // background が dashboard の Latest Short link から公開 URL を補完する。
-    if (captured) url = captured;
+    url = await waitForYouTubePublishCompletion(readYouTubeUploadVideoId(document));
   }
 
   return {
@@ -476,24 +473,56 @@ function uniqueElements<T extends Element>(elements: T[]): T[] {
 }
 
 /**
- * Publish 後の Studio wizard が閉じるまで待つ。
- * Studio 内 URL は公開 URL ではないため、wizard 終了後に background が
- * dashboard の Latest Short から watch URL を補完する。
+ * Publish 後、Studio wizard が閉じるか公開済み dialog が出るまで待つ。
+ * "We're still checking your content" 確認は "Publish anyway" で承認する。
+ * 動画 ID は upload 登録時点で wizard の `video-id` 属性から確定している。
  */
-async function waitForYouTubePostUrlOrCompletion(timeoutMs = 30_000): Promise<string | null> {
-  const captured = await waitForCondition<string | true>(() => {
+async function waitForYouTubePublishCompletion(
+  initialVideoId: string | null,
+  timeoutMs = 120_000,
+): Promise<string | undefined> {
+  markPostStepStarted('publish-completion');
+  let videoId = initialVideoId;
+  let lastConfirmClickAt = 0;
+  let publishedSince = 0;
+  let lastPending = '';
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
     assertNoYouTubeDailyUploadLimit();
-    const href = location.href;
-    if (/^https:\/\/(?:www\.)?youtube\.com\/(?:watch\?v=|shorts\/)[\w-]+/.test(href)) {
-      return href;
+    videoId ??= readYouTubeUploadVideoId(document);
+    const state = resolveYouTubePublishState(document, videoId, isRenderedElement);
+    if (state.kind === 'confirm') {
+      publishedSince = 0;
+      if (Date.now() - lastConfirmClickAt > 3000) {
+        log.info(`YouTube: confirming publish dialog ("${state.button.textContent?.trim() ?? ''}")`);
+        lastConfirmClickAt = Date.now();
+        await clickElementWithPacing(state.button);
+      }
+    } else if (state.kind === 'published') {
+      if (state.url) {
+        markPostStepCompleted('publish-completion');
+        return state.url;
+      }
+      // A late confirmation dialog can replace the wizard; require a short
+      // stable window before treating the closed wizard as published.
+      publishedSince ||= Date.now();
+      if (Date.now() - publishedSince >= 1500) {
+        markPostStepCompleted('publish-completion');
+        return videoId ? buildYouTubeVideoUrl(videoId, false) : undefined;
+      }
+    } else {
+      publishedSince = 0;
+      lastPending = `step=${state.step ?? 'unknown'} buttons=[${state.dialogButtons.join(', ')}]`;
     }
-    const dialog = document.querySelector(
-      'ytcp-uploads-dialog, ytcp-video-upload-dialog, ytcp-dialog, ' +
-      'tp-yt-paper-dialog[opened], [role="dialog"]',
-    );
-    if (!dialog) return true;
-    return null;
-  }, { timeoutMs, intervalMs: 250 });
-  if (typeof captured === 'string') return captured;
-  return null;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  markPostStepFailed('publish-completion');
+  throw new Error(t('runtimeYouTubePublishNotConfirmed', lastPending));
+}
+
+function isRenderedElement(element: HTMLElement): boolean {
+  const rect = element.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return false;
+  const style = getComputedStyle(element);
+  return style.display !== 'none' && style.visibility !== 'hidden';
 }

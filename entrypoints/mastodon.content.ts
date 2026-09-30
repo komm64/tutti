@@ -6,6 +6,7 @@ import type {
 } from '../src/messages';
 import {
   MASTODON_SELECTORS,
+  mastodonAdapter,
 } from '../src/adapters/mastodon';
 import { executePostFlow } from '../src/utils/post-flow';
 import { resolveSelectors } from '../src/utils/selector-overrides';
@@ -106,6 +107,7 @@ export default defineContentScript({
   matches: ['https://mastodon.social/*'],
   main: () => bootstrapContentScript({
     platform: 'mastodon',
+    displayName: mastodonAdapter.name,
     selectors: MASTODON_SELECTORS,
     detectUser: detectMastodonUser,
     runPost,

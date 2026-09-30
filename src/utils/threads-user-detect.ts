@@ -28,14 +28,10 @@ export function detectThreadsUserFromDocument(doc: Document = document): string 
           let el: HTMLElement | null = img;
           while (el && el.tagName !== 'A') el = el.parentElement;
           if (el && el.tagName === 'A') {
-            const profileSignal = [
-              el.getAttribute('aria-label') ?? '',
-              el.textContent ?? '',
-              img.alt ?? '',
-            ].join(' ');
-            if (!el.closest('nav, [role="navigation"], header, aside') && !/profile|プロフィール/i.test(profileSignal)) {
-              continue;
-            }
+            // Every feed avatar has alt="<name>'s profile picture", so a
+            // "profile" label is not evidence of the signed-in account
+            // (tutti-issues#102). Only the navigation holds the viewer's own.
+            if (!el.closest('nav, [role="navigation"], header, aside')) continue;
             const m = el.getAttribute('href')?.match(/^\/@([^/?#]+)$/);
             if (m?.[1] && !RESERVED.has(m[1])) return m[1];
           }

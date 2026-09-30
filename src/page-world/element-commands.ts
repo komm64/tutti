@@ -162,7 +162,7 @@ export async function handleClickCommand<Source extends string>(
           /add post/i.test(element.getAttribute('aria-label') ?? '')
         )
       ) {
-        element.focus();
+        focusXAddPostControl(element);
         const eventInit = {
           bubbles: true,
           cancelable: true,
@@ -180,6 +180,41 @@ export async function handleClickCommand<Source extends string>(
     }
   }
   return { source, id: request.id, ok: false, error: 'click target not found' };
+}
+
+function focusXAddPostControl(element: HTMLElement): void {
+  const doc = element.ownerDocument;
+  const previous = doc.activeElement;
+  if (
+    !(previous instanceof HTMLElement) ||
+    !/^tweetTextarea_\d+$/.test(previous.getAttribute('data-testid') ?? '')
+  ) {
+    element.focus();
+    return;
+  }
+
+  // In a genuinely inactive tab Chromium can change activeElement without
+  // firing blur/focusout. X commits the edited thread item on blur; adding
+  // before that commit rebuilds the thread with an empty/stale chunk (#97).
+  // Observe native delivery so a visible tab never gets a duplicate commit.
+  let blurred = false;
+  let focusedOut = false;
+  const onBlur = (): void => { blurred = true; };
+  const onFocusOut = (): void => { focusedOut = true; };
+  previous.addEventListener('blur', onBlur);
+  previous.addEventListener('focusout', onFocusOut);
+  try {
+    element.focus();
+  } finally {
+    previous.removeEventListener('blur', onBlur);
+    previous.removeEventListener('focusout', onFocusOut);
+  }
+  if (!doc.hasFocus() && doc.activeElement === element) {
+    if (!blurred) previous.dispatchEvent(new FocusEvent('blur', { relatedTarget: element }));
+    if (!focusedOut) previous.dispatchEvent(new FocusEvent('focusout', {
+      bubbles: true, composed: true, relatedTarget: element,
+    }));
+  }
 }
 
 function clickTextMatches(element: HTMLElement, texts: string[]): boolean {

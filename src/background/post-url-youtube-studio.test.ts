@@ -7,9 +7,6 @@ vi.mock('../utils/web-action-pacing', () => ({
 import {
   buildYouTubeStudioCaptureTarget,
   buildYouTubeStudioContentUrl,
-  captureYouTubeStudioPostIdBaselineStateInPage,
-  captureYouTubeStudioPostIdsFromTab,
-  captureYouTubeStudioPostIdsInPage,
   captureYouTubeStudioPostUrlFromTab,
   captureYouTubeStudioPostUrlInPage,
   inspectYouTubeStudioDispatchStateInPage,
@@ -88,98 +85,12 @@ describe('YouTube Studio post URL capture', () => {
     expect(executeScript.mock.calls.length).toBeGreaterThanOrEqual(6);
   });
 
-  it('captures the unique video IDs visible before submission', () => {
-    const window = new Window();
-    window.document.body.innerHTML = `
-      <a href="https://studio.youtube.com/video/first/edit">First</a>
-      <a href="https://www.youtube.com/watch?v=ignored">Watch</a>
-      <a href="https://studio.youtube.com/video/first/analytics">Duplicate</a>
-      <a href="https://studio.youtube.com/video/second/edit">Second</a>
-    `;
 
-    expect(captureYouTubeStudioPostIdsInPage(
-      window.document as unknown as ParentNode,
-    )).toEqual(['first', 'second']);
-  });
-
-  it('waits for real rows but accepts an explicit empty-channel state', () => {
-    const loadingWindow = new Window();
-    loadingWindow.document.body.innerHTML = '<ytcp-video-section>Video</ytcp-video-section>';
-    expect(captureYouTubeStudioPostIdBaselineStateInPage(
-      loadingWindow.document as unknown as ParentNode,
-    )).toEqual({ ids: [], settled: false });
-
-    const emptyWindow = new Window();
-    emptyWindow.document.body.innerHTML =
-      '<ytcp-video-list-empty-state>No videos available</ytcp-video-list-empty-state>';
-    expect(captureYouTubeStudioPostIdBaselineStateInPage(
-      emptyWindow.document as unknown as ParentNode,
-    )).toEqual({ ids: [], settled: true });
-  });
-
-  it('captures the baseline in an isolated tab without navigating the compose tab', async () => {
-    vi.useFakeTimers();
-    const create = vi.fn(async () => ({ id: 8, windowId: 3 }));
-    const get = vi.fn(async (tabId: number) => {
-      if (tabId === 7) {
-        return {
-          id: 7,
-          windowId: 3,
-          url: 'https://studio.youtube.com/channel/UC123',
-        };
-      }
-      return { id: 8, windowId: 3, status: 'complete' };
-    });
-    const remove = vi.fn(async () => undefined);
-    const update = vi.fn();
-    const listeners = new Set<(tabId: number, info: { status?: string }) => void>();
-    const executeScript = vi.fn(async (
-      options: { func: (...args: never[]) => unknown },
-    ) => [{
-      result: options.func === captureYouTubeStudioPostIdBaselineStateInPage
-        ? { ids: ['older-id'], settled: true }
-        : true,
-    }]);
-    vi.stubGlobal('browser', {
-      tabs: {
-        create,
-        get,
-        remove,
-        update,
-        onUpdated: {
-          addListener: (listener: (tabId: number, info: { status?: string }) => void) => {
-            listeners.add(listener);
-          },
-          removeListener: (listener: (tabId: number, info: { status?: string }) => void) => {
-            listeners.delete(listener);
-          },
-        },
-      },
-      scripting: { executeScript },
-    });
-
-    const pending = captureYouTubeStudioPostIdsFromTab(7, vi.fn());
-    await vi.advanceTimersByTimeAsync(250);
-    await vi.advanceTimersByTimeAsync(1500);
-
-    await expect(pending).resolves.toEqual(['older-id']);
-    expect(create).toHaveBeenCalledWith({
-      url: expect.stringContaining('/channel/UC123/videos/upload?'),
-      active: false,
-      windowId: 3,
-    });
-    expect(update).not.toHaveBeenCalled();
-    expect(executeScript).toHaveBeenCalledWith(expect.objectContaining({
-      target: { tabId: 8 },
-    }));
-    expect(remove).toHaveBeenCalledWith(8);
-  });
-
-  it('opens the newest-first content list when capturing the submitted URL', async () => {
+  it('opens the newest-first Shorts list when capturing the submitted URL', async () => {
     vi.useFakeTimers();
     const update = vi.fn(async () => ({
       id: 7,
-      url: 'https://studio.youtube.com/channel/UC123/videos/upload',
+      url: 'https://studio.youtube.com/channel/UC123/videos/short',
     }));
     const get = vi.fn(async () => ({
       id: 7,
@@ -192,7 +103,7 @@ describe('YouTube Studio post URL capture', () => {
       result: options.func === captureYouTubeStudioPostUrlInPage
         ? {
             url: 'https://www.youtube.com/watch?v=new-id',
-            trace: ['matched new target'],
+            trace: ['matched target'],
           }
         : true,
     }]);
@@ -208,57 +119,61 @@ describe('YouTube Studio post URL capture', () => {
       scripting: { executeScript },
     });
 
-    const pending = captureYouTubeStudioPostUrlFromTab(
-      7,
-      '',
-      ['older-id'],
-      vi.fn(),
-    );
+    const pending = captureYouTubeStudioPostUrlFromTab(7, '', vi.fn());
     await vi.advanceTimersByTimeAsync(250);
 
     await expect(pending).resolves.toBe(
       'https://www.youtube.com/watch?v=new-id',
     );
+    expect(update).toHaveBeenCalledTimes(1);
     expect(update).toHaveBeenCalledWith(7, {
-      url: expect.stringContaining('/channel/UC123/videos/upload?'),
+      url: expect.stringContaining('/channel/UC123/videos/short?'),
     });
     expect(executeScript).toHaveBeenCalledWith(expect.objectContaining({
       target: { tabId: 7 },
-      args: ['Untitled', ['older-id']],
+      args: ['Untitled', 30],
     }));
   });
 
-  it('finds the matching video card without depending on the localized dashboard heading', async () => {
-    const window = new Window();
-    window.document.body.innerHTML = `
-      <a href="https://studio.youtube.com/video/older-video/edit">Older video</a>
-      <section>
-        <div>Latest video performance</div>
-        <article>
-          <h2 id="title">tutti surface matrix video 2026-07-25T23-42-46</h2>
-          <div>
-            <a href="https://studio.youtube.com/video/new-video-id/analytics/tab-overview">
-              Analytics
-            </a>
-          </div>
-        </article>
-      </section>
-    `;
-
-    await expect(captureYouTubeStudioPostUrlInPage(
-      'tutti surface matrix video 2026-07-25',
-      [],
-      window.document as unknown as ParentNode,
-    )).resolves.toEqual({
-      url: 'https://www.youtube.com/watch?v=new-video-id',
-      trace: [
-        'matched new target title in scoped video card ' +
-        '(attempt=0, depth=1, excluded=0)',
-      ],
+  it('falls back from the Shorts tab to the Videos tab', async () => {
+    vi.useFakeTimers();
+    const update = vi.fn(async (_tabId: number, _props: { url: string }) => ({ id: 7 }));
+    const get = vi.fn(async () => ({
+      id: 7,
+      status: 'complete',
+      url: 'https://studio.youtube.com/channel/UC123',
+    }));
+    const pageResults = [
+      { trace: ['newest Studio row does not match the target title'] },
+      { url: 'https://www.youtube.com/watch?v=long-id', trace: [] },
+    ];
+    const executeScript = vi.fn(async (
+      options: { func: (...args: never[]) => unknown },
+    ) => [{
+      result: options.func === captureYouTubeStudioPostUrlInPage
+        ? pageResults.shift()
+        : true,
+    }]);
+    vi.stubGlobal('browser', {
+      tabs: {
+        get,
+        update,
+        onUpdated: { addListener: vi.fn(), removeListener: vi.fn() },
+      },
+      scripting: { executeScript },
     });
+
+    const pending = captureYouTubeStudioPostUrlFromTab(7, 'caption', vi.fn());
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    await expect(pending).resolves.toBe('https://www.youtube.com/watch?v=long-id');
+    expect(update.mock.calls.map(([, props]) => props.url)).toEqual([
+      expect.stringContaining('/videos/short?'),
+      expect.stringContaining('/videos/upload?'),
+    ]);
   });
 
-  it('selects only a new matching Studio row when multiple Untitled uploads exist', async () => {
+  it('accepts the newest Studio row when its title matches', async () => {
     const window = new Window();
     window.document.body.innerHTML = `
       <ytcp-video-row>
@@ -275,14 +190,35 @@ describe('YouTube Studio post URL capture', () => {
 
     await expect(captureYouTubeStudioPostUrlInPage(
       buildYouTubeStudioCaptureTarget(''),
-      ['older-id'],
+      1,
       window.document as unknown as ParentNode,
     )).resolves.toEqual({
       url: 'https://www.youtube.com/watch?v=newest-id',
-      trace: [
-        'matched new target title in scoped video card ' +
-        '(attempt=0, depth=1, excluded=1)',
-      ],
+      trace: ['matched target title in the newest Studio row (attempt=0)'],
+    });
+  });
+
+  it('never reports an older upload that shares the title', async () => {
+    const window = new Window();
+    window.document.body.innerHTML = `
+      <ytcp-video-row>
+        <a id="video-title" href="https://studio.youtube.com/video/other-id/edit">
+          Something else
+        </a>
+      </ytcp-video-row>
+      <ytcp-video-row>
+        <a id="video-title" href="https://studio.youtube.com/video/older-id/edit">
+          caption
+        </a>
+      </ytcp-video-row>
+    `;
+
+    await expect(captureYouTubeStudioPostUrlInPage(
+      'caption',
+      1,
+      window.document as unknown as ParentNode,
+    )).resolves.toEqual({
+      trace: ['newest Studio row does not match the target title'],
     });
   });
 });

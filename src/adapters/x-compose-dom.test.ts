@@ -183,6 +183,53 @@ describe('X thread compose DOM selection', () => {
     expect(live?.querySelector('[data-testid="tweetButton"]')).not.toBeNull();
   });
 
+  it.each(['dialog', 'page'])('adds after the previous chunk in a %s, not the first toolbar (#97)', (layout) => {
+    const tag = layout === 'dialog' ? 'div' : 'main';
+    document.body.innerHTML = `
+      <${tag} ${layout === 'dialog' ? 'role="dialog"' : ''}>
+        <section>
+          <div data-testid="tweetTextarea_0" contenteditable="true">first chunk</div>
+          <div data-testid="toolBar"><button id="first-add" data-testid="addButton">Add</button></div>
+        </section>
+        <section>
+          <div data-testid="tweetTextarea_1" contenteditable="true">second chunk</div>
+          <div data-testid="toolBar"><button id="second-add" data-testid="addButton">Add</button></div>
+        </section>
+      </${tag}>
+    `;
+    const target = getXThreadAddPostTarget(document, 'first chunk', () => true, () => false, {
+      index: 1, text: 'second chunk',
+    });
+    expect(target?.button.id).toBe('second-add');
+    expect(target?.textarea.getAttribute('data-testid')).toBe('tweetTextarea_1');
+    document.querySelector('#second-add')?.remove();
+    // Never fall back to the earlier item's still-enabled Add control.
+    expect(getXThreadAddPostTarget(document, 'first chunk', () => true, () => false, {
+      index: 1, text: 'second chunk',
+    })).toBeUndefined();
+  });
+
+  it('waits for the correct previous chunk text and does not guess an ambiguous toolbar', () => {
+    document.body.innerHTML = `
+      <div role="dialog">
+        <section><div data-testid="tweetTextarea_0" contenteditable="true">first chunk</div></section>
+        <section>
+          <div data-testid="tweetTextarea_1" contenteditable="true">partial</div>
+          <button id="second-add" data-testid="addButton">Add</button>
+        </section>
+        <button id="ambiguous-add" data-testid="addButton">Add</button>
+      </div>
+    `;
+    expect(getXThreadAddPostTarget(document, 'first chunk', () => true, () => false, {
+      index: 1, text: 'second chunk',
+    })).toBeUndefined();
+    document.querySelector('[data-testid="tweetTextarea_1"]')!.textContent = 'second chunk';
+    document.querySelector('#second-add')?.remove();
+    expect(getXThreadAddPostTarget(document, 'first chunk', () => true, () => false, {
+      index: 1, text: 'second chunk',
+    })).toBeUndefined();
+  });
+
   it('preserves rendered Draft.js block boundaries when reading X text', () => {
     const editor = document.createElement('div');
     editor.innerHTML = '<div>first line</div><div><br></div><div>https://example.com/</div>';
@@ -193,5 +240,26 @@ describe('X thread compose DOM selection', () => {
 
     expect(editor.textContent).toBe('first linehttps://example.com/');
     expect(readXEditableText(editor)).toBe('first line\n\nhttps://example.com/');
+  });
+
+  it('reads blank lines from Draft.js blocks exactly (tutti-issues#101)', () => {
+    // Surface: pasting "A\n\n\nB\nC" renders five blocks, while innerText
+    // reports "A\n\n\n\n\nB\nC" (each empty block adds an extra newline).
+    const editor = document.createElement('div');
+    editor.innerHTML = [
+      '<div data-contents="true">',
+      '<div data-block="true"><span>A line 📱 #tag</span></div>',
+      '<div data-block="true"><span><br></span></div>',
+      '<div data-block="true"><span><br></span></div>',
+      '<div data-block="true"><span>B https://example.com/x</span></div>',
+      '<div data-block="true"><span>C</span></div>',
+      '</div>',
+    ].join('');
+    Object.defineProperty(editor, 'innerText', {
+      configurable: true,
+      value: 'A line 📱 #tag\n\n\n\n\nB https://example.com/x\nC',
+    });
+
+    expect(readXEditableText(editor)).toBe('A line 📱 #tag\n\n\nB https://example.com/x\nC');
   });
 });

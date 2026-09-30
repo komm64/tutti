@@ -212,7 +212,35 @@ exactly one intercepted profile fetch (no unsafe subsequent profile diff), a
 confirmed captured URL, and the expected text/video on the published page.
 The flag rejects preview mode, multiple cases/platforms, and repeated posts.
 
-For preview-only diagnosis:
+For the X three-part text regression (`tutti-issues#97`):
+
+```powershell
+node scripts/e2e/surface-posting-matrix.mjs --mode preview --platforms x --cases text-thread-three --repeat 2 --summary-json C:\CodexTemp\tutti\<task>\x-thread-preview.json
+```
+
+This case uses 798 characters without media and checks all three numbered
+editors exactly (including missing or duplicate editors). Require passing
+`previewThreadEvidence`, with no submission, URL, or history write.
+It is also available in post mode for the affected real-post release gate;
+verify all three published chunks at the captured URL before uploading.
+
+Also run the native-hidden regression with no other Playwright connection:
+
+```powershell
+node scripts/e2e/surface-x-hidden-thread.mjs --repeat 2 --summary-json C:\CodexTemp\tutti\<task>\x-hidden.json
+```
+
+This Puppeteer-only preview keeps the actual X tab inactive from navigation
+onwards and requires exact text in all three editors while `document.hidden`
+is true, successful preview flow, no submission/URL, and unchanged history.
+Playwright enables focus emulation on CDP-attached pages; its inactive-tab test
+cannot establish native-hidden behavior. Do not use it to substitute this gate.
+
+For diagnosis, `--hide-at ready` covers the composer only once its first chunk
+and Add control are ready. This isolates interruption while building the
+thread. It does not replace a failing default hidden-during-navigation run.
+
+For the URL-capture diagnostic in preview mode:
 
 ```powershell
 $env:AUTOPOST = 'false'

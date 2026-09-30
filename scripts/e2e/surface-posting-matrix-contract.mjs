@@ -30,6 +30,27 @@ export function normalizePreviewDraftText(text) {
   return typeof text === 'string' ? text.trim() : '';
 }
 
+// tutti-issues#97: 798 characters, no media, exactly three X chunks. Fixed
+// word boundaries make the expected chunks independent of the runtime splitter.
+export function createXThreePartDraft(stamp) {
+  const bodies = [
+    `Tutti Surface thread ${stamp} first `.padEnd(265, 'a'),
+    'Second-thread-editor '.padEnd(265, 'b'),
+    'Third-thread-editor '.padEnd(266, 'c'),
+  ];
+  return {
+    text: bodies.join(' '),
+    chunks: bodies.map((body, index) => `(${index + 1}/3) ${body}`),
+  };
+}
+
+export function matchesPreviewThread(editors, expectedChunks) {
+  return editors.length === expectedChunks.length && expectedChunks.every((text, index) => (
+    editors[index]?.testId === `tweetTextarea_${index}` &&
+    normalizePreviewDraftText(editors[index]?.text) === normalizePreviewDraftText(text)
+  ));
+}
+
 export function findExactPreviewDraftCandidate(
   candidates,
   expectedText,

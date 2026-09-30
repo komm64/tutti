@@ -1,3 +1,4 @@
+import { readXEditableText } from '../adapters/x-compose-dom';
 export type TextEditorDriverKind =
   | 'native'
   | 'lexical'
@@ -119,7 +120,7 @@ export async function injectXDraftText(
   const maxAttempts = options.maxAttempts ?? 3;
   const expectedText = normalizeXDraftText(text);
   let current = resolveCurrent() ?? initialElement;
-  const existing = normalizeXDraftText(readContentEditableText(current));
+  const existing = normalizeXDraftText(readXEditableText(current));
   if (existing === expectedText) return current;
   if (existing !== '') {
     throw new Error('X Draft editor must be empty before segmented injection');
@@ -161,7 +162,7 @@ export async function injectXDraftText(
     }
   }
 
-  if (normalizeXDraftText(readContentEditableText(current)) !== expectedText) {
+  if (normalizeXDraftText(readXEditableText(current)) !== expectedText) {
     throw new Error('X Draft editor did not retain the complete text');
   }
   return current;
@@ -181,7 +182,7 @@ async function appendXDraftPiece(options: {
   for (let attempt = 1; attempt <= options.maxAttempts; attempt += 1) {
     const current = options.resolveCurrent();
     if (!current) throw new Error('X Draft editor disappeared during injection');
-    const currentText = normalizeXDraftText(readContentEditableText(current));
+    const currentText = normalizeXDraftText(readXEditableText(current));
     if (currentText === options.after) return current;
     if (currentText !== options.before) {
       throw new Error(
@@ -217,7 +218,7 @@ async function appendXDraftPiece(options: {
     const retained = await options.waitFor(
       () => {
         const live = options.resolveCurrent();
-        return !!live && normalizeXDraftText(readContentEditableText(live)) === options.after;
+        return !!live && normalizeXDraftText(readXEditableText(live)) === options.after;
       },
       options.mode === 'paste' ? 1_000 : 500,
     );
@@ -237,10 +238,6 @@ function placeCaretAtEnd(element: HTMLElement): void {
   range.collapse(false);
   selection.removeAllRanges();
   selection.addRange(range);
-}
-
-function readContentEditableText(element: HTMLElement): string {
-  return element.innerText ?? element.textContent ?? '';
 }
 
 function normalizeXDraftText(value: string): string {

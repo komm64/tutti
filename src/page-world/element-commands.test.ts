@@ -105,9 +105,38 @@ describe('page-world element commands', () => {
     expect(clicks.map((click) => click.mock.calls.length)).toEqual([0, 0, 1]);
   });
 
-  it('uses Enter events for the X add-post control', async () => {
-    document.body.innerHTML = '<button data-testid="addButton">Add</button>';
+  it.each(['x.com', 'twitter.com'])('activates the %s Add post keyboard handler exactly once per new editor', async (hostname) => {
+    document.body.innerHTML = `
+      <div data-testid="tweetTextarea_0" contenteditable="true">first</div>
+      <button data-testid="addButton">Add</button>
+    `;
     const button = document.querySelector<HTMLButtonElement>('button')!;
+    const click = vi.spyOn(button, 'click');
+    let editorCount = 1;
+    const addEditor = () => {
+      const editor = document.createElement('div');
+      editor.dataset.testid = `tweetTextarea_${editorCount++}`;
+      editor.contentEditable = 'true';
+      button.before(editor);
+    };
+    button.addEventListener('click', addEditor);
+    // Sending both keyboard and click events can add two empty chunks.
+    button.addEventListener('keydown', addEditor);
+    for (let index = 1; index < 3; index++) {
+      const result = await handleClickCommand({
+        id: `add-${index}`,
+        selector: '[data-testid="addButton"]',
+      }, SOURCE, { hostname });
+      expect(result.ok).toBe(true);
+      expect(click).not.toHaveBeenCalled();
+      expect(document.querySelectorAll('[contenteditable="true"]')).toHaveLength(index + 1);
+    }
+    expect(document.querySelector('[data-testid="tweetTextarea_2"]')).not.toBeNull();
+  });
+
+  it('keeps Enter activation for the non-native X add-post control', async () => {
+    document.body.innerHTML = '<div role="button" tabindex="0" data-testid="addButton">Add</div>';
+    const button = document.querySelector<HTMLElement>('[role="button"]')!;
     const click = vi.spyOn(button, 'click');
     const keys: string[] = [];
     for (const type of ['keydown', 'keypress', 'keyup']) {
@@ -116,12 +145,58 @@ describe('page-world element commands', () => {
 
     const result = await handleClickCommand({
       id: 'click-2',
-      selector: 'button',
+      selector: '[role="button"]',
     }, SOURCE, { hostname: 'x.com' });
 
     expect(result.ok).toBe(true);
     expect(click).not.toHaveBeenCalled();
     expect(keys).toEqual(['keydown', 'keypress', 'keyup']);
+  });
+
+  it.each([false, true])('commits the unfocused X editor before Add (native blur=%s)', async (nativeBlur) => {
+    document.body.innerHTML = `
+      <div data-testid="tweetTextarea_1" contenteditable="true">second chunk</div>
+      <button data-testid="addButton">Add</button>
+    `;
+    const editor = document.querySelector<HTMLElement>('[contenteditable]')!;
+    const button = document.querySelector<HTMLButtonElement>('button')!;
+    let active: Element = editor;
+    vi.spyOn(document, 'activeElement', 'get').mockImplementation(() => active);
+    vi.spyOn(document, 'hasFocus').mockReturnValue(false);
+    const events: string[] = [];
+    for (const type of ['blur', 'focusout']) editor.addEventListener(type, (event) => {
+      expect((event as FocusEvent).relatedTarget).toBe(button);
+      events.push(type);
+    });
+    vi.spyOn(button, 'focus').mockImplementation(() => {
+      active = button;
+      if (nativeBlur) {
+        editor.dispatchEvent(new FocusEvent('blur', { relatedTarget: button }));
+        editor.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: button }));
+      }
+    });
+    button.addEventListener('keydown', () => events.push('add'));
+    const click = vi.spyOn(button, 'click');
+
+    const result = await handleClickCommand({ id: 'hidden-add', selector: 'button' }, SOURCE, { hostname: 'x.com' });
+
+    expect(result.ok).toBe(true);
+    expect(events).toEqual(['blur', 'focusout', 'add']);
+    expect(click).not.toHaveBeenCalled();
+  });
+
+  it('does not blur an unrelated active control when adding an X post', async () => {
+    document.body.innerHTML = '<input><button data-testid="addButton">Add</button>';
+    const input = document.querySelector('input')!;
+    const button = document.querySelector('button')!;
+    let active: Element = input;
+    vi.spyOn(document, 'activeElement', 'get').mockImplementation(() => active);
+    vi.spyOn(document, 'hasFocus').mockReturnValue(false);
+    vi.spyOn(button, 'focus').mockImplementation(() => { active = button; });
+    const blur = vi.fn();
+    input.addEventListener('focusout', blur);
+    await handleClickCommand({ id: 'unrelated', selector: 'button' }, SOURCE, { hostname: 'x.com' });
+    expect(blur).not.toHaveBeenCalled();
   });
 
   it('rejects missing or disabled click targets', async () => {

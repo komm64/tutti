@@ -4,7 +4,7 @@ import type {
   PostImplementationPath,
   PostResultMessage,
 } from '../src/messages';
-import { DEVIANTART_SELECTORS, buildDeviantArtTitle } from '../src/adapters/deviantart';
+import { DEVIANTART_SELECTORS, buildDeviantArtTitle, deviantartAdapter } from '../src/adapters/deviantart';
 import { executeMultiStepFlow, type Step } from '../src/utils/step-runner';
 import { injectImages, injectTagList, injectTextIntoElement } from '../src/utils/image';
 import {
@@ -57,6 +57,7 @@ export default defineContentScript({
   matches: ['https://www.deviantart.com/*', 'https://deviantart.com/*'],
   main: () => bootstrapContentScript({
     platform: 'deviantart',
+    displayName: deviantartAdapter.name,
     selectors: DEVIANTART_SELECTORS,
     detectUser: detectDeviantArtUser,
     runPost,

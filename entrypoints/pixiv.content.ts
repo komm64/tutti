@@ -10,6 +10,7 @@ import {
   buildPixivTitle,
   extractPixivTags,
   stripHashtagsForPixivCaption,
+  pixivAdapter,
 } from '../src/adapters/pixiv';
 import { executeMultiStepFlow, type Step } from '../src/utils/step-runner';
 import { injectImages, injectTagList, injectTextIntoElement } from '../src/utils/image';
@@ -94,6 +95,7 @@ export default defineContentScript({
   matches: ['https://www.pixiv.net/*', 'https://pixiv.net/*'],
   main: () => bootstrapContentScript({
     platform: 'pixiv',
+    displayName: pixivAdapter.name,
     selectors: PIXIV_SELECTORS,
     detectUser: detectPixivUser,
     runPost,

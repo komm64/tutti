@@ -165,6 +165,17 @@ export const judgeInstagramImage: ImageJudge = (ogImage) =>
   !!ogImage && /scontent|cdninstagram/i.test(ogImage);
 
 /**
+ * A freshly shared Reel often has no og:video until processing finishes, but
+ * Instagram only assigns /reel/ URLs to video posts.
+ */
+export const isInstagramReelUrl = (postUrl: string): boolean =>
+  /^https:\/\/(?:www\.)?instagram\.com\/reel\/[\w-]+/i.test(postUrl);
+
+export const judgeInstagramVideo: VideoJudge = (html, postUrl) => (
+  hasVideoEvidenceInHtml(html) || isInstagramReelUrl(postUrl)
+);
+
+/**
  * Threads (Meta 系): IG と同じ pattern + 改行を含む長いcaptionにも対応。
  * `Threads from <user> [date]: caption text...`
  */

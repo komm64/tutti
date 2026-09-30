@@ -1,3 +1,4 @@
+import { PageLoadTimeoutError } from './page-load-timeout-error';
 import type { PlatformAdapter } from '../adapters/types';
 import type { ApiPostResult } from '../api/types';
 import type {
@@ -51,7 +52,6 @@ export interface PostingTransportOptions {
   openedTabs: Pick<OpenedTabRegistry, 'record' | 'forget'>;
   confirmation: Pick<
     PostConfirmation,
-    | 'preparePostUrlCapture'
     | 'ensurePostUrl'
     | 'recoverFromAmbiguousDispatchFailure'
   >;
@@ -125,7 +125,9 @@ export function createPostingTransport(options: PostingTransportOptions) {
             error: message,
           };
         }
-        if (rawImages?.length) {
+        // A page-load timeout happens before the content script receives the
+        // media, so a fresh composer cannot duplicate an upload.
+        if (rawImages?.length && !(error instanceof PageLoadTimeoutError)) {
           log.warn(
             `${adapter.id}: media attempt "${attempt.label}" failed ` +
             'before submit; refusing an automatic re-upload in a fresh composer',
@@ -283,12 +285,6 @@ export function createPostingTransport(options: PostingTransportOptions) {
 
       const lastSeenUsers = await getLastSeenUsers();
       const expectedUser = lastSeenUsers[adapter.id] ?? undefined;
-      const captureBaseline = dryRun
-        ? undefined
-        : await options.confirmation.preparePostUrlCapture(
-            adapter.id,
-            tab.id,
-          );
       const message: PostToPlatformMessage = {
         type: 'POST_TO_PLATFORM',
         platform: adapter.id,
@@ -333,7 +329,6 @@ export function createPostingTransport(options: PostingTransportOptions) {
             expectedUser,
             dryRun,
             dispatchStartedAt,
-            captureBaseline,
           );
         if (recovered) {
           return withFlow(recovered, { ...baseFlow, tabUrlBefore });
@@ -360,7 +355,6 @@ export function createPostingTransport(options: PostingTransportOptions) {
         tab.id,
         text,
         expectedUser,
-        captureBaseline,
       );
       if (withUrl.url) return { ...withUrl, confirmed: true };
       return unconfirmedPostResult(adapter.id, {

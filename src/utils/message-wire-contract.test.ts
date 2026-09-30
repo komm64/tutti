@@ -52,6 +52,7 @@ function installContentBootstrap(
 
   bootstrapContentScript({
     platform: 'x',
+    displayName: 'X',
     selectors: { editor: '[data-testid="tweetTextarea_0"]' },
     detectUser: () => '@alice',
     runPost,

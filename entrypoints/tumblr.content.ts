@@ -302,6 +302,7 @@ export default defineContentScript({
   matches: ['https://www.tumblr.com/*', 'https://tumblr.com/*'],
   main: () => bootstrapContentScript({
     platform: 'tumblr',
+    displayName: tumblrAdapter.name,
     selectors: TUMBLR_SELECTORS,
     detectUser: detectTumblrUser,
     runPost,
