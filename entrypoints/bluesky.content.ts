@@ -221,18 +221,8 @@ async function executeBlueskyInlineThread(
   if (!livePostBtn) throw new Error(t('runtimeBlueskyPublishButtonMissing'));
   markPostSubmissionStarted();
   livePostBtn.click();
-
-  // modal close 待ち (Bluesky の post 完了 verify)
-  const stillOpen = () =>
-    document.querySelector('[data-testid="composer"]') ||
-    document.querySelector(BLUESKY_EDITOR_SELECTOR);
-  const closed = await waitForCondition<boolean>(() => stillOpen() ? null : true, {
-    timeoutMs: 30_000,
-    intervalMs: 300,
-  });
-  if (!closed) {
-    throw new Error(t('runtimeBlueskyThreadModalOpen'));
-  }
+  // runPost waits for the composer to close for both the single-post and the
+  // thread path, prompting the user when a confirmation dialog blocks it.
 }
 
 /** Bluesky の 「次のポストを追加 (+)」 button 候補を多段 fallback で探す。 */
@@ -296,6 +286,7 @@ export default defineContentScript({
   matches: ['https://bsky.app/*'],
   main: () => bootstrapContentScript({
     platform: 'bluesky',
+    displayName: blueskyAdapter.name,
     selectors: BLUESKY_SELECTORS,
     detectUser: detectBlueskyUser,
     runPost,

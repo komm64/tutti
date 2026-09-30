@@ -1,14 +1,36 @@
 import { describe, expect, it } from 'vitest';
 import {
   createTimedOutSurfaceSummary,
+  createXThreePartDraft,
   findExactPreviewDraftCandidate,
   formatSurfaceMatrixOutcome,
   hasSurfaceVideoPreview,
   normalizePreviewDraftText,
+  matchesPreviewThread,
   validateSurfaceResultContract,
 } from '../scripts/e2e/surface-posting-matrix-contract.mjs';
+import { splitTextForPlatform } from '../src/utils/platform-text';
 
 describe('Surface posting matrix CLI contract', () => {
+  it('covers issue #97 with 798 characters and exactly three X chunks', () => {
+    const { text, chunks } = createXThreePartDraft('2026-09-23T00-00-00-000Z-text-thread-three-1');
+    expect(text).toHaveLength(798);
+    expect(splitTextForPlatform('x', text, 280)).toEqual(chunks);
+    expect(chunks).toHaveLength(3);
+  });
+
+  it('requires every exact X thread editor, not just a matching first chunk', () => {
+    const { chunks } = createXThreePartDraft('test');
+    const editors = chunks.map((text: string, index: number) => ({ testId: `tweetTextarea_${index}`, text }));
+    expect(matchesPreviewThread(editors, chunks)).toBe(true);
+    expect(matchesPreviewThread(editors.slice(0, 2), chunks)).toBe(false);
+    expect(matchesPreviewThread([...editors, { testId: 'tweetTextarea_3', text: '' }], chunks)).toBe(false);
+    expect(matchesPreviewThread([editors[0], editors[2], editors[1]], chunks)).toBe(false);
+    expect(matchesPreviewThread(editors.map((editor, index) => (
+      index === 1 ? { ...editor, text: editor.text.slice(0, 20) } : editor
+    )), chunks)).toBe(false);
+  });
+
   it('does not mistake the X character counter for video upload evidence', () => {
     expect(hasSurfaceVideoPreview({
       videoCount: 0,

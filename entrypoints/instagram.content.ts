@@ -4,7 +4,7 @@ import type {
   PostImplementationPath,
   PostResultMessage,
 } from '../src/messages';
-import { INSTAGRAM_SELECTORS } from '../src/adapters/instagram';
+import { INSTAGRAM_SELECTORS, instagramAdapter } from '../src/adapters/instagram';
 import { executeMultiStepFlow, type Step } from '../src/utils/step-runner';
 import { injectImages, injectTextIntoElement } from '../src/utils/image';
 import {
@@ -19,6 +19,14 @@ import { resolveSelectors } from '../src/utils/selector-overrides';
 import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
 import { t } from '../src/utils/i18n';
 import { readFreshCapturedPost } from '../src/utils/post-capture-record';
+import {
+  markPostStepCompleted,
+  markPostStepFailed,
+  markPostStepStarted,
+} from '../src/utils/post-submission-state';
+
+/** Reels finish uploading after the composer closes; see runPost. */
+const REEL_CONFIGURE_TIMEOUT_MS = 180_000;
 import { clickElementWithPacing, waitForWebActionPacing } from '../src/utils/web-action-pacing';
 
 /**
@@ -73,6 +81,7 @@ export default defineContentScript({
   matches: ['https://www.instagram.com/*', 'https://instagram.com/*'],
   main: () => bootstrapContentScript({
     platform: 'instagram',
+    displayName: instagramAdapter.name,
     selectors: INSTAGRAM_SELECTORS,
     detectUser: detectInstagramUser,
     runPost,
@@ -279,15 +288,29 @@ async function runPost(
   if (!dryRun) {
     const hasVideo = images.some((image) => image.type.startsWith('video/'));
     await verifyInstagramPosted(hasVideo ? 180_000 : 90_000, text);
-    let captured: ReturnType<typeof readFreshCapturedPost>;
-    try {
-      captured = readFreshCapturedPost(
-        localStorage.getItem('tutti:ig-latest-post'),
-        text,
-        120_000,
-      );
-    } catch {
-      captured = undefined;
+    const readCaptured = (): ReturnType<typeof readFreshCapturedPost> => {
+      try {
+        return readFreshCapturedPost(
+          localStorage.getItem('tutti:ig-latest-post'),
+          text,
+          120_000,
+        );
+      } catch {
+        return undefined;
+      }
+    };
+    let captured = readCaptured();
+    if (!captured?.url && hasVideo) {
+      // A Reel keeps uploading and sends its configure request after the
+      // composer closes. Navigating away now would drop that response (and can
+      // interrupt the share), so wait for it before leaving the page.
+      markPostStepStarted('capture-reel-configure');
+      captured = await waitForCondition(
+        () => readCaptured() ?? null,
+        { timeoutMs: REEL_CONFIGURE_TIMEOUT_MS, intervalMs: 1000 },
+      ) ?? undefined;
+      if (captured?.url) markPostStepCompleted('capture-reel-configure');
+      else markPostStepFailed('capture-reel-configure');
     }
     if (captured?.url) {
       log.info(`IG: URL captured via configure response: ${captured.url}`);

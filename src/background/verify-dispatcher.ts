@@ -23,6 +23,8 @@ import {
   cleanYouTubeDescription,
   cleanGenericDescription,
   judgeInstagramImage,
+  judgeInstagramVideo,
+  isInstagramReelUrl,
   judgeTikTokVideo,
   judgeXImage,
 } from '../utils/post-verify-og';
@@ -78,6 +80,11 @@ export const verifyInstagramPost: VerificationStrategy = (postUrl, expected) => 
   {
     cleanDescription: cleanInstagramDescription,
     judgeImage: judgeInstagramImage,
+    judgeVideo: judgeInstagramVideo,
+    resolveDomHasVideo: (response, expectation, url) => (
+      expectation.hasVideo === true &&
+      (response.hasVideo === true || isInstagramReelUrl(url))
+    ),
   },
 );
 

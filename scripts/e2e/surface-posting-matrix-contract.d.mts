@@ -23,6 +23,13 @@ export interface SurfacePreviewDraftCandidate {
 
 export function normalizePreviewDraftText(text: unknown): string;
 
+export function createXThreePartDraft(stamp: string): { text: string; chunks: string[] };
+
+export function matchesPreviewThread(
+  editors: readonly ({ testId: string; text: string } | undefined)[],
+  expectedChunks: readonly string[],
+): boolean;
+
 export function findExactPreviewDraftCandidate<T extends SurfacePreviewDraftCandidate>(
   candidates: readonly T[],
   expectedText: string,

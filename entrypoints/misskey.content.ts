@@ -70,6 +70,7 @@ export default defineContentScript({
   matches: ['https://misskey.io/*'],
   main: () => bootstrapContentScript({
     platform: 'misskey',
+    displayName: misskeyAdapter.name,
     selectors: MISSKEY_SELECTORS,
     detectUser: detectMisskeyUser,
     runPost,

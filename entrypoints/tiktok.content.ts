@@ -4,7 +4,7 @@ import type {
   PostImplementationPath,
   PostResultMessage,
 } from '../src/messages';
-import { TIKTOK_SELECTORS, buildTikTokCaption } from '../src/adapters/tiktok';
+import { TIKTOK_SELECTORS, buildTikTokCaption, tiktokAdapter } from '../src/adapters/tiktok';
 import { executeMultiStepFlow, type Step } from '../src/utils/step-runner';
 import { injectImages, injectTextIntoElement } from '../src/utils/image';
 import { sleep, waitForCondition, waitForElement } from '../src/utils/dom';
@@ -48,6 +48,7 @@ export default defineContentScript({
   matches: ['https://www.tiktok.com/*', 'https://tiktok.com/*'],
   main: () => bootstrapContentScript({
     platform: 'tiktok',
+    displayName: tiktokAdapter.name,
     selectors: TIKTOK_SELECTORS,
     detectUser: detectTikTokUser,
     runPost,

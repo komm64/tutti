@@ -36,4 +36,12 @@ describe('detectThreadsUserFromDocument', () => {
       </main>
     `))).toBeNull();
   });
+
+  it('does not treat a feed author avatar labelled "profile picture" as the active account', () => {
+    expect(detectThreadsUserFromDocument(doc(`
+      <main>
+        <a href="/@someone-else"><img alt="someone-else's profile picture" src="https://cdn.example/avatar.jpg"></a>
+      </main>
+    `))).toBeNull();
+  });
 });

@@ -40,6 +40,24 @@ export function getPostSubmissionStartedAt(): number | undefined {
   return submissionStartedAt;
 }
 
+export interface PostProgressSnapshot {
+  /** Active step, or the last completed one between steps. */
+  step?: PostFlowStep;
+  /** When `step` started; undefined for a completed step. */
+  stepStartedAt?: number;
+  flowStartedAt: number;
+  submitted: boolean;
+}
+
+export function getPostProgressSnapshot(): PostProgressSnapshot {
+  return {
+    step: currentStep ?? lastCompletedStep,
+    stepStartedAt: currentStep ? currentStepStartedAt : undefined,
+    flowStartedAt,
+    submitted: submissionStarted,
+  };
+}
+
 export function markPostStepStarted(step: PostFlowStep): void {
   if (currentStep && currentStepStartedAt !== undefined) {
     recordStageTiming(currentStep, currentStepStartedAt, 'failed');

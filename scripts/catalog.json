@@ -672,6 +672,13 @@
       "owner": "release"
     },
     {
+      "path": "scripts/e2e/surface-x-hidden-thread.mjs",
+      "class": "release-gate",
+      "usage": "Native-hidden X three-part preview regression without focus emulation.",
+      "entryCommand": "node scripts/e2e/surface-x-hidden-thread.mjs --summary-json <task-directory>/x-hidden.json",
+      "owner": "release"
+    },
+    {
       "path": "scripts/e2e/switch-ig-to-professional.mjs",
       "class": "e2e",
       "usage": "Repeatable browser or end-to-end behavior check.",

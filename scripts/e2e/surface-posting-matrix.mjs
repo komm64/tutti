@@ -37,10 +37,12 @@ import {
 } from './cdp-harness.mjs';
 import {
   createTimedOutSurfaceSummary,
+  createXThreePartDraft,
   findExactPreviewDraftCandidate,
   formatSurfaceMatrixOutcome,
   hasSurfaceVideoPreview,
   normalizePreviewDraftText,
+  matchesPreviewThread,
   validateSurfaceResultContract,
 } from './surface-posting-matrix-contract.mjs';
 import { createMisskeyPreviewUploadTracker } from './misskey-preview-cleanup.mjs';
@@ -98,6 +100,15 @@ const PREVIEW_DRAFT_READERS = {
 };
 
 const CASES = {
+  'text-thread-three': {
+    requires: ['text'],
+    platforms: ['x'],
+    text: (stamp) => createXThreePartDraft(stamp).text,
+    expectedXChunks: (stamp) => createXThreePartDraft(stamp).chunks,
+    media: 'none',
+    verifyPostingWindowPlatform: 'x',
+    simulateUserBrowsing: true,
+  },
   'text-only': {
     requires: ['text'],
     text: (stamp) => `tutti surface matrix text ${stamp}`,
@@ -158,6 +169,21 @@ const CASES = {
     media: 'video',
     verifyPublishedMedia: true,
     verifyPostingWindowPlatform: 'x',
+    postingWindowFocusPolicy: 'foreground-video',
+    verifyPreviewDraftText: true,
+    requirePreviewVideoAttachment: true,
+  },
+  // tutti-issues#101: blank lines in an X media draft read back with extra
+  // newlines and aborted the post before submission.
+  'text-paragraphs-video': {
+    requires: ['shortVideo'],
+    platforms: ['x'],
+    text: (stamp) => (
+      `tutti surface matrix paragraphs ${stamp} 📱\n` +
+      'Second line (Game Boy, CRT…).\n\n\n' +
+      'After two blank lines\nhttps://tutti.komm64.com/'
+    ),
+    media: 'video',
     postingWindowFocusPolicy: 'foreground-video',
     verifyPreviewDraftText: true,
     requirePreviewVideoAttachment: true,
@@ -374,6 +400,7 @@ for (const caseName of requestedCases) {
     const startedAt = Date.now();
     const publishedTextEvidence = {};
     const publishedMediaEvidence = {};
+    let previewThreadEvidence;
     let postingWindowEvidence;
     let postingWindowProbe;
     let browsingTabId;
@@ -529,6 +556,12 @@ for (const caseName of requestedCases) {
       }));
       if (!result?.success) continue;
       if (mode === 'preview') {
+        if (platform === 'x' && caseDef.expectedXChunks) {
+          previewThreadEvidence = await readXPreviewThread(ctx, caseDef.expectedXChunks(stamp));
+          if (!previewThreadEvidence.ok) {
+            failures.push(`${caseName}/x: complete three-editor draft did not match (${JSON.stringify(previewThreadEvidence)})`);
+          }
+        }
         if (caseDef.verifyPreviewDraftText && PREVIEW_DRAFT_READERS[platform]) {
           const draft = await waitForPreviewDraftText(ctx, platform, text, {
             requireVideoAttachment: caseDef.requirePreviewVideoAttachment === true,
@@ -607,6 +640,7 @@ for (const caseName of requestedCases) {
       iteration: i,
       platforms,
       results: results.map(compactResult),
+      ...(previewThreadEvidence ? { previewThreadEvidence } : {}),
       ...(Object.keys(publishedTextEvidence).length > 0 ? { publishedTextEvidence } : {}),
       ...(Object.keys(publishedMediaEvidence).length > 0 ? { publishedMediaEvidence } : {}),
       ...(postingWindowEvidence ? { postingWindowEvidence } : {}),
@@ -668,6 +702,35 @@ function splitArg(name) {
   return value.split(',').map((item) => item.trim()).filter(Boolean);
 }
 
+// Use a real inactive tab, not a visibilityState shim. Opening one blank tab in
+// the test profile leaves X hidden throughout editing, matching issue #97.
+async function readXPreviewThread(ctx, expectedChunks) {
+  const candidates = [];
+  for (const page of ctx.pages()) {
+    if (!PREVIEW_DRAFT_READERS.x.pageUrl.test(page.url())) continue;
+    const drafts = await page.evaluate(() => {
+      const groups = new Map();
+      for (const editor of document.querySelectorAll('[data-testid^="tweetTextarea_"]')) {
+        const testId = editor.getAttribute('data-testid');
+        if (!/^tweetTextarea_\d+$/.test(testId ?? '')) continue;
+        const root = editor.closest('[role="dialog"]') ?? editor.closest('main') ?? document.body;
+        if (!groups.has(root)) groups.set(root, []);
+        groups.get(root).push({ testId, text: editor.innerText ?? editor.textContent ?? '' });
+      }
+      return [...groups.values()].map((editors) => editors.sort((a, b) => (
+        Number(a.testId.split('_')[1]) - Number(b.testId.split('_')[1])
+      )));
+    });
+    for (const editors of drafts) {
+      candidates.push({ url: page.url(), editors });
+      if (matchesPreviewThread(editors, expectedChunks)) {
+        return { ok: true, url: page.url(), editors };
+      }
+    }
+  }
+  return { ok: false, candidates };
+}
+
 async function readPreviewDraftText(ctx, platform) {
   const reader = PREVIEW_DRAFT_READERS[platform];
   if (!reader) return { found: false };
@@ -678,7 +741,14 @@ async function readPreviewDraftText(ctx, platform) {
     const count = await drafts.count();
     for (let i = 0; i < count; i += 1) {
       const draft = drafts.nth(i);
-      const domText = await draft.innerText();
+      // X Draft.js renders a blank line as an empty block; innerText reports
+      // an extra newline for it, so read the blocks when they exist.
+      const domText = await draft.evaluate((element) => {
+        const blocks = element.querySelectorAll('[data-block="true"]');
+        return blocks.length > 0
+          ? Array.from(blocks, (block) => block.textContent ?? '').join('\n')
+          : element.innerText;
+      });
       const lexicalText = await draft.evaluate((element) => {
         let current = element;
         let editor = null;
@@ -769,6 +839,7 @@ async function waitForPreviewDraftText(
 }
 
 function supportsCase(platform, caseDef) {
+  if (caseDef.platforms && !caseDef.platforms.includes(platform)) return false;
   const caseName = Object.entries(CASES).find(([, value]) => value === caseDef)?.[0];
   if (caseName && UNSUPPORTED_CASES[platform]?.includes(caseName)) return false;
   const kinds = PLATFORM_KINDS[platform] ?? [];

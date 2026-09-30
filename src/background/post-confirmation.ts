@@ -12,10 +12,6 @@ import {
   capturePostUrlFromTabWithRetry,
   runVerify,
 } from './platform-strategies';
-import {
-  preparePostUrlCaptureBaseline,
-  type PostUrlCaptureBaseline,
-} from './post-url-capture';
 import { unconfirmedPostResult, withFlow } from './post-result-policy';
 import { retryTransientTabAction } from './tab-action-retry';
 
@@ -24,17 +20,6 @@ export interface PostConfirmationOptions {
 }
 
 export function createPostConfirmation(options: PostConfirmationOptions = {}) {
-  async function preparePostUrlCapture(
-    platform: PlatformId,
-    tabId: number,
-  ): Promise<PostUrlCaptureBaseline | undefined> {
-    return await preparePostUrlCaptureBaseline(
-      platform,
-      tabId,
-      (message) => options.appendBackgroundLog?.(message),
-    );
-  }
-
   async function recoverFromAmbiguousDispatchFailure(
     error: unknown,
     platform: PlatformId,
@@ -43,7 +28,6 @@ export function createPostConfirmation(options: PostConfirmationOptions = {}) {
     expectedUser: string | undefined,
     dryRun: boolean,
     minCapturedAt?: number,
-    baseline?: PostUrlCaptureBaseline,
   ): Promise<PostResultMessage | null> {
     if (dryRun || !isAmbiguousPostDispatchError(error)) return null;
 
@@ -55,7 +39,6 @@ export function createPostConfirmation(options: PostConfirmationOptions = {}) {
       text,
       expectedUser,
       minCapturedAt,
-      baseline,
     );
     return captured.url
       ? withFlow({
@@ -84,7 +67,6 @@ export function createPostConfirmation(options: PostConfirmationOptions = {}) {
     tabId: number,
     text: string,
     expectedUser: string | undefined,
-    baseline?: PostUrlCaptureBaseline,
   ): Promise<PostResultMessage> {
     if (response.url) return response;
     const captured = await captureUrl(
@@ -93,7 +75,6 @@ export function createPostConfirmation(options: PostConfirmationOptions = {}) {
       text,
       expectedUser,
       response.flow?.submissionStartedAt,
-      baseline,
     );
     const tabUrlAfter = await browser.tabs.get(tabId)
       .then((tab) => tab.url ?? tab.pendingUrl)
@@ -117,7 +98,6 @@ export function createPostConfirmation(options: PostConfirmationOptions = {}) {
     text: string,
     expectedUser: string | undefined,
     minCapturedAt?: number,
-    baseline?: PostUrlCaptureBaseline,
   ): Promise<{ url?: string; trace: string[] }> {
     const trace: string[] = [];
     const url = await capturePostUrlFromTabWithRetry({
@@ -126,7 +106,6 @@ export function createPostConfirmation(options: PostConfirmationOptions = {}) {
       text,
       expectedUser,
       minCapturedAt,
-      baseline,
       onDebug: (message) => {
         trace.push(message);
         options.appendBackgroundLog?.(message);
@@ -142,7 +121,6 @@ export function createPostConfirmation(options: PostConfirmationOptions = {}) {
   }
 
   return {
-    preparePostUrlCapture,
     ensurePostUrl,
     recoverFromAmbiguousDispatchFailure,
   };

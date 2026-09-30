@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PlatformAdapter } from '../adapters/types';
 import type { PostResultMessage } from '../messages';
 import { createPlatformPoster } from './platform-poster';
+import { PageLoadTimeoutError } from './page-load-timeout-error';
 
 const mocks = vi.hoisted(() => ({
   buildLoginRedirectErrorForUrl: vi.fn(() => null),
@@ -318,6 +319,44 @@ describe('platform poster transport boundaries', () => {
     expect(mocks.openOrFocusTab).toHaveBeenCalledOnce();
     expect(mocks.sendPostMessageWhenReady).toHaveBeenCalledOnce();
     expect(mocks.closeTabSafely).not.toHaveBeenCalled();
+  });
+
+  it('retries a media post in a fresh composer when the page never loaded', async () => {
+    const x = adapter('x');
+    mocks.resolveAdapter.mockResolvedValue(x);
+    mocks.tryApiPath.mockResolvedValue('no-credentials');
+    mocks.openOrFocusTab
+      .mockRejectedValueOnce(new PageLoadTimeoutError())
+      .mockResolvedValueOnce({
+        tab: { id: 43, url: 'https://social.example/compose' },
+        wasCreated: true,
+      });
+    mocks.sendPostMessageWhenReady.mockResolvedValueOnce({
+      type: 'POST_RESULT',
+      platform: 'x',
+      success: true,
+      url: 'https://x.com/test/status/1',
+      flow: { mode: 'post', submitReached: true },
+    } satisfies PostResultMessage);
+
+    const result = await createPoster().postToPlatform(
+      'x',
+      'hello',
+      [{
+        name: 'clip.mp4',
+        type: 'video/mp4',
+        data: 'AA==',
+        bytes: 1,
+        durationS: 1,
+      }],
+      undefined,
+      undefined,
+      true,
+    );
+
+    expect(result).toMatchObject({ success: true });
+    expect(mocks.openOrFocusTab).toHaveBeenCalledTimes(2);
+    expect(mocks.sendPostMessageWhenReady).toHaveBeenCalledOnce();
   });
 
   it('does not reset a failed preview media processor in a fresh composer', async () => {

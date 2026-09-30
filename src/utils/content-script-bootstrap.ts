@@ -48,10 +48,13 @@ import {
   markPostStepStarted,
   resetPostSubmissionState,
 } from './post-submission-state';
+import { showPostingStatusBanner } from './posting-status-banner';
 
 export interface BootstrapOptions<S extends Record<string, string>> {
   /** 'x' / 'bluesky' / etc */
   platform: PlatformId;
+  /** User-facing SNS name for the in-page posting status banner. */
+  displayName: string;
   /** 当 SNS の selector map (DIAGNOSE_PLATFORM で返す) */
   selectors: S;
   /** logged-in user 名検出 ('null' で未ログイン扱い)。 detectAndReportUser に渡す */
@@ -83,7 +86,7 @@ export interface BootstrapOptions<S extends Record<string, string>> {
 export function bootstrapContentScript<S extends Record<string, string>>(
   opts: BootstrapOptions<S>,
 ): void {
-  const { platform, selectors, detectUser, runPost, extraHandler } = opts;
+  const { platform, displayName, selectors, detectUser, runPost, extraHandler } = opts;
 
   browser.runtime.onMessage.addListener((rawMsg, _sender, sendResponse) => {
     const msg = decodeMessage(rawMsg);
@@ -124,6 +127,7 @@ export function bootstrapContentScript<S extends Record<string, string>>(
 
     void (async () => {
       resetPostSubmissionState();
+      const hideStatusBanner = showPostingStatusBanner(displayName, msg.dryRun === true);
       try {
         // v0.4.83: multi-account 誤爆 guard。 popup が想定していた user
         // (msg.expectedUser) と post 直前の active user を比較し、 別 account に
@@ -187,6 +191,8 @@ export function bootstrapContentScript<S extends Record<string, string>>(
           }),
           error: message,
         } satisfies PostResultMessage);
+      } finally {
+        hideStatusBanner();
       }
     })();
     return true;

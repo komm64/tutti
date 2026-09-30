@@ -31,13 +31,18 @@ export function getXComposeRoot(textarea: HTMLElement): HTMLElement {
 }
 
 /**
- * Draft.js renders each paragraph in a separate block. textContent joins
- * those blocks without separators, which makes a correct URL-prefilled draft
- * look different from the original text. innerText preserves the rendered
- * line boundaries used by X's composer.
+ * Draft.js renders each line as a separate `[data-block]` element. Joining
+ * the blocks with a newline reproduces the source text exactly. textContent
+ * drops the separators, and innerText renders an empty block (blank line) as
+ * two newlines, so "A\n\nB" would read back as "A\n\n\nB" (tutti-issues#101).
  */
 export function readXEditableText(element: HTMLElement | undefined): string {
-  return element?.innerText ?? element?.textContent ?? '';
+  if (!element) return '';
+  const blocks = element.querySelectorAll('[data-block="true"]');
+  if (blocks.length > 0) {
+    return Array.from(blocks, (block) => block.textContent ?? '').join('\n');
+  }
+  return element.innerText ?? element.textContent ?? '';
 }
 
 export function getXMediaComposeRoot(
@@ -77,12 +82,16 @@ export interface XThreadAddPostTarget {
  * together with the textarea that owns it, and require that owner's first
  * chunk to match the draft. This avoids staying scoped to the disabled home
  * composer or clicking an unrelated visible draft dialog.
+ * Each thread item can keep its own visible Add button. It inserts after that
+ * item, so matching the dialog alone is not enough: require the previous
+ * chunk's own toolbar, or a later add will insert an empty item mid-thread.
  */
 export function getXThreadAddPostTarget(
   scope: ParentNode,
   expectedFirstChunk: string,
   isVisible: (element: HTMLElement) => boolean,
   isDisabled: (element: HTMLElement) => boolean,
+  previousChunk: { index: number; text: string } = { index: 0, text: expectedFirstChunk },
 ): XThreadAddPostTarget | undefined {
   const expected = normalizeXComposeText(expectedFirstChunk);
   const candidates = Array.from(scope.querySelectorAll<HTMLElement>(
@@ -103,12 +112,25 @@ export function getXThreadAddPostTarget(
     const owner = button.closest<HTMLElement>('[role="dialog"]') ??
       button.closest<HTMLElement>('main') ??
       document.body;
-    const textarea = getXThreadTextarea(owner, 0, isVisible);
-    if (
-      textarea &&
-      normalizeXComposeText(readXEditableText(textarea)) === expected
-    ) {
-      return { button, textarea };
+    const firstTextarea = getXThreadTextarea(owner, 0, isVisible);
+    if (!firstTextarea || normalizeXComposeText(readXEditableText(firstTextarea)) !== expected) continue;
+
+    // The nearest ancestor containing an editor is the toolbar's thread item.
+    // Do not guess when it contains multiple editors (e.g. the whole dialog).
+    for (let item = button.parentElement; item; item = item.parentElement) {
+      const editors = getXThreadTextareas(item, isVisible);
+      if (editors.length > 0) {
+        const textarea = editors[0]!;
+        if (
+          editors.length === 1 &&
+          textarea.getAttribute('data-testid') === `tweetTextarea_${previousChunk.index}` &&
+          normalizeXComposeText(readXEditableText(textarea)) === normalizeXComposeText(previousChunk.text)
+        ) {
+          return { button, textarea };
+        }
+        break;
+      }
+      if (item === owner) break;
     }
   }
 

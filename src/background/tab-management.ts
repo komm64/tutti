@@ -6,6 +6,7 @@
  * 'complete' event が flaky な場面でも timeout する。
  */
 
+import { PageLoadTimeoutError } from './page-load-timeout-error';
 import { log } from '../utils/logger';
 import { t } from '../utils/i18n';
 import { waitForWebActionPacing } from '../utils/web-action-pacing';
@@ -44,13 +45,6 @@ export interface OpenOrFocusTabOptions {
   focusWindow?: boolean;
   /** Restore OS focus here after Chromium implicitly focuses targetWindowId. */
   restoreFocusWindowId?: number;
-}
-
-class PageLoadTimeoutError extends Error {
-  constructor() {
-    super(t('runtimeSnsPageLoadTimeout'));
-    this.name = 'PageLoadTimeoutError';
-  }
 }
 
 /**
@@ -161,13 +155,19 @@ export async function openOrFocusTab(
   if (active) {
     await restoreRequestedWindowFocus(options, createdWindowId);
   }
-  await retryPreSubmitLoadWait(
-    () => waitForTabComplete(createdTabId),
-    options,
-    () => retryTransientTabAction('reload SNS tab after load timeout', () => (
-      runPacedNavigation(() => browser.tabs.reload(createdTabId))
-    )),
-  );
+  try {
+    await retryPreSubmitLoadWait(
+      () => waitForTabComplete(createdTabId),
+      options,
+      () => retryTransientTabAction('reload SNS tab after load timeout', () => (
+        runPacedNavigation(() => browser.tabs.reload(createdTabId))
+      )),
+    );
+  } catch (error) {
+    // The caller may retry in a fresh composer; do not leave this tab behind.
+    if (error instanceof PageLoadTimeoutError) await closeTabSafely(createdTabId);
+    throw error;
+  }
   if (active) {
     await retryTransientTabAction('re-activate ready SNS tab', () => (
       browser.tabs.update(createdTabId, { active: true })

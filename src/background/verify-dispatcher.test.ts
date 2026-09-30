@@ -13,6 +13,7 @@ import {
   cleanXDescription,
   cleanYouTubeDescription,
   judgeInstagramImage,
+  judgeInstagramVideo,
   judgeTikTokVideo,
   judgeXImage,
   verifyViaOg,
@@ -82,7 +83,7 @@ describe('verification strategy routing', () => {
       typeof judgeTikTokVideo | undefined,
     ]> = [
       ['x', cleanXDescription, judgeXImage, undefined],
-      ['instagram', cleanInstagramDescription, judgeInstagramImage, undefined],
+      ['instagram', cleanInstagramDescription, judgeInstagramImage, judgeInstagramVideo],
       ['threads', cleanThreadsDescription, undefined, undefined],
       ['tumblr', cleanGenericDescription, undefined, undefined],
       ['pixiv', cleanGenericDescription, undefined, undefined],

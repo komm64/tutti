@@ -39,6 +39,7 @@ export default defineContentScript({
   matches: ['https://www.threads.net/*', 'https://www.threads.com/*'],
   main: () => bootstrapContentScript({
     platform: 'threads',
+    displayName: threadsAdapter.name,
     selectors: THREADS_SELECTORS,
     detectUser: detectThreadsUser,
     runPost,

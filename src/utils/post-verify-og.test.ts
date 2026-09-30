@@ -8,6 +8,7 @@ import {
   extractMetaContent,
   extractUrlEvidenceFromHtml,
   hasVideoEvidenceInHtml,
+  judgeInstagramVideo,
   verifyViaOg,
 } from './post-verify-og';
 
@@ -57,6 +58,22 @@ describe('hasVideoEvidenceInHtml', () => {
 
   it('does not treat a plain image post as video', () => {
     expect(hasVideoEvidenceInHtml('<meta property="og:image" content="https://cdn.example/image.jpg">')).toBe(false);
+  });
+});
+
+describe('judgeInstagramVideo', () => {
+  it('accepts a Reel URL before og:video is published', () => {
+    expect(judgeInstagramVideo('<html></html>', 'https://www.instagram.com/reel/Dd6bBVxyrbN/'))
+      .toBe(true);
+  });
+
+  it('still requires video evidence for a regular post URL', () => {
+    expect(judgeInstagramVideo('<html></html>', 'https://www.instagram.com/p/Dd6bBVxyrbN/'))
+      .toBe(false);
+    expect(judgeInstagramVideo(
+      '<meta property="og:video" content="https://scontent.cdninstagram.com/v.mp4">',
+      'https://www.instagram.com/p/Dd6bBVxyrbN/',
+    )).toBe(true);
   });
 });
 
