@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { PlatformId } from '../types/platform';
 import {
+  buildImageCompatibility,
   buildSelectedCompatibilityErrors,
   buildVideoCompatibility,
+  filterPlatformsForKind,
   resolveCurrentKind,
 } from './compatibility';
 
@@ -82,5 +84,29 @@ describe('buildSelectedCompatibilityErrors', () => {
 
     expect(compatibility.bluesky).toBeNull();
     expect(buildSelectedCompatibilityErrors(['bluesky'], compatibility, {})).toEqual([]);
+  });
+});
+
+describe('filterPlatformsForKind', () => {
+  it('skips video-only platforms left selected from a previous video post', () => {
+    const selected: PlatformId[] = ['x', 'bluesky', 'instagram', 'tiktok', 'youtube'];
+    expect(filterPlatformsForKind(selected, 'image')).toEqual(['x', 'bluesky', 'instagram']);
+    expect(filterPlatformsForKind(selected, 'text')).toEqual(['x', 'bluesky']);
+    expect(filterPlatformsForKind(selected, 'shortVideo')).toEqual(selected);
+  });
+
+  it('does not let a video-only platform block an image post', () => {
+    const platforms = (['x', 'tiktok', 'youtube'] as PlatformId[])
+      .map((id) => ({ id, name: id, limit: 280, available: true }));
+    const images = [{ name: 'a.png', type: 'image/png', size: 1, url: 'blob:a' }];
+    const imageCompatibility = buildImageCompatibility(
+      platforms as never,
+      images as never,
+      null,
+      (max) => `max ${max}`,
+    );
+    const selectedIds = filterPlatformsForKind(['x', 'tiktok', 'youtube'], 'image');
+    expect(buildSelectedCompatibilityErrors(selectedIds, {}, imageCompatibility)).toEqual([]);
+    expect(imageCompatibility['tiktok']).toBeNull();
   });
 });

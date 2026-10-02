@@ -48,6 +48,7 @@
     buildImageCompatibility,
     buildVideoCompatibility,
     countTotalPosts,
+    filterPlatformsForKind,
     resolveCurrentKind,
   } from '../../src/popup/compatibility';
   import { buildDraftKey } from '../../src/popup/draft-key';
@@ -517,8 +518,13 @@
     }
   }
 
+  // 現在のコンテンツ種別を自動判定: 動画 60s 以下=short / 超=long / 画像 / 文字
+  const currentKind = $derived.by(() => resolveCurrentKind(images, video));
   const selectedIds = $derived(
-    selectedPlatformIds(selected).filter((id) => platforms.some((p) => p.id === id && p.available)),
+    filterPlatformsForKind(
+      selectedPlatformIds(selected).filter((id) => platforms.some((p) => p.id === id && p.available)),
+      currentKind,
+    ),
   );
   // ログイン済み(lastSeenUsers でハンドル検出済み)を上 section、未確認を下 section に。
   // 各 section 内では platforms 配列の固定順を維持する。
@@ -529,8 +535,6 @@
     platforms.filter((p) => !lastSeenUsers[p.id]),
   );
   const hasMedia = $derived(images.length > 0 || video !== null);
-  // 現在のコンテンツ種別を自動判定: 動画 60s 以下=short / 超=long / 画像 / 文字
-  const currentKind = $derived.by(() => resolveCurrentKind(images, video));
   const totalPostCount = $derived(countTotalPosts(platforms, selectedIds, text));
   const videoCompatibility = $derived(buildVideoCompatibility(platforms, video));
   // 画像サイズは投稿時に自動リサイズされるので、枚数オーバーだけ警告する
