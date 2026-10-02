@@ -11,6 +11,18 @@ export function resolveCurrentKind(images: readonly ImagePreview[], video: Video
   return 'text';
 }
 
+/**
+ * Selection is kept across drafts, so a video-only SNS chosen for the previous
+ * video stays checked while an image is attached. Such platforms are skipped
+ * for this draft (their row is dimmed) instead of blocking the whole post.
+ */
+export function filterPlatformsForKind(
+  selectedIds: readonly PlatformId[],
+  kind: PopupContentKind,
+): PlatformId[] {
+  return selectedIds.filter((id) => getAdapter(id)?.kinds.includes(kind) ?? true);
+}
+
 export function countTotalPosts(
   platforms: readonly PlatformOption[],
   selectedIds: readonly PlatformId[],
@@ -48,7 +60,7 @@ export function buildImageCompatibility(
   return Object.fromEntries(
     platforms.map((platform) => {
       const adapter = getAdapter(platform.id);
-      if (!adapter) return [platform.id, null];
+      if (!adapter || !adapter.kinds.includes('image')) return [platform.id, null];
       if (images.length > adapter.imageConstraints.maxImages) {
         return [platform.id, tooManyImagesMessage(adapter.imageConstraints.maxImages)];
       }
