@@ -23,8 +23,12 @@ const THREADS_POST_URL_RE = /^https:\/\/(?:www\.)?threads\.(?:com|net)\/@[^/]+\/
 const THREADS_CODE_RE = /^[A-Za-z0-9_-]{5,}$/;
 const THREADS_USERNAME_RE = /^[A-Za-z0-9._]{2,}$/;
 
+/**
+ * SNS 側のエディタ / 投稿表示が自動で書き換える表記を吸収して比較用に正規化する。
+ * Tumblr (Gutenberg) は "..." を "…" に置換する (tutti-issues#109)。
+ */
 export function normalizeCaptureText(value: string): string {
-  return value.replace(/\s+/g, ' ').trim();
+  return value.replace(/…/g, '...').replace(/\s+/g, ' ').trim();
 }
 
 export function hashCaptureText(value: string): string {

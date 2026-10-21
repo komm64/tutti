@@ -11,6 +11,11 @@ describe('Tumblr body text validation', () => {
     expect(validateTumblrBodyText('hello\nworld', 'hello world')).toEqual({ ok: true });
   });
 
+  // tutti-issues#109: Gutenberg replaces "..." with an ellipsis character.
+  it('treats the editor ellipsis character as three dots', () => {
+    expect(validateTumblrBodyText('mnya mnya…', 'mnya mnya...')).toEqual({ ok: true });
+  });
+
   it('rejects duplicated full post text', () => {
     const text = 'Tutti is now in beta';
     expect(countNormalizedOccurrences(`${text}\n\n${text}`, text)).toBe(2);

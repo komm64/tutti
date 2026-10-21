@@ -132,6 +132,12 @@ const CASES = {
     ),
     media: 'none',
   },
+  // tutti-issues#109: Tumblr rejected a body ending with "..." before media attach.
+  'text-ellipsis-image': {
+    requires: ['image'],
+    text: (stamp) => `tutti surface matrix ellipsis ${stamp} ${'mnya '.repeat(12)}mnya...`,
+    media: 'image',
+  },
   'image-only': {
     requires: ['image'],
     text: () => '',
