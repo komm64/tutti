@@ -1,4 +1,5 @@
 import { stripHashtagsFromText } from './hashtags';
+import { normalizeCaptureText } from './post-capture-record';
 
 export interface TumblrTextValidation {
   ok: boolean;
@@ -15,7 +16,7 @@ export interface TumblrTextValidationOptions {
 }
 
 export function normalizeTumblrText(value: string): string {
-  return value.replace(/\s+/g, ' ').trim();
+  return normalizeCaptureText(value);
 }
 
 export function countNormalizedOccurrences(haystack: string, needle: string): number {
