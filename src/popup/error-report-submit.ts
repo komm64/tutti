@@ -9,8 +9,8 @@ import {
   type ErrorReportLogEntry,
 } from '../utils/error-report';
 import {
-  hashReportKey,
-  isRecentlyReported,
+  allRecentlyReported,
+  hashReportKeys,
   markReported,
 } from '../utils/report-dedup';
 import { withTimeout } from '../utils/promise-timeout';
@@ -48,9 +48,9 @@ export async function submitPopupErrorReport(input: {
   dedupedMessage: (hours: number) => string;
 }): Promise<ReportResult> {
   const settings = await getSettings();
-  const hash = await hashReportKey(input.errorText);
+  const hashes = await hashReportKeys(input.errorText);
   if (!settings.disableReportDedup) {
-    const lastTs = await isRecentlyReported(hash);
+    const lastTs = await allRecentlyReported(hashes);
     if (lastTs !== null) {
       return {
         ok: false,
@@ -83,7 +83,7 @@ export async function submitPopupErrorReport(input: {
       () => controller.abort(),
     );
     if (res.ok && data.ok) {
-      if (!settings.disableReportDedup) void markReported(hash);
+      if (!settings.disableReportDedup) void markReported(hashes);
       return { ok: true, issueUrl: data.issueUrl };
     }
     return { ok: false, error: data.error ?? `HTTP ${res.status}` };

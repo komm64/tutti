@@ -8,15 +8,15 @@ import {
 
 const mocks = vi.hoisted(() => ({
   getSettings: vi.fn(async () => ({ disableReportDedup: true })),
-  hashReportKey: vi.fn(async () => 'report-hash'),
-  isRecentlyReported: vi.fn(async () => null),
+  hashReportKeys: vi.fn(async () => ['report-hash']),
+  allRecentlyReported: vi.fn(async () => null),
   markReported: vi.fn(async () => undefined),
 }));
 
 vi.mock('../storage', () => ({ getSettings: mocks.getSettings }));
 vi.mock('../utils/report-dedup', () => ({
-  hashReportKey: mocks.hashReportKey,
-  isRecentlyReported: mocks.isRecentlyReported,
+  hashReportKeys: mocks.hashReportKeys,
+  allRecentlyReported: mocks.allRecentlyReported,
   markReported: mocks.markReported,
 }));
 

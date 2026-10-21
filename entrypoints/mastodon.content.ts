@@ -16,6 +16,29 @@ import {
   readFreshCapturedPost,
 } from '../src/utils/post-capture-record';
 import { openReplyComposerIfOnPostPage } from '../src/utils/reply-compose';
+import { waitForCondition } from '../src/utils/dom';
+
+/**
+ * GIF / 動画は upload API が 202 を返したあと server 側で変換処理が続く。処理中も
+ * Publish は押せてしまい、押すと media 抜きで本文だけ投稿される。
+ * 旧 UI は .upload-progress が処理中表示。redesign の attachments__mediaUpload は
+ * 処理後も残るが、処理中は中身が空で ALT ボタンが無い。
+ */
+const MASTODON_MEDIA_PROCESSING_TIMEOUT_MS = 180_000;
+
+function isMastodonMediaProcessing(): boolean {
+  if (document.querySelector('.upload-progress')) return true;
+  return Array.from(document.querySelectorAll('[class*="_compose_redesign_attachments__mediaUpload"]'))
+    .some((el) => !el.querySelector('[class*="_compose_redesign_attachments__mediaMenuAltButton"]'));
+}
+
+async function waitForMastodonMediaProcessed(): Promise<void> {
+  const done = await waitForCondition(
+    () => (isMastodonMediaProcessing() ? null : true),
+    { timeoutMs: MASTODON_MEDIA_PROCESSING_TIMEOUT_MS, intervalMs: 250 },
+  );
+  if (!done) throw new Error('Mastodon: media is still processing; the post was not submitted');
+}
 
 function detectMastodonUser(): string | null {
   type Strategy = { name: string; fn: () => string | null };
@@ -151,6 +174,7 @@ async function runPost(
     implementationPath,
     composeInputTimeoutMs: 30000,
     postButtonTimeoutMs: 30000,
+    beforeSubmit: images?.length ? waitForMastodonMediaProcessed : undefined,
   });
 
   let url: string | undefined;
