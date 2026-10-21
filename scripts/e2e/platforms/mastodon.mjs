@@ -9,8 +9,9 @@ import { ensureLoggedIn, sendPostMessage, timestampedText } from '../_lib.mjs';
 
 const URL_GLOB = 'https://mastodon.social/*';
 const COMPOSE_URL = 'https://mastodon.social/share?text=hello';
-// compose textarea (Mastodon Web UI)
-const COMPOSE_TEXTAREA = 'textarea.autosuggest-textarea__textarea';
+// compose textarea (Mastodon Web UI、旧 UI / 2026-10 redesign 両対応)
+const COMPOSE_TEXTAREA =
+  'textarea.autosuggest-textarea__textarea, form[class*="_compose_redesign__root"] textarea[class*="_compose_redesign__textarea"]';
 
 export async function run({ ctx, debug }) {
   const text = timestampedText('mastodon');

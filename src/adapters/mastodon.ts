@@ -36,10 +36,17 @@ export const mastodonAdapter: PlatformAdapter = {
 };
 
 export const MASTODON_SELECTORS = {
-  /** 投稿ボタン(Mastodon Web UI の標準 class、locale 不問の data 属性が無いため) */
-  postButton: 'button.button[type="submit"]',
-  /** 投稿入力欄(fallback 用) */
-  textarea: 'textarea.autosuggest-textarea__textarea',
-  /** 画像添付用 file input(.compose-form 内の hidden input) */
-  fileInput: '.compose-form input[type="file"], input[type="file"][multiple]',
+  /**
+   * 投稿ボタン。旧 UI は `.button`、2026-10 の compose redesign (mastodon.social)
+   * は `form._compose_redesign__root[role=dialog]` 内の submit。locale 不問の
+   * data 属性が無いので class + type で拾う
+   */
+  postButton:
+    'button.button[type="submit"], form[class*="_compose_redesign__root"] button[type="submit"]',
+  /** 投稿入力欄 (旧 UI / redesign 両対応) */
+  textarea:
+    'textarea.autosuggest-textarea__textarea, form[class*="_compose_redesign__root"] textarea[class*="_compose_redesign__textarea"]',
+  /** 画像添付用 file input (旧 UI は .compose-form、redesign は form footer) */
+  fileInput:
+    '.compose-form input[type="file"], form[class*="_compose_redesign__root"] input[type="file"], input[type="file"][multiple]',
 } as const;
