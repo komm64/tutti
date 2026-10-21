@@ -107,5 +107,14 @@ function isReplyButton(el: HTMLElement): boolean {
   const aria = el.getAttribute('aria-label')?.trim();
   if (aria && REPLY_TEXTS.includes(aria)) return true;
   const title = el.getAttribute('title')?.trim();
-  return !!title && REPLY_TEXTS.includes(title);
+  if (title && REPLY_TEXTS.includes(title)) return true;
+  // Mastodon redesign (2026-10): icon button の名前は aria-labelledby 先の span
+  const labelledBy = el.getAttribute('aria-labelledby');
+  if (!labelledBy) return false;
+  const label = labelledBy
+    .split(/\s+/)
+    .map((id) => el.ownerDocument.getElementById(id)?.textContent?.trim() ?? '')
+    .join(' ')
+    .trim();
+  return REPLY_TEXTS.includes(label);
 }

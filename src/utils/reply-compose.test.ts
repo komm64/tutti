@@ -59,6 +59,17 @@ describe('reply compose helpers', () => {
     expect(findReplyButton('mastodon')?.getAttribute('aria-label')).toBe('返信');
   });
 
+  it('finds reply buttons named via aria-labelledby (Mastodon redesign)', () => {
+    document.body.innerHTML = `
+      <span id="l1">Boost or quote</span><span id="l2">Reply</span>
+      <button aria-labelledby="l1"><span>0</span></button>
+      <button aria-labelledby="l2" data-target="reply"><span>0</span></button>
+    `;
+    document.querySelectorAll<HTMLElement>('button').forEach(markVisible);
+
+    expect(findReplyButton('mastodon')?.dataset.target).toBe('reply');
+  });
+
   it('next waits directly for the reply editor without the legacy fixed delay', async () => {
     vi.useFakeTimers();
     history.replaceState({}, '', '/@alice/1234567890');
