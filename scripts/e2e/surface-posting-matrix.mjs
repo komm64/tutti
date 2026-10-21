@@ -880,9 +880,10 @@ function attachConsoleHandlers(ctx) {
 }
 
 async function readImageFixture(path) {
-  const type = path.toLowerCase().endsWith('.jpg') || path.toLowerCase().endsWith('.jpeg')
+  const lower = path.toLowerCase();
+  const type = lower.endsWith('.jpg') || lower.endsWith('.jpeg')
     ? 'image/jpeg'
-    : 'image/png';
+    : lower.endsWith('.gif') ? 'image/gif' : 'image/png';
   const fixture = await loadE2eFixture(basename(path), type, {
     root: dirname(path),
     required: true,

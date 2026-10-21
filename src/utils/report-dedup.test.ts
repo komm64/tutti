@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   REPORT_DEDUP_KEY,
   REPORT_DEDUP_WINDOW_MS,
+  allRecentlyReported,
   hashReportKey,
+  hashReportKeys,
   isRecentlyReported,
   markReportInMap,
   markReported,
@@ -17,6 +19,26 @@ describe('hashReportKey', () => {
 
   it('changes when the error head changes', async () => {
     await expect(hashReportKey('a')).resolves.not.toBe(await hashReportKey('b'));
+  });
+});
+
+describe('per-line report keys', () => {
+  function memoryStorage() {
+    const data: Record<string, unknown> = {};
+    return {
+      get: async (key: string) => ({ [key]: data[key] }),
+      set: async (items: Record<string, unknown>) => { Object.assign(data, items); },
+    };
+  }
+
+  it('does not dedup a report once a new platform failure is appended', async () => {
+    const storage = memoryStorage();
+    const first = 'bluesky (uncertain): ' + 'x'.repeat(120) + '\nmastodon: ' + 'y'.repeat(120);
+    const later = `${first}\ntumblr: body missing\ninstagram: share failed`;
+    await markReported(await hashReportKeys(first), storage, 1000);
+
+    await expect(allRecentlyReported(await hashReportKeys(first), storage, 2000)).resolves.toBe(1000);
+    await expect(allRecentlyReported(await hashReportKeys(later), storage, 2000)).resolves.toBeNull();
   });
 });
 

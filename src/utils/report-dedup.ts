@@ -15,6 +15,15 @@ export async function hashReportKey(errorText: string, subtle: SubtleCrypto = cr
     .join('');
 }
 
+/**
+ * 報告文は失敗 SNS ごとに 1 行ずつ溜まる (`<platform>: <error>`)。全体の先頭だけで
+ * hash すると後から増えた SNS の失敗が既報扱いになるので、行ごとに key を作る。
+ */
+export async function hashReportKeys(errorText: string, subtle: SubtleCrypto = crypto.subtle): Promise<string[]> {
+  const lines = [...new Set(errorText.split('\n').map((l) => l.trim()).filter(Boolean))];
+  return Promise.all((lines.length > 0 ? lines : [errorText]).map((l) => hashReportKey(l, subtle)));
+}
+
 export function recentReportTimestamp(
   map: Record<string, number>,
   hash: string,
@@ -50,13 +59,30 @@ export async function isRecentlyReported(
   return recentReportTimestamp(readReportDedupMap(stored), hash, now);
 }
 
+/** 全 key が期間内に報告済みならその最新 timestamp、1 つでも未報告なら null */
+export async function allRecentlyReported(
+  hashes: string[],
+  storage: StorageAreaLike = browser.storage.local,
+  now: number = Date.now(),
+): Promise<number | null> {
+  const map = readReportDedupMap(await storage.get(REPORT_DEDUP_KEY));
+  let latest: number | null = null;
+  for (const hash of hashes) {
+    const ts = recentReportTimestamp(map, hash, now);
+    if (ts === null) return null;
+    latest = Math.max(latest ?? ts, ts);
+  }
+  return latest;
+}
+
 export async function markReported(
-  hash: string,
+  hash: string | string[],
   storage: StorageAreaLike = browser.storage.local,
   now: number = Date.now(),
 ): Promise<void> {
   const stored = await storage.get(REPORT_DEDUP_KEY);
-  const next = markReportInMap(readReportDedupMap(stored), hash, now);
+  let next = readReportDedupMap(stored);
+  for (const h of Array.isArray(hash) ? hash : [hash]) next = markReportInMap(next, h, now);
   await storage.set({ [REPORT_DEDUP_KEY]: next });
 }
 

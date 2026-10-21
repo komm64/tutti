@@ -69,8 +69,10 @@ export async function verifyBlueskyPost(
       post.embed?.images ??
       post.embed?.media?.images ??
       [];
-    const hasImages = Array.isArray(imgList) && imgList.length > 0;
     const embedJson = JSON.stringify(post.record?.embed ?? post.embed ?? {});
+    // GIF 画像は Bluesky 側で app.bsky.embed.video (presentation: "gif") に変換される
+    const hasImages = (Array.isArray(imgList) && imgList.length > 0)
+      || /"presentation"\s*:\s*"gif"/.test(embedJson);
     const hasVideo = /app\.bsky\.embed\.video|"video"\s*:/.test(embedJson);
 
     return buildVerifyResult(expected, {
