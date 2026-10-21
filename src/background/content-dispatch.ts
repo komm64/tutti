@@ -31,7 +31,8 @@ export function resolvePlatformPostTimeoutMs(
   const normalizedChunkCount = Number.isFinite(chunkCount)
     ? Math.max(1, Math.floor(chunkCount))
     : 1;
-  if (images?.some((item) => item.type.startsWith('video/'))) {
+  // GIF は SNS によっては投稿直前に動画化されるので動画と同じ枠を取る
+  if (images?.some((item) => item.type.startsWith('video/') || item.type === 'image/gif')) {
     return VIDEO_POST_MESSAGE_RESPONSE_TIMEOUT_MS +
       POST_MESSAGE_RESPONSE_TIMEOUT_MS * (normalizedChunkCount - 1);
   }

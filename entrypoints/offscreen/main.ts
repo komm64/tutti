@@ -93,7 +93,7 @@ async function compressVideo(msg: ConvertVideoMessage): Promise<{ outputRef: str
   if (fastPath) return fastPath;
 
   const ff = await getFfmpeg();
-  const inputName = 'input.mp4';
+  const inputName = msg.mimeType === 'image/gif' ? 'input.gif' : 'input.mp4';
   const outputName = 'output.mp4';
 
   // 既存ファイルが残っていたら掃除 (連続呼び出し時)
@@ -110,7 +110,7 @@ async function compressVideo(msg: ConvertVideoMessage): Promise<{ outputRef: str
   const aspect = msg.aspectMode ?? 'passthrough';
   const vfFilter = aspect === 'vertical9x16'
     ? "split[a][b];[a]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=30:1[bg];[b]scale=1080:1920:force_original_aspect_ratio=decrease[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2,fps=30"
-    : "scale='min(854,iw)':-2,fps=30";
+    : "scale='trunc(min(854,iw)/2)*2':-2,fps=30";
 
   // ffmpeg コマンド (single-thread でも実用速度を目指す):
   // -preset ultrafast: H.264 最速 preset
@@ -119,11 +119,15 @@ async function compressVideo(msg: ConvertVideoMessage): Promise<{ outputRef: str
   // -profile:v は指定しない (ultrafast 内部で baseline 相当を強制)
   // v0.4.90: trim opt-in。 trimToSeconds が指定されてれば先頭 N 秒で切る (-t)。
   // `-t` は output 側 (output filename の前) に置く必要がある。
-  const trimArgs = msg.trimToSeconds && msg.trimToSeconds > 0
-    ? ['-t', String(msg.trimToSeconds)]
+  // loopToSeconds: 短いアニメ GIF を尺の下限 (IG Reels 3s 等) までループで伸ばす
+  const loop = !!(msg.loopToSeconds && msg.loopToSeconds > 0);
+  const outputSeconds = loop ? msg.loopToSeconds : msg.trimToSeconds;
+  const trimArgs = outputSeconds && outputSeconds > 0
+    ? ['-t', String(outputSeconds)]
     : [];
 
   await ff.exec([
+    ...(loop ? ['-stream_loop', '-1'] : []),
     '-i', inputName,
     '-c:v', 'libx264',
     '-preset', 'ultrafast',
@@ -169,6 +173,10 @@ async function tryCompressWithWebCodecs(
 ): Promise<{ outputRef: string; size: number } | null> {
   if ((msg.aspectMode ?? 'passthrough') !== 'passthrough') {
     log.info('offscreen: WebCodecs fast path skip (vertical letterbox uses ffmpeg filters)');
+    return null;
+  }
+  if (msg.mimeType === 'image/gif' || msg.loopToSeconds) {
+    log.info('offscreen: WebCodecs fast path skip (GIF input uses ffmpeg)');
     return null;
   }
 

@@ -191,7 +191,10 @@ async function runPost(
         // 横長/縦長の写真が IG default の 1:1 で左右 (or 上下) 見切れるのを回避。
         // 失敗は warn のみで続行 (IG が許す範囲外なら IG 側で勝手に fit させる、
         // ユーザー報告は: 2026-05-17 横長で左右見切れ)。
-        await selectOriginalCrop(implementationPath);
+        await selectOriginalCrop(
+          implementationPath,
+          images.some((image) => image.type.startsWith('video/')),
+        );
       },
       settleMs: 200,
       waitAfterAction: async () => {},
@@ -343,9 +346,15 @@ async function runPost(
  */
 async function selectOriginalCrop(
   implementationPath?: PostImplementationPath,
+  hasVideo = false,
 ): Promise<void> {
-  const cropBtn = await waitForCondition<HTMLElement>(findCropAspectButton, {
-    timeoutMs: 800,
+  // 動画は upload 処理後に Crop dialog が出るので数秒かかる。800ms で諦めると
+  // default 1:1 のまま進み、縦長動画の上下が切れる (2026-10 ユーザー報告)
+  const cropBtn = await waitForCondition<HTMLElement>(() => {
+    checkForIgErrorDialog();
+    return findCropAspectButton();
+  }, {
+    timeoutMs: hasVideo ? 30_000 : 800,
     intervalMs: 100,
   });
   if (!cropBtn) {
@@ -377,12 +386,14 @@ function findCropAspectButton(): HTMLElement | null {
   const dialogs = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"]'));
   const cropDlg = dialogs.find((d) => /Crop|切り抜き|トリミング/i.test(d.getAttribute('aria-label') ?? '')) ?? dialogs[dialogs.length - 1];
   if (!cropDlg) return null;
-  const btn = Array.from(cropDlg.querySelectorAll<HTMLElement>('button, [role="button"]'))
-    .find((b) => {
+  const matches = Array.from(cropDlg.querySelectorAll<HTMLElement>('button, [role="button"]'))
+    .filter((b) => {
       const t = (b.textContent ?? '').trim();
       return t === 'Select crop' || t === 'トリミング' || t === '切り抜き';
     });
-  return btn ?? null;
+  // div[role=button] > button の二重構造。外側の click では popover が開かない
+  // (2026-10 確認、動画が常に 1:1 で投稿されていた) ので最内側を選ぶ
+  return matches.find((b) => !matches.some((other) => other !== b && b.contains(other))) ?? null;
 }
 
 function findCropOption(texts: string[]): HTMLElement | null {

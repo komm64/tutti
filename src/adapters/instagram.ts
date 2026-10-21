@@ -46,6 +46,8 @@ export const instagramAdapter: PlatformAdapter = {
   kinds: ['image', 'shortVideo'],
   // IG は超重 SPA + 4 段 modal wizard。background tab で動かすのは無理
   requiresForegroundTab: true,
+  // GIF は先頭フレームの静止画になる。Reel として出すため MP4 化 (Reel は 3s 以上)
+  animatedGifAsVideo: { minDurationS: 3 },
 };
 
 export const INSTAGRAM_SELECTORS = {

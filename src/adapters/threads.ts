@@ -29,6 +29,8 @@ export const threadsAdapter: PlatformAdapter = {
     maxImages: 10,
   },
   kinds: ['text', 'image', 'shortVideo', 'longVideo'],
+  // file input の accept に image/gif が無く、GIF は無言で無視される (2026-10 確認)
+  animatedGifAsVideo: {},
 };
 
 export const THREADS_SELECTORS = {

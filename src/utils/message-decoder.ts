@@ -73,7 +73,8 @@ const MESSAGE_VALIDATORS = {
     isFiniteNumber(value.durationS) &&
     isFiniteNumber(value.targetBytes) &&
     optional(value, 'aspectMode', (item) => item === 'passthrough' || item === 'vertical9x16') &&
-    optional(value, 'trimToSeconds', isFiniteNumber),
+    optional(value, 'trimToSeconds', isFiniteNumber) &&
+    optional(value, 'loopToSeconds', isFiniteNumber),
   CONVERSION_PROGRESS: (value) =>
     isFiniteNumber(value.progress) &&
     optional(value, 'stage', (item) => item === 'load' || item === 'transcode'),
