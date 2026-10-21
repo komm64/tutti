@@ -5,6 +5,7 @@ import { getEffectiveVideoConstraints } from '../utils/effective-limits';
 import { attachmentSize } from '../utils/attachment';
 import { t } from '../utils/i18n';
 import {
+  convertGifsForPlatform,
   letterboxImagesForInstagram,
   maybeResizeImagesForPlatform,
 } from './media-preprocess';
@@ -20,6 +21,7 @@ export async function prepareMediaForPlatform(
   autoPost = true,
 ): Promise<PlatformMediaPreparation> {
   const mode = autoPost ? 'post' : 'preview';
+  if (images?.length) images = await convertGifsForPlatform(adapter, images);
   const videoItem = images?.find((img) => img.type.startsWith('video/'));
   if (videoItem) {
     const videoOnly = [videoItem];

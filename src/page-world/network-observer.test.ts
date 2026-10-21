@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   installNetworkObserver,
+  parseJsonResponseText,
   type NetworkCaptureRule,
   type NetworkObserverDiagnostic,
   type NetworkObserverTarget,
@@ -230,3 +231,17 @@ function createFakeJsonXhr(response: unknown) {
     }
   };
 }
+
+describe('parseJsonResponseText', () => {
+  it('strips the Meta anti-hijacking prefix (IG configure_to_clips)', () => {
+    const body = 'for (;;);{"__ar":1,"payload":{"media":{"code":"DexOMdPg-Dk","product_type":"clips"}}}';
+    expect(parseJsonResponseText(body)).toEqual({
+      __ar: 1,
+      payload: { media: { code: 'DexOMdPg-Dk', product_type: 'clips' } },
+    });
+  });
+
+  it('parses plain JSON unchanged', () => {
+    expect(parseJsonResponseText('{"id":"1"}')).toEqual({ id: '1' });
+  });
+});

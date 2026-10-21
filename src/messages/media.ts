@@ -26,6 +26,8 @@ export interface ConvertVideoMessage {
   targetBytes: number;
   aspectMode?: 'passthrough' | 'vertical9x16';
   trimToSeconds?: number;
+  /** 入力をループ再生してこの秒数の動画にする (アニメ GIF の動画化用) */
+  loopToSeconds?: number;
 }
 
 export interface ConversionProgressMessage {

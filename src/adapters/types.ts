@@ -64,6 +64,11 @@ export interface PlatformAdapter {
   realPostLane?: 'background';
   /** 投稿操作前の compose page load timeout に対する宣言policy */
   preSubmitLoad?: PreSubmitLoadPolicy;
+  /**
+   * アニメ GIF を受け付けない (or 静止画化する) SNS。投稿前に MP4 に変換して
+   * 動画として投稿する。minDurationS は動画尺の下限 (短い GIF はループで伸ばす)
+   */
+  animatedGifAsVideo?: { minDurationS?: number };
   /** 動画投稿で優先する表示aspect。未指定なら原寸を維持する */
   preferredVideoAspect?: '9:16';
   /** 投稿ページとして扱う URL パターン(content script の matches と整合させる) */

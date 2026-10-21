@@ -216,6 +216,14 @@ function prepareRules(
   return { request, captures };
 }
 
+/**
+ * Meta 系 (IG の configure_to_clips 等) は JSON hijacking 対策の `for (;;);`
+ * prefix を付けて返すので、それを剥がしてから parse する。
+ */
+export function parseJsonResponseText(text: string): unknown {
+  return JSON.parse(text.replace(/^\s*for\s*\(;;\);/, ''));
+}
+
 function captureFetchResponse(
   options: InstallNetworkObserverOptions,
   response: Response,
@@ -223,7 +231,8 @@ function captureFetchResponse(
 ): void {
   if (prepared.captures.length === 0) return;
   try {
-    void response.clone().json()
+    void response.clone().text()
+      .then(parseJsonResponseText)
       .then((payload) => capturePayload(options, payload, prepared))
       .catch((error) => reportParseFailure(options, prepared.request.transport, error));
   } catch (error) {
@@ -238,7 +247,7 @@ function captureXhrResponse(
 ): void {
   try {
     const payload = typeof response === 'string'
-      ? JSON.parse(response) as unknown
+      ? parseJsonResponseText(response)
       : response;
     capturePayload(options, payload, prepared);
   } catch (error) {

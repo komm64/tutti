@@ -8,7 +8,8 @@ import {
   resolveAttachmentToBase64,
 } from '../utils/attachment';
 import { putBinary, deleteBinary } from '../utils/binary-transfer';
-import { base64ToUint8Array } from '../utils/base64';
+import { arrayBufferToBase64, base64ToUint8Array } from '../utils/base64';
+import { readGifInfo } from '../utils/gif-info';
 import { resizeImageInSW } from '../utils/image-resize';
 import { letterboxToSquare } from '../utils/image-letterbox';
 import { log } from '../utils/logger';
@@ -227,6 +228,100 @@ export async function letterboxImagesForInstagram(
   );
 }
 
+const GIF_VIDEO_BYTES_PER_SECOND = 500 * 1024; // 4Mbps 相当。GIF 由来の動画には十分
+const gifConversions = new WeakMap<ImageAttachment, Map<string, Promise<ImageAttachment>>>();
+
+/**
+ * GIF を受け付けない SNS 向けに GIF 添付を変換する。
+ * - GIF 1 枚だけの投稿でアニメ GIF → MP4 (尺の下限まではループ)
+ * - 静止 GIF、または他の画像と混在 → PNG (先頭フレーム)
+ * 複数 SNS で同じ添付を使い回すので、変換結果は添付 object 単位でキャッシュする。
+ */
+export async function convertGifsForPlatform(
+  adapter: PlatformAdapter,
+  images: ImageAttachment[],
+): Promise<ImageAttachment[]> {
+  const policy = adapter.animatedGifAsVideo;
+  if (!policy || !images.some((img) => img.type === 'image/gif')) return images;
+  return await Promise.all(images.map(async (img) => {
+    if (img.type !== 'image/gif') return img;
+    const asVideo = images.length === 1;
+    const key = asVideo ? `video:${policy.minDurationS ?? 0}` : 'still';
+    let cache = gifConversions.get(img);
+    if (!cache) gifConversions.set(img, cache = new Map());
+    let converted = cache.get(key);
+    if (!converted) {
+      converted = convertGif(img, asVideo, policy.minDurationS ?? 0);
+      cache.set(key, converted);
+      converted.catch(() => cache.delete(key));
+    }
+    return await converted;
+  }));
+}
+
+/** 尺の下限に届かない GIF を、ループの切れ目で終わる最短の秒数に伸ばす */
+export function resolveGifLoopSeconds(gifSeconds: number, minDurationS: number): number | undefined {
+  if (gifSeconds <= 0 || gifSeconds >= minDurationS) return undefined;
+  return Math.ceil(minDurationS / gifSeconds) * gifSeconds;
+}
+
+async function convertGif(
+  img: ImageAttachment,
+  asVideo: boolean,
+  minDurationS: number,
+): Promise<ImageAttachment> {
+  const data = img.data ?? (await resolveAttachmentToBase64(img)).data;
+  if (!data) throw new Error(t('runtimeVideoAttachmentMissing'));
+  const bytes = base64ToUint8Array(data);
+  const info = readGifInfo(bytes);
+  if (!asVideo || !info || info.frames <= 1) {
+    const png = await stillImageToPng(bytes);
+    log.info(`GIF → PNG (${info?.frames ?? '?'} frames)`);
+    return { name: img.name.replace(/\.[^.]+$/, '.png'), type: 'image/png', data: png, alt: img.alt };
+  }
+  const gifSeconds = info.durationMs / 1000;
+  const loopToSeconds = resolveGifLoopSeconds(gifSeconds, minDurationS);
+  const durationS = loopToSeconds ?? gifSeconds;
+  log.info(`GIF → MP4 (${info.frames} frames, ${gifSeconds.toFixed(2)}s${loopToSeconds ? ` → loop ${loopToSeconds.toFixed(2)}s` : ''})`);
+  const inputRef = await putBinary(bytes);
+  try {
+    const out = await runOffscreenCompress({
+      inputRef,
+      mimeType: 'image/gif',
+      durationS,
+      targetBytes: Math.max(1024 * 1024, Math.ceil(durationS * GIF_VIDEO_BYTES_PER_SECOND)),
+      loopToSeconds,
+    }, {});
+    return {
+      name: img.name.replace(/\.[^.]+$/, '.mp4'),
+      type: 'video/mp4',
+      durationS,
+      videoCodec: 'avc',
+      dataRef: out.outputRef,
+      bytes: out.outputBytes,
+    };
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new Error(t('runtimeVideoCompressionFailed', detail));
+  } finally {
+    await deleteBinary(inputRef).catch(() => {});
+  }
+}
+
+async function stillImageToPng(bytes: Uint8Array): Promise<string> {
+  const bitmap = await createImageBitmap(new Blob([bytes as unknown as BlobPart], { type: 'image/gif' }));
+  try {
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('OffscreenCanvas 2d context is unavailable');
+    ctx.drawImage(bitmap, 0, 0);
+    const blob = await canvas.convertToBlob({ type: 'image/png' });
+    return arrayBufferToBase64(await blob.arrayBuffer());
+  } finally {
+    bitmap.close();
+  }
+}
+
 async function resolveMinVideoBytes(platforms: readonly PlatformId[]): Promise<number> {
   let minBytes = Infinity;
   for (const p of platforms) {
@@ -278,6 +373,7 @@ async function runOffscreenCompress(
     targetBytes: number;
     aspectMode?: 'passthrough' | 'vertical9x16';
     trimToSeconds?: number;
+    loopToSeconds?: number;
   },
   hooks: MediaPreprocessHooks,
 ): Promise<{ outputRef: string; outputBytes: number }> {
@@ -291,6 +387,7 @@ async function runOffscreenCompress(
       targetBytes: req.targetBytes,
       aspectMode: req.aspectMode,
       trimToSeconds: req.trimToSeconds,
+      loopToSeconds: req.loopToSeconds,
     })) as { type: string; outputRef?: string; outputBytes?: number; error?: string } | undefined;
     if (!res || res.type === 'CONVERSION_ERROR' || !res.outputRef) {
       throw new Error(res?.error ?? t('runtimeConversionNoResponse'));

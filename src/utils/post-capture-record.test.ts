@@ -19,6 +19,14 @@ import {
 } from './post-capture-record';
 
 describe('post capture records', () => {
+  it('builds a reel URL from a configure_to_clips payload', () => {
+    const record = extractInstagramPostRecord({
+      __ar: 1,
+      payload: { media: { code: 'DexOMdPg-Dk', product_type: 'clips' } },
+    });
+    expect(record?.url).toBe('https://www.instagram.com/reel/DexOMdPg-Dk/');
+  });
+
   it.each(['fetch', 'xhr'])('extracts the Instagram %s configure response fixture', () => {
     const record = extractInstagramPostRecord(instagramConfigureFixture.response, 'hash', 100);
 
