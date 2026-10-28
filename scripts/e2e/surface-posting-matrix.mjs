@@ -182,6 +182,16 @@ const CASES = {
     ).slice(0, 463),
     media: 'four-images',
   },
+  // tutti-issues#94/#95: a 1220-character draft with four images split into
+  // five Bluesky posts and three Threads posts.
+  'long-text-four-images': {
+    requires: ['image'],
+    text: (stamp) => (
+      `tutti surface matrix long four images ${stamp} ` +
+      'Long thread continuation with four images to verify every chunk is added and submitted. '.repeat(14)
+    ).slice(0, 1220),
+    media: 'four-images',
+  },
   'hashtags-image': {
     requires: ['image'],
     text: () => '#tutti #test1',
