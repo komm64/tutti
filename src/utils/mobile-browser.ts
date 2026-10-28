@@ -5,8 +5,10 @@
  * instead of failing midway (tutti-issues#110).
  */
 export function isMobileBrowser(
-  nav: Pick<Navigator, 'userAgent'> & { userAgentData?: { mobile?: boolean } } = navigator,
+  nav: (Pick<Navigator, 'userAgent'> & { userAgentData?: { mobile?: boolean } }) | undefined =
+    globalThis.navigator,
 ): boolean {
+  if (!nav) return false;
   if (nav.userAgentData?.mobile === true) return true;
   return /Android|iPhone|iPad|iPod/i.test(nav.userAgent);
 }
