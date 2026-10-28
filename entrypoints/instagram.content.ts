@@ -27,6 +27,26 @@ import {
 
 /** Reels finish uploading after the composer closes; see runPost. */
 const REEL_CONFIGURE_TIMEOUT_MS = 180_000;
+/**
+ * IG の UI 文言はアカウント / ブラウザの言語で変わる。言語を足すときはここだけ編集する
+ * (tutti-issues#111: アラビア語 UI で Create / Next / Share が見つからなかった)。
+ */
+const IG_LABELS = {
+  createIcon: ['New post', '新規投稿', 'Crear', 'Nuevo', 'Создать', '새 게시물', 'منشور جديد'],
+  createButton: ['New post', '新規投稿', 'Create', 'إنشاء'],
+  postMenuItem: ['Post', '投稿', 'Publicación', 'Publication', 'منشور'],
+  next: ['Next', '次へ', 'التالي'],
+  acknowledge: [
+    'OK', 'Continue', 'Confirm', 'Got it', 'Got It', 'Done',
+    '続行', '完了', '了解', '確認',
+    'موافق', 'متابعة', 'تأكيد', 'حسنًا', 'تم',
+  ],
+  share: ['Share', '共有', 'Post', 'مشاركة', 'نشر'],
+  originalCrop: ['Original', 'オリジナル', '元のサイズ', '元の比率', 'Original ratio', 'الأصل'],
+  dismiss: ['Not Now', 'あとで', 'いいえ', 'No thanks', 'Decline', '後で', 'ليس الآن'],
+};
+const IG_CREATE_DIALOG_RE = /create|投稿|إنشاء|منشور/i;
+const IG_SHARED_RE = /shared|共有しました|posted|تمت مشاركة|تم نشر/i;
 import { clickElementWithPacing, waitForWebActionPacing } from '../src/utils/web-action-pacing';
 
 /**
@@ -153,7 +173,7 @@ async function runPost(
           { timeoutMs: 800, intervalMs: 100 },
         );
         if (!directFileInput) {
-          const postItem = findCreateSubmenuItem(['Post', '投稿', 'Publicación', 'Publication']);
+          const postItem = findCreateSubmenuItem(IG_LABELS.postMenuItem);
           if (postItem) {
             log.info('IG: popover variant detected, clicking "Post" submenu item');
             await clickElementWithPacing(postItem);
@@ -206,11 +226,7 @@ async function runPost(
       advance: {
         finder: () => {
           checkForIgErrorDialog();
-          return findDialogButtonByText([
-            'Next', '次へ',
-            'OK', 'Continue', 'Confirm', 'Got it', 'Got It', 'Done',
-            '続行', '完了', '了解', '確認',
-          ]);
+          return findDialogButtonByText([...IG_LABELS.next, ...IG_LABELS.acknowledge]);
         },
         timeoutMs: 30000, // video は 30s かかることもある
       },
@@ -231,7 +247,7 @@ async function runPost(
         // 即座に explicit error にする
         finder: () => {
           checkForIgErrorDialog();
-          return findDialogButtonByText(['Next', '次へ']);
+          return findDialogButtonByText(IG_LABELS.next);
         },
         timeoutMs: 8000,
       },
@@ -280,7 +296,7 @@ async function runPost(
     steps,
     finalize: {
       // Share ボタン (dialog 内、最後の wizard 画面のみ)
-      finder: () => findDialogButtonByText(['Share', '共有', 'Post']),
+      finder: () => findDialogButtonByText(IG_LABELS.share),
       afterClickDelayMs: 250,
     },
     dryRun,
@@ -362,7 +378,7 @@ async function selectOriginalCrop(
     return;
   }
   await clickElementWithPacing(cropBtn);
-  const originalTexts = ['Original', 'オリジナル', '元のサイズ', '元の比率', 'Original ratio'];
+  const originalTexts = IG_LABELS.originalCrop;
   const originalItem = await waitForCondition<HTMLElement>(
     () => findCropOption(originalTexts),
     { timeoutMs: 1200, intervalMs: 100 },
@@ -453,7 +469,7 @@ async function waitForCaptionPopulated(
  */
 async function waitForShareEnabled(timeoutMs: number): Promise<void> {
   const enabled = await waitForCondition<boolean>(() => {
-    const share = findDialogButtonByText(['Share', '共有', 'Post']);
+    const share = findDialogButtonByText(IG_LABELS.share);
     if (share) {
       const ariaDisabled = share.getAttribute('aria-disabled');
       const elDisabled = (share as HTMLButtonElement).disabled;
@@ -504,7 +520,7 @@ async function verifyInstagramPosted(timeoutMs = 90_000, text = ''): Promise<voi
     // dialog はまだあるが、success 状態 ("Your post has been shared" 等) に
     // 切り替わっていれば OK
     const txt = (dialog.textContent ?? '').slice(0, 500);
-    if (/shared|共有しました|posted/i.test(txt)) {
+    if (IG_SHARED_RE.test(txt)) {
       log.info('IG: post verified (success message visible)');
       return true;
     }
@@ -529,12 +545,12 @@ async function verifyInstagramPosted(timeoutMs = 90_000, text = ''): Promise<voi
  * ("Turn On" / "Allow" / "Save") は触らない。
  */
 async function dismissOverlayDialogs(): Promise<void> {
-  const SAFE_DISMISS_TEXTS = ['Not Now', 'あとで', 'いいえ', 'No thanks', 'Decline', '後で'];
+  const SAFE_DISMISS_TEXTS = IG_LABELS.dismiss;
   const dialogs = document.querySelectorAll<HTMLElement>('[role="dialog"]');
   for (const dialog of dialogs) {
     // Create dialog 自体は dismiss しない (aria-label で識別)
     const aria = dialog.getAttribute('aria-label') ?? '';
-    if (/create|投稿/i.test(aria)) continue;
+    if (IG_CREATE_DIALOG_RE.test(aria)) continue;
     const buttons = Array.from(dialog.querySelectorAll<HTMLElement>('button, [role="button"]'));
     for (const b of buttons) {
       const t = (b.textContent ?? '').trim();
@@ -575,14 +591,14 @@ function checkForIgErrorDialog(): void {
  */
 function findCreateTrigger(): HTMLElement | null {
   // 戦略 1: SVG の aria-label から (最も堅い。Locale 違いに強い)
-  const ariaLabels = ['New post', '新規投稿', 'Crear', 'Nuevo', 'Создать', '새 게시물'];
+  const ariaLabels = IG_LABELS.createIcon;
   for (const label of ariaLabels) {
     const svg = document.querySelector<SVGElement>(`svg[aria-label="${label}"]`);
     const parent = svg?.closest('a, button, [role="link"], [role="button"]') as HTMLElement | null;
     if (parent) return parent;
   }
   // 戦略 2: aria-label 完全一致 (regex でない、broad match 回避)
-  const exactAria = ['New post', '新規投稿', 'Create'];
+  const exactAria = IG_LABELS.createButton;
   for (const aria of exactAria) {
     const el = document.querySelector<HTMLElement>(`a[aria-label="${aria}"], button[aria-label="${aria}"], [role="link"][aria-label="${aria}"], [role="button"][aria-label="${aria}"]`);
     if (el) return el;
@@ -626,7 +642,7 @@ function findCreateSubmenuItem(texts: string[]): HTMLElement | null {
 function findDialogButtonByText(texts: string[]): HTMLElement | null {
   const dialogs = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"]'));
   // Create dialog (aria-label="Create new post" 等) を優先
-  const createDialogs = dialogs.filter((d) => /create|投稿/i.test(d.getAttribute('aria-label') ?? ''));
+  const createDialogs = dialogs.filter((d) => IG_CREATE_DIALOG_RE.test(d.getAttribute('aria-label') ?? ''));
   const target = createDialogs.length > 0 ? createDialogs : dialogs;
   let lastVisibleMatch: HTMLElement | null = null;
   for (const dialog of target) {

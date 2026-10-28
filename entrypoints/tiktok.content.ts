@@ -127,9 +127,11 @@ async function runPost(
   await executeMultiStepFlow({
     steps,
     finalize: {
-      // Post button を text マッチで探す。data-e2e 属性も併用
+      // Post button は言語非依存の data-e2e を優先し、無い variant だけ text マッチ
+      // (tutti-issues#111: アラビア語 UI で text マッチが外れた)
       finder: () => {
-        const all = Array.from(document.querySelectorAll<HTMLButtonElement>('button'))
+        const byAttr = Array.from(document.querySelectorAll<HTMLButtonElement>('button[data-e2e="post_video_button"]'));
+        const all = byAttr.length > 0 ? byAttr : Array.from(document.querySelectorAll<HTMLButtonElement>('button'))
           .filter((b) => /^Post$|^投稿$|^公開$/i.test((b.textContent ?? '').trim()));
         const enabled = all.find((b) => !b.disabled);
         const target = enabled ?? all[0] ?? null;

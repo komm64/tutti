@@ -414,6 +414,8 @@ function findYouTubeUploadButton(): HTMLElement | null {
 }
 
 function findYouTubeCreateButton(): HTMLElement | null {
+  const byId = document.querySelector<HTMLElement>('ytcp-button#create-icon, #create-icon');
+  if (byId && !isDisabledButton(byId)) return byId;
   return Array.from(document.querySelectorAll<HTMLElement>(
     'button, ytcp-button, ytcp-icon-button, [role="button"]',
   )).find((button) => (
@@ -437,7 +439,9 @@ async function waitForSelectedYouTubeRadio(
 
 function findEnabledYouTubeNextButton(): HTMLElement | null {
   assertNoYouTubeDailyUploadLimit();
-  const buttons = Array.from(document.querySelectorAll<HTMLElement>('button, ytcp-button'))
+  // #next-button は言語非依存 (tutti-issues#111: アラビア語 UI で text マッチが外れた)
+  const byId = Array.from(document.querySelectorAll<HTMLElement>('ytcp-uploads-dialog #next-button'));
+  const buttons = byId.length > 0 ? byId : Array.from(document.querySelectorAll<HTMLElement>('button, ytcp-button'))
     .filter((button) => /^Next$|^次へ$/i.test((button.textContent ?? '').trim()));
   return buttons.find((button) => !isDisabledButton(button)) ?? null;
 }

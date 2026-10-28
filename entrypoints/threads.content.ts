@@ -20,15 +20,17 @@ import { settleThreadsPost } from '../src/utils/threads-post-settlement';
 import { fetchLatestThreadsPostUrl, normalizeThreadsPostUrl } from '../src/utils/threads-profile';
 import { waitForWebActionPacing } from '../src/utils/web-action-pacing';
 
-const THREADS_POST_BUTTON_TEXTS = ['Post', '投稿', '投稿する', 'Post now'];
-const THREADS_COMPOSER_TRIGGER_TEXTS = [
+// tutti-issues#111: アラビア語 UI では Post = "نشر"、Create = "إنشاء"。
+const THREADS_POST_BUTTON_TEXTS = ['Post', '投稿', '投稿する', 'Post now', 'نشر'];
+const THREADS_COMPOSER_PROMPT_TEXTS = [
   'New thread',
   '新しいスレッド',
   "What's new?",
   '新規投稿',
   '新しい投稿',
-  'Create',
 ];
+const THREADS_COMPOSER_TRIGGER_TEXTS = [...THREADS_COMPOSER_PROMPT_TEXTS, 'Create', 'إنشاء'];
+const THREADS_COMPOSER_PROMPT_WAIT_MS = 3_000;
 const THREADS_URL_CAPTURE_TIMEOUT_MS = 25_000;
 
 function detectThreadsUser(): string | null {
@@ -196,6 +198,13 @@ async function runPost(
 async function ensureThreadsComposerOpen(textareaSelector: string): Promise<void> {
   if (document.querySelector(textareaSelector)) return;
 
+  // The wide layout's sidebar Create can open a floating composer that is not a
+  // dialog. Give the inline prompt a moment to render before falling back to
+  // Create, which the compact layout needs (it has no inline prompt).
+  await waitForCondition<HTMLElement>(
+    () => findLiveThreadsButton('[role="button"], button', THREADS_COMPOSER_PROMPT_TEXTS),
+    { timeoutMs: THREADS_COMPOSER_PROMPT_WAIT_MS, intervalMs: 100 },
+  );
   await retryDetachedClick(
     () => clickLiveThreadsButton(
       '[role="button"], button',
@@ -243,17 +252,22 @@ function findLiveThreadsButton(
   selector: string,
   texts: readonly string[],
 ): HTMLElement | null {
+  // texts は優先順。複数一致したら list の前にある label を選ぶ。
+  let best: HTMLElement | null = null;
+  let bestRank = Infinity;
   for (const element of document.querySelectorAll<HTMLElement>(selector)) {
     const values = [
       element.textContent,
       element.getAttribute('aria-label'),
       element.getAttribute('title'),
-    ].map((value) => (value ?? '').replace(/\s+/g, ' ').trim());
-    if (!values.some((value) => value && texts.includes(value))) continue;
+    ].map((value) => (value ?? '').replace(/\s+/g, ' ').replace(/’/g, "'").trim());
+    const rank = Math.min(...values.map((value) => (value ? texts.indexOf(value) : -1)).filter((i) => i >= 0));
+    if (rank >= bestRank) continue;
     if (isDisabled(element) || element.getClientRects().length === 0) continue;
-    return element;
+    best = element;
+    bestRank = rank;
   }
-  return null;
+  return best;
 }
 
 async function assertThreadsMediaAttached(timeoutMs: number): Promise<void> {
@@ -305,7 +319,7 @@ function findThreadsPostButton(): HTMLElement | null {
   const dialogs = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"], [role="alertdialog"]'));
   for (const dialog of dialogs) {
     const scoped = Array.from(dialog.querySelectorAll<HTMLElement>('button, [role="button"]'))
-      .find((el) => /^(Post|投稿|投稿する|Post now)$/.test((el.textContent ?? '').trim()));
+      .find((el) => THREADS_POST_BUTTON_TEXTS.includes((el.textContent ?? '').trim()));
     if (scoped) return scoped;
   }
   for (const sel of [
@@ -316,7 +330,7 @@ function findThreadsPostButton(): HTMLElement | null {
     const el = document.querySelector<HTMLElement>(sel);
     if (el) return el;
   }
-  return findClickableByText(['Post', '投稿', '投稿する', 'Post now']);
+  return findClickableByText(THREADS_POST_BUTTON_TEXTS);
 }
 
 function isDisabled(el: HTMLElement): boolean {

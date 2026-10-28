@@ -63,6 +63,28 @@ describe('page-world editor drivers', () => {
     expect(current.textContent).toBe('body #tag');
   });
 
+  // tutti-issues#111: the space between two hashtags normalized away, was
+  // treated as already present, and the next "#" was glued to the first tag.
+  it('pastes whitespace-only segments between X entities', async () => {
+    document.body.innerHTML = '<div data-testid="tweetTextarea_0" contenteditable="true"></div>';
+    const current = document.querySelector<HTMLElement>('[data-testid="tweetTextarea_0"]')!;
+    current.addEventListener('paste', (event) => {
+      current.textContent += (event as ClipboardEvent).clipboardData?.getData('text/plain') ?? '';
+    });
+
+    await injectXDraftText(current, '📰 #دوري_روشن #عاجل', {
+      resolveCurrent: () => current,
+      waitFor: async (predicate) => predicate(),
+      sleep: async () => {},
+      insertText: (element, character) => {
+        element.textContent = `${element.textContent ?? ''}${character}`;
+        return true;
+      },
+    });
+
+    expect(current.textContent).toBe('📰 #دوري_روشن #عاجل');
+  });
+
   it('selects native, Lexical, Draft.js, and generic contenteditable drivers', () => {
     document.body.innerHTML = `
       <input id="input">

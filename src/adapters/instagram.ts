@@ -65,5 +65,7 @@ export const INSTAGRAM_SELECTORS = {
     '[role="dialog"] div[contenteditable="true"][aria-label="Write a caption..."],' +
     '[role="dialog"] div[contenteditable="true"][aria-label="キャプションを書く..."],' +
     '[role="dialog"] div[contenteditable="true"][aria-label*="caption" i],' +
-    '[role="dialog"] div[contenteditable="true"][aria-label*="キャプション"]',
+    '[role="dialog"] div[contenteditable="true"][aria-label*="キャプション"],' +
+    // aria-label は UI 言語で変わる (tutti-issues#111)。Lexical の属性は言語非依存
+    '[role="dialog"] div[contenteditable="true"][data-lexical-editor="true"]',
 } as const;

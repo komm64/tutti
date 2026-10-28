@@ -120,7 +120,10 @@ export function createPostRequestHandler(options: PostRequestHandlerOptions) {
           ? await resolveCredentialBackedApiPlatforms(platforms)
           : [];
         const apiPlatformSet = new Set(apiPlatforms);
-        const foregroundVideoWindow = autoPost && requestHasVideo &&
+        // Previews need the full-size window too: below X's desktop breakpoint
+        // its compact composer never enables Post for a video, so a preview
+        // waited for media readiness until timeout (tutti-issues#112).
+        const foregroundVideoWindow = requestHasVideo &&
           platforms.some((platform) => !apiPlatformSet.has(platform));
         const postingWindow = createPostingWindowSession({
           focusMode: foregroundVideoWindow ? 'foreground-video' : 'background',
