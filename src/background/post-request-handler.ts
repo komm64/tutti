@@ -4,6 +4,8 @@ import type {
 } from '../messages';
 import { getAdapter } from '../adapters/registry';
 import { getSettings } from '../storage';
+import { isMobileBrowser } from '../utils/mobile-browser';
+import { t } from '../utils/i18n';
 import { splitTextForPlatform } from '../utils/platform-text';
 import { OperationTimeoutError, withTimeout } from '../utils/promise-timeout';
 import { resolvePlatformPostTimeoutMs } from './content-dispatch';
@@ -111,6 +113,25 @@ export function createPostRequestHandler(options: PostRequestHandlerOptions) {
           clearBadge();
           openedTabs.clear();
           return rejectedResults;
+        }
+
+        if (isMobileBrowser()) {
+          const mobileResults = platforms.map((platform): PostResultMessage => annotateImplementation({
+            type: 'POST_RESULT',
+            platform,
+            success: false,
+            flow: {
+              mode: autoPost ? 'post' : 'preview',
+              submitReached: false,
+              lastCompletedStep: 'preflight',
+              failedStep: 'preflight:mobile-browser',
+            },
+            error: t('runtimeMobileBrowserUnsupported'),
+          }));
+          mobileResults.forEach(recordPlatformProgress);
+          clearBadge();
+          openedTabs.clear();
+          return [...rejectedResults, ...mobileResults];
         }
 
         const requestHasVideo = request.images?.some(

@@ -148,6 +148,7 @@
   "runtimeConversionNoResponse": { "message": "The conversion process did not respond." },
   "runtimeUnsupportedPlatform": { "message": "Unsupported platform." },
   "runtimeLongVideoUnsupported": { "message": "Long videos are not supported." },
+  "runtimeMobileBrowserUnsupported": { "message": "Posting from a mobile browser is not supported yet. Tutti needs a desktop browser (Chrome, Edge, Brave) on Windows, macOS or Linux." },
   "runtimeShortVideoUnsupported": { "message": "Short videos are not supported." },
   "runtimeVideoDurationExceeded": { "message": "The video is too long (limit $LIMIT$s, actual $ACTUAL$s).", "placeholders": { "LIMIT": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
   "runtimeFileSizeExceeded": { "message": "The file is too large (limit $LIMIT$MB, actual $ACTUAL$MB).", "placeholders": { "LIMIT": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },

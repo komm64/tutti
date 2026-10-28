@@ -190,5 +190,6 @@
   "userActionRequiredNotifyTitle": { "message": "Tutti يحتاج إلى تدخلك" },
   "userActionRequiredCaptcha": { "message": "أكمل اختبار CAPTCHA في علامة تبويب $PLATFORM$. سيُستأنف النشر تلقائيًا.", "placeholders": { "PLATFORM": { "content": "$1" } } },
   "userActionRequiredConfirmation": { "message": "أكمل خطوة التأكيد في علامة تبويب $PLATFORM$. سيُستأنف النشر تلقائيًا.", "placeholders": { "PLATFORM": { "content": "$1" } } },
-  "runtimeBlueskyConfirmationTimeout": { "message": "Bluesky: لم يكتمل التأكيد خلال 5 دقائق" }
+  "runtimeBlueskyConfirmationTimeout": { "message": "Bluesky: لم يكتمل التأكيد خلال 5 دقائق" },
+  "runtimeMobileBrowserUnsupported": { "message": "النشر من متصفح الهاتف غير مدعوم حاليًا. يحتاج Tutti إلى متصفح سطح مكتب (Chrome أو Edge أو Brave) على Windows أو macOS أو Linux." }
 }
