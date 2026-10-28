@@ -99,6 +99,14 @@ const PREVIEW_DRAFT_READERS = {
   },
 };
 
+// tutti-issues#111: an RTL draft with emoji lines and Arabic hashtags broke
+// X's segmented hashtag typing.
+const arabicHashtagText = (stamp) => (
+  `🔥 ملخص أهم أحداث الـ 24 ساعة ${stamp}\n` +
+  '📅 الجمعة 23 أكتوبر 2026\n' +
+  '📰 #دوري_روشن #عاجل #فيديو'
+);
+
 const CASES = {
   'text-thread-three': {
     requires: ['text'],
@@ -137,6 +145,21 @@ const CASES = {
     requires: ['image'],
     text: (stamp) => `tutti surface matrix ellipsis ${stamp} ${'mnya '.repeat(12)}mnya...`,
     media: 'image',
+  },
+  'text-arabic-hashtags': {
+    requires: ['text'],
+    text: arabicHashtagText,
+    media: 'none',
+    verifyPreviewDraftText: true,
+  },
+  'text-arabic-hashtags-video': {
+    requires: ['shortVideo'],
+    platforms: ['x'],
+    text: arabicHashtagText,
+    media: 'video',
+    postingWindowFocusPolicy: 'foreground-video',
+    verifyPreviewDraftText: true,
+    requirePreviewVideoAttachment: true,
   },
   'image-only': {
     requires: ['image'],

@@ -241,7 +241,15 @@ function placeCaretAtEnd(element: HTMLElement): void {
 }
 
 function normalizeXDraftText(value: string): string {
-  return value.replace(/\r\n/gu, '\n').replace(/\u200b/gu, '').trim();
+  // Keep trailing spaces: a whitespace-only segment between two entities must
+  // change the comparison text, or it is skipped as already present and the
+  // next entity is glued to the previous one (tutti-issues#111).
+  return value
+    .replace(/\r\n/gu, '\n')
+    .replace(/\u200b/gu, '')
+    .replace(/\u00a0/gu, ' ')
+    .replace(/^\s+/u, '')
+    .replace(/\n+$/u, '');
 }
 
 export function injectNativeText(
