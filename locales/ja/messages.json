@@ -148,6 +148,7 @@
   "runtimeConversionNoResponse": { "message": "変換処理が応答しません" },
   "runtimeUnsupportedPlatform": { "message": "未対応のプラットフォームです" },
   "runtimeLongVideoUnsupported": { "message": "長尺動画に未対応です" },
+  "runtimeMobileBrowserUnsupported": { "message": "モバイルブラウザからの投稿にはまだ対応していません。Windows / macOS / Linux のデスクトップ版ブラウザ (Chrome・Edge・Brave など) でお使いください。" },
   "runtimeShortVideoUnsupported": { "message": "短動画に未対応です" },
   "runtimeVideoDurationExceeded": { "message": "尺が長すぎます (上限 $LIMIT$s、実際 $ACTUAL$s)", "placeholders": { "LIMIT": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
   "runtimeFileSizeExceeded": { "message": "ファイルサイズが大きすぎます (上限 $LIMIT$MB、実際 $ACTUAL$MB)", "placeholders": { "LIMIT": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
