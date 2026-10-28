@@ -24,6 +24,13 @@ import { bootstrapContentScript } from '../src/utils/content-script-bootstrap';
 import { t } from '../src/utils/i18n';
 import { clickElementWithPacing } from '../src/utils/web-action-pacing';
 
+// tutti-issues#114: 日本語 UI の投稿ボタンは「投稿する」(以前は「投稿」)。
+const PIXIV_POST_BUTTON_TEXTS = ['Post', '投稿', '投稿する'];
+
+function isPixivPostButtonText(button: HTMLElement): boolean {
+  return PIXIV_POST_BUTTON_TEXTS.includes((button.textContent ?? '').trim());
+}
+
 /**
  * Pixiv の logged-in user を header の自分の作品リンクから検出する。
  * `a[href^="/users/<id>"]` のうち最初に現れるものは大抵 self-link。
@@ -245,7 +252,7 @@ async function runPost(
         const isPostDisabled = (): boolean => {
           const btns = Array.from(document.querySelectorAll<HTMLButtonElement>('button'));
           const bottoms = btns.filter((b) =>
-            /^Post$|^投稿$/.test((b.textContent ?? '').trim()) &&
+            isPixivPostButtonText(b) &&
             !b.className.includes('gtm-work-post-button-in-header-click'),
           );
           return bottoms.length > 0 && bottoms.every((b) => b.disabled);
@@ -312,7 +319,7 @@ async function runPost(
       // 視野内に持ってくる (実機検証で out-of-viewport の click が時々無視されてた)。
       finder: () => {
         const all = Array.from(document.querySelectorAll<HTMLButtonElement>('button'))
-          .filter((b) => /^Post$|^投稿$/.test((b.textContent ?? '').trim()));
+          .filter(isPixivPostButtonText);
         const nonHeader = all.filter(
           (b) => !b.className.includes('gtm-work-post-button-in-header-click'),
         );
@@ -323,7 +330,7 @@ async function runPost(
         }
         return target;
       },
-      texts: ['Post', '投稿', 'Submit'],
+      texts: [...PIXIV_POST_BUTTON_TEXTS, 'Submit'],
       // 全 required field が valid になるまで時間がかかる (画像 upload 完了 + radio
       // click の React 反映を含めて 5〜10s)。8s default だと足りないので 15s に
       timeoutMs: 15000,
