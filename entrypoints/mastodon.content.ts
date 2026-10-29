@@ -22,14 +22,16 @@ import { waitForCondition } from '../src/utils/dom';
  * GIF / 動画は upload API が 202 を返したあと server 側で変換処理が続く。処理中も
  * Publish は押せてしまい、押すと media 抜きで本文だけ投稿される。
  * 旧 UI は .upload-progress が処理中表示。redesign の attachments__mediaUpload は
- * 処理後も残るが、処理中は中身が空で ALT ボタンが無い。
+ * 処理後も残るが、処理中は中身が空で ALT ボタンが無い。CSS module 接頭辞は
+ * `_compose_redesign_` → `_compose_components_` (2026-10-30) と変わるので
+ * `_attachments__` 以降だけで照合する。
  */
 const MASTODON_MEDIA_PROCESSING_TIMEOUT_MS = 180_000;
 
 function isMastodonMediaProcessing(): boolean {
   if (document.querySelector('.upload-progress')) return true;
-  return Array.from(document.querySelectorAll('[class*="_compose_redesign_attachments__mediaUpload"]'))
-    .some((el) => !el.querySelector('[class*="_compose_redesign_attachments__mediaMenuAltButton"]'));
+  return Array.from(document.querySelectorAll('[class*="_attachments__mediaUpload"]'))
+    .some((el) => !el.querySelector('[class*="_attachments__mediaMenuAltButton"]'));
 }
 
 async function waitForMastodonMediaProcessed(): Promise<void> {

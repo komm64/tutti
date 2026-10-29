@@ -37,16 +37,17 @@ export const mastodonAdapter: PlatformAdapter = {
 
 export const MASTODON_SELECTORS = {
   /**
-   * 投稿ボタン。旧 UI は `.button`、2026-10 の compose redesign (mastodon.social)
-   * は `form._compose_redesign__root[role=dialog]` 内の submit。locale 不問の
-   * data 属性が無いので class + type で拾う
+   * 投稿ボタン。旧 UI は `.button`、compose redesign (mastodon.social) は
+   * `form[role=dialog]` 内の submit。redesign の CSS module 接頭辞は
+   * `_compose_redesign__` → `_feat_compose__` (2026-10-30) と変わるので
+   * 接頭辞に依存しない。locale 不問の data 属性は無い
    */
   postButton:
-    'button.button[type="submit"], form[class*="_compose_redesign__root"] button[type="submit"]',
+    'button.button[type="submit"], form[role="dialog"][class*="__root"] button[type="submit"]',
   /** 投稿入力欄 (旧 UI / redesign 両対応) */
   textarea:
-    'textarea.autosuggest-textarea__textarea, form[class*="_compose_redesign__root"] textarea[class*="_compose_redesign__textarea"]',
+    'textarea.autosuggest-textarea__textarea, form[role="dialog"][class*="__root"] textarea[class*="__textarea"]',
   /** 画像添付用 file input (旧 UI は .compose-form、redesign は form footer) */
   fileInput:
-    '.compose-form input[type="file"], form[class*="_compose_redesign__root"] input[type="file"], input[type="file"][multiple]',
+    '.compose-form input[type="file"], form[role="dialog"][class*="__root"] input[type="file"], input[type="file"][multiple]',
 } as const;
