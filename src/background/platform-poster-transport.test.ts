@@ -317,6 +317,52 @@ describe('platform poster transport boundaries', () => {
     expect(mocks.sendPostMessageWhenReady).not.toHaveBeenCalled();
   });
 
+  it('confirms an uncertain submit when the post can be found', async () => {
+    mocks.tryApiPath.mockResolvedValue('no-credentials');
+    mocks.sendPostMessageWhenReady.mockResolvedValue({
+      type: 'POST_RESULT',
+      platform: 'mastodon',
+      success: false,
+      uncertain: true,
+      userAction: 'check-post-before-retry',
+      flow: { mode: 'post', submitReached: true, failedStep: 'confirm-post' },
+      error: 'composer kept open',
+    } satisfies PostResultMessage);
+    mocks.capturePostUrlFromTabWithRetry.mockResolvedValueOnce('https://social.example/@me/1' as never);
+
+    const result = await createPoster().postToPlatform('mastodon', 'hello', undefined, undefined, undefined, true);
+
+    expect(result).toMatchObject({ success: true, confirmed: true, url: 'https://social.example/@me/1' });
+    expect(result.uncertain).toBeUndefined();
+    expect(result.userAction).toBeUndefined();
+    expect(result.error).toBeUndefined();
+    expect(mocks.sendPostMessageWhenReady).toHaveBeenCalledOnce();
+  });
+
+  it('keeps an uncertain submit uncertain when the post cannot be found', async () => {
+    mocks.tryApiPath.mockResolvedValue('no-credentials');
+    mocks.sendPostMessageWhenReady.mockResolvedValue({
+      type: 'POST_RESULT',
+      platform: 'mastodon',
+      success: false,
+      uncertain: true,
+      userAction: 'check-post-before-retry',
+      flow: { mode: 'post', submitReached: true, failedStep: 'confirm-post' },
+      error: 'composer kept open',
+    } satisfies PostResultMessage);
+
+    const result = await createPoster().postToPlatform('mastodon', 'hello', undefined, undefined, undefined, true);
+
+    expect(result).toMatchObject({
+      success: false,
+      uncertain: true,
+      userAction: 'check-post-before-retry',
+      flow: { failedStep: 'confirm-post' },
+    });
+    expect(mocks.capturePostUrlFromTabWithRetry).toHaveBeenCalledOnce();
+    expect(mocks.sendPostMessageWhenReady).toHaveBeenCalledOnce();
+  });
+
   it('does not repeat a failed real media upload before submit', async () => {
     const x = adapter('x');
     mocks.resolveAdapter.mockResolvedValue(x);
