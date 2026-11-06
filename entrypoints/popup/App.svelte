@@ -30,7 +30,9 @@
     Visibility,
   } from '../../src/popup/types';
   import {
+    formatFailureReportText,
     needsVideoPostingConfirmation,
+    reportableFailures,
     uncertainPlatforms,
   } from '../../src/popup/post-submit';
   import {
@@ -151,6 +153,7 @@
   $effect(() => {
     let key: string | null = null;
     let text = '';
+    let signInHintPlatform: PlatformId | null = null;
     if (errorMessage) {
       key = `error:${errorMessage}`;
       text = errorMessage;
@@ -158,13 +161,18 @@
       const failures = lastResults?.filter((r) => !r.success) ?? [];
       if (failures.length > 0) {
         key = `failures:${failures.map((f) => `${f.platform}:${f.uncertain ? 'uncertain' : 'failed'}:${f.error ?? ''}`).join('|')}`;
-        text = failures.map((f) => `${f.platform}${f.uncertain ? ' (uncertain)' : ''}: ${f.error ?? '(no detail)'}`).join('\n');
+        text = formatFailureReportText(reportableFailures(failures));
+        if (!text) signInHintPlatform = failures[0]!.platform;
       }
     }
     if (key && key !== dialogShownForKey) {
-      errorDialogOpen = true;
-      errorDialogText = text;
       dialogShownForKey = key;
+      if (signInHintPlatform) {
+        expandedFailure = signInHintPlatform;
+      } else {
+        errorDialogOpen = true;
+        errorDialogText = text;
+      }
     }
   });
 

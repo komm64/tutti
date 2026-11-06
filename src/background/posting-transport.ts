@@ -58,7 +58,11 @@ export interface PostingTransportOptions {
 }
 
 export class PostFlowError extends Error {
-  constructor(message: string, readonly flow?: PostFlowTrace) {
+  constructor(
+    message: string,
+    readonly flow?: PostFlowTrace,
+    readonly userAction?: PostResultMessage['userAction'],
+  ) {
     super(message);
     this.name = 'PostFlowError';
   }
@@ -345,6 +349,7 @@ export function createPostingTransport(options: PostingTransportOptions) {
         throw new PostFlowError(
           response.error ?? t('runtimePostFailed'),
           response.flow,
+          response.userAction,
         );
       }
       if (dryRun) return toPreviewResult(response);

@@ -44,6 +44,23 @@ export function needsVideoPostingConfirmation(
   return input.autoPost && input.video !== null;
 }
 
+/**
+ * Failures worth prompting a report for. Being signed out is the user's to fix,
+ * so it gets the sign-in hint instead; that hint keeps its own report button in
+ * case the sign-in detection itself was wrong.
+ */
+export function reportableFailures(
+  results: readonly PostResultMessage[] | null,
+): PostResultMessage[] {
+  return (results ?? []).filter((r) => !r.success && r.userAction !== 'sign-in');
+}
+
+export function formatFailureReportText(failures: readonly PostResultMessage[]): string {
+  return failures
+    .map((r) => `${r.platform}${r.uncertain ? ' (uncertain)' : ''}: ${r.error ?? '(no detail)'}`)
+    .join('\n');
+}
+
 export async function sendPostRequest(
   input: PostSubmissionInput,
   sendMessage: RuntimeSendMessage = (message) => browser.runtime.sendMessage(message),

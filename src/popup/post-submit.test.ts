@@ -2,17 +2,39 @@ import { describe, expect, it } from 'vitest';
 import type { PostResultMessage } from '../messages';
 import {
   failedRetryPlatforms,
+  formatFailureReportText,
   isDurablePostedResult,
   mergePostResults,
   needsVideoPostingConfirmation,
   normalizeRetryGuardResults,
   pollPostRequestResult,
+  reportableFailures,
   sendPostRequest,
   shouldClearDraftAfterSubmit,
   uncertainPlatforms,
 } from './post-submit';
 
 describe('popup post submit policy', () => {
+  it('does not prompt a report for sign-in failures', () => {
+    const base = { type: 'POST_RESULT', success: false } as const;
+    const signedOut: PostResultMessage = {
+      ...base,
+      platform: 'mastodon',
+      userAction: 'sign-in',
+      error: 'You may need to sign in',
+    };
+    const broken: PostResultMessage = { ...base, platform: 'x', error: 'button missing' };
+    const uncertain: PostResultMessage = { ...base, platform: 'tiktok', uncertain: true };
+    const posted: PostResultMessage = { ...base, platform: 'bluesky', success: true };
+
+    expect(reportableFailures(null)).toEqual([]);
+    expect(reportableFailures([signedOut, posted])).toEqual([]);
+    const reportable = reportableFailures([signedOut, broken, uncertain, posted]);
+    expect(reportable).toEqual([broken, uncertain]);
+    expect(formatFailureReportText(reportable))
+      .toBe('x: button missing\ntiktok (uncertain): (no detail)');
+  });
+
   it('requires the foreground warning only for real video posts', () => {
     const video = {
       name: 'clip.mp4',
