@@ -1,5 +1,6 @@
 <script lang="ts">
-  import type { PlatformId, PostResultMessage } from '../../../src/messages';
+  import type { PostResultMessage } from '../../../src/messages';
+  import { formatFailureReportText, reportableFailures } from '../../../src/popup/post-submit';
   import type { ImagePreview, VideoPreview } from '../../../src/popup/types';
   import { t } from '../../../src/utils/i18n';
 
@@ -39,6 +40,7 @@
 
   const failures = $derived(lastResults?.filter((r) => !r.success) ?? []);
   const definiteFailures = $derived(failures.filter((r) => !r.uncertain));
+  const reportable = $derived(reportableFailures(lastResults));
   const canRetry = $derived(text.trim().length > 0 || images.length > 0 || !!video);
 </script>
 
@@ -84,12 +86,12 @@
         class="px-2 py-1 rounded bg-red-600 text-white hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed font-medium"
       >{t('retryFailedButton', String(definiteFailures.length))} ↻</button>
     {/if}
-    <button
-      onclick={() => onOpenFailureReportDialog(
-        failures.map((r) => `${r.platform as PlatformId}${r.uncertain ? ' (uncertain)' : ''}: ${r.error ?? '(no detail)'}`).join('\n'),
-      )}
-      title={t('errorReportHint')}
-      class="underline hover:text-red-900"
-    >{t('errorReportButton')} →</button>
+    {#if reportable.length > 0}
+      <button
+        onclick={() => onOpenFailureReportDialog(formatFailureReportText(reportable))}
+        title={t('errorReportHint')}
+        class="underline hover:text-red-900"
+      >{t('errorReportButton')} →</button>
+    {/if}
   </div>
 {/if}

@@ -277,6 +277,31 @@ describe('platform poster transport boundaries', () => {
     expect(mocks.sendPostMessageWhenReady).toHaveBeenCalledOnce();
   });
 
+  it('keeps the sign-in action after pre-submit retries are exhausted', async () => {
+    mocks.tryApiPath.mockResolvedValue('no-credentials');
+    mocks.sendPostMessageWhenReady.mockResolvedValue({
+      type: 'POST_RESULT',
+      platform: 'mastodon',
+      success: false,
+      userAction: 'sign-in',
+      flow: {
+        mode: 'post',
+        submitReached: false,
+        failedStep: 'verify-login',
+      },
+      error: 'You may need to sign in',
+    } satisfies PostResultMessage);
+
+    const result = await createPoster().postToPlatform('mastodon', 'hello', undefined, undefined, undefined, true);
+
+    expect(result).toMatchObject({
+      success: false,
+      userAction: 'sign-in',
+      flow: { failedStep: 'verify-login' },
+    });
+    expect(result.uncertain).toBeUndefined();
+  });
+
   it('does not repeat a failed real media upload before submit', async () => {
     const x = adapter('x');
     mocks.resolveAdapter.mockResolvedValue(x);

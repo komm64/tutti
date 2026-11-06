@@ -170,6 +170,7 @@ export function createNextPostOrchestrator(options: PostOrchestratorOptions) {
           type: 'POST_RESULT',
           platform,
           success: false,
+          userAction: error instanceof PostFlowError ? error.userAction : undefined,
           flow: {
             mode: autoPost ? 'post' : 'preview',
             submitReached: flow?.submitReached ?? false,
