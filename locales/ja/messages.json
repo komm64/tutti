@@ -417,6 +417,17 @@
 
   "constraintAdapterMissing": { "message": "アダプタ未実装" },
   "constraintVideoUnsupported": { "message": "動画投稿に未対応" },
+  "constraintTextTooLong": {
+    "message": "本文が長すぎます(上限 $MAX$ 文字)",
+    "placeholders": {
+      "MAX": { "content": "$1" }
+    }
+  },
+  "constraintMediaRequired": { "message": "画像か動画が必要です" },
+  "constraintImageRequired": { "message": "画像が必要です" },
+  "constraintVideoRequired": { "message": "動画が必要です" },
+  "constraintImagesUnsupported": { "message": "画像投稿に未対応" },
+  "constraintLongVideoUnsupported": { "message": "60 秒を超える動画に未対応" },
   "constraintVideoTooLong": {
     "message": "尺が長すぎます(上限 $MAX$s、実際 $ACTUAL$s)",
     "placeholders": {

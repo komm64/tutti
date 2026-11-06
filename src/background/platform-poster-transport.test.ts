@@ -302,6 +302,21 @@ describe('platform poster transport boundaries', () => {
     expect(result.uncertain).toBeUndefined();
   });
 
+  it('refuses long text on a media-only platform before posting any part', async () => {
+    mocks.resolveAdapter.mockResolvedValue({ ...adapter('pixiv'), charLimit: 10, kinds: ['image'] });
+    mocks.tryApiPath.mockResolvedValue('no-credentials');
+
+    const result = await createPoster().postToPlatform('pixiv', 'a'.repeat(30), undefined, undefined, undefined, true);
+
+    expect(result).toMatchObject({
+      success: false,
+      userAction: 'fix-media',
+      flow: { submitReached: false, failedStep: 'preflight:text-length' },
+    });
+    expect(mocks.openOrFocusTab).not.toHaveBeenCalled();
+    expect(mocks.sendPostMessageWhenReady).not.toHaveBeenCalled();
+  });
+
   it('does not repeat a failed real media upload before submit', async () => {
     const x = adapter('x');
     mocks.resolveAdapter.mockResolvedValue(x);

@@ -1,6 +1,7 @@
 import type { PlatformId } from '../types/platform';
 import { checkVideoConstraint, getAdapter } from '../adapters/registry';
-import { splitTextForPlatform } from '../utils/platform-text';
+import { measureTextForPlatform, splitTextForPlatform } from '../utils/platform-text';
+import { t } from '../utils/i18n';
 import type { ImagePreview, PlatformOption, VideoPreview } from './types';
 
 export type PopupContentKind = 'text' | 'image' | 'shortVideo' | 'longVideo';
@@ -9,18 +10,6 @@ export function resolveCurrentKind(images: readonly ImagePreview[], video: Video
   if (video) return video.durationS > 60 ? 'longVideo' : 'shortVideo';
   if (images.length > 0) return 'image';
   return 'text';
-}
-
-/**
- * Selection is kept across drafts, so a video-only SNS chosen for the previous
- * video stays checked while an image is attached. Such platforms are skipped
- * for this draft (their row is dimmed) instead of blocking the whole post.
- */
-export function filterPlatformsForKind(
-  selectedIds: readonly PlatformId[],
-  kind: PopupContentKind,
-): PlatformId[] {
-  return selectedIds.filter((id) => getAdapter(id)?.kinds.includes(kind) ?? true);
 }
 
 export function countTotalPosts(
@@ -35,52 +24,60 @@ export function countTotalPosts(
   }, 0);
 }
 
-export function buildVideoCompatibility(
+export interface DraftShape {
+  text: string;
+  images: readonly ImagePreview[];
+  video: VideoPreview | null;
+}
+
+/**
+ * Why a platform cannot take this draft, or null when it can. Blocked rows are
+ * dimmed with this reason on hover and skipped by the post, so one unsuitable
+ * network never blocks the others. Selection is kept across drafts, so a
+ * network chosen for an earlier draft may be blocked by the current one.
+ */
+export function platformBlocker(platform: PlatformOption, draft: DraftShape): string | null {
+  const adapter = getAdapter(platform.id);
+  if (!adapter) return null;
+  const kind = resolveCurrentKind(draft.images, draft.video);
+  if (!adapter.kinds.includes(kind)) return kindBlocker(adapter.kinds, kind);
+  const mediaBlocker = draft.video
+    // Video size is compressed in the background, so only duration is checked here.
+    ? checkVideoConstraint(platform.id, draft.video.durationS, 0)
+    : draft.images.length > adapter.imageConstraints.maxImages
+      ? t('constraintTooManyImages', String(adapter.imageConstraints.maxImages))
+      : null;
+  if (mediaBlocker) return mediaBlocker;
+  // A media-only network cannot carry a text-only continuation, so long text
+  // would publish a truncated first part and fail on the second.
+  if (!adapter.kinds.includes('text') && measureTextForPlatform(platform.id, draft.text) > platform.limit) {
+    return t('constraintTextTooLong', String(platform.limit));
+  }
+  return null;
+}
+
+function kindBlocker(kinds: readonly PopupContentKind[], kind: PopupContentKind): string {
+  if (kind === 'text') {
+    const takesImage = kinds.includes('image');
+    const takesVideo = kinds.includes('shortVideo') || kinds.includes('longVideo');
+    if (takesImage && takesVideo) return t('constraintMediaRequired');
+    return t(takesImage ? 'constraintImageRequired' : 'constraintVideoRequired');
+  }
+  if (kind === 'image') return t('constraintImagesUnsupported');
+  if (kind === 'longVideo' && kinds.includes('shortVideo')) return t('constraintLongVideoUnsupported');
+  return t('constraintVideoUnsupported');
+}
+
+export function buildPlatformBlockers(
   platforms: readonly PlatformOption[],
-  video: VideoPreview | null,
+  draft: DraftShape,
 ): Record<string, string | null> {
-  if (!video) return {};
-  return Object.fromEntries(
-    platforms.map((platform) => [
-      platform.id,
-      // 動画サイズは background 側で選択中 SNS の最小上限まで自動圧縮する。
-      // popup は「圧縮前サイズ」では止めず、非対応/尺超過だけを事前エラーにする。
-      checkVideoConstraint(platform.id, video.durationS, 0),
-    ]),
-  );
+  return Object.fromEntries(platforms.map((platform) => [platform.id, platformBlocker(platform, draft)]));
 }
 
-export function buildImageCompatibility(
-  platforms: readonly PlatformOption[],
-  images: readonly ImagePreview[],
-  video: VideoPreview | null,
-  tooManyImagesMessage: (maxImages: number) => string,
-): Record<string, string | null> {
-  if (video || images.length === 0) return {};
-  return Object.fromEntries(
-    platforms.map((platform) => {
-      const adapter = getAdapter(platform.id);
-      if (!adapter || !adapter.kinds.includes('image')) return [platform.id, null];
-      if (images.length > adapter.imageConstraints.maxImages) {
-        return [platform.id, tooManyImagesMessage(adapter.imageConstraints.maxImages)];
-      }
-      return [platform.id, null];
-    }),
-  );
-}
-
-export interface SelectedCompatibilityError {
-  platform: PlatformId;
-  error: string;
-}
-
-export function buildSelectedCompatibilityErrors(
+export function filterUnblockedPlatforms(
   selectedIds: readonly PlatformId[],
-  videoCompatibility: Record<string, string | null>,
-  imageCompatibility: Record<string, string | null>,
-): SelectedCompatibilityError[] {
-  return selectedIds.flatMap((platform) => {
-    const error = videoCompatibility[platform] || imageCompatibility[platform];
-    return error ? [{ platform, error }] : [];
-  });
+  blockers: Record<string, string | null>,
+): PlatformId[] {
+  return selectedIds.filter((id) => !blockers[id]);
 }

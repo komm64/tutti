@@ -46,12 +46,9 @@
     type PostingViewState,
   } from '../../src/popup/posting-progress';
   import {
-    buildSelectedCompatibilityErrors,
-    buildImageCompatibility,
-    buildVideoCompatibility,
+    buildPlatformBlockers,
     countTotalPosts,
-    filterPlatformsForKind,
-    resolveCurrentKind,
+    filterUnblockedPlatforms,
   } from '../../src/popup/compatibility';
   import { buildDraftKey } from '../../src/popup/draft-key';
   import {
@@ -526,12 +523,12 @@
     }
   }
 
-  // 現在のコンテンツ種別を自動判定: 動画 60s 以下=short / 超=long / 画像 / 文字
-  const currentKind = $derived.by(() => resolveCurrentKind(images, video));
+  // 下書きに合わない SNS (種別・枚数・尺・文字数) は行を薄くして投稿対象から外す
+  const platformBlockers = $derived(buildPlatformBlockers(platforms, { text, images, video }));
   const selectedIds = $derived(
-    filterPlatformsForKind(
+    filterUnblockedPlatforms(
       selectedPlatformIds(selected).filter((id) => platforms.some((p) => p.id === id && p.available)),
-      currentKind,
+      platformBlockers,
     ),
   );
   // ログイン済み(lastSeenUsers でハンドル検出済み)を上 section、未確認を下 section に。
@@ -544,20 +541,11 @@
   );
   const hasMedia = $derived(images.length > 0 || video !== null);
   const totalPostCount = $derived(countTotalPosts(platforms, selectedIds, text));
-  const videoCompatibility = $derived(buildVideoCompatibility(platforms, video));
-  // 画像サイズは投稿時に自動リサイズされるので、枚数オーバーだけ警告する
-  const imageCompatibility = $derived(
-    buildImageCompatibility(platforms, images, video, (max) => t('constraintTooManyImages', String(max))),
-  );
-  const selectedCompatibilityErrors = $derived(
-    buildSelectedCompatibilityErrors(selectedIds, videoCompatibility, imageCompatibility),
-  );
   const canPost = $derived(
     !posting &&
       !videoPostingDialogOpen &&
       (text.trim().length > 0 || hasMedia) &&
-      selectedIds.length > 0 &&
-      selectedCompatibilityErrors.length === 0,
+      selectedIds.length > 0,
   );
 
   async function processFiles(files: File[]) {
@@ -694,12 +682,6 @@
   }
 
   async function handlePost() {
-    if (selectedCompatibilityErrors.length > 0) {
-      errorMessage = selectedCompatibilityErrors
-        .map((item) => `${item.platform}: ${item.error}`)
-        .join('\n');
-      return;
-    }
     if (!canPost) return;
     const uncertainSelected = new Set(uncertainPlatforms(lastResults));
     if (selectedIds.some((id) => uncertainSelected.has(id))) {
@@ -867,12 +849,10 @@
     {text}
     {posting}
     {autoPost}
-    {currentKind}
     {lastSeenUsers}
     {pendingPlatforms}
     {lastResults}
-    {videoCompatibility}
-    {imageCompatibility}
+    {platformBlockers}
     {expandedFailure}
     onSelectedChange={setSelectedPlatform}
     onOpenLogin={openLoginUrl}

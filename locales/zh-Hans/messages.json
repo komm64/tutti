@@ -203,6 +203,17 @@
   "errorDialogOpenGitHub": { "message": "通过邮件发送" },
   "constraintAdapterMissing": { "message": "适配器未实现" },
   "constraintVideoUnsupported": { "message": "不支持视频" },
+  "constraintTextTooLong": {
+    "message": "文本过长(最多 $MAX$ 个字符)",
+    "placeholders": {
+      "MAX": { "content": "$1" }
+    }
+  },
+  "constraintMediaRequired": { "message": "需要图片或视频" },
+  "constraintImageRequired": { "message": "需要图片" },
+  "constraintVideoRequired": { "message": "需要视频" },
+  "constraintImagesUnsupported": { "message": "不支持图片" },
+  "constraintLongVideoUnsupported": { "message": "不支持超过 60 秒的视频" },
   "constraintVideoTooLong": {
     "message": "视频过长(上限 $MAX$ 秒,实际 $ACTUAL$ 秒)",
     "placeholders": { "MAX": { "content": "$1" }, "ACTUAL": { "content": "$2" } }

@@ -161,6 +161,17 @@
   "errorDialogOpenGitHub": { "message": "Kirim via email" },
   "constraintAdapterMissing": { "message": "Adapter belum diimplementasikan" },
   "constraintVideoUnsupported": { "message": "Video tidak didukung" },
+  "constraintTextTooLong": {
+    "message": "Teks terlalu panjang (maks. $MAX$ karakter)",
+    "placeholders": {
+      "MAX": { "content": "$1" }
+    }
+  },
+  "constraintMediaRequired": { "message": "Memerlukan gambar atau video" },
+  "constraintImageRequired": { "message": "Memerlukan gambar" },
+  "constraintVideoRequired": { "message": "Memerlukan video" },
+  "constraintImagesUnsupported": { "message": "Gambar tidak didukung" },
+  "constraintLongVideoUnsupported": { "message": "Video lebih dari 60 detik tidak didukung" },
   "constraintVideoTooLong": { "message": "Video terlalu panjang (maks $MAX$ d, aktual $ACTUAL$ d)", "placeholders": { "MAX": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
   "constraintVideoTooLarge": { "message": "File video terlalu besar (maks $MAX$ MB, aktual $ACTUAL$ MB)", "placeholders": { "MAX": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
   "constraintTooManyImages": { "message": "Terlalu banyak gambar (maks $MAX$)", "placeholders": { "MAX": { "content": "$1" } } },

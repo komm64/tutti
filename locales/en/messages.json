@@ -417,6 +417,17 @@
 
   "constraintAdapterMissing": { "message": "Adapter not implemented" },
   "constraintVideoUnsupported": { "message": "Videos not supported" },
+  "constraintTextTooLong": {
+    "message": "Text too long (max $MAX$ characters)",
+    "placeholders": {
+      "MAX": { "content": "$1" }
+    }
+  },
+  "constraintMediaRequired": { "message": "Needs an image or video" },
+  "constraintImageRequired": { "message": "Needs an image" },
+  "constraintVideoRequired": { "message": "Needs a video" },
+  "constraintImagesUnsupported": { "message": "Images not supported" },
+  "constraintLongVideoUnsupported": { "message": "Videos over 60 seconds not supported" },
   "constraintVideoTooLong": {
     "message": "Video too long (max $MAX$s, actual $ACTUAL$s)",
     "placeholders": {

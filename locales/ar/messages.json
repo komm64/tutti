@@ -161,6 +161,17 @@
   "errorDialogOpenGitHub": { "message": "إرسال بالبريد الإلكتروني" },
   "constraintAdapterMissing": { "message": "Adapter غير منفّذ" },
   "constraintVideoUnsupported": { "message": "الفيديو غير مدعوم" },
+  "constraintTextTooLong": {
+    "message": "النص طويل جدًا (الحد الأقصى $MAX$ حرف)",
+    "placeholders": {
+      "MAX": { "content": "$1" }
+    }
+  },
+  "constraintMediaRequired": { "message": "يتطلب صورة أو فيديو" },
+  "constraintImageRequired": { "message": "يتطلب صورة" },
+  "constraintVideoRequired": { "message": "يتطلب فيديو" },
+  "constraintImagesUnsupported": { "message": "الصور غير مدعومة" },
+  "constraintLongVideoUnsupported": { "message": "مقاطع الفيديو الأطول من 60 ثانية غير مدعومة" },
   "constraintVideoTooLong": { "message": "الفيديو طويل جداً (الحد الأقصى $MAX$ ث، الفعلي $ACTUAL$ ث)", "placeholders": { "MAX": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
   "constraintVideoTooLarge": { "message": "ملف الفيديو كبير جداً (الحد الأقصى $MAX$ MB، الفعلي $ACTUAL$ MB)", "placeholders": { "MAX": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
   "constraintTooManyImages": { "message": "صور كثيرة جداً (الحد الأقصى $MAX$)", "placeholders": { "MAX": { "content": "$1" } } },

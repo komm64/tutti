@@ -161,6 +161,17 @@
   "errorDialogOpenGitHub": { "message": "Odeslat e-mailem" },
   "constraintAdapterMissing": { "message": "Adaptér není implementován" },
   "constraintVideoUnsupported": { "message": "Video není podporováno" },
+  "constraintTextTooLong": {
+    "message": "Text je příliš dlouhý (max. $MAX$ znaků)",
+    "placeholders": {
+      "MAX": { "content": "$1" }
+    }
+  },
+  "constraintMediaRequired": { "message": "Vyžaduje obrázek nebo video" },
+  "constraintImageRequired": { "message": "Vyžaduje obrázek" },
+  "constraintVideoRequired": { "message": "Vyžaduje video" },
+  "constraintImagesUnsupported": { "message": "Obrázky nejsou podporovány" },
+  "constraintLongVideoUnsupported": { "message": "Videa delší než 60 sekund nejsou podporována" },
   "constraintVideoTooLong": { "message": "Video příliš dlouhé (max $MAX$ s, skutečné $ACTUAL$ s)", "placeholders": { "MAX": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
   "constraintVideoTooLarge": { "message": "Soubor videa příliš velký (max $MAX$ MB, skutečný $ACTUAL$ MB)", "placeholders": { "MAX": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
   "constraintTooManyImages": { "message": "Příliš mnoho obrázků (max $MAX$)", "placeholders": { "MAX": { "content": "$1" } } },

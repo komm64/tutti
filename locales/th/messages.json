@@ -161,6 +161,17 @@
   "errorDialogOpenGitHub": { "message": "ส่งทางอีเมล" },
   "constraintAdapterMissing": { "message": "ไม่ได้ใช้ Adapter" },
   "constraintVideoUnsupported": { "message": "ไม่รองรับวิดีโอ" },
+  "constraintTextTooLong": {
+    "message": "ข้อความยาวเกินไป (สูงสุด $MAX$ อักขระ)",
+    "placeholders": {
+      "MAX": { "content": "$1" }
+    }
+  },
+  "constraintMediaRequired": { "message": "ต้องมีรูปภาพหรือวิดีโอ" },
+  "constraintImageRequired": { "message": "ต้องมีรูปภาพ" },
+  "constraintVideoRequired": { "message": "ต้องมีวิดีโอ" },
+  "constraintImagesUnsupported": { "message": "ไม่รองรับรูปภาพ" },
+  "constraintLongVideoUnsupported": { "message": "ไม่รองรับวิดีโอที่ยาวเกิน 60 วินาที" },
   "constraintVideoTooLong": { "message": "วิดีโอยาวเกินไป (สูงสุด $MAX$ วินาที, จริง $ACTUAL$ วินาที)", "placeholders": { "MAX": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
   "constraintVideoTooLarge": { "message": "ไฟล์วิดีโอใหญ่เกินไป (สูงสุด $MAX$ MB, จริง $ACTUAL$ MB)", "placeholders": { "MAX": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
   "constraintTooManyImages": { "message": "รูปภาพมากเกินไป (สูงสุด $MAX$)", "placeholders": { "MAX": { "content": "$1" } } },

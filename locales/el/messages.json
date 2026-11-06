@@ -161,6 +161,17 @@
   "errorDialogOpenGitHub": { "message": "Αποστολή με email" },
   "constraintAdapterMissing": { "message": "Ο adapter δεν έχει υλοποιηθεί" },
   "constraintVideoUnsupported": { "message": "Τα βίντεο δεν υποστηρίζονται" },
+  "constraintTextTooLong": {
+    "message": "Το κείμενο είναι πολύ μεγάλο (μέγ. $MAX$ χαρακτήρες)",
+    "placeholders": {
+      "MAX": { "content": "$1" }
+    }
+  },
+  "constraintMediaRequired": { "message": "Απαιτείται εικόνα ή βίντεο" },
+  "constraintImageRequired": { "message": "Απαιτείται εικόνα" },
+  "constraintVideoRequired": { "message": "Απαιτείται βίντεο" },
+  "constraintImagesUnsupported": { "message": "Οι εικόνες δεν υποστηρίζονται" },
+  "constraintLongVideoUnsupported": { "message": "Τα βίντεο άνω των 60 δευτερολέπτων δεν υποστηρίζονται" },
   "constraintVideoTooLong": { "message": "Βίντεο πολύ μεγάλο (μέγ. $MAX$ δ, πραγματικό $ACTUAL$ δ)", "placeholders": { "MAX": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
   "constraintVideoTooLarge": { "message": "Αρχείο βίντεο πολύ μεγάλο (μέγ. $MAX$ MB, πραγματικό $ACTUAL$ MB)", "placeholders": { "MAX": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
   "constraintTooManyImages": { "message": "Πολλές εικόνες (μέγ. $MAX$)", "placeholders": { "MAX": { "content": "$1" } } },

@@ -161,6 +161,17 @@
   "errorDialogOpenGitHub": { "message": "E-posta ile gönder" },
   "constraintAdapterMissing": { "message": "Adaptör uygulanmadı" },
   "constraintVideoUnsupported": { "message": "Video desteklenmiyor" },
+  "constraintTextTooLong": {
+    "message": "Metin çok uzun (en fazla $MAX$ karakter)",
+    "placeholders": {
+      "MAX": { "content": "$1" }
+    }
+  },
+  "constraintMediaRequired": { "message": "Görsel veya video gerekir" },
+  "constraintImageRequired": { "message": "Görsel gerekir" },
+  "constraintVideoRequired": { "message": "Video gerekir" },
+  "constraintImagesUnsupported": { "message": "Görseller desteklenmiyor" },
+  "constraintLongVideoUnsupported": { "message": "60 saniyeden uzun videolar desteklenmiyor" },
   "constraintVideoTooLong": { "message": "Video çok uzun (maks $MAX$ s, gerçek $ACTUAL$ s)", "placeholders": { "MAX": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
   "constraintVideoTooLarge": { "message": "Video dosyası çok büyük (maks $MAX$ MB, gerçek $ACTUAL$ MB)", "placeholders": { "MAX": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
   "constraintTooManyImages": { "message": "Çok fazla görsel (maks $MAX$)", "placeholders": { "MAX": { "content": "$1" } } },

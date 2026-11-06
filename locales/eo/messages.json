@@ -161,6 +161,17 @@
   "errorDialogOpenGitHub": { "message": "Sendi per retpoŝto" },
   "constraintAdapterMissing": { "message": "Adaptilo ne realigita" },
   "constraintVideoUnsupported": { "message": "Videoj ne subtenataj" },
+  "constraintTextTooLong": {
+    "message": "Teksto tro longa (maks. $MAX$ signoj)",
+    "placeholders": {
+      "MAX": { "content": "$1" }
+    }
+  },
+  "constraintMediaRequired": { "message": "Bezonas bildon aŭ videon" },
+  "constraintImageRequired": { "message": "Bezonas bildon" },
+  "constraintVideoRequired": { "message": "Bezonas videon" },
+  "constraintImagesUnsupported": { "message": "Bildoj ne subtenataj" },
+  "constraintLongVideoUnsupported": { "message": "Videoj pli longaj ol 60 sekundoj ne subtenataj" },
   "constraintVideoTooLong": { "message": "Video tro longa (maks $MAX$ s, reala $ACTUAL$ s)", "placeholders": { "MAX": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
   "constraintVideoTooLarge": { "message": "Videodosiero tro granda (maks $MAX$ MB, reala $ACTUAL$ MB)", "placeholders": { "MAX": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
   "constraintTooManyImages": { "message": "Tro multaj bildoj (maks $MAX$)", "placeholders": { "MAX": { "content": "$1" } } },

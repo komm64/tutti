@@ -161,6 +161,17 @@
   "errorDialogOpenGitHub": { "message": "Send via e-post" },
   "constraintAdapterMissing": { "message": "Adapter ikke implementert" },
   "constraintVideoUnsupported": { "message": "Video støttes ikke" },
+  "constraintTextTooLong": {
+    "message": "Teksten er for lang (maks. $MAX$ tegn)",
+    "placeholders": {
+      "MAX": { "content": "$1" }
+    }
+  },
+  "constraintMediaRequired": { "message": "Krever et bilde eller en video" },
+  "constraintImageRequired": { "message": "Krever et bilde" },
+  "constraintVideoRequired": { "message": "Krever en video" },
+  "constraintImagesUnsupported": { "message": "Bilder støttes ikke" },
+  "constraintLongVideoUnsupported": { "message": "Videoer over 60 sekunder støttes ikke" },
   "constraintVideoTooLong": { "message": "Video for lang (maks $MAX$ s, faktisk $ACTUAL$ s)", "placeholders": { "MAX": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
   "constraintVideoTooLarge": { "message": "Videofil for stor (maks $MAX$ MB, faktisk $ACTUAL$ MB)", "placeholders": { "MAX": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
   "constraintTooManyImages": { "message": "For mange bilder (maks $MAX$)", "placeholders": { "MAX": { "content": "$1" } } },

@@ -15,12 +15,11 @@
     text: string;
     posting: boolean;
     autoPost: boolean;
-    currentKind: 'text' | 'image' | 'shortVideo' | 'longVideo';
     lastSeenUsers: LastSeenUsers;
     pendingPlatforms: PlatformId[];
     lastResults: PostResultMessage[] | null;
-    videoCompatibility: Record<string, string | null>;
-    imageCompatibility: Record<string, string | null>;
+    /** Why each platform cannot take the current draft (null = it can). */
+    platformBlockers: Record<string, string | null>;
     expandedFailure: PlatformId | null;
     onSelectedChange: (id: PlatformId, checked: boolean) => void;
     onOpenLogin: (id: PlatformId) => void;
@@ -36,12 +35,10 @@
     text,
     posting,
     autoPost,
-    currentKind,
     lastSeenUsers,
     pendingPlatforms,
     lastResults,
-    videoCompatibility,
-    imageCompatibility,
+    platformBlockers,
     expandedFailure,
     onSelectedChange,
     onOpenLogin,
@@ -54,17 +51,14 @@
   {@const remaining = p.limit - measureTextForPlatform(p.id, text)}
   {@const over = remaining < 0}
   {@const parts = over && p.available ? splitTextForPlatform(p.id, text, p.limit).length : 1}
-  {@const videoErr = videoCompatibility[p.id]}
-  {@const imageErr = imageCompatibility[p.id]}
-  {@const mediaErr = videoErr || imageErr}
+  {@const blocker = p.available ? platformBlockers[p.id] : null}
   {@const account = lastSeenUsers[p.id]}
-  {@const kindOk = getAdapter(p.id)?.kinds.includes(currentKind) ?? true}
   {@const result = lastResults?.find((r) => r.platform === p.id)}
   {@const isPending = !result && pendingPlatforms.includes(p.id)}
   {@const isQueued = !result && !isPending && posting && selectedIds.includes(p.id)}
   <label
     class="flex items-center gap-2 px-2 py-1.5 border rounded cursor-pointer select-none"
-    class:opacity-40={!p.available || !kindOk}
+    class:opacity-40={!p.available || !!blocker}
     class:cursor-not-allowed={!p.available}
     class:border-blue-400={isPending}
     class:bg-blue-50={isPending}
@@ -73,11 +67,11 @@
     class:border-amber-400={result?.uncertain}
     class:bg-amber-50={result?.uncertain}
     class:border-red-400={result && !result.success && !result.uncertain}
-    class:bg-red-50={(result && !result.success && !result.uncertain) || (!!mediaErr && p.available && selected[p.id] && !posting)}
-    class:border-orange-400={over && p.available && selected[p.id] && !mediaErr && kindOk && !posting}
-    class:bg-orange-50={over && p.available && selected[p.id] && !mediaErr && kindOk && !posting && !result && !isPending}
-    class:border-red-300={!!mediaErr && p.available && selected[p.id] && !posting}
-    class:border-gray-300={!isPending && !result && !(over && p.available && selected[p.id]) && !(!!mediaErr && p.available && selected[p.id])}
+    class:bg-red-50={result && !result.success && !result.uncertain}
+    class:border-orange-400={over && p.available && selected[p.id] && !blocker && !posting}
+    class:bg-orange-50={over && p.available && selected[p.id] && !blocker && !posting && !result && !isPending}
+    class:border-gray-300={!isPending && !result && !(over && p.available && selected[p.id] && !blocker)}
+    title={blocker ?? undefined}
   >
     <input
       type="checkbox"
@@ -143,8 +137,8 @@
         class="text-red-600 shrink-0 hover:text-red-700 cursor-pointer"
         title={t('failureHintTooltip')}
       >✗ ⓘ</button>
-    {:else if mediaErr && p.available}
-      <span class="text-red-500 text-[10px] leading-tight text-right shrink-0">{mediaErr.split('(')[0]?.trim()}</span>
+    {:else if blocker}
+      <span class="text-gray-500 shrink-0" aria-label={blocker}>ⓘ</span>
     {:else if over && p.available}
       <span class="text-orange-600 shrink-0">{t('splitParts', String(parts))}</span>
     {:else}

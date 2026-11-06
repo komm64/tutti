@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
+import { getAdapter } from '../adapters/registry';
 import type { PlatformId } from '../types/platform';
+import { t } from '../utils/i18n';
 import {
-  buildImageCompatibility,
-  buildSelectedCompatibilityErrors,
-  buildVideoCompatibility,
-  filterPlatformsForKind,
+  buildPlatformBlockers,
+  filterUnblockedPlatforms,
+  platformBlocker,
   resolveCurrentKind,
+  type DraftShape,
 } from './compatibility';
+import type { ImagePreview, PlatformOption, VideoPreview } from './types';
 
 const VIDEO_CAPABLE_PLATFORMS: PlatformId[] = [
   'x',
@@ -20,93 +23,99 @@ const VIDEO_CAPABLE_PLATFORMS: PlatformId[] = [
   'youtube',
 ];
 
-describe('buildSelectedCompatibilityErrors', () => {
+function option(id: PlatformId): PlatformOption {
+  return { id, name: id, limit: getAdapter(id)!.charLimit, available: true };
+}
+
+function images(count: number): ImagePreview[] {
+  return Array.from({ length: count }, (_, i) => ({
+    name: `${i}.png`,
+    type: 'image/png',
+    data: 'AA==',
+    previewUrl: `blob:${i}`,
+  }));
+}
+
+function video(durationS: number): VideoPreview {
+  return { name: 'clip.mp4', type: 'video/mp4', data: 'AA==', durationS, previewUrl: 'blob:clip' };
+}
+
+function draft(partial: Partial<DraftShape>): DraftShape {
+  return { text: '', images: [], video: null, ...partial };
+}
+
+describe('resolveCurrentKind', () => {
   it('classifies the current draft shape without ambiguity', () => {
     expect(resolveCurrentKind([], null)).toBe('text');
-    expect(resolveCurrentKind(
-      [{ name: 'photo.png', type: 'image/png', data: 'AA==', previewUrl: 'blob:photo' }],
-      null,
-    )).toBe('image');
-    expect(resolveCurrentKind(
-      [],
-      { name: 'clip.mp4', type: 'video/mp4', data: 'AA==', durationS: 30, previewUrl: 'blob:clip' },
-    )).toBe('shortVideo');
-    expect(resolveCurrentKind(
-      [],
-      { name: 'long.mp4', type: 'video/mp4', data: 'AA==', durationS: 61, previewUrl: 'blob:long' },
-    )).toBe('longVideo');
-  });
-
-  it('returns only selected platform media errors', () => {
-    expect(buildSelectedCompatibilityErrors(
-      ['x', 'threads'],
-      { threads: 'Short videos are not supported.', bluesky: 'too large' },
-      { x: null },
-    )).toEqual([
-      { platform: 'threads', error: 'Short videos are not supported.' },
-    ]);
-  });
-
-  it('does not report Threads short video as unsupported', () => {
-    const compatibility = buildVideoCompatibility(
-      [{ id: 'threads', name: 'Threads', limit: 500, available: true }],
-      { name: 'clip.mp4', type: 'video/mp4', data: 'AA==', durationS: 30, previewUrl: 'blob:test' },
-    );
-
-    expect(compatibility.threads).toBeNull();
-  });
-
-  it('does not report normal short videos as unsupported for video-capable platforms', () => {
-    const compatibility = buildVideoCompatibility(
-      VIDEO_CAPABLE_PLATFORMS.map((id) => ({ id, name: id, limit: 500, available: true })),
-      { name: 'clip.mp4', type: 'video/mp4', data: 'AA==', durationS: 30, previewUrl: 'blob:test' },
-    );
-
-    for (const platform of VIDEO_CAPABLE_PLATFORMS) {
-      expect(compatibility[platform], platform).toBeNull();
-    }
-  });
-
-  it('does not block oversized videos in the popup because background compression handles size', () => {
-    const compatibility = buildVideoCompatibility(
-      [{ id: 'bluesky', name: 'Bluesky', limit: 300, available: true }],
-      {
-        name: 'large.mp4',
-        type: 'video/mp4',
-        data: {
-          length: Math.ceil((90 * 1024 * 1024 * 4) / 3),
-          endsWith: () => false,
-        } as unknown as string,
-        durationS: 30,
-        previewUrl: 'blob:large',
-      },
-    );
-
-    expect(compatibility.bluesky).toBeNull();
-    expect(buildSelectedCompatibilityErrors(['bluesky'], compatibility, {})).toEqual([]);
+    expect(resolveCurrentKind(images(1), null)).toBe('image');
+    expect(resolveCurrentKind([], video(30))).toBe('shortVideo');
+    expect(resolveCurrentKind([], video(61))).toBe('longVideo');
   });
 });
 
-describe('filterPlatformsForKind', () => {
-  it('skips video-only platforms left selected from a previous video post', () => {
-    const selected: PlatformId[] = ['x', 'bluesky', 'instagram', 'tiktok', 'youtube'];
-    expect(filterPlatformsForKind(selected, 'image')).toEqual(['x', 'bluesky', 'instagram']);
-    expect(filterPlatformsForKind(selected, 'text')).toEqual(['x', 'bluesky']);
-    expect(filterPlatformsForKind(selected, 'shortVideo')).toEqual(selected);
+describe('platformBlocker', () => {
+  it('explains content kinds a platform cannot take', () => {
+    expect(platformBlocker(option('pixiv'), draft({ text: 'hi' }))).toBe(t('constraintImageRequired'));
+    expect(platformBlocker(option('tiktok'), draft({ text: 'hi' }))).toBe(t('constraintVideoRequired'));
+    expect(platformBlocker(option('instagram'), draft({ text: 'hi' }))).toBe(t('constraintMediaRequired'));
+    expect(platformBlocker(option('tiktok'), draft({ images: images(1) }))).toBe(t('constraintImagesUnsupported'));
+    expect(platformBlocker(option('pixiv'), draft({ video: video(30) }))).toBe(t('constraintVideoUnsupported'));
+    expect(platformBlocker(option('instagram'), draft({ video: video(61) })))
+      .toBe(t('constraintLongVideoUnsupported'));
   });
 
-  it('does not let a video-only platform block an image post', () => {
-    const platforms = (['x', 'tiktok', 'youtube'] as PlatformId[])
-      .map((id) => ({ id, name: id, limit: 280, available: true }));
-    const images = [{ name: 'a.png', type: 'image/png', size: 1, url: 'blob:a' }];
-    const imageCompatibility = buildImageCompatibility(
-      platforms as never,
-      images as never,
-      null,
-      (max) => `max ${max}`,
+  it('blocks a media-only platform when the text needs more than one post', () => {
+    const pixiv = option('pixiv');
+    const fits = draft({ text: 'a'.repeat(pixiv.limit), images: images(1) });
+    const tooLong = draft({ text: 'a'.repeat(pixiv.limit + 1), images: images(1) });
+
+    expect(platformBlocker(pixiv, fits)).toBeNull();
+    expect(platformBlocker(pixiv, tooLong)).toBe(t('constraintTextTooLong', String(pixiv.limit)));
+    // Text-capable platforms split long text into a thread instead.
+    expect(platformBlocker(option('x'), tooLong)).toBeNull();
+    const longVideoCaption = draft({ text: 'a'.repeat(option('tiktok').limit + 1), video: video(30) });
+    expect(platformBlocker(option('tiktok'), longVideoCaption))
+      .toBe(t('constraintTextTooLong', String(option('tiktok').limit)));
+  });
+
+  it('blocks a platform when more images are attached than it accepts', () => {
+    expect(platformBlocker(option('deviantart'), draft({ images: images(1) }))).toBeNull();
+    expect(platformBlocker(option('deviantart'), draft({ images: images(2) })))
+      .toBe(t('constraintTooManyImages', '1'));
+    expect(platformBlocker(option('x'), draft({ images: images(4) }))).toBeNull();
+  });
+
+  it('does not block normal short videos on video-capable platforms', () => {
+    for (const id of VIDEO_CAPABLE_PLATFORMS) {
+      expect(platformBlocker(option(id), draft({ video: video(30) })), id).toBeNull();
+    }
+  });
+
+  it('does not block oversized videos because background compression handles size', () => {
+    const large = {
+      ...video(30),
+      data: {
+        length: Math.ceil((90 * 1024 * 1024 * 4) / 3),
+        endsWith: () => false,
+      } as unknown as string,
+    };
+    expect(platformBlocker(option('bluesky'), draft({ video: large }))).toBeNull();
+  });
+});
+
+describe('filterUnblockedPlatforms', () => {
+  it('skips blocked platforms instead of blocking the whole post', () => {
+    const selected: PlatformId[] = ['x', 'bluesky', 'deviantart', 'pixiv', 'tiktok'];
+    const blockers = buildPlatformBlockers(
+      selected.map(option),
+      draft({ text: 'a'.repeat(1500), images: images(2) }),
     );
-    const selectedIds = filterPlatformsForKind(['x', 'tiktok', 'youtube'], 'image');
-    expect(buildSelectedCompatibilityErrors(selectedIds, {}, imageCompatibility)).toEqual([]);
-    expect(imageCompatibility['tiktok']).toBeNull();
+
+    expect(filterUnblockedPlatforms(selected, blockers)).toEqual(['x', 'bluesky']);
+    expect(blockers).toMatchObject({
+      deviantart: t('constraintTooManyImages', '1'),
+      pixiv: t('constraintTextTooLong', String(getAdapter('pixiv')!.charLimit)),
+      tiktok: t('constraintImagesUnsupported'),
+    });
   });
 });
