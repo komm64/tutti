@@ -1,4 +1,5 @@
 import { log } from '../src/utils/logger';
+import { isBlueskyPublishIdle } from '../src/utils/bluesky-publish';
 import type {
   ImageAttachment,
   PostImplementationPath,
@@ -359,14 +360,24 @@ async function runPost(
       timeoutMs: 10_000,
       intervalMs: 300,
     });
-    if (!closedQuickly) {
-      void browser.runtime.sendMessage({
-        type: 'USER_ACTION_REQUIRED',
-        platform: 'bluesky',
-        reason: 'confirmation',
-      }).catch(() => { /* background unavailable: compose remains visible */ });
-    }
-    const closedEventually = closedQuickly || await waitForCondition<boolean>(() => stillOpen() ? null : true, {
+    // Bluesky hides Publish while it uploads the media ("Uploading images..."),
+    // which can take well over 10 s. Only a composer whose Publish button is
+    // back is waiting for the user, so notify then, never on time alone.
+    let idlePolls = 0;
+    let notified = false;
+    const closedEventually = closedQuickly || await waitForCondition<boolean>(() => {
+      if (!stillOpen()) return true;
+      idlePolls = isBlueskyPublishIdle(sel.postButton) ? idlePolls + 1 : 0;
+      if (idlePolls >= 2 && !notified) {
+        notified = true;
+        void browser.runtime.sendMessage({
+          type: 'USER_ACTION_REQUIRED',
+          platform: 'bluesky',
+          reason: 'confirmation',
+        }).catch(() => { /* background unavailable: compose remains visible */ });
+      }
+      return null;
+    }, {
       timeoutMs: 5 * 60_000,
       intervalMs: 1000,
     });

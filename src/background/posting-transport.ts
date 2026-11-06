@@ -345,7 +345,27 @@ export function createPostingTransport(options: PostingTransportOptions) {
       }
       response = withFlow(response, { ...baseFlow, tabUrlBefore });
       if (!response.success) {
-        if (response.uncertain) return response;
+        if (response.uncertain) {
+          // The page could not confirm the submit, but the post may well exist
+          // (tutti-issues#124). Looking it up is read-only, so a match settles
+          // it without any risk of a duplicate.
+          const found = await options.confirmation.ensurePostUrl(
+            response,
+            adapter.id,
+            tab.id,
+            text,
+            expectedUser,
+          );
+          if (!found.url) return found;
+          return {
+            ...found,
+            success: true,
+            confirmed: true,
+            uncertain: undefined,
+            userAction: undefined,
+            error: undefined,
+          };
+        }
         throw new PostFlowError(
           response.error ?? t('runtimePostFailed'),
           response.flow,
