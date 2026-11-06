@@ -161,6 +161,17 @@
   "errorDialogOpenGitHub": { "message": "이메일로 보내기" },
   "constraintAdapterMissing": { "message": "어댑터가 구현되지 않음" },
   "constraintVideoUnsupported": { "message": "동영상이 지원되지 않습니다" },
+  "constraintTextTooLong": {
+    "message": "텍스트가 너무 깁니다(최대 $MAX$자)",
+    "placeholders": {
+      "MAX": { "content": "$1" }
+    }
+  },
+  "constraintMediaRequired": { "message": "이미지나 동영상이 필요합니다" },
+  "constraintImageRequired": { "message": "이미지가 필요합니다" },
+  "constraintVideoRequired": { "message": "동영상이 필요합니다" },
+  "constraintImagesUnsupported": { "message": "이미지가 지원되지 않습니다" },
+  "constraintLongVideoUnsupported": { "message": "60초를 넘는 동영상은 지원되지 않습니다" },
   "constraintVideoTooLong": { "message": "동영상이 너무 깁니다 (최대 $MAX$초, 실제 $ACTUAL$초)", "placeholders": { "MAX": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
   "constraintVideoTooLarge": { "message": "동영상 파일이 너무 큽니다 (최대 $MAX$ MB, 실제 $ACTUAL$ MB)", "placeholders": { "MAX": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
   "constraintTooManyImages": { "message": "이미지가 너무 많습니다 (최대 $MAX$개)", "placeholders": { "MAX": { "content": "$1" } } },

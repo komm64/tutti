@@ -255,9 +255,11 @@ const CASES = {
   },
 };
 
+// Drafts the popup greys out for these platforms (too many images, or text
+// longer than a media-only post can hold), so they are never sent.
 const UNSUPPORTED_CASES = {
-  pixiv: ['image-only'],
-  deviantart: ['text-four-images'],
+  pixiv: ['image-only', 'long-text-four-images'],
+  deviantart: ['text-four-images', 'long-text-four-images'],
 };
 
 const args = process.argv.slice(2);

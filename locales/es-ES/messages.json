@@ -161,6 +161,17 @@
   "errorDialogOpenGitHub": { "message": "Enviar por correo" },
   "constraintAdapterMissing": { "message": "Adaptador no implementado" },
   "constraintVideoUnsupported": { "message": "Vídeos no admitidos" },
+  "constraintTextTooLong": {
+    "message": "Texto demasiado largo (máx. $MAX$ caracteres)",
+    "placeholders": {
+      "MAX": { "content": "$1" }
+    }
+  },
+  "constraintMediaRequired": { "message": "Requiere una imagen o un vídeo" },
+  "constraintImageRequired": { "message": "Requiere una imagen" },
+  "constraintVideoRequired": { "message": "Requiere un vídeo" },
+  "constraintImagesUnsupported": { "message": "Imágenes no admitidas" },
+  "constraintLongVideoUnsupported": { "message": "Vídeos de más de 60 segundos no admitidos" },
   "constraintVideoTooLong": { "message": "Vídeo demasiado largo (máx. $MAX$ s, real $ACTUAL$ s)", "placeholders": { "MAX": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
   "constraintVideoTooLarge": { "message": "Archivo de vídeo demasiado grande (máx. $MAX$ MB, real $ACTUAL$ MB)", "placeholders": { "MAX": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
   "constraintTooManyImages": { "message": "Demasiadas imágenes (máx. $MAX$)", "placeholders": { "MAX": { "content": "$1" } } },

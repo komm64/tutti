@@ -161,6 +161,17 @@
   "errorDialogOpenGitHub": { "message": "Trimite prin e-mail" },
   "constraintAdapterMissing": { "message": "Adaptor neimplementat" },
   "constraintVideoUnsupported": { "message": "Videoclipurile nu sunt suportate" },
+  "constraintTextTooLong": {
+    "message": "Text prea lung (max. $MAX$ caractere)",
+    "placeholders": {
+      "MAX": { "content": "$1" }
+    }
+  },
+  "constraintMediaRequired": { "message": "Necesită o imagine sau un videoclip" },
+  "constraintImageRequired": { "message": "Necesită o imagine" },
+  "constraintVideoRequired": { "message": "Necesită un videoclip" },
+  "constraintImagesUnsupported": { "message": "Imaginile nu sunt suportate" },
+  "constraintLongVideoUnsupported": { "message": "Videoclipurile de peste 60 de secunde nu sunt suportate" },
   "constraintVideoTooLong": { "message": "Video prea lung (max $MAX$ s, real $ACTUAL$ s)", "placeholders": { "MAX": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
   "constraintVideoTooLarge": { "message": "Fișier video prea mare (max $MAX$ MB, real $ACTUAL$ MB)", "placeholders": { "MAX": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
   "constraintTooManyImages": { "message": "Prea multe imagini (max $MAX$)", "placeholders": { "MAX": { "content": "$1" } } },

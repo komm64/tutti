@@ -161,6 +161,17 @@
   "errorDialogOpenGitHub": { "message": "Изпрати по имейл" },
   "constraintAdapterMissing": { "message": "Адаптерът не е реализиран" },
   "constraintVideoUnsupported": { "message": "Видеото не се поддържа" },
+  "constraintTextTooLong": {
+    "message": "Текстът е твърде дълъг (макс. $MAX$ знака)",
+    "placeholders": {
+      "MAX": { "content": "$1" }
+    }
+  },
+  "constraintMediaRequired": { "message": "Изисква изображение или видео" },
+  "constraintImageRequired": { "message": "Изисква изображение" },
+  "constraintVideoRequired": { "message": "Изисква видео" },
+  "constraintImagesUnsupported": { "message": "Изображенията не се поддържат" },
+  "constraintLongVideoUnsupported": { "message": "Видеоклипове над 60 секунди не се поддържат" },
   "constraintVideoTooLong": { "message": "Видеото е твърде дълго (макс $MAX$ с, реално $ACTUAL$ с)", "placeholders": { "MAX": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
   "constraintVideoTooLarge": { "message": "Видео файлът е твърде голям (макс $MAX$ MB, реално $ACTUAL$ MB)", "placeholders": { "MAX": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
   "constraintTooManyImages": { "message": "Твърде много изображения (макс $MAX$)", "placeholders": { "MAX": { "content": "$1" } } },

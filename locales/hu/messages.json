@@ -161,6 +161,17 @@
   "errorDialogOpenGitHub": { "message": "Küldés e-mailben" },
   "constraintAdapterMissing": { "message": "Adapter nincs implementálva" },
   "constraintVideoUnsupported": { "message": "Videó nem támogatott" },
+  "constraintTextTooLong": {
+    "message": "Túl hosszú szöveg (max. $MAX$ karakter)",
+    "placeholders": {
+      "MAX": { "content": "$1" }
+    }
+  },
+  "constraintMediaRequired": { "message": "Kép vagy videó szükséges" },
+  "constraintImageRequired": { "message": "Kép szükséges" },
+  "constraintVideoRequired": { "message": "Videó szükséges" },
+  "constraintImagesUnsupported": { "message": "Képek nem támogatottak" },
+  "constraintLongVideoUnsupported": { "message": "60 másodpercnél hosszabb videók nem támogatottak" },
   "constraintVideoTooLong": { "message": "Videó túl hosszú (max $MAX$ s, tényleges $ACTUAL$ s)", "placeholders": { "MAX": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
   "constraintVideoTooLarge": { "message": "Videó fájl túl nagy (max $MAX$ MB, tényleges $ACTUAL$ MB)", "placeholders": { "MAX": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
   "constraintTooManyImages": { "message": "Túl sok kép (max $MAX$)", "placeholders": { "MAX": { "content": "$1" } } },

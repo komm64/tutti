@@ -161,6 +161,17 @@
   "errorDialogOpenGitHub": { "message": "Надіслати поштою" },
   "constraintAdapterMissing": { "message": "Адаптер не реалізовано" },
   "constraintVideoUnsupported": { "message": "Відео не підтримується" },
+  "constraintTextTooLong": {
+    "message": "Текст задовгий (макс. $MAX$ символів)",
+    "placeholders": {
+      "MAX": { "content": "$1" }
+    }
+  },
+  "constraintMediaRequired": { "message": "Потрібне зображення або відео" },
+  "constraintImageRequired": { "message": "Потрібне зображення" },
+  "constraintVideoRequired": { "message": "Потрібне відео" },
+  "constraintImagesUnsupported": { "message": "Зображення не підтримуються" },
+  "constraintLongVideoUnsupported": { "message": "Відео довше 60 секунд не підтримуються" },
   "constraintVideoTooLong": { "message": "Відео занадто довге (макс $MAX$ с, фактично $ACTUAL$ с)", "placeholders": { "MAX": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
   "constraintVideoTooLarge": { "message": "Файл відео занадто великий (макс $MAX$ МБ, фактично $ACTUAL$ МБ)", "placeholders": { "MAX": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
   "constraintTooManyImages": { "message": "Забагато зображень (макс $MAX$)", "placeholders": { "MAX": { "content": "$1" } } },

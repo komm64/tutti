@@ -161,6 +161,17 @@
   "errorDialogOpenGitHub": { "message": "Отправить по email" },
   "constraintAdapterMissing": { "message": "Адаптер не реализован" },
   "constraintVideoUnsupported": { "message": "Видео не поддерживается" },
+  "constraintTextTooLong": {
+    "message": "Текст слишком длинный (макс. $MAX$ символов)",
+    "placeholders": {
+      "MAX": { "content": "$1" }
+    }
+  },
+  "constraintMediaRequired": { "message": "Нужно изображение или видео" },
+  "constraintImageRequired": { "message": "Нужно изображение" },
+  "constraintVideoRequired": { "message": "Нужно видео" },
+  "constraintImagesUnsupported": { "message": "Изображения не поддерживаются" },
+  "constraintLongVideoUnsupported": { "message": "Видео длиннее 60 секунд не поддерживаются" },
   "constraintVideoTooLong": { "message": "Видео слишком длинное (макс $MAX$ с, фактически $ACTUAL$ с)", "placeholders": { "MAX": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
   "constraintVideoTooLarge": { "message": "Файл видео слишком большой (макс $MAX$ МБ, фактически $ACTUAL$ МБ)", "placeholders": { "MAX": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
   "constraintTooManyImages": { "message": "Слишком много изображений (макс $MAX$)", "placeholders": { "MAX": { "content": "$1" } } },

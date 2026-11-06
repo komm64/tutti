@@ -167,6 +167,17 @@
   "errorDialogOpenGitHub": { "message": "透過電子郵件傳送" },
   "constraintAdapterMissing": { "message": "尚未實作介面卡" },
   "constraintVideoUnsupported": { "message": "不支援影片" },
+  "constraintTextTooLong": {
+    "message": "文字過長(最多 $MAX$ 個字元)",
+    "placeholders": {
+      "MAX": { "content": "$1" }
+    }
+  },
+  "constraintMediaRequired": { "message": "需要圖片或影片" },
+  "constraintImageRequired": { "message": "需要圖片" },
+  "constraintVideoRequired": { "message": "需要影片" },
+  "constraintImagesUnsupported": { "message": "不支援圖片" },
+  "constraintLongVideoUnsupported": { "message": "不支援超過 60 秒的影片" },
   "constraintVideoTooLong": { "message": "影片過長(上限 $MAX$ 秒,實際 $ACTUAL$ 秒)", "placeholders": { "MAX": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
   "constraintVideoTooLarge": { "message": "影片檔案過大(上限 $MAX$ MB,實際 $ACTUAL$ MB)", "placeholders": { "MAX": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
   "constraintTooManyImages": { "message": "圖片過多(上限 $MAX$ 張)", "placeholders": { "MAX": { "content": "$1" } } },

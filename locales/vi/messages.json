@@ -161,6 +161,17 @@
   "errorDialogOpenGitHub": { "message": "Gửi qua email" },
   "constraintAdapterMissing": { "message": "Adapter chưa được triển khai" },
   "constraintVideoUnsupported": { "message": "Không hỗ trợ video" },
+  "constraintTextTooLong": {
+    "message": "Văn bản quá dài (tối đa $MAX$ ký tự)",
+    "placeholders": {
+      "MAX": { "content": "$1" }
+    }
+  },
+  "constraintMediaRequired": { "message": "Cần có hình ảnh hoặc video" },
+  "constraintImageRequired": { "message": "Cần có hình ảnh" },
+  "constraintVideoRequired": { "message": "Cần có video" },
+  "constraintImagesUnsupported": { "message": "Không hỗ trợ hình ảnh" },
+  "constraintLongVideoUnsupported": { "message": "Không hỗ trợ video dài hơn 60 giây" },
   "constraintVideoTooLong": { "message": "Video quá dài (tối đa $MAX$ giây, thực $ACTUAL$ giây)", "placeholders": { "MAX": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
   "constraintVideoTooLarge": { "message": "Tệp video quá lớn (tối đa $MAX$ MB, thực $ACTUAL$ MB)", "placeholders": { "MAX": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
   "constraintTooManyImages": { "message": "Quá nhiều ảnh (tối đa $MAX$)", "placeholders": { "MAX": { "content": "$1" } } },

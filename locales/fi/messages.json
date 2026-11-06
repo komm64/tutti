@@ -161,6 +161,17 @@
   "errorDialogOpenGitHub": { "message": "Lähetä sähköpostilla" },
   "constraintAdapterMissing": { "message": "Sovitinta ei toteutettu" },
   "constraintVideoUnsupported": { "message": "Videoita ei tueta" },
+  "constraintTextTooLong": {
+    "message": "Teksti on liian pitkä (enintään $MAX$ merkkiä)",
+    "placeholders": {
+      "MAX": { "content": "$1" }
+    }
+  },
+  "constraintMediaRequired": { "message": "Vaatii kuvan tai videon" },
+  "constraintImageRequired": { "message": "Vaatii kuvan" },
+  "constraintVideoRequired": { "message": "Vaatii videon" },
+  "constraintImagesUnsupported": { "message": "Kuvia ei tueta" },
+  "constraintLongVideoUnsupported": { "message": "Yli 60 sekunnin videoita ei tueta" },
   "constraintVideoTooLong": { "message": "Video liian pitkä (maks $MAX$ s, todellinen $ACTUAL$ s)", "placeholders": { "MAX": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
   "constraintVideoTooLarge": { "message": "Videotiedosto liian iso (maks $MAX$ MB, todellinen $ACTUAL$ MB)", "placeholders": { "MAX": { "content": "$1" }, "ACTUAL": { "content": "$2" } } },
   "constraintTooManyImages": { "message": "Liian monta kuvaa (maks $MAX$)", "placeholders": { "MAX": { "content": "$1" } } },

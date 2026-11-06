@@ -86,6 +86,22 @@ export function createNextPostOrchestrator(options: PostOrchestratorOptions) {
     images = media.images;
 
     const chunks = splitTextForPlatform(adapter.id, text, adapter.charLimit);
+    // A media-only network cannot post a text-only continuation, so refuse
+    // before the first part goes out. The popup greys such rows out already.
+    if (chunks.length > 1 && !adapter.kinds.includes('text')) {
+      return {
+        type: 'POST_RESULT',
+        platform,
+        success: false,
+        userAction: 'fix-media',
+        flow: {
+          mode: autoPost ? 'post' : 'preview',
+          submitReached: false,
+          failedStep: 'preflight:text-length',
+        },
+        error: t('constraintTextTooLong', adapter.charLimit),
+      };
+    }
     if (
       shouldUseInlineThread(
         adapter.id,
