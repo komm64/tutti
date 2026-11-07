@@ -7,7 +7,7 @@ compatibility_date = "2026-04-01"
 account_id = "91b2e77a051758eae7ec8faf2660384d"
 
 # secret は wrangler secret put で別途登録する(コードに含めない):
-#   wrangler secret put GITHUB_TOKEN  # GitHub Issues 作成用 PAT
+#   wrangler secret put GITHUB_TOKEN  # komm64/tutti-issues の Issues write のみを持つ PAT
 
 # rate-limit 用の KV namespace。bind する前に
 #   wrangler kv namespace create RATE_LIMIT
@@ -17,6 +17,7 @@ account_id = "91b2e77a051758eae7ec8faf2660384d"
 # binding = "RATE_LIMIT"
 # id = "<wrangler が出力した KV namespace ID>"
 
-# (オプション) GITHUB_REPO を上書きしたい場合(デフォルト komm64/tutti)
+# (オプション) GITHUB_REPO を上書きしたい場合(デフォルト komm64/tutti-issues)。
+# 報告には redacted とはいえ診断情報が入るので、public repo を指定しないこと。
 # [vars]
-# GITHUB_REPO = "komm64/tutti"
+# GITHUB_REPO = "komm64/tutti-issues"
