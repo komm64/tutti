@@ -27,7 +27,10 @@ import {
 } from './dom-attempt-policy';
 import { maybeResizeImagesForPlatform } from './media-preprocess';
 import type { OpenedTabRegistry } from './opened-tab-registry';
-import type { PostConfirmation } from './post-confirmation';
+import {
+  isAmbiguousPostDispatchError,
+  type PostConfirmation,
+} from './post-confirmation';
 import { waitForYouTubeStudioDispatchReady } from './post-url-youtube-studio';
 import {
   canUseApiWithReplyUrl,
@@ -336,6 +339,21 @@ export function createPostingTransport(options: PostingTransportOptions) {
           );
         if (recovered) {
           return withFlow(recovered, { ...baseFlow, tabUrlBefore });
+        }
+        if (dryRun && isAmbiguousPostDispatchError(error)) {
+          // The tab reloaded or navigated while preparing the preview, so
+          // Chrome dropped the reply (tutti-issues#113). Nothing was posted;
+          // show an actionable message instead of Chrome's internal one.
+          log.warn(
+            `${adapter.id}: preview reply was lost: ` +
+            `${error instanceof Error ? error.message : String(error)}`,
+          );
+          throw new PostFlowError(t('runtimeSnsPageNoResponse'), {
+            ...baseFlow,
+            tabUrlBefore,
+            submitReached: false,
+            failedStep: 'dispatch-reply-lost',
+          });
         }
         throw error;
       }
