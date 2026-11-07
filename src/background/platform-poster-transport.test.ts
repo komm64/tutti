@@ -482,6 +482,31 @@ describe('platform poster transport boundaries', () => {
     expect(mocks.closeTabSafely).toHaveBeenCalledOnce();
   });
 
+  it('explains a preview whose reply was lost to a page reload', async () => {
+    mocks.resolveAdapter.mockResolvedValue(adapter('bluesky'));
+    mocks.sendPostMessageWhenReady.mockRejectedValue(new Error(
+      'A listener indicated an asynchronous response by returning true, ' +
+      'but the message channel closed before a response was received',
+    ));
+
+    const result = await createPoster().postToPlatform(
+      'bluesky',
+      'hello',
+      [{ name: 'a.jpg', type: 'image/jpeg', data: 'AA==', bytes: 1 }],
+      undefined,
+      undefined,
+      false,
+    );
+
+    expect(result).toMatchObject({
+      success: false,
+      error: 'runtimeSnsPageNoResponse',
+      flow: { submitReached: false, failedStep: 'dispatch-reply-lost' },
+    });
+    expect(result.uncertain).toBeUndefined();
+    expect(mocks.sendPostMessageWhenReady).toHaveBeenCalledOnce();
+  });
+
   it('still retries a text-only pre-submit failure', async () => {
     const x = adapter('x');
     mocks.resolveAdapter.mockResolvedValue(x);
