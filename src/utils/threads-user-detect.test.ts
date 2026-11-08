@@ -44,4 +44,17 @@ describe('detectThreadsUserFromDocument', () => {
       </main>
     `))).toBeNull();
   });
+
+  it('does not take the most frequent username in page data as the active account', () => {
+    expect(detectThreadsUserFromDocument(doc(`
+      <script>${'x'.repeat(100)}{"username":"feed_author"},{"username":"feed_author"},{"username":"viewer"}</script>
+      <main><a href="/@feed_author">feed_author</a></main>
+    `))).toBeNull();
+  });
+
+  it('does not take the viewed profile from og:url as the active account', () => {
+    expect(detectThreadsUserFromDocument(doc(`
+      <meta property="og:url" content="https://www.threads.com/@someone-else">
+    `))).toBeNull();
+  });
 });

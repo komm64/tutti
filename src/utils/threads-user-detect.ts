@@ -64,37 +64,10 @@ export function detectThreadsUserFromDocument(doc: Document = document): string 
         return candidates[0]?.username ?? null;
       },
     },
-    {
-      name: 'inline JSON "username":"xxx"',
-      fn: () => {
-        const scripts = doc.querySelectorAll<HTMLScriptElement>('script');
-        for (const s of scripts) {
-          const t = s.textContent;
-          if (!t || t.length < 100) continue;
-          const counts = new Map<string, number>();
-          const re = /"username"\s*:\s*"([\w.]+)"/g;
-          let m: RegExpExecArray | null;
-          while ((m = re.exec(t)) !== null) {
-            counts.set(m[1]!, (counts.get(m[1]!) ?? 0) + 1);
-          }
-          if (counts.size > 0) {
-            const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
-            const top = sorted[0];
-            if (top?.[0]) return top[0];
-          }
-        }
-        return null;
-      },
-    },
-    {
-      name: 'meta og:url',
-      fn: () => {
-        const m = doc
-          .querySelector<HTMLMetaElement>('meta[property="og:url"]')
-          ?.content?.match(/threads\.(?:net|com)\/@([^/?#]+)/);
-        return m?.[1] ?? null;
-      },
-    },
+    // No page-data or og:url fallback: the most frequent "username" in the
+    // page JSON is often a feed author, and og:url names the page's subject.
+    // Either can block a post as an account mismatch (tutti-issues#126).
+    // An unknown account skips that check, which is always the safer miss.
   ];
 
   for (const s of strategies) {
