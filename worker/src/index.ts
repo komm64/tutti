@@ -19,6 +19,8 @@
  * 本ファイルだけ TS で書いてある。デプロイ時に wrangler が ESM 形式で bundle する。
  */
 
+import { consumeReportQuota, resolveRateLimitConfig } from './rate-limit';
+
 interface Env {
   GITHUB_TOKEN: string;
   /**
@@ -30,11 +32,16 @@ interface Env {
   /** デフォルト 6 (= 1 IP / 6 秒)。spam 防止 throttle 値 */
   RATE_LIMIT_SECONDS?: string;
   /**
-   * デフォルト 5。1 IP あたり 1 日 (UTC 区切り) に受け付ける報告数の上限。
-   * 一人のユーザーの borked browser state による retry-loop / 一人での issue
-   * tracker 偏らせ / Max sub quota の個人独占を防ぐ。
+   * デフォルト 20。1 IP あたり 1 日 (UTC 区切り) に受け付ける報告数の上限。
+   * 一人のユーザーの retry-loop で issue tracker が埋まるのを防ぐ。
+   * maintainer の試験日は 1 日 6〜9 件出るので、それを弾かない値にしている。
    */
   DAILY_LIMIT?: string;
+  /**
+   * デフォルト 100。全体で 1 日に受け付ける報告数の上限。Origin は拡張以外
+   * からは偽装できるので、IP を変えた連投でも 1 日の被害をここで止める。
+   */
+  GLOBAL_DAILY_LIMIT?: string;
   /** Cloudflare KV namespace (オプション、なければ rate limit はスキップ) */
   RATE_LIMIT?: KVNamespace;
   /**
@@ -123,38 +130,18 @@ export default {
     }
     const repo = env.GITHUB_REPO ?? 'komm64/tutti-issues';
 
-    // rate limit (KV namespace が bind されてる場合のみ)
-    //
-    // 二段構え:
-    //   1. 連打防止 (RATE_LIMIT_SECONDS、default 6 秒): 同一 IP の連続 retry-loop
-    //   2. 日次上限 (DAILY_LIMIT、default 5 件/日): 一人のユーザーが特定の壊れ方で
-    //      issue tracker を偏らせない / Max sub quota が個人に独占されない
-    //
-    // 日次キーは `daily:<IP>:<YYYY-MM-DD UTC>`、TTL 25h で自動削除。
-    // (UTC 区切りなので 9:00 JST 跨ぎでリセット — 厳密より「だいたい 1 日」優先)
-    const ip = req.headers.get('CF-Connecting-IP') ?? 'anonymous';
-    const limitSec = Number(env.RATE_LIMIT_SECONDS ?? '6');
-    const dailyLimit = Number(env.DAILY_LIMIT ?? '5');
+    // rate limit (KV namespace `RATE_LIMIT` が bind されている場合のみ)。
+    // 連打防止 / IP ごとの日次上限 / 全体の日次上限。詳細は rate-limit.ts。
     const rateLimitDisabled = env.DISABLE_RATE_LIMIT === '1' || env.DISABLE_RATE_LIMIT === 'true';
     if (env.RATE_LIMIT && !rateLimitDisabled) {
-      const lastTs = await env.RATE_LIMIT.get(`ip:${ip}`);
-      if (lastTs && Date.now() - Number(lastTs) < limitSec * 1000) {
-        return jsonResponse({ error: 'rate limited, try again later' }, 429, corsHeaders);
+      const decision = await consumeReportQuota(
+        env.RATE_LIMIT,
+        req.headers.get('CF-Connecting-IP') ?? 'anonymous',
+        resolveRateLimitConfig(env),
+      );
+      if (!decision.ok) {
+        return jsonResponse({ error: decision.message }, 429, corsHeaders);
       }
-      const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD UTC
-      const dailyKey = `daily:${ip}:${today}`;
-      const dailyCount = Number((await env.RATE_LIMIT.get(dailyKey)) ?? '0');
-      if (dailyCount >= dailyLimit) {
-        return jsonResponse(
-          { error: `daily limit reached (${dailyLimit} reports/day per IP). Try again tomorrow.` },
-          429,
-          corsHeaders,
-        );
-      }
-      // ここで増やしておくと GitHub API 失敗でも消費。spam 抑止として妥当
-      // (失敗 retry の手間を増やしたくないなら GitHub 成功後に inc に変更)
-      await env.RATE_LIMIT.put(`ip:${ip}`, String(Date.now()), { expirationTtl: 3600 });
-      await env.RATE_LIMIT.put(dailyKey, String(dailyCount + 1), { expirationTtl: 25 * 3600 });
     }
 
     // 本文 size cap (worker 自体は 100MB まで受けるが、ここで明示的に絞る)
@@ -180,7 +167,7 @@ export default {
     // GitHub Issue 作成
     // body に <!-- tutti-diagnostics-begin --> を含む = popup の自動診断が attach 済 →
     // private issue repo の auto-triage workflow が `needs-triage`
-    // ラベル付き issue を拾い、Codex で selector 提案 PR を作る (P13)。
+    // ラベル付き issue を拾い、決定的に分類して結果をコメントする (P13)。
     const hasDiagnostics = body.includes('<!-- tutti-diagnostics-begin -->');
     const labels = ['beta', 'auto-reported'];
     if (hasDiagnostics) labels.push('needs-triage');

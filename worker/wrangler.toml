@@ -9,13 +9,12 @@ account_id = "91b2e77a051758eae7ec8faf2660384d"
 # secret は wrangler secret put で別途登録する(コードに含めない):
 #   wrangler secret put GITHUB_TOKEN  # komm64/tutti-issues の Issues write のみを持つ PAT
 
-# rate-limit 用の KV namespace。bind する前に
-#   wrangler kv namespace create RATE_LIMIT
-# で id を取得 → 下の id を埋める。bind がない場合は worker 側で
-# rate-limit をスキップする実装になっているので開発時は省略可。
-# [[kv_namespaces]]
-# binding = "RATE_LIMIT"
-# id = "<wrangler が出力した KV namespace ID>"
+# rate-limit 用の KV namespace (2026-11-12 作成)。外すと rate limit が無効になる。
+# 上限は env (RATE_LIMIT_SECONDS / DAILY_LIMIT / GLOBAL_DAILY_LIMIT) で変えられる。
+# 既定値は src/rate-limit.ts。
+[[kv_namespaces]]
+binding = "RATE_LIMIT"
+id = "72106c770812422e940d7139b335e4ed"
 
 # (オプション) GITHUB_REPO を上書きしたい場合(デフォルト komm64/tutti-issues)。
 # 報告には redacted とはいえ診断情報が入るので、public repo を指定しないこと。
