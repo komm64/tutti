@@ -96,7 +96,6 @@
   "retryFailedButton": { "message": "Prøv mislykkede igjen ($N$)", "placeholders": { "N": { "content": "$1" } } },
   "retryFailedTooltip": { "message": "Send de $N$ mislykkede innleggene på nytt", "placeholders": { "N": { "content": "$1" } } },
   "reportDeduped": { "message": "Samme feil ble allerede rapportert $N$ t siden (24t avkjøling).", "placeholders": { "N": { "content": "$1" } } },
-  "reportEmailNote": { "message": "Full rapport kopiert til utklippstavlen. Lim inn i e-postteksten og send." },
   "openLoginTooltip": { "message": "Åpne dette nettverket i en ny fane (Tutti oppdager kontoen din etter pålogging)" },
   "failureHintTooltip": { "message": "Vis hvorfor det mislyktes og hvordan å fikse det" },
   "failureHintClose": { "message": "Lukk" },
@@ -158,7 +157,6 @@
   "errorDialogReported": { "message": "✓ Takk. Issue opprettet:" },
   "errorDialogReportFailed": { "message": "Kunne ikke sende rapport" },
   "errorDialogClose": { "message": "Lukk" },
-  "errorDialogOpenGitHub": { "message": "Send via e-post" },
   "constraintAdapterMissing": { "message": "Adapter ikke implementert" },
   "constraintVideoUnsupported": { "message": "Video støttes ikke" },
   "constraintTextTooLong": {
@@ -190,7 +188,6 @@
   "compressionEtaMin": { "message": "~$N$ min igjen", "placeholders": { "N": { "content": "$1" } } },
   "compressionEtaSec": { "message": "$N$ s igjen", "placeholders": { "N": { "content": "$1" } } },
   "reportAlreadySubmitted": { "message": "Allerede rapportert" },
-  "reportClipboardOverflow": { "message": "(... full tekst på utklippstavlen, lim inn her)" },
   "platformFailedShort": { "message": "$P$: mislyktes (ingen detaljer)", "placeholders": { "P": { "content": "$1" } } },
   "uiLanguageTitle": { "message": "Tutti UI-språk" },
   "uiLanguageAuto": { "message": "Auto (nettleserens standard)" },

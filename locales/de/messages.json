@@ -96,7 +96,6 @@
   "retryFailedButton": { "message": "Fehlgeschlagene erneut versuchen ($N$)", "placeholders": { "N": { "content": "$1" } } },
   "retryFailedTooltip": { "message": "Die $N$ fehlgeschlagenen Beiträge erneut senden", "placeholders": { "N": { "content": "$1" } } },
   "reportDeduped": { "message": "Derselbe Fehler wurde vor $N$ h gemeldet (24h Cooldown).", "placeholders": { "N": { "content": "$1" } } },
-  "reportEmailNote": { "message": "Vollständiger Bericht in die Zwischenablage kopiert. In den E-Mail-Text einfügen und senden." },
   "openLoginTooltip": { "message": "Dieses Netzwerk in einem neuen Tab öffnen (Tutti erkennt dein Konto nach Anmeldung)" },
   "failureHintTooltip": { "message": "Grund für den Fehlschlag und Lösung anzeigen" },
   "failureHintClose": { "message": "Schließen" },
@@ -158,7 +157,6 @@
   "errorDialogReported": { "message": "✓ Danke. Issue erstellt:" },
   "errorDialogReportFailed": { "message": "Senden des Berichts fehlgeschlagen" },
   "errorDialogClose": { "message": "Schließen" },
-  "errorDialogOpenGitHub": { "message": "Per E-Mail senden" },
   "constraintAdapterMissing": { "message": "Adapter nicht implementiert" },
   "constraintVideoUnsupported": { "message": "Videos nicht unterstützt" },
   "constraintTextTooLong": {
@@ -190,7 +188,6 @@
   "compressionEtaMin": { "message": "~$N$ min verbleibend", "placeholders": { "N": { "content": "$1" } } },
   "compressionEtaSec": { "message": "$N$ s verbleibend", "placeholders": { "N": { "content": "$1" } } },
   "reportAlreadySubmitted": { "message": "Bereits gemeldet" },
-  "reportClipboardOverflow": { "message": "(... vollständiger Text in der Zwischenablage, hier einfügen)" },
   "platformFailedShort": { "message": "$P$: fehlgeschlagen (keine Details)", "placeholders": { "P": { "content": "$1" } } },
   "uiLanguageTitle": { "message": "Tutti-Sprache" },
   "uiLanguageAuto": { "message": "Automatisch (Browser-Standard)" },

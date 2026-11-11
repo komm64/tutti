@@ -96,7 +96,6 @@
   "retryFailedButton": { "message": "Zkusit neúspěšné znovu ($N$)", "placeholders": { "N": { "content": "$1" } } },
   "retryFailedTooltip": { "message": "Znovu odeslat $N$ neúspěšných příspěvků", "placeholders": { "N": { "content": "$1" } } },
   "reportDeduped": { "message": "Stejná chyba již byla nahlášena před $N$ h (24h ochlazení).", "placeholders": { "N": { "content": "$1" } } },
-  "reportEmailNote": { "message": "Plná zpráva zkopírována do schránky. Vložte do těla e-mailu a odešlete." },
   "openLoginTooltip": { "message": "Otevřít tuto síť v nové kartě (Tutti detekuje váš účet po přihlášení)" },
   "failureHintTooltip": { "message": "Zobrazit důvod selhání a jak ho opravit" },
   "failureHintClose": { "message": "Zavřít" },
@@ -158,7 +157,6 @@
   "errorDialogReported": { "message": "✓ Díky. Issue vytvořeno:" },
   "errorDialogReportFailed": { "message": "Odeslání zprávy selhalo" },
   "errorDialogClose": { "message": "Zavřít" },
-  "errorDialogOpenGitHub": { "message": "Odeslat e-mailem" },
   "constraintAdapterMissing": { "message": "Adaptér není implementován" },
   "constraintVideoUnsupported": { "message": "Video není podporováno" },
   "constraintTextTooLong": {
@@ -190,7 +188,6 @@
   "compressionEtaMin": { "message": "~$N$ min zbývá", "placeholders": { "N": { "content": "$1" } } },
   "compressionEtaSec": { "message": "$N$ s zbývá", "placeholders": { "N": { "content": "$1" } } },
   "reportAlreadySubmitted": { "message": "Již nahlášeno" },
-  "reportClipboardOverflow": { "message": "(... celý text ve schránce, vložte sem)" },
   "platformFailedShort": { "message": "$P$: selhalo (bez detailů)", "placeholders": { "P": { "content": "$1" } } },
   "uiLanguageTitle": { "message": "Jazyk UI Tutti" },
   "uiLanguageAuto": { "message": "Auto (výchozí prohlížeče)" },

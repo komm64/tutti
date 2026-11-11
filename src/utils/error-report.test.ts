@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   buildCurrentDraftReportSection,
   buildErrorReportPayload,
-  buildGitHubIssueUrl,
   formatLogExcerpt,
   formatReportLogs,
   mediaBytesForReport,
@@ -213,17 +212,5 @@ describe('formatReportLogs', () => {
     expect(logs).toContain('#### youtube');
     expect(logs).toContain('YouTube runPost');
     expect(logs).toContain('### Overall last 30');
-  });
-});
-
-describe('buildGitHubIssueUrl', () => {
-  it('builds a prefilled issue URL and adds overflow note for long bodies', () => {
-    const url = buildGitHubIssueUrl('Title here', 'x'.repeat(3001), 'paste the rest', 'overflow');
-    const parsed = new URL(url);
-
-    expect(parsed.hostname).toBe('github.com');
-    expect(parsed.searchParams.get('title')).toBe('Title here');
-    expect(parsed.searchParams.get('body')).toContain('paste the rest');
-    expect(parsed.searchParams.get('body')).toContain('overflow');
   });
 });

@@ -324,7 +324,6 @@
     "message": "Same error already reported $N$h ago (24h cooldown).",
     "placeholders": { "N": { "content": "$1" } }
   },
-  "reportEmailNote": { "message": "Full report copied to clipboard. Paste into the email body and send." },
   "openLoginTooltip": { "message": "Open this network in a new tab (Tutti will detect your account once you sign in)" },
   "failureHintTooltip": { "message": "Show why this failed and how to fix it" },
   "failureHintClose": { "message": "Close" },
@@ -413,7 +412,6 @@
   "errorDialogReported": { "message": "✓ Thanks. Issue created:" },
   "errorDialogReportFailed": { "message": "Failed to submit report" },
   "errorDialogClose": { "message": "Close" },
-  "errorDialogOpenGitHub": { "message": "Send by email" },
 
   "constraintAdapterMissing": { "message": "Adapter not implemented" },
   "constraintVideoUnsupported": { "message": "Videos not supported" },
@@ -480,7 +478,6 @@
     "placeholders": { "N": { "content": "$1" } }
   },
   "reportAlreadySubmitted": { "message": "Already reported" },
-  "reportClipboardOverflow": { "message": "(... full body is on the clipboard, paste it here)" },
   "platformFailedShort": {
     "message": "$P$: failed (no details)",
     "placeholders": { "P": { "content": "$1" } }

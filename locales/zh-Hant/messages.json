@@ -102,7 +102,6 @@
   "retryFailedButton": { "message": "重試失敗的 ($N$)", "placeholders": { "N": { "content": "$1" } } },
   "retryFailedTooltip": { "message": "重新傳送 $N$ 則失敗的貼文", "placeholders": { "N": { "content": "$1" } } },
   "reportDeduped": { "message": "相同的錯誤已在 $N$ 小時前回報(24 小時冷卻)。", "placeholders": { "N": { "content": "$1" } } },
-  "reportEmailNote": { "message": "完整報告已複製到剪貼簿。請貼到郵件本文中傳送。" },
   "openLoginTooltip": { "message": "在新分頁開啟此網路(登入後 Tutti 會自動偵測您的帳號)" },
   "failureHintTooltip": { "message": "顯示失敗原因及解決方法" },
   "failureHintClose": { "message": "關閉" },
@@ -164,7 +163,6 @@
   "errorDialogReported": { "message": "✓ 謝謝。Issue 已建立:" },
   "errorDialogReportFailed": { "message": "提交回報失敗" },
   "errorDialogClose": { "message": "關閉" },
-  "errorDialogOpenGitHub": { "message": "透過電子郵件傳送" },
   "constraintAdapterMissing": { "message": "尚未實作介面卡" },
   "constraintVideoUnsupported": { "message": "不支援影片" },
   "constraintTextTooLong": {
@@ -196,7 +194,6 @@
   "compressionEtaMin": { "message": "剩餘約 $N$ 分鐘", "placeholders": { "N": { "content": "$1" } } },
   "compressionEtaSec": { "message": "剩餘 $N$ 秒", "placeholders": { "N": { "content": "$1" } } },
   "reportAlreadySubmitted": { "message": "已回報" },
-  "reportClipboardOverflow": { "message": "(... 完整本文在剪貼簿中, 請貼到此處)" },
   "platformFailedShort": { "message": "$P$: 失敗(無詳細資訊)", "placeholders": { "P": { "content": "$1" } } },
   "uiLanguageTitle": { "message": "Tutti UI 語言" },
   "uiLanguageAuto": { "message": "自動(瀏覽器預設)" },

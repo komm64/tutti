@@ -129,7 +129,6 @@
     "message": "同样的错误已在 $N$ 小时前报告(24 小时冷却)。",
     "placeholders": { "N": { "content": "$1" } }
   },
-  "reportEmailNote": { "message": "完整报告已复制到剪贴板。请粘贴到邮件正文中发送。" },
   "openLoginTooltip": { "message": "在新标签页打开此网络(登录后 Tutti 将自动检测你的账户)" },
   "failureHintTooltip": { "message": "显示失败原因及解决方法" },
   "failureHintClose": { "message": "关闭" },
@@ -200,7 +199,6 @@
   "errorDialogReported": { "message": "✓ 谢谢。Issue 已创建:" },
   "errorDialogReportFailed": { "message": "提交报告失败" },
   "errorDialogClose": { "message": "关闭" },
-  "errorDialogOpenGitHub": { "message": "通过邮件发送" },
   "constraintAdapterMissing": { "message": "适配器未实现" },
   "constraintVideoUnsupported": { "message": "不支持视频" },
   "constraintTextTooLong": {
@@ -253,7 +251,6 @@
     "placeholders": { "N": { "content": "$1" } }
   },
   "reportAlreadySubmitted": { "message": "已报告" },
-  "reportClipboardOverflow": { "message": "(... 完整正文在剪贴板中, 请粘贴到此处)" },
   "platformFailedShort": {
     "message": "$P$: 失败(无详细信息)",
     "placeholders": { "P": { "content": "$1" } }

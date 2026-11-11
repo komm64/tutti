@@ -96,7 +96,6 @@
   "retryFailedButton": { "message": "Ponów nieudane ($N$)", "placeholders": { "N": { "content": "$1" } } },
   "retryFailedTooltip": { "message": "Ponowne wysłanie $N$ nieudanych postów", "placeholders": { "N": { "content": "$1" } } },
   "reportDeduped": { "message": "Ten sam błąd został już zgłoszony $N$ h temu (cooldown 24h).", "placeholders": { "N": { "content": "$1" } } },
-  "reportEmailNote": { "message": "Pełny raport skopiowany do schowka. Wklej do treści e-maila i wyślij." },
   "openLoginTooltip": { "message": "Otwórz tę sieć w nowej karcie (Tutti wykryje konto po zalogowaniu)" },
   "failureHintTooltip": { "message": "Pokaż przyczynę niepowodzenia i sposób rozwiązania" },
   "failureHintClose": { "message": "Zamknij" },
@@ -158,7 +157,6 @@
   "errorDialogReported": { "message": "✓ Dzięki. Utworzono zgłoszenie:" },
   "errorDialogReportFailed": { "message": "Nie udało się wysłać raportu" },
   "errorDialogClose": { "message": "Zamknij" },
-  "errorDialogOpenGitHub": { "message": "Wyślij e-mailem" },
   "constraintAdapterMissing": { "message": "Adapter niezaimplementowany" },
   "constraintVideoUnsupported": { "message": "Wideo nieobsługiwane" },
   "constraintTextTooLong": {
@@ -190,7 +188,6 @@
   "compressionEtaMin": { "message": "~$N$ min pozostało", "placeholders": { "N": { "content": "$1" } } },
   "compressionEtaSec": { "message": "$N$ s pozostało", "placeholders": { "N": { "content": "$1" } } },
   "reportAlreadySubmitted": { "message": "Już zgłoszono" },
-  "reportClipboardOverflow": { "message": "(... pełna treść jest w schowku, wklej tutaj)" },
   "platformFailedShort": { "message": "$P$: niepowodzenie (brak szczegółów)", "placeholders": { "P": { "content": "$1" } } },
   "uiLanguageTitle": { "message": "Język UI Tutti" },
   "uiLanguageAuto": { "message": "Auto (domyślny przeglądarki)" },

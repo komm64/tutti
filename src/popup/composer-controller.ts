@@ -17,7 +17,6 @@ import {
   type PopupHistoryThumbs,
 } from './history-thumbs';
 import {
-  openPopupGitHubIssue,
   submitPopupErrorReport,
   type PopupReportContext,
 } from './error-report-submit';
@@ -140,7 +139,6 @@ export interface ComposerControllerOptions {
     listener: (message: unknown) => void,
   ) => () => void;
   submitErrorReport?: typeof submitPopupErrorReport;
-  openGitHubIssue?: typeof openPopupGitHubIssue;
   writeClipboard?: (text: string) => Promise<void>;
   reportEndpoint?: string;
   sendPostRequest?: (
@@ -182,7 +180,6 @@ export function createComposerController(options: ComposerControllerOptions = {}
     ((message: unknown) => browser.runtime.sendMessage(message));
   const watchRuntime = options.subscribeRuntimeMessages ?? subscribeRuntimeMessages;
   const submitReport = options.submitErrorReport ?? submitPopupErrorReport;
-  const openGitHubIssue = options.openGitHubIssue ?? openPopupGitHubIssue;
   const writeClipboard = options.writeClipboard ??
     ((text: string) => navigator.clipboard.writeText(text));
   const reportEndpoint = options.reportEndpoint ?? DEFAULT_REPORT_ENDPOINT;
@@ -495,15 +492,6 @@ export function createComposerController(options: ComposerControllerOptions = {}
         endpoint: reportEndpoint,
         dedupedMessage,
       });
-    },
-
-    async openGitHubIssue(
-      errorText: string,
-      context: ComposerReportContext,
-      note: string,
-      overflowNote: string,
-    ): Promise<void> {
-      await openGitHubIssue({ errorText, context, note, overflowNote });
     },
 
     submitPlatforms,

@@ -280,12 +280,10 @@ describe('composer controller', () => {
     });
     const writeClipboard = vi.fn(async () => {});
     const submitErrorReport = vi.fn(async () => ({ ok: true, issueUrl: 'https://example.test/1' }));
-    const openGitHubIssue = vi.fn(async () => {});
     const controller = createComposerController({
       sendRuntimeMessage,
       writeClipboard,
       submitErrorReport,
-      openGitHubIssue,
       reportEndpoint: 'https://report.example.test',
     });
     const context = { version: '0.5.49' } as never;
@@ -314,14 +312,6 @@ describe('composer controller', () => {
       context,
       endpoint: 'https://report.example.test',
       dedupedMessage: expect.any(Function),
-    });
-
-    await controller.openGitHubIssue('failed', context, 'note', 'overflow');
-    expect(openGitHubIssue).toHaveBeenCalledWith({
-      errorText: 'failed',
-      context,
-      note: 'note',
-      overflowNote: 'overflow',
     });
   });
 

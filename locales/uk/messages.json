@@ -96,7 +96,6 @@
   "retryFailedButton": { "message": "Повторити невдалі ($N$)", "placeholders": { "N": { "content": "$1" } } },
   "retryFailedTooltip": { "message": "Повторно надіслати $N$ невдалих постів", "placeholders": { "N": { "content": "$1" } } },
   "reportDeduped": { "message": "Та сама помилка вже повідомлена $N$ год тому (24-год кулдаун).", "placeholders": { "N": { "content": "$1" } } },
-  "reportEmailNote": { "message": "Повний звіт скопійовано в буфер обміну. Вставте в тіло листа і надішліть." },
   "openLoginTooltip": { "message": "Відкрити цю мережу в новій вкладці (Tutti виявить акаунт після входу)" },
   "failureHintTooltip": { "message": "Показати причину невдачі та шлях вирішення" },
   "failureHintClose": { "message": "Закрити" },
@@ -158,7 +157,6 @@
   "errorDialogReported": { "message": "✓ Дякуємо. Issue створено:" },
   "errorDialogReportFailed": { "message": "Не вдалося надіслати звіт" },
   "errorDialogClose": { "message": "Закрити" },
-  "errorDialogOpenGitHub": { "message": "Надіслати поштою" },
   "constraintAdapterMissing": { "message": "Адаптер не реалізовано" },
   "constraintVideoUnsupported": { "message": "Відео не підтримується" },
   "constraintTextTooLong": {
@@ -190,7 +188,6 @@
   "compressionEtaMin": { "message": "~$N$ хв залишилось", "placeholders": { "N": { "content": "$1" } } },
   "compressionEtaSec": { "message": "$N$ с залишилось", "placeholders": { "N": { "content": "$1" } } },
   "reportAlreadySubmitted": { "message": "Вже повідомлено" },
-  "reportClipboardOverflow": { "message": "(... повний текст у буфері обміну, вставте сюди)" },
   "platformFailedShort": { "message": "$P$: помилка (без деталей)", "placeholders": { "P": { "content": "$1" } } },
   "uiLanguageTitle": { "message": "Мова UI Tutti" },
   "uiLanguageAuto": { "message": "Авто (стандарт браузера)" },

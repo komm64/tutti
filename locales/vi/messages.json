@@ -96,7 +96,6 @@
   "retryFailedButton": { "message": "Thử lại các bài lỗi ($N$)", "placeholders": { "N": { "content": "$1" } } },
   "retryFailedTooltip": { "message": "Gửi lại $N$ bài thất bại", "placeholders": { "N": { "content": "$1" } } },
   "reportDeduped": { "message": "Cùng lỗi đã được báo cáo $N$ giờ trước (cooldown 24 giờ).", "placeholders": { "N": { "content": "$1" } } },
-  "reportEmailNote": { "message": "Báo cáo đầy đủ đã sao chép vào clipboard. Dán vào nội dung email và gửi." },
   "openLoginTooltip": { "message": "Mở mạng này trong tab mới (Tutti sẽ nhận diện tài khoản sau khi đăng nhập)" },
   "failureHintTooltip": { "message": "Hiển thị lý do thất bại và cách khắc phục" },
   "failureHintClose": { "message": "Đóng" },
@@ -158,7 +157,6 @@
   "errorDialogReported": { "message": "✓ Cảm ơn. Issue đã được tạo:" },
   "errorDialogReportFailed": { "message": "Gửi báo cáo thất bại" },
   "errorDialogClose": { "message": "Đóng" },
-  "errorDialogOpenGitHub": { "message": "Gửi qua email" },
   "constraintAdapterMissing": { "message": "Adapter chưa được triển khai" },
   "constraintVideoUnsupported": { "message": "Không hỗ trợ video" },
   "constraintTextTooLong": {
@@ -190,7 +188,6 @@
   "compressionEtaMin": { "message": "Còn ~$N$ phút", "placeholders": { "N": { "content": "$1" } } },
   "compressionEtaSec": { "message": "Còn $N$ giây", "placeholders": { "N": { "content": "$1" } } },
   "reportAlreadySubmitted": { "message": "Đã báo cáo" },
-  "reportClipboardOverflow": { "message": "(... nội dung đầy đủ trong clipboard, dán vào đây)" },
   "platformFailedShort": { "message": "$P$: thất bại (không có chi tiết)", "placeholders": { "P": { "content": "$1" } } },
   "uiLanguageTitle": { "message": "Ngôn ngữ UI Tutti" },
   "uiLanguageAuto": { "message": "Tự động (mặc định trình duyệt)" },

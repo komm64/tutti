@@ -212,11 +212,6 @@ export function formatDiagnosticsJsonForReport(diagnosticsJson: string): string 
   }), null, 2));
 }
 
-export function buildGitHubIssueUrl(title: string, body: string, note: string, overflowNote: string): string {
-  const shortBody = `${note}\n\n${body.slice(0, 3000)}${body.length > 3000 ? `\n\n${overflowNote}` : ''}`;
-  return `https://github.com/komm64/tutti-issues/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(shortBody)}`;
-}
-
 interface TruncationOptions {
   domSnapshotChars: number;
   stringChars: number;

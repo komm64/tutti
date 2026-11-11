@@ -96,7 +96,6 @@
   "retryFailedButton": { "message": "Başarısız olanları tekrar dene ($N$)", "placeholders": { "N": { "content": "$1" } } },
   "retryFailedTooltip": { "message": "Başarısız olan $N$ gönderiyi tekrar gönder", "placeholders": { "N": { "content": "$1" } } },
   "reportDeduped": { "message": "Aynı hata $N$ saat önce zaten bildirildi (24 saat soğuma).", "placeholders": { "N": { "content": "$1" } } },
-  "reportEmailNote": { "message": "Tam rapor panoya kopyalandı. E-posta gövdesine yapıştırın ve gönderin." },
   "openLoginTooltip": { "message": "Bu ağı yeni sekmede aç (Tutti giriş yaptıktan sonra hesabınızı algılar)" },
   "failureHintTooltip": { "message": "Neden başarısız olduğunu ve nasıl düzeltileceğini göster" },
   "failureHintClose": { "message": "Kapat" },
@@ -158,7 +157,6 @@
   "errorDialogReported": { "message": "✓ Teşekkürler. Issue oluşturuldu:" },
   "errorDialogReportFailed": { "message": "Rapor gönderme başarısız" },
   "errorDialogClose": { "message": "Kapat" },
-  "errorDialogOpenGitHub": { "message": "E-posta ile gönder" },
   "constraintAdapterMissing": { "message": "Adaptör uygulanmadı" },
   "constraintVideoUnsupported": { "message": "Video desteklenmiyor" },
   "constraintTextTooLong": {
@@ -190,7 +188,6 @@
   "compressionEtaMin": { "message": "~$N$ dk kaldı", "placeholders": { "N": { "content": "$1" } } },
   "compressionEtaSec": { "message": "$N$ s kaldı", "placeholders": { "N": { "content": "$1" } } },
   "reportAlreadySubmitted": { "message": "Zaten bildirildi" },
-  "reportClipboardOverflow": { "message": "(... tam metin panoda, buraya yapıştırın)" },
   "platformFailedShort": { "message": "$P$: başarısız (ayrıntı yok)", "placeholders": { "P": { "content": "$1" } } },
   "uiLanguageTitle": { "message": "Tutti UI dili" },
   "uiLanguageAuto": { "message": "Otomatik (tarayıcı varsayılanı)" },

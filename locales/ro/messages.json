@@ -96,7 +96,6 @@
   "retryFailedButton": { "message": "Reîncearcă eșuate ($N$)", "placeholders": { "N": { "content": "$1" } } },
   "retryFailedTooltip": { "message": "Retrimite cele $N$ postări eșuate", "placeholders": { "N": { "content": "$1" } } },
   "reportDeduped": { "message": "Aceeași eroare a fost raportată acum $N$ h (răcire de 24 h).", "placeholders": { "N": { "content": "$1" } } },
-  "reportEmailNote": { "message": "Raport complet copiat în clipboard. Lipește în corpul e-mailului și trimite." },
   "openLoginTooltip": { "message": "Deschide această rețea într-o filă nouă (Tutti detectează contul după autentificare)" },
   "failureHintTooltip": { "message": "Arată de ce a eșuat și cum se rezolvă" },
   "failureHintClose": { "message": "Închide" },
@@ -158,7 +157,6 @@
   "errorDialogReported": { "message": "✓ Mulțumesc. Issue creat:" },
   "errorDialogReportFailed": { "message": "Trimiterea raportului a eșuat" },
   "errorDialogClose": { "message": "Închide" },
-  "errorDialogOpenGitHub": { "message": "Trimite prin e-mail" },
   "constraintAdapterMissing": { "message": "Adaptor neimplementat" },
   "constraintVideoUnsupported": { "message": "Videoclipurile nu sunt suportate" },
   "constraintTextTooLong": {
@@ -190,7 +188,6 @@
   "compressionEtaMin": { "message": "~$N$ min rămase", "placeholders": { "N": { "content": "$1" } } },
   "compressionEtaSec": { "message": "$N$ s rămase", "placeholders": { "N": { "content": "$1" } } },
   "reportAlreadySubmitted": { "message": "Deja raportat" },
-  "reportClipboardOverflow": { "message": "(... textul complet este în clipboard, lipește aici)" },
   "platformFailedShort": { "message": "$P$: eșuat (fără detalii)", "placeholders": { "P": { "content": "$1" } } },
   "uiLanguageTitle": { "message": "Limba UI Tutti" },
   "uiLanguageAuto": { "message": "Auto (implicit browser)" },

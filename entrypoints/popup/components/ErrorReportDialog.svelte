@@ -9,7 +9,6 @@
     onDismiss: () => void;
     onResetAndDismiss: () => void;
     onReport: () => void;
-    onOpenGitHub: () => void;
   }
 
   let {
@@ -19,7 +18,6 @@
     onDismiss,
     onResetAndDismiss,
     onReport,
-    onOpenGitHub,
   }: Props = $props();
 </script>
 
@@ -69,10 +67,6 @@
           onclick={onResetAndDismiss}
           class="px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-100 rounded"
         >{t('errorDialogDismiss')}</button>
-        <button
-          onclick={onOpenGitHub}
-          class="px-3 py-1.5 text-xs font-medium bg-gray-700 text-white rounded hover:bg-gray-800"
-        >{t('errorDialogOpenGitHub')}</button>
       </div>
     {:else}
       <p class="text-[11px] text-gray-500 leading-snug mb-3">{t('errorDialogBody')}</p>
