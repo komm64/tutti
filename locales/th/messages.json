@@ -96,7 +96,6 @@
   "retryFailedButton": { "message": "ลองอีกครั้งที่ล้มเหลว ($N$)", "placeholders": { "N": { "content": "$1" } } },
   "retryFailedTooltip": { "message": "ส่งโพสต์ที่ล้มเหลว $N$ รายการอีกครั้ง", "placeholders": { "N": { "content": "$1" } } },
   "reportDeduped": { "message": "ข้อผิดพลาดเดียวกันถูกรายงานเมื่อ $N$ ชั่วโมงที่แล้ว (24 ชั่วโมง cooldown)", "placeholders": { "N": { "content": "$1" } } },
-  "reportEmailNote": { "message": "รายงานทั้งหมดคัดลอกไปยังคลิปบอร์ดแล้ว วางในเนื้อหาอีเมลและส่ง" },
   "openLoginTooltip": { "message": "เปิดเครือข่ายนี้ในแท็บใหม่ (Tutti จะตรวจจับบัญชีของคุณหลังจากเข้าสู่ระบบ)" },
   "failureHintTooltip": { "message": "แสดงว่าทำไมล้มเหลวและวิธีแก้ไข" },
   "failureHintClose": { "message": "ปิด" },
@@ -158,7 +157,6 @@
   "errorDialogReported": { "message": "✓ ขอบคุณ Issue ถูกสร้าง:" },
   "errorDialogReportFailed": { "message": "ส่งรายงานล้มเหลว" },
   "errorDialogClose": { "message": "ปิด" },
-  "errorDialogOpenGitHub": { "message": "ส่งทางอีเมล" },
   "constraintAdapterMissing": { "message": "ไม่ได้ใช้ Adapter" },
   "constraintVideoUnsupported": { "message": "ไม่รองรับวิดีโอ" },
   "constraintTextTooLong": {
@@ -190,7 +188,6 @@
   "compressionEtaMin": { "message": "เหลือ ~$N$ นาที", "placeholders": { "N": { "content": "$1" } } },
   "compressionEtaSec": { "message": "เหลือ $N$ วินาที", "placeholders": { "N": { "content": "$1" } } },
   "reportAlreadySubmitted": { "message": "รายงานแล้ว" },
-  "reportClipboardOverflow": { "message": "(... เนื้อหาทั้งหมดในคลิปบอร์ด วางที่นี่)" },
   "platformFailedShort": { "message": "$P$: ล้มเหลว (ไม่มีรายละเอียด)", "placeholders": { "P": { "content": "$1" } } },
   "uiLanguageTitle": { "message": "ภาษา UI ของ Tutti" },
   "uiLanguageAuto": { "message": "อัตโนมัติ (ค่าเริ่มต้นของเบราว์เซอร์)" },

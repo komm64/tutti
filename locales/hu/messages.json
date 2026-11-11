@@ -96,7 +96,6 @@
   "retryFailedButton": { "message": "Sikertelenek újrapróbálása ($N$)", "placeholders": { "N": { "content": "$1" } } },
   "retryFailedTooltip": { "message": "$N$ sikertelen bejegyzés újraküldése", "placeholders": { "N": { "content": "$1" } } },
   "reportDeduped": { "message": "Ugyanaz a hiba már $N$ órája jelentve (24h hűtés).", "placeholders": { "N": { "content": "$1" } } },
-  "reportEmailNote": { "message": "A teljes jelentés a vágólapra másolva. Illeszd be az e-mail szövegébe és küldd el." },
   "openLoginTooltip": { "message": "Hálózat megnyitása új lapon (a Tutti bejelentkezés után észleli a fiókod)" },
   "failureHintTooltip": { "message": "Megmutatja, miért hibázott és hogyan oldható meg" },
   "failureHintClose": { "message": "Bezár" },
@@ -158,7 +157,6 @@
   "errorDialogReported": { "message": "✓ Köszi. Issue létrehozva:" },
   "errorDialogReportFailed": { "message": "Nem sikerült elküldeni a jelentést" },
   "errorDialogClose": { "message": "Bezár" },
-  "errorDialogOpenGitHub": { "message": "Küldés e-mailben" },
   "constraintAdapterMissing": { "message": "Adapter nincs implementálva" },
   "constraintVideoUnsupported": { "message": "Videó nem támogatott" },
   "constraintTextTooLong": {
@@ -190,7 +188,6 @@
   "compressionEtaMin": { "message": "~$N$ perc van hátra", "placeholders": { "N": { "content": "$1" } } },
   "compressionEtaSec": { "message": "$N$ mp van hátra", "placeholders": { "N": { "content": "$1" } } },
   "reportAlreadySubmitted": { "message": "Már jelentve" },
-  "reportClipboardOverflow": { "message": "(... teljes szöveg a vágólapon, illeszd ide)" },
   "platformFailedShort": { "message": "$P$: sikertelen (nincs részlet)", "placeholders": { "P": { "content": "$1" } } },
   "uiLanguageTitle": { "message": "Tutti UI nyelve" },
   "uiLanguageAuto": { "message": "Automatikus (böngésző alapértelmezett)" },

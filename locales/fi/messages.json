@@ -96,7 +96,6 @@
   "retryFailedButton": { "message": "Yritä epäonnistuneita uudelleen ($N$)", "placeholders": { "N": { "content": "$1" } } },
   "retryFailedTooltip": { "message": "Lähetä $N$ epäonnistunutta julkaisua uudelleen", "placeholders": { "N": { "content": "$1" } } },
   "reportDeduped": { "message": "Sama virhe on jo raportoitu $N$ t sitten (24t jäähdytys).", "placeholders": { "N": { "content": "$1" } } },
-  "reportEmailNote": { "message": "Täysi raportti kopioitu leikepöydälle. Liitä sähköpostiin ja lähetä." },
   "openLoginTooltip": { "message": "Avaa tämä verkosto uudessa välilehdessä (Tutti tunnistaa tilisi kirjautumisen jälkeen)" },
   "failureHintTooltip": { "message": "Näytä miksi epäonnistui ja miten korjata" },
   "failureHintClose": { "message": "Sulje" },
@@ -158,7 +157,6 @@
   "errorDialogReported": { "message": "✓ Kiitos. Issue luotu:" },
   "errorDialogReportFailed": { "message": "Raportin lähetys epäonnistui" },
   "errorDialogClose": { "message": "Sulje" },
-  "errorDialogOpenGitHub": { "message": "Lähetä sähköpostilla" },
   "constraintAdapterMissing": { "message": "Sovitinta ei toteutettu" },
   "constraintVideoUnsupported": { "message": "Videoita ei tueta" },
   "constraintTextTooLong": {
@@ -190,7 +188,6 @@
   "compressionEtaMin": { "message": "~$N$ min jäljellä", "placeholders": { "N": { "content": "$1" } } },
   "compressionEtaSec": { "message": "$N$ s jäljellä", "placeholders": { "N": { "content": "$1" } } },
   "reportAlreadySubmitted": { "message": "Jo raportoitu" },
-  "reportClipboardOverflow": { "message": "(... koko sisältö leikepöydällä, liitä tähän)" },
   "platformFailedShort": { "message": "$P$: epäonnistui (ei tietoja)", "placeholders": { "P": { "content": "$1" } } },
   "uiLanguageTitle": { "message": "Tutin UI-kieli" },
   "uiLanguageAuto": { "message": "Auto (selaimen oletus)" },

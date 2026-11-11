@@ -3,7 +3,6 @@ import type { ReportResult } from './types';
 import {
   buildCurrentDraftReportSection,
   buildErrorReportPayload,
-  buildGitHubIssueUrl,
   formatReportLogs,
   type CurrentDraftReportInput,
   type ErrorReportLogEntry,
@@ -90,18 +89,6 @@ export async function submitPopupErrorReport(input: {
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
-}
-
-export async function openPopupGitHubIssue(input: {
-  errorText: string;
-  context: PopupReportContext;
-  note: string;
-  overflowNote: string;
-}): Promise<void> {
-  const { title, body } = await buildPopupReportPayload(input.errorText, input.context);
-  try { await navigator.clipboard.writeText(body); } catch { /* ignore */ }
-  const url = buildGitHubIssueUrl(title, body, input.note, input.overflowNote);
-  window.open(url, '_blank');
 }
 
 async function loadLogsExcerpt(platforms: ReturnType<typeof selectedPlatformIds>): Promise<string> {

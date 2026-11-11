@@ -96,7 +96,6 @@
   "retryFailedButton": { "message": "Försök igen misslyckade ($N$)", "placeholders": { "N": { "content": "$1" } } },
   "retryFailedTooltip": { "message": "Skicka om de $N$ misslyckade inläggen", "placeholders": { "N": { "content": "$1" } } },
   "reportDeduped": { "message": "Samma fel rapporterades redan för $N$ h sedan (24h cooldown).", "placeholders": { "N": { "content": "$1" } } },
-  "reportEmailNote": { "message": "Fullständig rapport kopierad till urklipp. Klistra in i e-postmeddelandet och skicka." },
   "openLoginTooltip": { "message": "Öppna detta nätverk i en ny flik (Tutti upptäcker ditt konto efter inloggning)" },
   "failureHintTooltip": { "message": "Visa varför det misslyckades och hur du löser det" },
   "failureHintClose": { "message": "Stäng" },
@@ -158,7 +157,6 @@
   "errorDialogReported": { "message": "✓ Tack. Issue skapad:" },
   "errorDialogReportFailed": { "message": "Misslyckades att skicka rapport" },
   "errorDialogClose": { "message": "Stäng" },
-  "errorDialogOpenGitHub": { "message": "Skicka via e-post" },
   "constraintAdapterMissing": { "message": "Adapter inte implementerad" },
   "constraintVideoUnsupported": { "message": "Video stöds inte" },
   "constraintTextTooLong": {
@@ -190,7 +188,6 @@
   "compressionEtaMin": { "message": "~$N$ min kvar", "placeholders": { "N": { "content": "$1" } } },
   "compressionEtaSec": { "message": "$N$ s kvar", "placeholders": { "N": { "content": "$1" } } },
   "reportAlreadySubmitted": { "message": "Redan rapporterad" },
-  "reportClipboardOverflow": { "message": "(... fullständig text i urklipp, klistra in här)" },
   "platformFailedShort": { "message": "$P$: misslyckades (inga detaljer)", "placeholders": { "P": { "content": "$1" } } },
   "uiLanguageTitle": { "message": "Tutti UI-språk" },
   "uiLanguageAuto": { "message": "Auto (webbläsarens standard)" },

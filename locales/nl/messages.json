@@ -96,7 +96,6 @@
   "retryFailedButton": { "message": "Mislukten opnieuw proberen ($N$)", "placeholders": { "N": { "content": "$1" } } },
   "retryFailedTooltip": { "message": "Verstuur de $N$ mislukte berichten opnieuw", "placeholders": { "N": { "content": "$1" } } },
   "reportDeduped": { "message": "Dezelfde fout is al $N$ u geleden gerapporteerd (24u cooldown).", "placeholders": { "N": { "content": "$1" } } },
-  "reportEmailNote": { "message": "Volledig rapport naar klembord gekopieerd. Plak in de e-mail en verzend." },
   "openLoginTooltip": { "message": "Open dit netwerk in een nieuw tabblad (Tutti detecteert je account na inloggen)" },
   "failureHintTooltip": { "message": "Toon waarom dit faalde en hoe het op te lossen" },
   "failureHintClose": { "message": "Sluiten" },
@@ -158,7 +157,6 @@
   "errorDialogReported": { "message": "✓ Bedankt. Issue aangemaakt:" },
   "errorDialogReportFailed": { "message": "Verzenden van rapport mislukt" },
   "errorDialogClose": { "message": "Sluiten" },
-  "errorDialogOpenGitHub": { "message": "Per e-mail verzenden" },
   "constraintAdapterMissing": { "message": "Adapter niet geïmplementeerd" },
   "constraintVideoUnsupported": { "message": "Video's niet ondersteund" },
   "constraintTextTooLong": {
@@ -190,7 +188,6 @@
   "compressionEtaMin": { "message": "~$N$ min resterend", "placeholders": { "N": { "content": "$1" } } },
   "compressionEtaSec": { "message": "$N$ s resterend", "placeholders": { "N": { "content": "$1" } } },
   "reportAlreadySubmitted": { "message": "Al gerapporteerd" },
-  "reportClipboardOverflow": { "message": "(... volledige tekst op klembord, plak hier)" },
   "platformFailedShort": { "message": "$P$: mislukt (geen details)", "placeholders": { "P": { "content": "$1" } } },
   "uiLanguageTitle": { "message": "Tutti UI-taal" },
   "uiLanguageAuto": { "message": "Auto (browser-standaard)" },

@@ -96,7 +96,6 @@
   "retryFailedButton": { "message": "Riprova falliti ($N$)", "placeholders": { "N": { "content": "$1" } } },
   "retryFailedTooltip": { "message": "Reinvia gli $N$ post falliti", "placeholders": { "N": { "content": "$1" } } },
   "reportDeduped": { "message": "Stesso errore già segnalato $N$ h fa (cooldown 24 h).", "placeholders": { "N": { "content": "$1" } } },
-  "reportEmailNote": { "message": "Rapporto completo copiato negli appunti. Incollalo nel corpo dell'email e invialo." },
   "openLoginTooltip": { "message": "Apri questa rete in una nuova scheda (Tutti rileverà il tuo account dopo il login)" },
   "failureHintTooltip": { "message": "Mostra perché è fallito e come risolverlo" },
   "failureHintClose": { "message": "Chiudi" },
@@ -158,7 +157,6 @@
   "errorDialogReported": { "message": "✓ Grazie. Issue creata:" },
   "errorDialogReportFailed": { "message": "Invio del rapporto fallito" },
   "errorDialogClose": { "message": "Chiudi" },
-  "errorDialogOpenGitHub": { "message": "Invia via email" },
   "constraintAdapterMissing": { "message": "Adapter non implementato" },
   "constraintVideoUnsupported": { "message": "Video non supportati" },
   "constraintTextTooLong": {
@@ -190,7 +188,6 @@
   "compressionEtaMin": { "message": "~$N$ min rimanenti", "placeholders": { "N": { "content": "$1" } } },
   "compressionEtaSec": { "message": "$N$ s rimanenti", "placeholders": { "N": { "content": "$1" } } },
   "reportAlreadySubmitted": { "message": "Già segnalato" },
-  "reportClipboardOverflow": { "message": "(... corpo completo negli appunti, incollalo qui)" },
   "platformFailedShort": { "message": "$P$: fallito (nessun dettaglio)", "placeholders": { "P": { "content": "$1" } } },
   "uiLanguageTitle": { "message": "Lingua di Tutti" },
   "uiLanguageAuto": { "message": "Automatica (predefinita del browser)" },

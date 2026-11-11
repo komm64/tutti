@@ -96,7 +96,6 @@
   "retryFailedButton": { "message": "Reprovi malsukcesajn ($N$)", "placeholders": { "N": { "content": "$1" } } },
   "retryFailedTooltip": { "message": "Resendi $N$ malsukcesajn afiŝojn", "placeholders": { "N": { "content": "$1" } } },
   "reportDeduped": { "message": "La sama eraro jam raportita antaŭ $N$ h (24h malvarmiĝo).", "placeholders": { "N": { "content": "$1" } } },
-  "reportEmailNote": { "message": "Plena raporto kopiita al tondujo. Algluu en la korpon de la retpoŝto kaj sendu." },
   "openLoginTooltip": { "message": "Malfermi tiun ĉi reton en nova langeto (Tutti detektos vian konton post ensaluto)" },
   "failureHintTooltip": { "message": "Montri kial malsukcesis kaj kiel solvi" },
   "failureHintClose": { "message": "Fermi" },
@@ -158,7 +157,6 @@
   "errorDialogReported": { "message": "✓ Dankon. Problemo kreita:" },
   "errorDialogReportFailed": { "message": "Sendo de raporto malsukcesis" },
   "errorDialogClose": { "message": "Fermi" },
-  "errorDialogOpenGitHub": { "message": "Sendi per retpoŝto" },
   "constraintAdapterMissing": { "message": "Adaptilo ne realigita" },
   "constraintVideoUnsupported": { "message": "Videoj ne subtenataj" },
   "constraintTextTooLong": {
@@ -190,7 +188,6 @@
   "compressionEtaMin": { "message": "~$N$ min restas", "placeholders": { "N": { "content": "$1" } } },
   "compressionEtaSec": { "message": "$N$ s restas", "placeholders": { "N": { "content": "$1" } } },
   "reportAlreadySubmitted": { "message": "Jam raportita" },
-  "reportClipboardOverflow": { "message": "(... plena teksto en tondujo, algluu ĉi tien)" },
   "platformFailedShort": { "message": "$P$: malsukcesis (sen detaloj)", "placeholders": { "P": { "content": "$1" } } },
   "uiLanguageTitle": { "message": "UI-lingvo de Tutti" },
   "uiLanguageAuto": { "message": "Aŭtomata (defaŭlta de retumilo)" },

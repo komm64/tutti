@@ -96,7 +96,6 @@
   "retryFailedButton": { "message": "Coba ulang gagal ($N$)", "placeholders": { "N": { "content": "$1" } } },
   "retryFailedTooltip": { "message": "Kirim ulang $N$ postingan yang gagal", "placeholders": { "N": { "content": "$1" } } },
   "reportDeduped": { "message": "Error yang sama sudah dilaporkan $N$ jam lalu (cooldown 24 jam).", "placeholders": { "N": { "content": "$1" } } },
-  "reportEmailNote": { "message": "Laporan lengkap disalin ke clipboard. Tempel ke isi email dan kirim." },
   "openLoginTooltip": { "message": "Buka jejaring ini di tab baru (Tutti mendeteksi akun setelah login)" },
   "failureHintTooltip": { "message": "Tampilkan mengapa gagal dan cara memperbaikinya" },
   "failureHintClose": { "message": "Tutup" },
@@ -158,7 +157,6 @@
   "errorDialogReported": { "message": "✓ Terima kasih. Issue dibuat:" },
   "errorDialogReportFailed": { "message": "Gagal mengirim laporan" },
   "errorDialogClose": { "message": "Tutup" },
-  "errorDialogOpenGitHub": { "message": "Kirim via email" },
   "constraintAdapterMissing": { "message": "Adapter belum diimplementasikan" },
   "constraintVideoUnsupported": { "message": "Video tidak didukung" },
   "constraintTextTooLong": {
@@ -190,7 +188,6 @@
   "compressionEtaMin": { "message": "~$N$ menit tersisa", "placeholders": { "N": { "content": "$1" } } },
   "compressionEtaSec": { "message": "$N$ d tersisa", "placeholders": { "N": { "content": "$1" } } },
   "reportAlreadySubmitted": { "message": "Sudah dilaporkan" },
-  "reportClipboardOverflow": { "message": "(... teks lengkap di clipboard, tempel di sini)" },
   "platformFailedShort": { "message": "$P$: gagal (tanpa detail)", "placeholders": { "P": { "content": "$1" } } },
   "uiLanguageTitle": { "message": "Bahasa UI Tutti" },
   "uiLanguageAuto": { "message": "Otomatis (default peramban)" },

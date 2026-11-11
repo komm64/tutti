@@ -96,7 +96,6 @@
   "retryFailedButton": { "message": "Повторить неудачные ($N$)", "placeholders": { "N": { "content": "$1" } } },
   "retryFailedTooltip": { "message": "Повторно отправить $N$ неудачных постов", "placeholders": { "N": { "content": "$1" } } },
   "reportDeduped": { "message": "Та же ошибка уже сообщена $N$ ч назад (24-часовой кулдаун).", "placeholders": { "N": { "content": "$1" } } },
-  "reportEmailNote": { "message": "Полный отчёт скопирован в буфер обмена. Вставьте в тело письма и отправьте." },
   "openLoginTooltip": { "message": "Открыть эту сеть в новой вкладке (Tutti обнаружит аккаунт после входа)" },
   "failureHintTooltip": { "message": "Показать причину сбоя и способы решения" },
   "failureHintClose": { "message": "Закрыть" },
@@ -158,7 +157,6 @@
   "errorDialogReported": { "message": "✓ Спасибо. Issue создан:" },
   "errorDialogReportFailed": { "message": "Не удалось отправить отчёт" },
   "errorDialogClose": { "message": "Закрыть" },
-  "errorDialogOpenGitHub": { "message": "Отправить по email" },
   "constraintAdapterMissing": { "message": "Адаптер не реализован" },
   "constraintVideoUnsupported": { "message": "Видео не поддерживается" },
   "constraintTextTooLong": {
@@ -190,7 +188,6 @@
   "compressionEtaMin": { "message": "~$N$ мин осталось", "placeholders": { "N": { "content": "$1" } } },
   "compressionEtaSec": { "message": "$N$ с осталось", "placeholders": { "N": { "content": "$1" } } },
   "reportAlreadySubmitted": { "message": "Уже сообщено" },
-  "reportClipboardOverflow": { "message": "(... полное тело в буфере обмена, вставьте сюда)" },
   "platformFailedShort": { "message": "$P$: ошибка (без подробностей)", "placeholders": { "P": { "content": "$1" } } },
   "uiLanguageTitle": { "message": "Язык интерфейса Tutti" },
   "uiLanguageAuto": { "message": "Авто (по умолчанию браузера)" },

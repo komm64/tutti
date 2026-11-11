@@ -324,7 +324,6 @@
     "message": "同じエラーは既に $N$h 前に報告済みです (24h cooldown)。",
     "placeholders": { "N": { "content": "$1" } }
   },
-  "reportEmailNote": { "message": "本文は clipboard にコピー済です。 メールに貼り付けて送信してください。 (Full report copied to clipboard, please paste into the email body.)" },
   "openLoginTooltip": { "message": "この SNS のページを新 tab で開く (ログインすると Tutti がアカウントを検出します)" },
   "failureHintTooltip": { "message": "失敗の原因と対処を表示" },
   "failureHintClose": { "message": "閉じる" },
@@ -413,7 +412,6 @@
   "errorDialogReported": { "message": "✓ 報告ありがとうございます。Issue を作成しました:" },
   "errorDialogReportFailed": { "message": "報告の送信に失敗しました" },
   "errorDialogClose": { "message": "閉じる" },
-  "errorDialogOpenGitHub": { "message": "メールで送る" },
 
   "constraintAdapterMissing": { "message": "アダプタ未実装" },
   "constraintVideoUnsupported": { "message": "動画投稿に未対応" },
@@ -480,7 +478,6 @@
     "placeholders": { "N": { "content": "$1" } }
   },
   "reportAlreadySubmitted": { "message": "既に報告済みです" },
-  "reportClipboardOverflow": { "message": "(... clipboard に full body あり、 paste してください)" },
   "platformFailedShort": {
     "message": "$P$: 失敗 (詳細無し)",
     "placeholders": { "P": { "content": "$1" } }

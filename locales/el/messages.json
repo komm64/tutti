@@ -96,7 +96,6 @@
   "retryFailedButton": { "message": "Επανάληψη αποτυχημένων ($N$)", "placeholders": { "N": { "content": "$1" } } },
   "retryFailedTooltip": { "message": "Επαναποστολή των $N$ αποτυχημένων αναρτήσεων", "placeholders": { "N": { "content": "$1" } } },
   "reportDeduped": { "message": "Το ίδιο σφάλμα έχει ήδη αναφερθεί πριν από $N$ ώρες (24h cooldown).", "placeholders": { "N": { "content": "$1" } } },
-  "reportEmailNote": { "message": "Πλήρης αναφορά αντιγράφηκε στο πρόχειρο. Επικόλλησε στο σώμα του email και στείλε." },
   "openLoginTooltip": { "message": "Άνοιγμα αυτού του δικτύου σε νέα καρτέλα (ο Tutti θα εντοπίσει τον λογαριασμό σου μετά τη σύνδεση)" },
   "failureHintTooltip": { "message": "Δείξε γιατί απέτυχε και πώς να διορθωθεί" },
   "failureHintClose": { "message": "Κλείσιμο" },
@@ -158,7 +157,6 @@
   "errorDialogReported": { "message": "✓ Ευχαριστούμε. Issue δημιουργήθηκε:" },
   "errorDialogReportFailed": { "message": "Αποτυχία υποβολής αναφοράς" },
   "errorDialogClose": { "message": "Κλείσιμο" },
-  "errorDialogOpenGitHub": { "message": "Αποστολή με email" },
   "constraintAdapterMissing": { "message": "Ο adapter δεν έχει υλοποιηθεί" },
   "constraintVideoUnsupported": { "message": "Τα βίντεο δεν υποστηρίζονται" },
   "constraintTextTooLong": {
@@ -190,7 +188,6 @@
   "compressionEtaMin": { "message": "~$N$ λεπτά απομένουν", "placeholders": { "N": { "content": "$1" } } },
   "compressionEtaSec": { "message": "$N$ δ απομένουν", "placeholders": { "N": { "content": "$1" } } },
   "reportAlreadySubmitted": { "message": "Έχει ήδη αναφερθεί" },
-  "reportClipboardOverflow": { "message": "(... πλήρες κείμενο στο πρόχειρο, επικόλλησε εδώ)" },
   "platformFailedShort": { "message": "$P$: απέτυχε (χωρίς λεπτομέρειες)", "placeholders": { "P": { "content": "$1" } } },
   "uiLanguageTitle": { "message": "Γλώσσα UI Tutti" },
   "uiLanguageAuto": { "message": "Αυτόματο (προεπιλογή προγράμματος περιήγησης)" },

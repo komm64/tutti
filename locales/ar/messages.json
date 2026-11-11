@@ -96,7 +96,6 @@
   "retryFailedButton": { "message": "إعادة محاولة الفاشلة ($N$)", "placeholders": { "N": { "content": "$1" } } },
   "retryFailedTooltip": { "message": "إعادة إرسال $N$ منشورات فاشلة", "placeholders": { "N": { "content": "$1" } } },
   "reportDeduped": { "message": "تم الإبلاغ عن نفس الخطأ منذ $N$ ساعات (تبريد 24 ساعة).", "placeholders": { "N": { "content": "$1" } } },
-  "reportEmailNote": { "message": "تم نسخ التقرير الكامل إلى الحافظة. الصق في نص البريد الإلكتروني وأرسل." },
   "openLoginTooltip": { "message": "افتح هذه الشبكة في علامة تبويب جديدة (سيكتشف Tutti حسابك بعد تسجيل الدخول)" },
   "failureHintTooltip": { "message": "إظهار سبب الفشل وكيفية الإصلاح" },
   "failureHintClose": { "message": "إغلاق" },
@@ -158,7 +157,6 @@
   "errorDialogReported": { "message": "✓ شكراً. تم إنشاء Issue:" },
   "errorDialogReportFailed": { "message": "فشل إرسال التقرير" },
   "errorDialogClose": { "message": "إغلاق" },
-  "errorDialogOpenGitHub": { "message": "إرسال بالبريد الإلكتروني" },
   "constraintAdapterMissing": { "message": "Adapter غير منفّذ" },
   "constraintVideoUnsupported": { "message": "الفيديو غير مدعوم" },
   "constraintTextTooLong": {
@@ -190,7 +188,6 @@
   "compressionEtaMin": { "message": "~$N$ دقيقة متبقية", "placeholders": { "N": { "content": "$1" } } },
   "compressionEtaSec": { "message": "$N$ ث متبقية", "placeholders": { "N": { "content": "$1" } } },
   "reportAlreadySubmitted": { "message": "تم الإبلاغ بالفعل" },
-  "reportClipboardOverflow": { "message": "(... المحتوى الكامل في الحافظة، الصق هنا)" },
   "platformFailedShort": { "message": "$P$: فشل (بدون تفاصيل)", "placeholders": { "P": { "content": "$1" } } },
   "uiLanguageTitle": { "message": "لغة واجهة Tutti" },
   "uiLanguageAuto": { "message": "تلقائي (افتراضي المتصفح)" },

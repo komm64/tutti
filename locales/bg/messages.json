@@ -96,7 +96,6 @@
   "retryFailedButton": { "message": "Повтори неуспешните ($N$)", "placeholders": { "N": { "content": "$1" } } },
   "retryFailedTooltip": { "message": "Изпрати отново $N$ неуспешни публикации", "placeholders": { "N": { "content": "$1" } } },
   "reportDeduped": { "message": "Същата грешка вече е докладвана преди $N$ часа (24ч охлаждане).", "placeholders": { "N": { "content": "$1" } } },
-  "reportEmailNote": { "message": "Пълният доклад е копиран в клипборда. Постави в тялото на имейла и изпрати." },
   "openLoginTooltip": { "message": "Отвори тази мрежа в нов таб (Tutti ще открие акаунта след вход)" },
   "failureHintTooltip": { "message": "Покажи защо е неуспешно и как да се поправи" },
   "failureHintClose": { "message": "Затвори" },
@@ -158,7 +157,6 @@
   "errorDialogReported": { "message": "✓ Благодарим. Issue създадено:" },
   "errorDialogReportFailed": { "message": "Изпращането на доклада не успя" },
   "errorDialogClose": { "message": "Затвори" },
-  "errorDialogOpenGitHub": { "message": "Изпрати по имейл" },
   "constraintAdapterMissing": { "message": "Адаптерът не е реализиран" },
   "constraintVideoUnsupported": { "message": "Видеото не се поддържа" },
   "constraintTextTooLong": {
@@ -190,7 +188,6 @@
   "compressionEtaMin": { "message": "~$N$ мин остават", "placeholders": { "N": { "content": "$1" } } },
   "compressionEtaSec": { "message": "$N$ с остават", "placeholders": { "N": { "content": "$1" } } },
   "reportAlreadySubmitted": { "message": "Вече докладвано" },
-  "reportClipboardOverflow": { "message": "(... пълно съдържание в клипборда, постави тук)" },
   "platformFailedShort": { "message": "$P$: неуспех (без подробности)", "placeholders": { "P": { "content": "$1" } } },
   "uiLanguageTitle": { "message": "Език на UI на Tutti" },
   "uiLanguageAuto": { "message": "Автоматично (по подразбиране на браузъра)" },

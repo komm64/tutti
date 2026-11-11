@@ -208,21 +208,6 @@
     }
   }
 
-  /**
-   * fallback: 報告 proxy が落ちてる時に user が手動送信する経路。
-   * v0.4.93〜: mailto: (default mail client 無いと開かない、 URL length 制限あり) を
-   * やめて GitHub Issues の new URL に直接遷移する。 tutti-issues は public repo
-   * なので user が自分で file 可能。 body は URL に乗せられない長さなので clipboard
-   * にも入れる、 GitHub new issue form の body field に user が paste する形。
-   */
-  async function openGitHubIssueDirect(errorText: string): Promise<void> {
-    await composerController.openGitHubIssue(
-      errorText,
-      buildReportContext(),
-      t('reportEmailNote'),
-      t('reportClipboardOverflow'),
-    );
-  }
   // 永続選択を読み込んだあとに autoPost トグルが変わったら保存
   $effect(() => {
     autoPost;
@@ -908,10 +893,6 @@
       onDismiss={() => closeReportDialog(false)}
       onResetAndDismiss={() => closeReportDialog(true)}
       onReport={() => handleReportError(errorDialogText)}
-      onOpenGitHub={async () => {
-        await openGitHubIssueDirect(errorDialogText);
-        closeReportDialog(true);
-      }}
     />
   {/if}
 
