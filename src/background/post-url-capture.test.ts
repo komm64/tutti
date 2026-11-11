@@ -24,12 +24,18 @@ describe('post URL capture retry plan', () => {
   });
 
   it('adds a late pass for other profile based capture platforms without repeating every intermediate pass', () => {
-    for (const platform of ['x', 'pixiv', 'tiktok'] as const) {
+    for (const platform of ['x', 'pixiv'] as const) {
       expect(buildPostUrlCaptureRetryPlan(platform)).toEqual([
         { label: 'immediate', delayMs: 0 },
         { label: 'late-api-or-profile', delayMs: 10000 },
       ]);
     }
+  });
+
+  it('runs TikTok capture once because the Studio post-list scan waits and reloads by itself', () => {
+    expect(buildPostUrlCaptureRetryPlan('tiktok')).toEqual([
+      { label: 'immediate', delayMs: 0 },
+    ]);
   });
 
   it('uses an extra settled pass for Instagram because capture relies on async configure responses', () => {
