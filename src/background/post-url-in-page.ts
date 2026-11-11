@@ -29,16 +29,6 @@ export async function capturePostUrlInPage(
       'DOM first-link fallback disabled',
     );
   }
-  if (platformName === 'tiktok') {
-    for (let attempt = 0; attempt < 20; attempt += 1) {
-      const link =
-        document.querySelector<HTMLAnchorElement>('a[href*="/video/"]');
-      if (link && /\/@[^/]+\/video\/\d+/.test(link.href)) {
-        return { url: link.href, trace };
-      }
-      await new Promise((resolve) => setTimeout(resolve, 500));
-    }
-  }
   if (platformName === 'x') {
     for (let attempt = 0; attempt < 20; attempt += 1) {
       let captured: { id?: string; capturedAt?: number } | undefined;

@@ -7,6 +7,7 @@ import { captureStoredApiPostUrl } from './post-url-stored-api';
 import { captureMastodonPostViaPublicApi } from './post-url-mastodon-api';
 import { capturePostUrlInPage } from './post-url-in-page';
 import { captureYouTubeStudioPostUrlFromTab } from './post-url-youtube-studio';
+import { captureTikTokStudioPostUrl } from './post-url-tiktok-studio';
 
 export interface CapturePostUrlOptions {
   platform: PlatformId;
@@ -32,6 +33,8 @@ export type PostUrlCaptureScriptArgs = [
 
 export function buildPostUrlCaptureRetryPlan(platform: PlatformId): CapturePostUrlRetryStep[] {
   const steps: CapturePostUrlRetryStep[] = [{ label: 'immediate', delayMs: 0 }];
+  // The Studio post-list capture waits and reloads by itself.
+  if (platform === 'tiktok') return steps;
   if (platform === 'youtube') {
     return [
       ...steps,
@@ -57,8 +60,7 @@ export function buildPostUrlCaptureRetryPlan(platform: PlatformId): CapturePostU
   }
 
   const needsLateProfile = platform === 'x' ||
-    platform === 'pixiv' ||
-    platform === 'tiktok';
+    platform === 'pixiv';
 
   if (needsLateProfile) {
     return [
@@ -142,6 +144,9 @@ export async function capturePostUrlFromTab(options: CapturePostUrlOptions): Pro
     }
     if (platform === 'youtube') {
       return await captureYouTubeStudioPostUrlFromTab(tabId, text, dbg);
+    }
+    if (platform === 'tiktok') {
+      return await captureTikTokStudioPostUrl(tabId, text, minCapturedAt, dbg);
     }
 
     const target = text.replace(/\s+/g, ' ').trim().slice(0, 60);
