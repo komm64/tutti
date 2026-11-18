@@ -58,6 +58,19 @@ export function snapshotDocument(maxBytes = 8000): string {
   return html;
 }
 
+/**
+ * 要素 1 個の開始 tag だけを redact 済みで返す (selector audit の preview 用)。
+ * 子要素 / text は含めない (compose editor の本文を出さない)。
+ */
+export function redactedOpeningTag(el: Element, maxLength = 200): string {
+  const clone = el.cloneNode(false) as Element;
+  redactAttributes(clone);
+  const html = clone.outerHTML;
+  const closeIdx = html.lastIndexOf('</');
+  const opening = closeIdx > 0 ? html.slice(0, closeIdx) : html;
+  return opening.length > maxLength ? opening.slice(0, maxLength) + '…' : opening;
+}
+
 function redactInPlace(root: Element): void {
   // mutation 中の treeWalker は不安定なので 1 度集めてから処理
   const elements: Element[] = [];

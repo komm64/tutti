@@ -1,6 +1,7 @@
 import type { ExtensionUpdateState, PostResultMessage } from '../messages';
 import type { PlatformId } from '../types/platform';
 import { decodeMessage } from '../utils/message-decoder';
+import { redactPII } from '../utils/redact';
 import {
   clearDraft,
   getDraft,
@@ -439,7 +440,7 @@ export function createComposerController(options: ComposerControllerOptions = {}
           | undefined;
         return response?.error
           ? `error: ${response.error}`
-          : JSON.stringify(response?.report ?? null, null, 2);
+          : redactPII(JSON.stringify(response?.report ?? null, null, 2));
       } catch (error) {
         return `error: ${error instanceof Error ? error.message : String(error)}`;
       }

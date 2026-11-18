@@ -68,7 +68,9 @@ What "Path" means:
 - **DOM**: Tutti automates the SNS's web compose UI (more sensitive to anti-bot changes)
 - **DOM + API**: If you save credentials in Settings, Tutti switches to the official API.
   On API failure Tutti **does not silently fall back to DOM** — you'll see an explicit error.
-  Without credentials, only the DOM path runs.
+  Without saved credentials, Bluesky may still use the API with the session of an
+  open `bsky.app` tab (same account as shown in the popup, not expired); otherwise
+  the DOM path runs.
 - **multi-step**: For wizard-style modals across multiple steps (framework: `executeMultiStepFlow`)
 
 Per-network character / size limits, verification status, and known

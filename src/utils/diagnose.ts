@@ -1,24 +1,12 @@
 import type { DiagnosePlatformResult, PlatformId, SelectorAudit } from '../messages';
 import { isKnownComposeUrl } from './compose-url';
-import { snapshotDocument } from './dom-snapshot';
+import { redactedOpeningTag, snapshotDocument } from './dom-snapshot';
 
 /**
  * 各 SNS の content script から呼ぶ汎用 selector audit。
  * カンマ区切りの selector を全部試して、最初にマッチしたものの数と outerHTML 先頭を返す。
  * 全部 0 件のときは matchCount: 0 / preview: null。
  */
-/**
- * outerHTML preview の中で href / src / value 等にユーザ閲覧中ページや
- * 入力 text が混入する可能性がある。public Issue に流れる前提で雑 regex で潰す。
- * snapshotDocument 側はもっと堅い redact を持つが、こちらは小さい preview なので
- * 軽量 regex で十分。
- */
-function redactPreviewAttrs(html: string): string {
-  return html
-    .replace(/\b(href|src|srcset|action|formaction|poster|data-image-url)="[^"]{0,800}"/gi, '$1="<u/>"')
-    .replace(/\b(value)="[^"]{0,800}"/gi, '$1="<v/>"');
-}
-
 export function auditSelector(name: string, selector: string): SelectorAudit {
   let matchCount = 0;
   let firstMatchPreview: string | null = null;
@@ -26,8 +14,8 @@ export function auditSelector(name: string, selector: string): SelectorAudit {
     const matches = document.querySelectorAll(part);
     if (matches.length > 0) {
       matchCount = matches.length;
-      const first = matches[0] as HTMLElement;
-      firstMatchPreview = redactPreviewAttrs((first.outerHTML ?? '').slice(0, 200));
+      // 開始 tag のみ (本文 / 子要素は出さない)。属性は snapshot と同じ deny-by-default で redact。
+      firstMatchPreview = redactedOpeningTag(matches[0]!);
       break;
     }
   }

@@ -254,33 +254,34 @@ function waitForBlueskyThreadTextarea(index: number, timeoutMs: number): Promise
   );
 }
 
+/**
+ * bsky.app の BSKY_STORAGE から「現在アクティブなアカウント」の session だけを返す。
+ * accounts[] (同ブラウザでログイン済みの全アカウント) は見ない。
+ */
 function readBlueskySession(): { accessJwt: string; did: string; handle: string; pdsHost?: string } | null {
-  for (let i = 0; i < localStorage.length; i++) {
-    const k = localStorage.key(i);
-    if (!k || !/bsky|agent|session/i.test(k)) continue;
-    const v = localStorage.getItem(k);
-    if (!v) continue;
-    try {
-      const parsed = JSON.parse(v);
-      let accessJwt: string | undefined, did: string | undefined, handle: string | undefined, pdsHost: string | undefined;
-      const walk = (o: unknown, depth = 0): void => {
-        if (depth > 6 || !o || typeof o !== 'object') return;
-        const obj = o as Record<string, unknown>;
-        if (typeof obj.accessJwt === 'string' && !accessJwt) accessJwt = obj.accessJwt;
-        if (typeof obj.did === 'string' && /^did:/.test(obj.did) && !did) did = obj.did;
-        if (typeof obj.handle === 'string' && !handle) handle = obj.handle;
-        if (typeof obj.service === 'string' && /^https?:/.test(obj.service) && !pdsHost) pdsHost = (obj.service as string).replace(/\/$/, '');
-        if (typeof obj.pdsHost === 'string' && !pdsHost) pdsHost = obj.pdsHost;
-        if (Array.isArray(obj)) for (const x of obj) walk(x, depth + 1);
-        else for (const x of Object.values(obj)) walk(x, depth + 1);
+  try {
+    const raw = localStorage.getItem('BSKY_STORAGE');
+    if (!raw) return null;
+    const data = JSON.parse(raw) as {
+      session?: {
+        currentAccount?: {
+          accessJwt?: unknown; did?: unknown; handle?: unknown; service?: unknown;
+        };
       };
-      walk(parsed);
-      if (accessJwt && did && handle) {
-        return { accessJwt, did, handle, ...(pdsHost ? { pdsHost } : {}) };
-      }
-    } catch { /* not JSON */ }
+    };
+    const acc = data.session?.currentAccount;
+    if (!acc) return null;
+    const { accessJwt, did, handle } = acc;
+    if (typeof accessJwt !== 'string' || typeof did !== 'string' || !/^did:/.test(did) ||
+        typeof handle !== 'string') {
+      return null;
+    }
+    const service = typeof acc.service === 'string' ? acc.service : undefined;
+    const pdsHost = service && /^https:\/\//.test(service) ? service.replace(/\/+$/, '') : undefined;
+    return { accessJwt, did, handle, ...(pdsHost ? { pdsHost } : {}) };
+  } catch {
+    return null;
   }
-  return null;
 }
 
 export default defineContentScript({

@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { DiagnosePlatformResult } from '../messages';
+import { DEFAULT_SETTINGS } from '../storage/settings';
 import {
   redactDiagnosticPlatformResults,
   redactHistoryForDiagnostics,
   redactLastSeenUsers,
+  redactSettingsForDiagnostics,
   shouldIncludeDiagnosticPlatformResult,
 } from './diagnostics';
 
@@ -131,5 +133,21 @@ describe('diagnostic redaction helpers', () => {
     };
 
     expect(redactDiagnosticPlatformResults([result])[0]?.detectedUser).toBe('<present>');
+  });
+});
+
+describe('redactSettingsForDiagnostics', () => {
+  it('replaces instance URLs and preset names with flags', () => {
+    const redacted = redactSettingsForDiagnostics({
+      ...DEFAULT_SETTINGS,
+      mastodonInstance: 'https://my.private.instance',
+      selectorOverrideUrl: '',
+      snsPresets: [{ id: 'p1', name: 'Work accounts', platforms: ['x'] }],
+    });
+    expect(redacted.mastodonInstance).toBe('<custom>');
+    expect(redacted.misskeyInstance).toBe('<default>');
+    expect(redacted.selectorOverrideUrl).toBe('');
+    expect(redacted.snsPresets).toEqual([{ id: 'p1', name: '<redacted>', platforms: ['x'] }]);
+    expect(JSON.stringify(redacted)).not.toContain('private.instance');
   });
 });
