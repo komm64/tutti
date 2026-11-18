@@ -14,19 +14,7 @@ export default defineContentScript({
   world: 'MAIN',
   runAt: 'document_idle',
   main() {
-    type Snapshot = {
-      tag: string;
-      tumblr: unknown;
-      apolloState: unknown;
-      initialState: unknown;
-      windowKeys: string[];
-      sessionStorageKeys: string[];
-      sessionStorageHints: { key: string; preview: string }[];
-      cookies: string[];
-      indexedDBNames: string[];
-    };
-
-    function safeJsonString(v: unknown, max = 400): string {
+    function safeJsonString(v: unknown, max = 800): string {
       try {
         const s = JSON.stringify(v);
         return s ? s.slice(0, max) : '';
@@ -35,73 +23,21 @@ export default defineContentScript({
       }
     }
 
-    async function takeSnapshot(): Promise<Snapshot> {
-      const w = window as unknown as Record<string, unknown>;
-
-      // sessionStorage 全走査
-      const ssKeys: string[] = [];
-      const ssHints: { key: string; preview: string }[] = [];
+    // page globals だけを読む (cookie / Web Storage には触れない)。
+    // 受け手は同一 window の ISOLATED world なので targetOrigin は自 origin に限定。
+    function tick() {
       try {
-        for (let i = 0; i < sessionStorage.length; i++) {
-          const k = sessionStorage.key(i);
-          if (!k) continue;
-          ssKeys.push(k);
-          const v = sessionStorage.getItem(k);
-          if (v) ssHints.push({ key: k, preview: v.slice(0, 200) });
-        }
-      } catch { /* ignore */ }
-
-      // cookies (httpOnly 以外のみ。username が含まれることはまれだが念のため)
-      const cookies = document.cookie
-        .split(';')
-        .map((c) => c.trim())
-        .filter((c) => c.length > 0)
-        .slice(0, 30);
-
-      // IndexedDB の DB 名一覧
-      let dbNames: string[] = [];
-      try {
-        if ('databases' in indexedDB) {
-          const dbs = await indexedDB.databases();
-          dbNames = dbs.map((d) => d.name ?? '(unnamed)').filter(Boolean);
-        }
-      } catch { /* ignore */ }
-
-      return {
-        tag: PROBE_TAG,
-        tumblr: w['tumblr'],
-        apolloState: w['__APOLLO_STATE__'],
-        initialState: w['__INITIAL_STATE__'],
-        windowKeys: Object.getOwnPropertyNames(w)
-          .filter((k) => /tumblr|user|blog|init|apollo|state|auth|config|store|csrf/i.test(k))
-          .slice(0, 40),
-        sessionStorageKeys: ssKeys,
-        sessionStorageHints: ssHints,
-        cookies,
-        indexedDBNames: dbNames,
-      };
-    }
-
-    async function tick() {
-      try {
-        const snap = await takeSnapshot();
-        // tumblr が object で、しかも user 情報があれば即時投げる
-        // ない場合も毎回投げて isolated world に状況を伝える
+        const w = window as unknown as Record<string, unknown>;
         window.postMessage(
           {
             source: PROBE_TAG,
             snapshot: {
-              tumblr: safeJsonString(snap.tumblr, 800),
-              apolloState: safeJsonString(snap.apolloState, 200),
-              initialState: safeJsonString(snap.initialState, 800),
-              windowKeys: snap.windowKeys,
-              sessionStorageKeys: snap.sessionStorageKeys,
-              sessionStorageHints: snap.sessionStorageHints,
-              cookies: snap.cookies,
-              indexedDBNames: snap.indexedDBNames,
+              tumblr: safeJsonString(w['tumblr']),
+              apolloState: safeJsonString(w['__APOLLO_STATE__'], 200),
+              initialState: safeJsonString(w['__INITIAL_STATE__']),
             },
           },
-          '*',
+          location.origin,
         );
       } catch {
         /* ignore */
@@ -109,10 +45,10 @@ export default defineContentScript({
     }
 
     // 起動 → 1s 後 → 3s 後 → 6s 後 → 12s 後 → 24s 後 の 5 回
-    setTimeout(() => void tick(), 1000);
-    setTimeout(() => void tick(), 3000);
-    setTimeout(() => void tick(), 6000);
-    setTimeout(() => void tick(), 12000);
-    setTimeout(() => void tick(), 24000);
+    setTimeout(tick, 1000);
+    setTimeout(tick, 3000);
+    setTimeout(tick, 6000);
+    setTimeout(tick, 12000);
+    setTimeout(tick, 24000);
   },
 });

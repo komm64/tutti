@@ -44,20 +44,32 @@ jobs:
         shell: bash
         env:
           E2E_USER_DATA_DIR: ${{ secrets.E2E_USER_DATA_DIR }}
+          E2E_PLATFORMS: ${{ inputs.platforms }}
+          E2E_DEBUG: ${{ inputs.debug }}
         run: |
-          xvfb-run -a node scripts/e2e/run.mjs \
-            --platforms "${{ inputs.platforms }}" \
-            ${{ inputs.debug && '--debug' || '' }}
+          if ! [[ "$E2E_PLATFORMS" =~ ^[a-z]+(,[a-z]+)*$ ]]; then
+            echo "invalid platforms input" >&2
+            exit 1
+          fi
+          extra=()
+          if [ "$E2E_DEBUG" = "true" ]; then extra+=(--debug); fi
+          xvfb-run -a node scripts/e2e/run.mjs --platforms "$E2E_PLATFORMS" "${extra[@]}"
 
       - name: Run E2E (Surface = real display)
         if: inputs.runner == 'surface'
         shell: pwsh
         env:
           E2E_USER_DATA_DIR: ${{ secrets.E2E_USER_DATA_DIR }}
+          E2E_PLATFORMS: ${{ inputs.platforms }}
+          E2E_DEBUG: ${{ inputs.debug }}
         run: |
-          $args = @('scripts/e2e/run.mjs', '--platforms', '${{ inputs.platforms }}')
-          if ('${{ inputs.debug }}' -eq 'true') { $args += '--debug' }
-          node $args
+          if ($env:E2E_PLATFORMS -cnotmatch '^[a-z]+(,[a-z]+)*$') {
+            Write-Error 'invalid platforms input'
+            exit 1
+          }
+          $nodeArgs = @('scripts/e2e/run.mjs', '--platforms', $env:E2E_PLATFORMS)
+          if ($env:E2E_DEBUG -eq 'true') { $nodeArgs += '--debug' }
+          node @nodeArgs
 
       - name: Upload artifacts on failure
         if: failure()

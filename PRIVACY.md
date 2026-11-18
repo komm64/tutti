@@ -25,8 +25,20 @@ it there yourself.
   server** using credentials you supplied in Settings. No Tutti / developer
   server is involved.
 - No analytics, tracking, or advertising data is collected.
-- Tutti does **not** read or store your authentication tokens, cookies, or
-  session data from the SNS sites.
+- Tutti does **not** store or transmit your SNS cookies, passwords, or
+  login sessions. A few features use the session of an SNS tab you already
+  have open, only inside your browser and only toward that same SNS:
+  - **Bluesky posting**: if no app password is saved and autoPost is on,
+    Tutti may post through Bluesky's API using the active account's session
+    from an open `bsky.app` tab. It is used only when it belongs to the
+    account shown in the popup and has not expired; otherwise Tutti uses
+    the normal compose-page path.
+  - **Interaction notifications** (opt-in, Mastodon / Misskey): the page's
+    own session is used inside that tab to read like / reply / repost
+    counts of your recent Tutti posts from the same instance.
+  - These session values are read on demand, kept in memory only for that
+    request, never written to storage, and never sent to any server other
+    than the SNS they belong to.
 
 ### Exception — manual error reports (opt-in per click)
 
@@ -95,8 +107,12 @@ clearing Chrome's extension storage.
 |---|---|
 | `storage` | Store the local data above (settings, drafts, history, selected platforms, etc.) inside your browser. |
 | `offscreen` | Run `ffmpeg.wasm` in an offscreen document to compress / re-encode video files when the source exceeds the destination SNS's size cap. Video data is processed locally only; not transmitted anywhere by Tutti. |
+| `scripting` | After a post, run a short script in the SNS tab you posted to (e.g. to look up the new post's URL, or to read interaction counts for the opt-in notifications). Only on the supported SNS sites. |
+| `alarms` | Schedule the opt-in interaction checks (a few times within 24 hours after a post). |
+| `notifications` | Show OS notifications for posting results, actions that need your attention, and the opt-in interaction updates. |
 | `sidePanel` | Optional UI display mode: show Tutti's compose form in Chrome's side panel instead of the action popup, so it stays open while you switch between SNS tabs. You opt in via the Options page; default is the standard popup. |
 | `host_permissions` | Inject content scripts into each SNS site (x.com / twitter.com / bsky.app / bsky.social / threads.net / threads.com / mastodon.social / misskey.io / tumblr.com / pixiv.net / tiktok.com / youtube.com / instagram.com / deviantart.com) to fill the compose form with your post content and submit it, on your behalf. No data is read from these sites and sent elsewhere; the content script only writes your own input. |
+| `https://bsky.social/*`, `https://public.api.bsky.app/*` | Bluesky's API servers: the optional API posting path, and public (unauthenticated) like / reply / repost counts for the opt-in interaction notifications. |
 | `optional_host_permissions: https://*/*` | Requested at runtime only if you configure a custom Mastodon or Misskey instance URL (other than the defaults). Chrome shows the standard permission prompt at that moment. |
 
 ## 4. Relationship with the SNS providers

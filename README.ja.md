@@ -64,7 +64,9 @@ adapter 実装は済んでいるが実投稿の動作確認が浅いものを「
 - **DOM**: SNS の Web 投稿ページを自動操作する経路 (anti-bot 対策の影響を受けやすい)
 - **DOM + API**: Settings で credentials を登録すると公式 API 経路に切り替わる。
   API 失敗時は DOM に **フォールバックしない** (= 明示的に user へ通知)。
-  credentials を登録しない通常運用では DOM 経路のみ
+  credentials 未登録時、Bluesky は開いている `bsky.app` タブのセッション
+  (popup 表示中と同じアカウント・期限内のもののみ) で API を使うことがあり、
+  それ以外は DOM 経路
 - **multi-step**: 複数モーダルの wizard 型 UI 用 (P12 framework `executeMultiStepFlow`)
 
 各 SNS の文字数 / サイズ制約 / 検証状態 / 既知の不安定点は

@@ -51,19 +51,8 @@ export default defineConfig({
       // 使うので 'self' の範囲内で動作する。
       extension_pages: "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'",
     },
-    // P16: ffmpeg-core 内部 Worker が postMessage で /ffmpeg/*.wasm を fetch するため
-    // 一応 web_accessible_resources にも入れておく (offscreen origin からの直接 access
-    // には不要だが、Worker context によっては別 origin 扱いされるケース対策)
-    web_accessible_resources: [
-      {
-        resources: [
-          'ffmpeg/ffmpeg-core.js',
-          'ffmpeg/ffmpeg-core.wasm',
-          'assets/*',
-        ],
-        matches: ['<all_urls>'],
-      },
-    ],
+    // web_accessible_resources は宣言しない。ffmpeg core / worker は offscreen
+    // document (= 拡張 origin) からしか読まないので、Web ページへの公開は不要。
     action: {
       default_title: '__MSG_appName__',
     },

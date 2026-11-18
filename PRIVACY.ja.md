@@ -18,8 +18,18 @@ Tutti(以下「本拡張」)は、ユーザーが入力したコンテンツを�
 - 投稿テキスト・画像・動画は、ユーザーが選択した各 SNS(X / Bluesky /
   Threads / Tumblr / Mastodon / Misskey)のページに対して、ユーザーの
   ブラウザ内でのみ渡されます。
-- ユーザーの SNS アカウント情報、認証トークン、Cookie 等を本拡張が
-  取得・保存・送信することはありません。
+- SNS の Cookie・パスワード・ログインセッションを本拡張が保存したり、
+  外部へ送信したりすることはありません。ただし以下の機能では、ユーザーが
+  開いている SNS タブのセッションを、ブラウザ内で同じ SNS に対してのみ使います:
+  - **Bluesky 投稿**: アプリパスワード未登録かつ autoPost ON のとき、開いている
+    `bsky.app` タブのアクティブアカウントのセッションで Bluesky API から投稿する
+    ことがあります。popup に表示中のアカウントと一致し、期限切れでない場合のみ
+    使用し、それ以外は通常の投稿ページ経路で投稿します。
+  - **反応通知** (任意 ON、Mastodon / Misskey): そのタブ内でページ自身の
+    セッションを使い、同じインスタンスから Tutti で投稿した直近の投稿の
+    いいね・返信・リポスト数を取得します。
+  - これらのセッション値は必要時に読み取り、その処理の間だけメモリ上に保持し、
+    保存せず、その SNS 以外のサーバーへは送信しません。
 - 解析(アナリティクス)・トラッキング・広告のためのデータ収集は
   一切行いません。
 
@@ -77,8 +87,12 @@ Tutti 開発者本人のみが閲覧可能です(GitHub の Issues インデッ�
 | 権限 | 用途 |
 |---|---|
 | `storage` | 上記の設定・履歴・下書き等をローカル保存するため |
-| `offscreen` | 将来機能(動画整形)で offscreen document に ffmpeg.wasm をロードするため |
+| `offscreen` | 動画の圧縮・整形のため offscreen document で ffmpeg.wasm を実行するため (処理はローカルのみ) |
+| `scripting` | 投稿後、投稿先 SNS タブ内で短いスクリプトを実行するため (投稿 URL の取得、任意 ON の反応通知用カウント取得)。対応 SNS サイトのみ |
+| `alarms` | 任意 ON の反応通知のチェックを投稿後 24 時間以内に数回スケジュールするため |
+| `notifications` | 投稿結果・要操作のお知らせ・任意 ON の反応通知を OS 通知で表示するため |
 | `host_permissions` | x.com / twitter.com / bsky.app / threads.com / threads.net / mastodon.social / misskey.io / tumblr.com / www.tumblr.com の投稿ページ DOM 操作および compose URL 遷移のため |
+| `https://bsky.social/*`, `https://public.api.bsky.app/*` | Bluesky の API サーバー。任意の API 投稿経路と、反応通知用の公開 (認証なし) いいね・返信・リポスト数取得のため |
 | `optional_host_permissions: https://*/*` | ユーザーが mastodon.social / misskey.io 以外のインスタンスを設定した場合に、そのドメインへのアクセスを動的に求めるため。設定保存時に明示的にユーザー許可を求め、それ以外には使いません |
 
 ## 4. 外部サービスとの関係

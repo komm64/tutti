@@ -8,6 +8,7 @@ import {
   type SelectorFeedDiagnostics,
 } from '../utils/selector-feed-runtime';
 import { withTimeout } from '../utils/promise-timeout';
+import { DEFAULT_SETTINGS, type Settings } from '../storage/settings';
 
 export const DIAGNOSTIC_TAB_TIMEOUT_MS = 3_000;
 
@@ -15,7 +16,8 @@ export interface DiagnosticsReport {
   version: string;
   generatedAt: string;
   userAgent: string;
-  settings: Awaited<ReturnType<typeof getSettings>>;
+  /** URL / preset 名は '<default>' / '<custom>' / '<redacted>' に置換済 */
+  settings: Settings;
   /** PII 除去済。値は '<present>' のフラグのみ */
   lastSeenUsers: Record<string, string>;
   /** PII 除去済。textPreview は文字数フラグに置換 */
@@ -82,7 +84,7 @@ export async function buildDiagnosticsReport(
     version: browser.runtime.getManifest().version,
     generatedAt: new Date().toISOString(),
     userAgent: navigator.userAgent,
-    settings: await getSettings(),
+    settings: redactSettingsForDiagnostics(await getSettings()),
     lastSeenUsers: redactLastSeenUsers(await getLastSeenUsers()),
     recentHistory: redactHistoryForDiagnostics((await getPostHistory()).slice(0, 5)),
     platforms: redactDiagnosticPlatformResults(platformResults),
@@ -101,6 +103,18 @@ export function shouldIncludeDiagnosticPlatformResult(
   if (res.selectors.some((s) => s.matchCount > 0) || !!res.detectedUser) return true;
   if (context.requested) return true;
   return !!context.tabUrl && isKnownComposeUrl(res.platform, context.tabUrl);
+}
+
+export function redactSettingsForDiagnostics(settings: Settings): Settings {
+  const flag = (value: string, def: string): string =>
+    !value ? '' : value === def ? '<default>' : '<custom>';
+  return {
+    ...settings,
+    mastodonInstance: flag(settings.mastodonInstance, DEFAULT_SETTINGS.mastodonInstance),
+    misskeyInstance: flag(settings.misskeyInstance, DEFAULT_SETTINGS.misskeyInstance),
+    selectorOverrideUrl: flag(settings.selectorOverrideUrl, DEFAULT_SETTINGS.selectorOverrideUrl),
+    snsPresets: (settings.snsPresets ?? []).map((preset) => ({ ...preset, name: '<redacted>' })),
+  };
 }
 
 export function redactLastSeenUsers(raw: Record<string, string | null | undefined>): Record<string, string> {

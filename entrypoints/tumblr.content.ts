@@ -27,11 +27,6 @@ type ProbeSnapshot = {
   tumblr: string;
   apolloState: string;
   initialState: string;
-  windowKeys: string[];
-  sessionStorageKeys: string[];
-  sessionStorageHints: { key: string; preview: string }[];
-  cookies: string[];
-  indexedDBNames: string[];
 };
 let lastProbeSnapshot: ProbeSnapshot | null = null;
 window.addEventListener('message', (e: MessageEvent) => {
@@ -40,9 +35,6 @@ window.addEventListener('message', (e: MessageEvent) => {
   if (!data || data.source !== PROBE_TAG || !data.snapshot) return;
   lastProbeSnapshot = data.snapshot;
   log.info('tumblr probe snapshot received:', {
-    windowKeys: data.snapshot.windowKeys,
-    sessionStorageKeys: data.snapshot.sessionStorageKeys,
-    indexedDBNames: data.snapshot.indexedDBNames,
     tumblrLen: data.snapshot.tumblr?.length ?? 0,
     initialStateLen: data.snapshot.initialState?.length ?? 0,
   });
@@ -99,12 +91,6 @@ async function detectTumblrUser(): Promise<string | null> {
         for (const src of sources) {
           if (!src) continue;
           const u = isPrimaryBlog(src);
-          if (u) return u;
-        }
-        // sessionStorage hints も走査
-        for (const hint of snap.sessionStorageHints ?? []) {
-          if (!hint.preview) continue;
-          const u = isPrimaryBlog(hint.preview);
           if (u) return u;
         }
         return null;
@@ -275,11 +261,7 @@ async function detectTumblrUser(): Promise<string | null> {
   page-world probe (MAIN world):
     tumblr (first 400 chars): ${lastProbeSnapshot.tumblr?.slice(0, 400) || '(empty)'}
     initialState (first 400 chars): ${lastProbeSnapshot.initialState?.slice(0, 400) || '(empty)'}
-    windowKeys: ${(lastProbeSnapshot.windowKeys ?? []).join(', ')}
-    sessionStorage keys (count=${lastProbeSnapshot.sessionStorageKeys?.length ?? 0}):
-      ${(lastProbeSnapshot.sessionStorageKeys ?? []).join(', ')}
-    indexedDB databases: ${(lastProbeSnapshot.indexedDBNames ?? []).join(', ')}
-    cookies (non-httpOnly): ${(lastProbeSnapshot.cookies ?? []).map((c) => c.split('=')[0]).join(', ')}`
+    initialState length: ${lastProbeSnapshot.initialState?.length ?? 0}`
     : '\n  page-world probe: NOT received (CSP block か MAIN world script の登録ミス)';
 
   console.warn(
@@ -592,9 +574,9 @@ function probePageWorldForUsername(
           // 全 window プロパティから関連っぽいものを軽く列挙
           windowKeys: Object.getOwnPropertyNames(w).filter((k) => /tumblr|user|blog|init|apollo|state/i.test(k)).slice(0, 20),
         };
-        window.postMessage({ id: '${id}', payload }, '*');
+        window.postMessage({ id: '${id}', payload }, location.origin);
       } catch (e) {
-        window.postMessage({ id: '${id}', error: String(e) }, '*');
+        window.postMessage({ id: '${id}', error: String(e) }, location.origin);
       }
     })();`;
 

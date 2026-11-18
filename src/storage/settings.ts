@@ -24,7 +24,7 @@ export interface Settings {
 export const RESPONSIBLE_USE_ACK_VERSION = 1;
 export const TERMS_URL = 'https://tutti.komm64.com/terms.html';
 
-const DEFAULT_SETTINGS: Settings = {
+export const DEFAULT_SETTINGS: Readonly<Settings> = {
   mastodonInstance: 'https://mastodon.social',
   misskeyInstance: 'https://misskey.io',
   autoPost: false,

@@ -10,6 +10,7 @@ import type { Session as BlueskySession } from '../api/bluesky';
 import { postViaApi as postMastodonApi } from '../api/mastodon';
 import { postViaApi as postMisskeyApi } from '../api/misskey';
 import type { ApiPostResult } from '../api/types';
+import { getLastSeenUsers } from '../storage/platform-users';
 import { getApiCredentials } from '../utils/api-credentials';
 import { log } from '../utils/logger';
 import { parseMastodonStatusIdFromUrl } from '../utils/reply-compose';
@@ -52,7 +53,7 @@ export async function tryBlueskyApiPost({
     const hasVideo = !!images?.some((image) => image.type.startsWith('video/'));
     log.info(`bluesky via borrowed web session API start: media=${images?.length ?? 0} video=${hasVideo}`);
     await waitForWebActionPacing('submit');
-    return await postBlueskySession(session, { text, images });
+    return fallbackOnRejectedSession(await postBlueskySession(session, { text, images }));
   }
   return 'no-credentials';
 }
@@ -74,7 +75,7 @@ export async function tryBlueskyApiThreadPost({
       `chunks=${chunks.length} media=${images?.length ?? 0} video=${hasVideo}`,
     );
     await waitForWebActionPacing('submit');
-    return await postBlueskyThreadSession(session, { chunks, images });
+    return fallbackOnRejectedSession(await postBlueskyThreadSession(session, { chunks, images }));
   }
   return 'no-credentials';
 }
@@ -114,10 +115,45 @@ export async function tryMisskeyApiPost({
   return 'no-credentials';
 }
 
+/** session token の残り有効期間がこれ未満なら使わない (upload 中の失効を避ける) */
+const SESSION_MIN_REMAINING_MS = 60_000;
+
+/** JWT の exp (ms)。読めなければ null。 */
+export function readJwtExpiryMs(jwt: string): number | null {
+  const part = jwt.split('.')[1];
+  if (!part) return null;
+  try {
+    const b64 = part.replace(/-/g, '+').replace(/_/g, '/');
+    const payload = JSON.parse(atob(b64.padEnd(Math.ceil(b64.length / 4) * 4, '='))) as { exp?: unknown };
+    return typeof payload.exp === 'number' ? payload.exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeHandle(handle: string): string {
+  return handle.trim().replace(/^@/, '').toLowerCase();
+}
+
+/**
+ * 借用 session が投稿前にサーバ側で拒否された (record 未作成) 場合は
+ * 'no-credentials' を返して DOM path に回す。uncertain / 成功はそのまま。
+ */
+function fallbackOnRejectedSession(result: ApiPostResult): ApiPostResult | 'no-credentials' {
+  if (result.success || result.uncertain) return result;
+  if (/ExpiredToken|InvalidToken|AuthMissing|\b401\b/i.test(result.error ?? '')) {
+    log.warn('bluesky borrowed web session rejected; falling back to DOM path');
+    return 'no-credentials';
+  }
+  return result;
+}
+
 async function readBlueskySessionFromOpenTab(): Promise<BlueskySession | null> {
   let tabs: Browser.tabs.Tab[];
+  let expectedUser: string | undefined;
   try {
     tabs = await browser.tabs.query({});
+    expectedUser = (await getLastSeenUsers()).bluesky ?? undefined;
   } catch (e) {
     log.warn(`bluesky API session lookup skipped: ${e instanceof Error ? e.message : String(e)}`);
     return null;
@@ -131,6 +167,15 @@ async function readBlueskySessionFromOpenTab(): Promise<BlueskySession | null> {
         BlueskySessionResult | null | undefined;
       if (response?.type !== 'BLUESKY_SESSION_RESULT') continue;
       if (!response.accessJwt || !response.did || !response.handle) continue;
+      if (expectedUser && normalizeHandle(response.handle) !== normalizeHandle(expectedUser)) {
+        log.info('bluesky web session belongs to a different account; skipping');
+        continue;
+      }
+      const expiresAt = readJwtExpiryMs(response.accessJwt);
+      if (expiresAt === null || expiresAt - Date.now() < SESSION_MIN_REMAINING_MS) {
+        log.info('bluesky web session token is expired or unreadable; skipping');
+        continue;
+      }
       return {
         accessJwt: response.accessJwt,
         did: response.did,

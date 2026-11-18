@@ -11,6 +11,7 @@ const STORAGE_MODULES = [
 ] as const;
 
 const EXPECTED_EXPORTS = [
+  'DEFAULT_SETTINGS',
   'Draft',
   'DraftMedia',
   'HistoryEntry',

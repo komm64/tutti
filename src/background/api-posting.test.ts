@@ -6,6 +6,7 @@ import {
   postViaSession as postBlueskySessionApi,
 } from '../api/bluesky';
 import { postViaApi as postMastodonApi } from '../api/mastodon';
+import { getLastSeenUsers } from '../storage/platform-users';
 import { getApiCredentials } from '../utils/api-credentials';
 import { waitForWebActionPacing } from '../utils/web-action-pacing';
 import {
@@ -29,6 +30,17 @@ vi.mock('../api/mastodon', () => ({
 vi.mock('../api/misskey', () => ({
   postViaApi: vi.fn(async () => ({ success: true })),
 }));
+
+vi.mock('../storage/platform-users', () => ({
+  getLastSeenUsers: vi.fn(async () => ({})),
+}));
+
+function makeJwt(expSeconds: number): string {
+  const enc = (o: object) => btoa(JSON.stringify(o)).replace(/=+$/, '');
+  return `${enc({ alg: 'none' })}.${enc({ exp: expSeconds })}.sig`;
+}
+const VALID_JWT = makeJwt(Math.floor(Date.now() / 1000) + 3600);
+const EXPIRED_JWT = makeJwt(Math.floor(Date.now() / 1000) - 60);
 
 vi.mock('../utils/api-credentials', () => ({
   getApiCredentials: vi.fn(),
@@ -124,7 +136,7 @@ describe('tryApiPath', () => {
     const query = vi.fn(async () => [{ id: 42, url: 'https://bsky.app/profile/alice.test' }]);
     const sendMessage = vi.fn(async () => ({
       type: 'BLUESKY_SESSION_RESULT',
-      accessJwt: 'jwt',
+      accessJwt: VALID_JWT,
       did: 'did:plc:alice',
       handle: 'alice.test',
       pdsHost: 'https://bsky.social',
@@ -142,7 +154,7 @@ describe('tryApiPath', () => {
     expect(postBluesky).not.toHaveBeenCalled();
     expect(postBlueskySession).toHaveBeenCalledWith(
       {
-        accessJwt: 'jwt',
+        accessJwt: VALID_JWT,
         did: 'did:plc:alice',
         handle: 'alice.test',
         pdsHost: 'https://bsky.social',
@@ -183,7 +195,7 @@ describe('tryApiPath', () => {
         query: vi.fn(async () => [{ id: 42, url: 'https://bsky.app/profile/alice.test' }]),
         sendMessage: vi.fn(async () => ({
           type: 'BLUESKY_SESSION_RESULT',
-          accessJwt: 'jwt',
+          accessJwt: VALID_JWT,
           did: 'did:plc:alice',
           handle: 'alice.test',
         })),
@@ -195,12 +207,68 @@ describe('tryApiPath', () => {
     expect(result).toMatchObject({ success: true });
     expect(postBlueskyThreadSession).toHaveBeenCalledWith(
       {
-        accessJwt: 'jwt',
+        accessJwt: VALID_JWT,
         did: 'did:plc:alice',
         handle: 'alice.test',
       },
       { chunks: ['first', 'second'], images: undefined },
     );
+  });
+
+  describe('borrowed Bluesky session guards', () => {
+    const lastSeen = vi.mocked(getLastSeenUsers);
+    const stubSession = (accessJwt: string, handle = 'alice.test') => {
+      vi.stubGlobal('browser', {
+        tabs: {
+          query: vi.fn(async () => [{ id: 42, url: 'https://bsky.app/' }]),
+          sendMessage: vi.fn(async () => ({
+            type: 'BLUESKY_SESSION_RESULT', accessJwt, did: 'did:plc:alice', handle,
+          })),
+        },
+      });
+    };
+
+    beforeEach(() => {
+      getCreds.mockResolvedValue({});
+      lastSeen.mockResolvedValue({});
+    });
+
+    it('uses the session when it matches the expected account', async () => {
+      lastSeen.mockResolvedValue({ bluesky: '@Alice.test' });
+      stubSession(VALID_JWT);
+      expect(await tryApiPath('bluesky', 'hello')).toMatchObject({ success: true });
+      expect(postBlueskySession).toHaveBeenCalledOnce();
+    });
+
+    it('skips a session for a different account so the DOM path runs', async () => {
+      lastSeen.mockResolvedValue({ bluesky: '@bob.test' });
+      stubSession(VALID_JWT);
+      expect(await tryApiPath('bluesky', 'hello')).toBe('no-credentials');
+      expect(await tryApiThreadPath('bluesky', ['a', 'b'])).toBe('no-credentials');
+      expect(postBlueskySession).not.toHaveBeenCalled();
+      expect(postBlueskyThreadSession).not.toHaveBeenCalled();
+    });
+
+    it('skips an expired session token', async () => {
+      stubSession(EXPIRED_JWT);
+      expect(await tryApiPath('bluesky', 'hello')).toBe('no-credentials');
+      expect(postBlueskySession).not.toHaveBeenCalled();
+    });
+
+    it('falls back to the DOM path when the server rejects the session token', async () => {
+      stubSession(VALID_JWT);
+      postBlueskySession.mockResolvedValueOnce({
+        success: false,
+        error: 'createRecord 400: {"error":"ExpiredToken"}',
+      });
+      expect(await tryApiPath('bluesky', 'hello')).toBe('no-credentials');
+    });
+
+    it('keeps uncertain results instead of falling back', async () => {
+      stubSession(VALID_JWT);
+      postBlueskySession.mockResolvedValueOnce({ success: false, uncertain: true, error: 'network' });
+      expect(await tryApiPath('bluesky', 'hello')).toMatchObject({ uncertain: true });
+    });
   });
 
   it('passes Mastodon continuation reply ids to the API client', async () => {
