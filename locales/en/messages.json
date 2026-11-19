@@ -108,6 +108,7 @@
   "runtimeInstagramMediaRequired": { "message": "Instagram requires an image or video. Text-only posts are not supported." },
   "runtimeInstagramCreateTriggerMissing": { "message": "Instagram: Create / New post trigger not found in the sidebar" },
   "runtimeInstagramCreateDialogMissing": { "message": "Instagram: Create new post dialog did not appear (file input missing)" },
+  "runtimeInstagramCaptionDropped": { "message": "Instagram saved this post without its caption. Open the post and add the caption." },
   "runtimeInstagramFileInputMissing": { "message": "Instagram: file input did not appear inside the dialog" },
   "runtimeInstagramErrorDialog": { "message": "Instagram: error dialog detected - $DETAIL$", "placeholders": { "DETAIL": { "content": "$1" } } },
   "runtimeDeviantArtImageRequired": { "message": "DeviantArt requires an image." },

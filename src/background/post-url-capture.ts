@@ -134,7 +134,7 @@ export async function capturePostUrlFromTab(options: CapturePostUrlOptions): Pro
   let triedRenderedProfileFallback = false;
   if (platform === 'threads' && profileExpectedUser) {
     triedRenderedProfileFallback = true;
-    const renderedUrl = await captureRenderedProfilePostUrl(platform, tabId, text, dbg, profileExpectedUser);
+    const renderedUrl = await captureRenderedProfilePostUrl(platform, tabId, text, dbg, profileExpectedUser, minCapturedAt);
     if (renderedUrl) return renderedUrl;
   }
 
@@ -174,7 +174,7 @@ export async function capturePostUrlFromTab(options: CapturePostUrlOptions): Pro
     }
 
     if (isRenderedProfileFallbackPlatform(platform) && !triedRenderedProfileFallback) {
-      const renderedUrl = await captureRenderedProfilePostUrl(platform, tabId, text, dbg, profileExpectedUser);
+      const renderedUrl = await captureRenderedProfilePostUrl(platform, tabId, text, dbg, profileExpectedUser, minCapturedAt);
       if (renderedUrl) return renderedUrl;
     }
     dbg('URL not found');

@@ -124,6 +124,9 @@ export function createNextPostOrchestrator(options: PostOrchestratorOptions) {
     let mediaPostUrl: string | undefined;
     let allConfirmed = true;
     let finalChunkFlow: PostResultMessage['flow'];
+    // Issues the posting page itself reported, such as a caption the network
+    // dropped. The final result is rebuilt below, so carry them over.
+    const pageVerifyIssues: NonNullable<PostResultMessage['verify']>['issues'] = [];
     for (let index = 0; index < chunks.length; index++) {
       if (index > 0) await sleep(CHUNK_INTERVAL_MS);
       const chunkImages = index === 0 ? images : undefined;
@@ -178,6 +181,7 @@ export function createNextPostOrchestrator(options: PostOrchestratorOptions) {
           mediaPostUrl = result.url;
         }
         if (!result.confirmed && !result.url) allConfirmed = false;
+        if (result.verify?.issues.length) pageVerifyIssues.push(...result.verify.issues);
         finalChunkFlow = result.flow;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -211,6 +215,9 @@ export function createNextPostOrchestrator(options: PostOrchestratorOptions) {
       ? finalResultBase
       : toPreviewResult(finalResultBase);
     if (mediaPostUrl) finalResult.mediaUrl = mediaPostUrl;
+    if (pageVerifyIssues.length) {
+      finalResult.verify = { verified: false, issues: pageVerifyIssues };
+    }
 
     if (autoPost && previousPostUrl && isVerifySupported(platform)) {
       const verifyUrl = mediaPostUrl ?? previousPostUrl;
@@ -224,8 +231,8 @@ export function createNextPostOrchestrator(options: PostOrchestratorOptions) {
         verifyText,
         images,
       );
-      finalResult = downgradeHardVerifyFailures(finalResult);
     }
+    if (autoPost) finalResult = downgradeHardVerifyFailures(finalResult);
 
     if (autoPost && previousPostUrl) {
       void maybeAutoOpenPostUrl(previousPostUrl, finalResult.verify);

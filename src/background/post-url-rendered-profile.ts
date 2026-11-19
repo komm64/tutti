@@ -29,12 +29,44 @@ export function buildExpectedRenderedProfileUrl(
   return undefined;
 }
 
+// Threads shows post times at one-second resolution from its own clock.
+const THREADS_TIMESTAMP_SKEW_MS = 30_000;
+
+/**
+ * Runs in the profile page. Returns the newest post by `handle` whose
+ * timestamp is at or after `minTimeMs`, polling until `timeoutMs`.
+ * Self-contained so it can be passed to scripting.executeScript.
+ */
+export async function findThreadsPostAfterInPage(
+  handle: string,
+  minTimeMs: number,
+  timeoutMs: number,
+): Promise<string | undefined> {
+  const deadline = Date.now() + timeoutMs;
+  const wanted = handle.toLowerCase();
+  for (;;) {
+    let best: { href: string; time: number } | undefined;
+    for (const time of Array.from(document.querySelectorAll<HTMLTimeElement>('a[href*="/post/"] time[datetime]'))) {
+      const anchor = time.closest<HTMLAnchorElement>('a[href*="/post/"]');
+      const match = anchor?.href.match(/\/@([^/]+)\/post\/[\w-]+/);
+      if (!anchor || !match?.[1] || decodeURIComponent(match[1]).toLowerCase() !== wanted) continue;
+      const at = Date.parse(time.getAttribute('datetime') ?? '');
+      if (!Number.isFinite(at) || at < minTimeMs) continue;
+      if (!best || at > best.time) best = { href: anchor.href, time: at };
+    }
+    if (best) return best.href;
+    if (Date.now() >= deadline) return undefined;
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+}
+
 export async function captureRenderedProfilePostUrl(
   platform: RenderedProfilePlatform,
   sourceTabId: number,
   text: string,
   dbg: (message: string) => void,
   expectedUser?: string,
+  minCapturedAt?: number,
 ): Promise<string | undefined> {
   const expectedProfileUrl = buildExpectedRenderedProfileUrl(platform, expectedUser);
   if (expectedProfileUrl) {
@@ -113,7 +145,25 @@ export async function captureRenderedProfilePostUrl(
     await waitForTabComplete(tab.id);
     const target = text.replace(/\s+/g, ' ').trim().slice(0, platform === 'pixiv' ? 30 : 60);
     if (!target) {
-      dbg('rendered profile fallback skipped for empty text');
+      // A media-only post has no text to match. Threads stamps each post on
+      // the profile, so take the newest one posted after the submit instead.
+      if (platform !== 'threads' || typeof minCapturedAt !== 'number') {
+        dbg('rendered profile fallback skipped for empty text');
+        return undefined;
+      }
+      const handle = new URL(profileUrl).pathname.match(/^\/@([^/?#]+)/)?.[1] ?? '';
+      const timed = await browser.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: findThreadsPostAfterInPage,
+        args: [decodeURIComponent(handle), minCapturedAt - THREADS_TIMESTAMP_SKEW_MS, 20_000],
+        world: 'MAIN',
+      });
+      const timedUrl = timed?.[0]?.result;
+      if (typeof timedUrl === 'string') {
+        dbg(`URL captured via rendered profile timestamp: ${timedUrl}`);
+        return timedUrl;
+      }
+      dbg('rendered profile had no post after the submit time');
       return undefined;
     }
     const results = await browser.scripting.executeScript({

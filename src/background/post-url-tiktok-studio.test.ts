@@ -57,6 +57,24 @@ describe('pickTikTokStudioVideoUrl', () => {
     expect(pickTikTokStudioVideoUrl([link(OCT_28, 'x')], '', undefined)).toBeUndefined();
   });
 
+  it('accepts a captioned post whose ID predates the submit (Surface run)', () => {
+    // TikTok stamped the ID at 22:43:09 when the upload page loaded; Post was
+    // clicked at 22:43:25.
+    const submittedAt = Date.parse('2026-11-18T22:43:25Z');
+    const links = [
+      { href: 'https://www.tiktok.com/@me/video/7709645782823079220', text: 'my new clip #tutti' },
+      { href: 'https://www.tiktok.com/@me/video/7709644620090707220', text: 'an older clip' },
+    ];
+    expect(pickTikTokStudioVideoUrl(links, 'my new clip #tutti', submittedAt)).toBe(links[0]!.href);
+    expect(pickTikTokStudioVideoUrl(links.slice(1), 'my new clip #tutti', submittedAt)).toBeUndefined();
+  });
+
+  it('keeps the strict bound for a captionless post', () => {
+    const submittedAt = Date.parse('2026-11-18T22:43:25Z');
+    const links = [{ href: 'https://www.tiktok.com/@me/video/7709645782823079220', text: '' }];
+    expect(pickTikTokStudioVideoUrl(links, '', submittedAt)).toBeUndefined();
+  });
+
   it('resolves relative Studio links', () => {
     expect(pickTikTokStudioVideoUrl(
       [{ href: `/@tester/video/${OCT_28}`, text: 'hello world' }],

@@ -338,12 +338,28 @@ async function runPost(
       await waitForWebActionPacing('navigation');
       location.assign(`/${postingUser}/`);
     }
+    // Instagram can accept the caption in the configure request yet save the
+    // post without it (seen on Reels). The response says what was kept.
+    const captionDropped = !!text.trim() && captured?.captionSaved === false;
+    if (captionDropped) log.warn('IG: configure response saved the post without its caption');
     return {
       type: 'POST_RESULT',
       platform: 'instagram',
       success: true,
       confirmed: true,
       url: captured?.url,
+      ...(captionDropped
+        ? {
+            verify: {
+              verified: false,
+              issues: [{
+                kind: 'caption-dropped',
+                message: t('runtimeInstagramCaptionDropped'),
+                severity: 'error' as const,
+              }],
+            },
+          }
+        : {}),
     };
   }
 
