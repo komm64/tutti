@@ -150,9 +150,11 @@ export async function attachVerifyResult(
       lastCompletedStep: 'verify-post',
     };
     const verify = await runVerify(platform, postUrl, expectation);
+    // Keep what the posting page already found (e.g. a dropped caption).
+    const earlier = result.verify;
     result.verify = {
-      verified: verify.verified,
-      issues: verify.issues,
+      verified: verify.verified && (earlier?.verified ?? true),
+      issues: [...(earlier?.issues ?? []), ...verify.issues],
     };
     const hardErrors = verify.issues.filter((issue) => issue.severity === 'error');
     if (hardErrors.length > 0) {

@@ -12,14 +12,19 @@ import { closeTabSafely, waitForTabComplete } from './tab-management';
  * a separate background tab, so a post TikTok is still finishing in the
  * source tab is never navigated away from.
  *
- * A link is accepted only when its video ID was created after the post
- * started (TikTok IDs carry the creation time in their top 32 bits) and its
- * caption matches. Older posts are never returned as the new one.
+ * TikTok IDs carry their creation time in the top 32 bits, but TikTok
+ * allocates the ID when the upload page loads, well before Post is clicked.
+ * A captioned link is accepted within a wider window before the submit,
+ * because the caption match and the newest-first order keep older posts
+ * out. A captionless link has only the time to go on, so it must be created
+ * close to the submit; otherwise the result stays unconfirmed rather than
+ * naming an older post.
  */
 
 export const TIKTOK_STUDIO_CONTENT_URL = 'https://www.tiktok.com/tiktokstudio/content';
 
 const CREATED_AT_TOLERANCE_MS = 5_000;
+const CAPTIONED_CREATED_AT_WINDOW_MS = 10 * 60_000;
 const CAPTION_MATCH_CHARS = 20;
 const SCAN_WINDOW_MS = 20_000;
 const SCAN_PASSES = 4;
@@ -51,12 +56,15 @@ export function pickTikTokStudioVideoUrl(
   const hasStart = typeof minCapturedAt === 'number' && Number.isFinite(minCapturedAt);
   // Without either signal any link could be an older post.
   if (!caption && !hasStart) return undefined;
+  const earliest = hasStart
+    ? minCapturedAt - (caption ? CAPTIONED_CREATED_AT_WINDOW_MS : CREATED_AT_TOLERANCE_MS)
+    : undefined;
   for (const link of links) {
     const id = link.href.match(/\/@[^/?#]+\/video\/(\d+)/)?.[1];
     if (!id) continue;
-    if (hasStart) {
+    if (earliest !== undefined) {
       const createdAt = tiktokVideoCreatedAtMs(id);
-      if (createdAt === null || createdAt < minCapturedAt - CREATED_AT_TOLERANCE_MS) continue;
+      if (createdAt === null || createdAt < earliest) continue;
     }
     if (caption && !normalizeCaption(link.text).startsWith(caption)) continue;
     return new URL(link.href, 'https://www.tiktok.com').href;

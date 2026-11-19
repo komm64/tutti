@@ -27,6 +27,19 @@ describe('post capture records', () => {
     expect(record?.url).toBe('https://www.instagram.com/reel/DexOMdPg-Dk/');
   });
 
+  it('records whether Instagram kept the caption', () => {
+    const kept = extractInstagramPostRecord({
+      media: { code: 'DexOMdPg-Dk', product_type: 'clips', caption: { text: 'hello' } },
+    });
+    const dropped = extractInstagramPostRecord({
+      media: { code: 'Df5w3A9MqPX', product_type: 'clips', caption: null },
+    });
+    const unknown = extractInstagramPostRecord({ media: { code: 'DexOMdPg-Dk' } });
+    expect(kept?.captionSaved).toBe(true);
+    expect(dropped?.captionSaved).toBe(false);
+    expect(unknown?.captionSaved).toBeUndefined();
+  });
+
   it.each(['fetch', 'xhr'])('extracts the Instagram %s configure response fixture', () => {
     const record = extractInstagramPostRecord(instagramConfigureFixture.response, 'hash', 100);
 

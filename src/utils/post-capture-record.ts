@@ -6,6 +6,11 @@ export interface CapturedPostRecord {
   username?: string;
   capturedAt: number;
   textHash?: string;
+  /**
+   * Instagram only: whether the configure response kept a caption. Instagram
+   * can accept a caption in the request yet save the post without it.
+   */
+  captionSaved?: boolean;
 }
 
 export interface InstagramConfigureBodyResult {
@@ -104,8 +109,13 @@ export function extractInstagramPostRecord(
   let url: string | undefined;
   let code: string | undefined;
   let isReel = false;
+  let captionSaved: boolean | undefined;
 
   walkObject(payload, (key, value) => {
+    if (key === 'media' && value && typeof value === 'object' && 'caption' in value) {
+      const caption = (value as { caption?: { text?: unknown } | null }).caption;
+      captionSaved = typeof caption?.text === 'string' && caption.text.trim() !== '';
+    }
     if (typeof value !== 'string') return;
     const lowerKey = key.toLowerCase();
     const normalizedUrl = normalizeInstagramUrl(value);
@@ -120,7 +130,9 @@ export function extractInstagramPostRecord(
     url = `https://www.instagram.com/${isReel ? 'reel' : 'p'}/${code}/`;
   }
   if (!url && !code) return undefined;
-  return { url, code, capturedAt: now, textHash };
+  return captionSaved === undefined
+    ? { url, code, capturedAt: now, textHash }
+    : { url, code, capturedAt: now, textHash, captionSaved };
 }
 
 export function extractMastodonPostRecord(

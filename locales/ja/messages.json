@@ -108,6 +108,7 @@
   "runtimeInstagramMediaRequired": { "message": "Instagram は画像または動画が必須です。本文のみの投稿には対応していません。" },
   "runtimeInstagramCreateTriggerMissing": { "message": "Instagram: sidebar の Create / New post が見つかりません" },
   "runtimeInstagramCreateDialogMissing": { "message": "Instagram: Create new post dialog が出現しませんでした (file input 不在)" },
+  "runtimeInstagramCaptionDropped": { "message": "Instagram が本文（キャプション）なしで投稿を保存しました。投稿を開いてキャプションを追加してください。" },
   "runtimeInstagramFileInputMissing": { "message": "Instagram: dialog 内に file input が出現しませんでした" },
   "runtimeInstagramErrorDialog": { "message": "Instagram: エラー dialog を検出しました - $DETAIL$", "placeholders": { "DETAIL": { "content": "$1" } } },
   "runtimeDeviantArtImageRequired": { "message": "DeviantArt は画像が必須です。" },
