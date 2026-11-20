@@ -16,6 +16,9 @@
  *   node scripts/e2e/surface-posting-matrix.mjs --mode preview --case-timeout-ms 360000
  *   node scripts/e2e/surface-posting-matrix.mjs --mode post --cases text-video --platforms x --no-video-focus-interruption
  *
+ * Post mode is rate-limited per platform by real-post-guard.mjs (daily cap and
+ * minimum interval). Pass --allow-post-burst only when the user asked for it.
+ *
  * Video cases require ffmpeg and ffprobe on the runner so each upload gets a
  * valid, visually unique fixture instead of repeatedly sending identical bytes.
  */
@@ -35,6 +38,7 @@ import {
   withTemporaryDirectory,
   withTimeout,
 } from './cdp-harness.mjs';
+import { ALLOW_BURST_FLAG, createRealPostGuard } from './real-post-guard.mjs';
 import {
   createTimedOutSurfaceSummary,
   createXThreePartDraft,
@@ -327,6 +331,24 @@ for (const caseName of requestedCases) {
   }
 }
 
+// Real posts go through the rate guard so a release run cannot burst-post
+// and get test accounts flagged as bots.
+const realPostGuard = autoPost
+  ? createRealPostGuard({ allowBurst: args.includes(ALLOW_BURST_FLAG) })
+  : undefined;
+if (realPostGuard) {
+  const planned = {};
+  for (const caseName of requestedCases) {
+    for (const platform of requestedPlatforms) {
+      if (supportsCase(platform, CASES[caseName])) {
+        planned[platform] = (planned[platform] ?? 0) + repeat;
+      }
+    }
+  }
+  console.log(`[matrix] realPostLedger=${realPostGuard.ledgerPath} allowBurst=${realPostGuard.allowBurst}`);
+  await realPostGuard.assertBudget(planned);
+}
+
 const [imageFixture, videoFixture] = await Promise.all([
   readImageFixture(imagePath),
   readVideoFixture(videoPath),
@@ -426,6 +448,7 @@ for (const caseName of requestedCases) {
   }
 
   for (let i = 1; i <= repeat; i += 1) {
+    await realPostGuard?.beforePost(platforms, `matrix:${caseName}#${i}`);
     const stamp = `${new Date().toISOString().replace(/[:.]/g, '-')}-${caseName}-${i}`;
     const text = caseDef.text(stamp);
     const images = await buildMedia(caseDef.media, imageFixture, videoFixture, stamp);

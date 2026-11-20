@@ -28,6 +28,7 @@ import {
   resolveCdpEndpoint,
   resolveExtensionId,
 } from './cdp-harness.mjs';
+import { guardRealPostRequest } from './real-post-guard.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '..', '..');
@@ -161,6 +162,7 @@ const text = textIdx >= 0
   : `tutti real-post verify ${new Date().toISOString().slice(0, 19)}Z`;
 
 console.log(`[verify] sending POST_REQUEST text="${text.slice(0, 30)}..." images=${includeImage ? 1 : 0}`);
+await guardRealPostRequest(platforms, 'verify-real-multipost');
 const t0 = Date.now();
 const postResp = await popup.evaluate(async ({ text, platforms, image }) => {
   return new Promise((resolve) => {
