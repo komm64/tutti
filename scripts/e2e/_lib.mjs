@@ -6,6 +6,7 @@
  */
 
 import { loadE2eFixture } from './cdp-harness.mjs';
+import { guardRealPostRequest } from './real-post-guard.mjs';
 
 export function timestampedText(label) {
   return `tutti e2e ${label} ${new Date().toISOString()}`;
@@ -37,6 +38,7 @@ export async function ensureLoggedIn(page, selector, label, timeoutMs = 30000) {
  * - images: ImageAttachment[] (base64 data 形式、optional)
  */
 export async function sendPostMessage(ctx, { urlGlob, platform, text, images, autoPost = true }) {
+  if (autoPost) await guardRealPostRequest([platform], `e2e:${platform}`);
   const sw = ctx.serviceWorkers()[0];
   if (!sw) throw new Error('no service worker');
   return await sw.evaluate(

@@ -623,6 +623,11 @@
       "entryCommand": "node scripts/e2e/probe-yt-studio-user.mjs"
     },
     {
+      "path": "scripts/e2e/real-post-guard.mjs",
+      "class": "supported-cli",
+      "usage": "Shared per-SNS real-post rate guard (daily cap + minimum interval) used by every E2E script that sends real posts."
+    },
+    {
       "path": "scripts/e2e/reload-extension.mjs",
       "class": "diagnostic",
       "usage": "Manual inspection, capture, cleanup, or troubleshooting command.",

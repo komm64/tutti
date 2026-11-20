@@ -25,6 +25,7 @@ import {
   resolveCdpEndpoint,
   resolveExtensionId,
 } from './cdp-harness.mjs';
+import { guardRealPostRequest } from './real-post-guard.mjs';
 
 const cdp = resolveCdpEndpoint({ fallback: 'http://127.0.0.1:9223' });
 const fixturePath = resolve(process.env.IMAGE_PATH ?? 'scripts/e2e/fixtures/test-image.png');
@@ -116,6 +117,7 @@ const startedAt = new Date().toISOString();
 console.log(`[surface-urlcapture] extension=${extensionId} started=${startedAt}`);
 console.log(`[surface-urlcapture] posting image-only to ${platforms.join(', ')} autoPost=${autoPost}`);
 
+if (autoPost) await guardRealPostRequest(platforms, 'surface-url-capture-check');
 const popup = await ctx.newPage();
 await popup.goto(`chrome-extension://${extensionId}/popup.html`, { waitUntil: 'domcontentloaded' });
 await popup.waitForTimeout(1000);

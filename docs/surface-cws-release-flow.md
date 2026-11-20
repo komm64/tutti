@@ -175,14 +175,26 @@ Preview must never write history or return post URLs.
 Every result must include a flow trace. Preview results must record
 `flow.submitReached=false`; if preview reaches submit, the gate fails.
 
-Before CWS upload, run at least the affected real-post cases in post mode. For a
-media or URL-capture fix, every selected SNS in that run must return
-`success=true`, `confirmed=true`, `flow.submitReached=true`, no hard verify
-errors, and a captured post URL:
+Before CWS upload, run the affected real-post cases in post mode, and only
+those: pick the SNS whose code changed and the one or two draft shapes the fix
+touches. Every selected SNS in that run must return `success=true`,
+`confirmed=true`, `flow.submitReached=true`, no hard verify errors, and a
+captured post URL:
 
 ```powershell
-node scripts/e2e/surface-posting-matrix.mjs --mode post --cases image-only,text-image,video-only,text-video --platforms x,bluesky,threads,mastodon,misskey,tumblr,instagram
+node scripts/e2e/surface-posting-matrix.mjs --mode post --cases text-image --platforms bluesky,threads
 ```
+
+Real posts are rate-limited per SNS by `scripts/e2e/real-post-guard.mjs`: at
+most 3 requests per rolling 24h and at least 30 minutes between two requests
+(the script waits). The ledger lives outside the repo
+(`%LOCALAPPDATA%	utti-e2eeal-post-ledger.json`, override with
+`TUTTI_REAL_POST_LEDGER`). A run that would exceed the cap fails before posting
+anything. Do not work around it: automated bursts got the X test account
+permanently read-only and the Misskey account flagged as a bot (2026-11-19).
+`--allow-post-burst` skips the limits only when the user explicitly asked for
+it. Cover the remaining shapes with the preview matrix, and spread further real
+posts over later days.
 
 The matrix writes a pasteable JSON report to
 `.tmp/surface-posting-matrix-last.json` by default. Override it when collecting

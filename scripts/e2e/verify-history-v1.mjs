@@ -22,6 +22,7 @@ import {
   resolveCdpEndpoint,
   resolveExtensionId,
 } from './cdp-harness.mjs';
+import { guardRealPostRequest } from './real-post-guard.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '..', '..');
@@ -167,6 +168,7 @@ const tinyPng = keepMedia
     }
   : null;
 
+await guardRealPostRequest(['bluesky'], 'verify-history-v1');
 // POST_REQUEST を bg に送信 → handlePostRequest → recordHistoryEntry が走る
 const postResult = await extPage.evaluate(async ({ text, image }) => {
   return await chrome.runtime.sendMessage({
